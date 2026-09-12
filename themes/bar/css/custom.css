@@ -1,0 +1,203 @@
+/*.skin-blue .content-wrapper, .right-side {
+	background-color: #f0f0f0;
+}
+
+.table-responsive table {
+	border: 1px solid #ccc !important;
+}
+
+.table-responsive table th, .table-responsive table td {
+	border: 1px solid #ccc !important;
+}
+
+.skin-blue .main-header .logo {
+	background-color: #080024 !important;
+}
+
+.skin-blue .main-header .navbar {
+	background-color: #080024 !important;
+}
+
+.skin-blue .main-sidebar {
+	background-color: #080024 !important;
+}
+
+.filters {
+	background-color: #dfdfdf;
+}
+
+.skin-blue .form-horizontal .control-label {
+	text-align: left;
+}*/
+
+
+
+
+
+.skin-blue .table-responsive th {
+	background: #00cdac;  	 
+  	color: #fff;
+	border-right:solid 1px #0bbc9f;
+	border-bottom:solid 1px #00cdac;
+	border-top:solid 1px #00cdac!important;
+	padding: 5px 8px;
+}
+
+.skin-blue .table-responsive th>a {
+	color: #fff;
+	font-weight:bold;
+	
+}
+
+.skin-blue .main-header li.user-header {
+	background-color: #FFF !important;
+}
+
+.skin-blue .dropdown-menu {
+	box-shadow: 0 3px 5px #ccc;
+}
+
+/*.dropdown-menu li>div {
+	width: 50%;
+	display: inline-block;
+}
+*/
+.dropdown-menu li>div a {
+	display: block;
+}
+
+.skin-blue .dropdown-menu>li.user-header {
+	height: auto !important;
+}
+
+.skin-blue .navbar-nav>.user-menu>.dropdown-menu>li.user-header>p {
+	color: #930b29;
+}
+.bootstrap-timepicker-widget.dropdown-menu.open a{
+border: 1px solid #ccc ;
+    border-radius: 4px ;
+}
+#main .form-horizontal .checkbox, #main .form-horizontal .checkbox-inline,
+	#main .form-horizontal .radio, #main .form-horizontal .radio-inline {
+	margin-left: 20px;
+}
+.help-inline.error {
+    color: red;
+}
+
+.chosen-container.chosen-container-multi {
+  background-color: #fff;
+  background-image: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset;
+  color: #555;
+  display: block;
+  font-size: 14px;
+  line-height: 1.42857;
+  padding: 3px 12px;
+  transition: border-color 0.15s ease-in-out 0s, box-shadow 0.15s ease-in-out 0s;
+  width: 100% !important;
+}
+.chosen-container-multi .chosen-choices {border:none!important}
+.chosen-container-active .chosen-choices {
+  
+  box-shadow:none!important;
+}
+
+
+
+/*-----custom css---*/
+.add-item {
+    background-color: #fff8dc;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 10px;
+   min-height: 180px;
+}
+
+.item-wrap textarea {
+  height: 34px;
+  resize: none;
+}
+
+
+.add-item select {  height: 30px; }
+
+.add-bttn-box {
+  display: block;
+  margin-top: 45px;
+}
+
+.add-bttn-box .btn-primary {
+  font-size: 18px;
+  height: 60px;
+  width: 100%;
+}
+
+
+
+.item-list-table {
+  background: #eff0f1 none repeat scroll 0 0;
+}
+.item-list-table .form-vertical {
+  padding: 15px 0!important;
+}
+
+.navbar-nav  .notifications-menu  .dropdown-menu, .navbar-nav .messages-menu  .dropdown-menu, .navbar-nav  .tasks-menu  .dropdown-menu {
+  margin: 0;
+  padding: 0;
+  top: 100%;
+  width: 280px;
+}
+
+.navbar-nav > .notifications-menu > .dropdown-menu > li .menu > li > a {
+  color: #444444;
+  overflow: hidden;
+  padding: 10px;
+  text-overflow: ellipsis;
+}
+
+
+
+.navbar-nav > .notifications-menu > .dropdown-menu > li .menu > li > a, .navbar-nav > .messages-menu > .dropdown-menu > li .menu > li > a, .navbar-nav > .tasks-menu > .dropdown-menu > li .menu > li > a {
+  border-bottom: 1px solid #f4f4f4;
+  display: block;
+  white-space: nowrap;
+}
+
+
+
+/*--------*/
+
+.pagination a { border-radius:0px!important;}
+.bttn-wrap { text-align:center;}
+.margin10 { margin-bottom:10px;}
+.padding2px {padding:2px!important;}
+
+.item-wrap .control-label {font-size: 12.5px;}
+.btn-bottom{height: 140px; position: relative;}
+.btn-bottom button{bottom: 0; position: absolute;}
+
+.add-custom-bttn-box .btn-primary {
+    font-size: 18px;
+    height: 50px;
+       margin-top: 10px;
+    width: 100%;
+}
+
+.mrsred {
+	background-color :  #F08080 !important;
+	color : white !important;
+}
+.mrsorange {
+	background-color :  #FFA07A !important;
+	color : white !important;
+}
+.mrsgreen {
+	background-color :  #006400 !important;
+	color : white !important;
+}
+
+.redText{ background-color:#ffa500;
+color:#fff; }

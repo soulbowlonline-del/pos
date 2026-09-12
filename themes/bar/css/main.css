@@ -1,0 +1,157 @@
+.login-box, .register-box {
+  background: #fff none repeat scroll 0 0;
+  box-sizing: border-box;
+  height: 400px;
+  margin: 10% auto;
+  min-height: 400px;
+  padding: 30px 20px;
+  width: 400px;
+
+}
+
+.login-page, .register-page {
+  background: #d2d6de none repeat scroll 0 0;
+  background: url('../img/login_bg.jpg'); background-repeat:no-repeat;
+  background-size:cover;
+  
+}
+
+.login-logo, .register-logo {
+  font-size: 35px;
+  font-weight: 300;
+  margin-bottom: 25px;
+  text-align: center;
+  color:#fff;
+  font-weight:bold;
+  background-color:#3c8dbc;
+}
+
+.login-logo a, .register-logo a {
+  color: #fff;
+  text-decoration:none;
+}
+
+.login-box-msg, .register-box-msg {
+  margin: 0;
+  padding: 0 20px 20px;
+  text-align: center;
+}
+
+.has-feedback {
+  position: relative;
+}
+
+.has-feedback .form-control-feedback {
+  display: block;
+  height: 34px;
+  line-height: 34px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  top: 0;
+  width: 34px;
+  z-index: 2;
+}
+
+
+.btn.btn-flat {
+  border-radius: 0;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+
+
+.login-box-body, .register-box-body {
+  background: #fff none repeat scroll 0 0;
+  border-top: 0 none;
+  color: #666;
+  padding: 20px;
+}
+
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+
+@media screen and (max-width: 991px) {
+
+ 
+.add-bttn-box {
+  display: block;
+  margin-top: 15px;
+  margin-bottom:15px;
+}
+
+.add-bttn-box .btn-primary {
+  font-size: 18px;
+  height: auto;
+  width: 100%;
+}
+
+.table-responsive {
+  border:none;
+  margin-bottom: 15px;
+  overflow-y: hidden;
+  width: 100%;
+}
+
+
+}
+
+
+@media screen and (max-width: 800) {
+	
+	
+
+}
+
+
+
+
+
+@media screen and (max-width: 767px) {
+
+}
+
+@media (max-width: 767px) {
+
+}
+
+
+
+
+
+@media (max-width: 767px) {
+
+}
+
+
+
+
+/*Menu Mobile Layout*/
+@media (min-width: 768px){
+
+
+}
+
+
+
+
+
+
+
+
+@media (max-width:640px){
+
+}
+
+
+
+
+

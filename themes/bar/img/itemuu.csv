@@ -1,0 +1,8 @@
+﻿Title,"Bill Description","HSN Code","Product Code","Item Type",Status,"Item Category","Item Company","Item Company Category",MRP,"Sale Price","Purchase Price",Weight,"Whole Sale","Opening Stock","Minimum Quantity","Maximum Quantity","Reorder Quantity"
+"Sling Bags",ytyty,553322,444555,Finished,Active,Eraser,"Reynolds Trimax Blue Pen",pen,0.00,0.00,0.00,0.00,0.00,0.00,0,0,0
+Bags,ytyty,553322,444555,Finished,Active,Eraser,"Reynolds Trimax Blue Pen",pen,0.00,0.00,0.00,0.00,0.00,0.00,0,0,0
+"fancy bagsuu",yuyu,553322,445577,Finished,Active,Eraser,"Reynolds Trimax Blue Pen",pen,0.00,0.00,0.00,0.00,0.00,0.00,0,0,0
+notebook,"new notebook",56667,889900,Finished,Active,Pen,Reynold,pen,600.00,600.00,450.00,60.00,500.00,0.00,20,20,20
+"fancy bags","fancy bags",553322,445577,Finished,Active,Pencil,Reynold,pen,300.00,300.00,344.00,34.00,344.00,300.00,10,100,20
+Bags,"All bags",,444555,Finished,Active,Pencil,Reynold,pen,0.00,0.00,0.00,0.00,0.00,0.00,10,50,20
+Stationary,saad,,343fff,Finished,Active,Pencil,Reynold,pen,0.00,0.00,0.00,0.00,0.00,0.00,10,50,20

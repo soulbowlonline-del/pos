@@ -1,0 +1,23 @@
+{
+    "name": "soulbowl/pos",
+    "description": "Legacy POS (Yii 1.x, PHP 5.6). Excel export via PHPExcel.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=5.6",
+        "phpoffice/phpexcel": "^1.8"
+    },
+    "config": {
+        "platform": {
+            "php": "5.6.40"
+        },
+        "audit": {
+            "abandoned": "ignore"
+        },
+        "policy": {
+            "advisories": {
+                "block": false
+            }
+        }
+    }
+}

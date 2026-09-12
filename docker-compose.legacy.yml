@@ -1,0 +1,78 @@
+# Phase 0 — reproducible baseline of the CURRENT app.
+# PHP 5.6 + MySQL 5.7, no application code changes. This is the "known-good"
+# reference we compare every later phase against.
+#
+#   docker compose -f docker-compose.legacy.yml up -d --build
+#   App:        http://localhost:8082
+#   phpMyAdmin: http://localhost:8083   (MySQL on host port 3309)
+#   (Ports avoid clashing with the existing autoservice/it_park_pos stacks on 8092/8093/3307/3308.)
+#
+version: "3.8"
+
+services:
+  php:
+    build: ./docker/php56
+    container_name: pos-php-legacy
+    ports:
+      - "8082:80"
+    volumes:
+      - ./:/var/www/html/
+    depends_on:
+      - db
+    networks:
+      - pos-net
+    environment:
+      TZ: Asia/Kolkata
+
+  db:
+    # Service name "db" matches the host in config/prod-db.php ('mysql:host=db;...')
+    image: mysql:5.7
+    # mysql:5.7 ships no arm64 image; run under amd64 emulation on Apple Silicon.
+    platform: linux/amd64
+    container_name: pos-mysql-legacy
+    restart: always
+    ports:
+      # 3307/3308 are taken by the existing autoservice / it_park_pos stacks.
+      - "3309:3306"
+    environment:
+      # Must equal the password hardcoded in config/prod-db.php (root@123) so the
+      # legacy app connects unchanged. Overridable via .env.
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    # Permissive sql_mode to match PHP 5.6-era MySQL behaviour (zero-dates etc.).
+    # Perf flags matter because mysql:5.7 runs under amd64 emulation on Apple Silicon:
+    #   skip-name-resolve       -> no reverse-DNS per new connection (Yii connects per request)
+    #   innodb-use-native-aio=0 -> AIO is unsupported under emulation; skip the failed retries
+    #   buffer-pool 512M        -> keep the working set in memory
+    command: >-
+      --sql-mode=""
+      --character-set-server=utf8 --collation-server=utf8_general_ci
+      --skip-name-resolve
+      --innodb-use-native-aio=0
+      --innodb-buffer-pool-size=512M
+      --innodb-flush-log-at-trx-commit=2
+    volumes:
+      - db_data_legacy:/var/lib/mysql
+    networks:
+      - pos-net
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pos-phpmyadmin
+    ports:
+      - "8083:80"
+    environment:
+      PMA_HOST: db
+      UPLOAD_LIMIT: 1G
+    depends_on:
+      - db
+    networks:
+      - pos-net
+
+volumes:
+  db_data_legacy:
+
+networks:
+  pos-net:

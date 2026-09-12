@@ -1,0 +1,67 @@
+<?php
+
+$this->breadcrumbs = array(
+	$model->label(2) => array('index'),
+	Yii::t('app', 'Manage'),
+);
+
+
+Yii::app()->clientScript->registerScript('search', "
+$('.search-button').click(function(){
+	$('.search-form').toggle();
+	return false;
+});
+$('.search-form form').submit(function(){
+	$.fn.yiiGridView.update('emp-shift-grid', {
+		data: $(this).serialize()
+	});
+	return false;
+});
+");
+?>
+<div class="page-header">
+	<h1><?php echo Yii::t('app', 'Manage') . ' : ' . GxHtml::encode($model->label(2)); ?></h1>
+</div>
+<p>
+You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&gt; or =) at the beginning of each of your search values to specify how the comparison should be done.
+</p>
+
+
+<?php $this->widget('bootstrap.widgets.TbGridView', array(
+	'id' => 'emp-shift-grid',
+	'type'=>'striped bordered condensed',
+	'dataProvider' => $model->search(),
+	'filter' => $model,
+	'columns' => array(
+		'id',
+		array(
+			'name'=>'emp_id',
+			'value'=>'GxHtml::valueEx($data->emp)',
+			'filter'=>GxHtml::listDataEx(Emp::model()->findAllAttributes(null, true)),
+			),
+		array(
+			'name'=>'shift_id',
+			'value'=>'GxHtml::valueEx($data->shift)',
+			'filter'=>GxHtml::listDataEx(Shift::model()->findAllAttributes(null, true)),
+			),
+		array(
+				'name' => 'status',
+				'value'=>'$data->getStatusOptions($data->status)',
+				'filter'=>EmpShift::getStatusOptions(),
+				),
+		array(
+				'name' => 'type_id',
+				'value'=>'$data->getTypeOptions($data->type_id)',
+				'filter'=>EmpShift::getTypeOptions(),
+				),
+		array(
+			'name'=>'updated_by',
+			'value'=>'GxHtml::valueEx($data->updatedBy)',
+			'filter'=>GxHtml::listDataEx(User::model()->findAllAttributes(null, true)),
+			),
+		array(
+			'class'=>'bootstrap.widgets.TbButtonColumn',
+			'htmlOptions' => array('nowrap'=>'nowrap'),
+		),
+	),
+)); ?>
