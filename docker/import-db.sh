@@ -18,8 +18,14 @@ if [[ -z "$DUMP" || ! -f "$DUMP" ]]; then
   exit 1
 fi
 
-# Load DB creds from .env
-set -a; source ./.env; set +a
+# Read only the two DB values we need from .env — WITHOUT shell-sourcing it.
+# (Sourcing would try to execute values that contain spaces, e.g. an SMTP app
+#  password like "tjuu aevc tpcb abls".) Strips optional surrounding quotes.
+read_env() {
+  sed -n "s/^$1=//p" ./.env | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+DB_ROOT_PASSWORD=$(read_env DB_ROOT_PASSWORD)
+DB_NAME=$(read_env DB_NAME)
 : "${DB_ROOT_PASSWORD:?set in .env}"
 : "${DB_NAME:?set in .env}"
 
