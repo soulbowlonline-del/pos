@@ -248,8 +248,10 @@ abstract class BaseItem extends GxActiveRecord {
 				),
 				'itemVendors' => array (
 						self::HAS_MANY,
-						'itemVendor',
-						'item_detail_id' 
+						'ItemVendor',
+						'item_detail_id',
+						// unordered, and the caller reads [0]
+						'order' => 'id ASC'
 				),
 				'itemStocks' => array (
 						self::HAS_MANY,

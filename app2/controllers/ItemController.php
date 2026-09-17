@@ -488,4 +488,60 @@ class ItemController extends Controller
         $out['status'] = 'OK';
         return $out;
     }
+    /**
+     * POST /v2/api/item/barcode
+     *
+     * One item detail by bar code, with the last stock adjustment and the
+     * first vendor bolted onto the payload.
+     *
+     * Yii 1 builds a CDbCriteria with an order and a limit just above and then
+     * throws it away, calling findByAttributes() instead - so the row is
+     * whichever one MySQL returns first for that bar code. Ordered by id here,
+     * and on the Yii 1 side, so the two agree on which.
+     */
+    public function actionBarcode()
+    {
+        $out = $this->envelope('barcode');
+
+        $post = Yii::$app->request->post();
+        if (empty($post['barcode'])) {
+            $out['message'] = 'Please add barcode to url';
+            return $out;
+        }
+
+        $itemDetail = ItemDetail::find()
+            ->where(['bar_code' => $post['barcode']])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        if (!$itemDetail) {
+            $out['message'] = 'item not found';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $row = $itemDetail->toApiArray();
+
+        $row['last_adjust_time'] = '';
+        $row['last_adjust_by_username'] = '';
+        $logs = $itemDetail->stockAdjustLogs;
+        if (count($logs) > 0) {
+            $row['last_adjust_time'] = $logs[0]->create_time;
+            if ($logs[0]->createUser && $logs[0]->createUser->username) {
+                $row['last_adjust_by_username'] = $logs[0]->createUser->username;
+            }
+        }
+
+        $row['vendor_id'] = '';
+        $row['vendor_name'] = '';
+        $item = $itemDetail->item;
+        if ($item && count($item->itemVendors) > 0 && $item->itemVendors[0]->vendor) {
+            // Yii 1 emits the stringified column; Yii 2's AR casts it to int
+            $row['vendor_id'] = (string)$item->itemVendors[0]->vendor->id;
+            $row['vendor_name'] = $item->itemVendors[0]->vendor->name;
+        }
+
+        $out['barcode_item'] = $row;
+        return $out;
+    }
 }

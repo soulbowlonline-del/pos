@@ -100,4 +100,18 @@ class Item extends ActiveRecord
 
         return bcsub((string)$add, (string)$sub, 3);
     }
+
+    /**
+     * Yii 1 declares this on Item with the foreign key 'item_detail_id', so it
+     * matches item_vendor rows whose item_detail_id equals this *item's* id.
+     * That looks like a mistake in the relation - the column holds item detail
+     * ids elsewhere - but item/barcode reads it, so it is reproduced as
+     * declared rather than corrected. Ordered by id; Yii 1 leaves it unordered
+     * and the caller takes [0].
+     */
+    public function getItemVendors()
+    {
+        return $this->hasMany(ItemVendor::class, ['item_detail_id' => 'id'])
+            ->orderBy(['id' => SORT_ASC]);
+    }
 }

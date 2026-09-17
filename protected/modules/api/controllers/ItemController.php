@@ -1748,9 +1748,12 @@ class ItemController extends GxController {
 			//$itemDetail = ItemDetail::model ()->find ( $criteria );
 			//var_dump($itemDetail);die;
 			
+			// ordered: the criteria built just above, with an order and a limit,
+			// is discarded and this call has none - so the row returned was
+			// whichever MySQL happened to give back for that bar code.
 			$itemDetail = ItemDetail::model ()->findByAttributes ( array (
 				'bar_code' => $_POST['barcode'],
-			) );
+			), array ( 'order' => 'id asc' ) );
 
 			// echo "<pre>"; print_r($itemDetail->item->itemVendors[0]->vendor); die;
 

@@ -13,6 +13,18 @@ class ItemDetail extends ActiveRecord
         return '{{%item_detail}}';
     }
 
+    /**
+     * Yii 1 declares this relation with 'order' => 'create_time DESC' and the
+     * caller reads [0], so it wants the newest adjustment. create_time has
+     * duplicates in this table, which leaves that undefined, so id breaks the
+     * tie on both stacks.
+     */
+    public function getStockAdjustLogs()
+    {
+        return $this->hasMany(StockAdjustLog::class, ['item_detail_id' => 'id'])
+            ->orderBy(['create_time' => SORT_DESC, 'id' => SORT_DESC]);
+    }
+
     public function getItem()
     {
         return $this->hasOne(Item::class, ['id' => 'item_id']);

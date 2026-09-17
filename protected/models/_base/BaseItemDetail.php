@@ -235,7 +235,8 @@ abstract class BaseItemDetail extends GxActiveRecord {
 					self::HAS_MANY,
 					'StockAdjustLog',
 					'item_detail_id',
-					'order' => 'create_time DESC'
+					// create_time has duplicates here and the caller reads [0]
+					'order' => 'create_time DESC, id DESC'
 			),
 		);
 	}
