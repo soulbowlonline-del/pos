@@ -10,4 +10,14 @@ class Setting extends ActiveRecord
     {
         return '{{%setting}}';
     }
+
+    /** Payload from Setting::toArray(). */
+    public function toApiArray()
+    {
+        return [
+            'days' => $this->days === null ? null : (string)$this->days,
+            'date' => date('d/m/Y', strtotime((string)$this->create_time)),
+            'current_date' => date('d/m/Y'),
+        ];
+    }
 }

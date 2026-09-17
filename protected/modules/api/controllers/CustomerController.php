@@ -82,9 +82,11 @@ class CustomerController extends GxController {
 		);
 		$json_list = array ();
 		
+		// No ORDER BY leaves the row order to MySQL, so the same request can
+		// return discounts in a different sequence between calls. Order by id.
 		$discounts = Discount::model ()->findAllByAttributes ( array (
 				'status' => Discount::STATUS_ACTIVE 
-		) );
+		), array ( 'order' => 'id' ) );
 		if (! empty ( $discounts )) {
 			
 			foreach ( $discounts as $discount ) {

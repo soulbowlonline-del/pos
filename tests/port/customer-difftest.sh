@@ -1,0 +1,39 @@
+#!/bin/bash
+# Differential test for the ported customer API read paths.
+#
+# Note: index and get render Customer::toArray*(), which resolves the loyalty
+# row via getOrCreate() and therefore INSERTS a zeroed row for any customer
+# without one. Running this suite mutates the database the same way the live
+# endpoint does. Yii 1 is called first so both frameworks see the same rows.
+BASE=http://127.0.0.1:8084
+PASS=0; FAIL=0
+
+run_case() {
+  local name="$1" a1="$2" a2="$3" q="$4"
+  local r1 r2
+  r1=$(curl -sS --max-time 180 -X POST "$BASE/api/customer/$a1$q")
+  r2=$(curl -sS --max-time 180 -X POST "$BASE/v2/api/customer/$a2$q")
+  if [ "$r1" = "$r2" ]; then
+    printf "  %-38s OK  (%s bytes)\n" "$name" "${#r1}"; PASS=$((PASS+1))
+  else
+    printf "  %-38s MISMATCH  (yii1=%s yii2=%s bytes)\n" "$name" "${#r1}" "${#r2}"; FAIL=$((FAIL+1))
+    echo "      yii1: $(echo "$r1" | head -c 260)"
+    echo "      yii2: $(echo "$r2" | head -c 260)"
+  fi
+}
+
+echo "=== customer API differential (Yii 1 vs Yii 2) ==="
+run_case "setting"                      setting     setting      ""
+run_case "discounts"                    discounts   discounts    ""
+run_case "countryList"                  countryList country-list ""
+run_case "stateList (all)"              stateList   state-list   ""
+run_case "stateList (country_id=1)"     stateList   state-list   "?id=1"
+run_case "stateList (no matches)"       stateList   state-list   "?id=99999"
+run_case "cityList (all)"               cityList    city-list    ""
+run_case "cityList (state_id=1)"        cityList    city-list    "?id=1"
+run_case "cityList (no matches)"        cityList    city-list    "?id=99999"
+run_case "get (customer 1)"             get         get          "?id=1"
+run_case "get (nonexistent)"            get         get          "?id=99999999"
+run_case "index (all customers)"        index       index        ""
+echo
+echo "  passed: $PASS   mismatched: $FAIL"

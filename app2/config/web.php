@@ -51,6 +51,9 @@ return [
                 // what Yii 1 serves at /api/loyalty/preRedeemPoints.
                 'POST api/loyalty/<action:[\w-]+>' => 'loyalty/<action>',
                 'POST api/emp/<action:[\w-]+>' => 'emp/<action>',
+                // No method prefix: the Yii 1 routes answer GET and POST alike,
+                // and several of these take an id from the query string.
+                'api/customer/<action:[\w-]+>' => 'customer/<action>',
             ],
         ],
         'response' => [

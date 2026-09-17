@@ -32,6 +32,17 @@ class CustomerLoyalty extends ActiveRecord
         return $loyalty;
     }
 
+    /** Payload from CustomerLoyalty::asArray() on the Yii 1 side. */
+    public function asArray()
+    {
+        return [
+            'customer_id' => $this->customer_id === null ? null : (string)$this->customer_id,
+            'total_points' => $this->total_points,
+            'lifetime_earned' => $this->lifetime_earned,
+            'lifetime_redeemed' => $this->lifetime_redeemed,
+        ];
+    }
+
     /**
      * Credits points and records an EARN transaction.
      *
