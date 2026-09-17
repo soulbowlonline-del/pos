@@ -45,7 +45,7 @@ class CustomerOtp extends ActiveRecord
     {
         $otp = static::find()
             ->where(['customer_id' => $customerId, 'otp_code' => $otpCode, 'is_verified' => 0])
-            ->orderBy(['created_at' => SORT_DESC])
+            ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC]) // id breaks the 1-second tie
             ->one();
 
         if (!$otp) {

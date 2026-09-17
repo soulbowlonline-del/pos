@@ -193,7 +193,7 @@ class LoyaltyController extends GxController
         $criteria = new CDbCriteria();
         $criteria->condition = 'customer_id = :customer_id';
         $criteria->params = [':customer_id' => $customerId];
-        $criteria->order = 'created_at DESC';
+        $criteria->order = 'created_at DESC, id DESC'; // id breaks the 1-second tie
         $criteria->limit = $limit;
         
         $transactions = LoyaltyTransaction::model()->findAll($criteria);

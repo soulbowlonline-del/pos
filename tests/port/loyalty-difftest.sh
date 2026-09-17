@@ -16,7 +16,13 @@ mysqlq() { docker exec -i pos-mysql-8 sh -c "mysql -uroot -p\$MYSQL_ROOT_PASSWOR
 reset_fixture() {
   cat <<SQL | mysqlq
 DELETE FROM tbl_loyalty_transactions WHERE customer_id=$CUST;
-UPDATE tbl_customer_loyalty SET total_points=1000, lifetime_earned=1000, lifetime_redeemed=0 WHERE customer_id=$CUST;
+-- Upsert rather than UPDATE: an UPDATE silently affects zero rows when the
+-- loyalty row is absent, and the endpoint then creates a fresh zeroed one -
+-- so the suite would run against 0 points instead of 1000 and report a
+-- mismatch that looks like a port defect.
+DELETE FROM tbl_customer_loyalty WHERE customer_id=$CUST;
+INSERT INTO tbl_customer_loyalty (customer_id, total_points, lifetime_earned, lifetime_redeemed)
+VALUES ($CUST, 1000, 1000, 0);
 SQL
 }
 

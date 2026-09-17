@@ -205,7 +205,7 @@ class LoyaltyController extends Controller
 
         $rows = LoyaltyTransaction::find()
             ->where(['customer_id' => $customerId])
-            ->orderBy(['created_at' => SORT_DESC])
+            ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC]) // id breaks the 1-second tie
             ->limit($limit)
             ->all();
 

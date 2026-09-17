@@ -6,6 +6,7 @@ use app\models\City;
 use app\models\Country;
 use app\models\Customer;
 use app\models\CustomerOtp;
+use app\models\CustomerOtpVerification;
 use app\models\Discount;
 use app\models\Order;
 use app\models\Outlet;
@@ -25,11 +26,9 @@ use yii\web\Response;
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
  *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
- *              update
+ *              update, verifywhatappotp, getOrderHold
  *
  * Not ported - needs the Order model:
- *   getOrderHold    reads an OrderHold and then deletes it, so it cannot be
- *                   compared without rebuilding the fixture between calls
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
  *   pulls in the core POS entity. It belongs with the order module's port, not
  *   with customer.
@@ -493,6 +492,61 @@ class CustomerController extends Controller
         $out['status'] = 'OK';
         $out['profile'] = $model->toApiArray();
         $out['message'] = 'Customer is updated successfully';
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/verifywhatappotp?id=N&otp=CODE
+     *
+     * The older WhatsApp OTP flow, backed by its own table. Marks the customer
+     * verified (is_enable_wa = 2) on success.
+     *
+     * Its companion sentwhatappotp is not ported - it sends a real message.
+     */
+    public function actionVerifywhatappotp($id, $otp)
+    {
+        $out = $this->envelope('verifywhatappotp');
+
+        $model = Customer::findOne($id);
+        if (!$model) {
+            $out['message'] = 'user not found';
+            return $out;
+        }
+
+        // Yii 1 sets the failure message first and overwrites it on success.
+        $out['message'] = 'in-correct otp';
+
+        if (CustomerOtpVerification::verifyOtp($model->id, $otp)) {
+            $model->is_enable_wa = 2;
+            $model->save(false);
+            $out['status'] = 'OK';
+            $out['message'] = 'verified';
+        }
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/get-order-hold?id=N
+     *
+     * Returns a held order in full and then DELETES it - the caller is resuming
+     * the order at the till, so the hold is consumed. Reproduced, including the
+     * deletion, which is why this endpoint needs its fixture rebuilt between
+     * comparison runs.
+     */
+    public function actionGetOrderHold($id)
+    {
+        $out = $this->envelope('getOrderHold');
+
+        $order = OrderHold::findOne($id);
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        // Rendered before the delete, as in Yii 1.
+        $out['order'][] = $order->toApiArray();
+        $order->delete();
         return $out;
     }
 }

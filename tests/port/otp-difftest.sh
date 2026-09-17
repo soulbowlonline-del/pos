@@ -16,7 +16,10 @@ run_case() {
   # verified_at is stamped at the moment of the call, so the two runs differ by
   # a second or so. Normalised rather than compared.
   norm() { sed -E 's/"verified_at":"[^"]*"/"verified_at":"<TS>"/g'; }
-  reset; local r1; r1=$(curl -sS --max-time 120 -X POST -d "$data" "$BASE/api/customer/verifyOTP" | norm); local s1; s1=$(state)
+  # Warm-up: the profile in the response embeds the loyalty row, which is
+  # created on first read. Touch it first so both sides read it persisted.
+  reset; curl -sS --max-time 120 -X POST -d "customer_id=9990001" "$BASE/api/customer/get?id=9990001" >/dev/null 2>&1
+  local r1; r1=$(curl -sS --max-time 120 -X POST -d "$data" "$BASE/api/customer/verifyOTP" | norm); local s1; s1=$(state)
   reset; local r2; r2=$(curl -sS --max-time 120 -X POST -d "$data" "$BASE/v2/api/customer/verify-otp" | norm); local s2; s2=$(state)
   if [ "$r1" = "$r2" ] && [ "$s1" = "$s2" ]; then
     printf "  %-34s OK  (%s bytes)\n" "$name" "${#r1}"; PASS=$((PASS+1))

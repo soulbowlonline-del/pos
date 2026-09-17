@@ -108,7 +108,7 @@ class CustomerOtp extends CActiveRecord
             ':customer_id' => $customerId,
             ':otp_code' => $otpCode
         );
-        $criteria->order = 'created_at DESC';
+        $criteria->order = 'created_at DESC, id DESC'; // id breaks the 1-second tie
         
         $otp = self::model()->find($criteria);
         

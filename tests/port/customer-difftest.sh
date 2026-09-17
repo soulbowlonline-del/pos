@@ -11,6 +11,8 @@ PASS=0; FAIL=0
 run_case() {
   local name="$1" a1="$2" a2="$3" q="$4"
   local r1 r2
+  # Warm-up: see the note on create-on-read in the port docs. Discarded.
+  curl -sS --max-time 180 -X POST "$BASE/api/customer/$a1$q" >/dev/null 2>&1
   r1=$(curl -sS --max-time 180 -X POST "$BASE/api/customer/$a1$q")
   r2=$(curl -sS --max-time 180 -X POST "$BASE/v2/api/customer/$a2$q")
   if [ "$r1" = "$r2" ]; then

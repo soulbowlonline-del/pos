@@ -223,7 +223,7 @@ class Order extends BaseOrder
 			$loyaltyInfo = LoyaltyTransaction::model()->find(array(
 				'condition' => 'order_id = :order_id AND transaction_type = :type',
 				'params' => array(':order_id' => $model->id, ':type' => 'REDEEM'),
-				'order' => 'created_at DESC',
+				'order' => 'created_at DESC, id DESC', // id breaks the 1-second tie
 			));
 			$json_entry ['redeemed_points'] = 0;
 			if ($loyaltyInfo) {

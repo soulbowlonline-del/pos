@@ -229,7 +229,7 @@ class Order extends ActiveRecord
         // Most recent redemption against this order, if any.
         $redeemed = LoyaltyTransaction::find()
             ->where(['order_id' => $this->id, 'transaction_type' => LoyaltyTransaction::TYPE_REDEEM])
-            ->orderBy(['created_at' => SORT_DESC])
+            ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC]) // id breaks the 1-second tie
             ->one();
         $json['redeemed_points'] = $redeemed ? $redeemed->points : 0;
 
