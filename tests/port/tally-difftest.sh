@@ -9,6 +9,12 @@ for d in 2026-09-15 2026-09-14 2026-09-13 2026-08-20 2026-08-01 1990-01-01; do
   else printf "  cashsale %-12s MISMATCH (yii1=%s yii2=%s)\n" "$d" "${#r1}" "${#r2}"; FAIL=$((FAIL+1))
        echo "      yii1: $(echo "$r1" | head -c 240)"; echo "      yii2: $(echo "$r2" | head -c 240)"; fi
 done
+for d in 2026-09-16 2026-09-15 2026-09-14 2026-09-12 1990-01-01; do
+  r1=$(curl -sS --max-time 300 -X POST "$BASE/api/tally/stockreturn?date=$d")
+  r2=$(curl -sS --max-time 300 -X POST "$BASE/v2/api/tally/stockreturn?date=$d")
+  if [ "$r1" = "$r2" ]; then printf "  stockreturn %-12s OK  (%s bytes)\n" "$d" "${#r1}"; PASS=$((PASS+1))
+  else printf "  stockreturn %-12s MISMATCH (yii1=%s yii2=%s)\n" "$d" "${#r1}" "${#r2}"; FAIL=$((FAIL+1)); fi
+done
 # An empty date is not compared: it is broken on both stacks in different ways
 # (Yii 1 throws CDbException, Yii 2 would run to the execution limit), and the
 # port deliberately short-circuits it. See the commit message.

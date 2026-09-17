@@ -2,19 +2,19 @@
 namespace app\controllers;
 
 use Yii;
+use app\models\ItemReturnItem;
 use yii\web\Controller;
 use yii\web\Response;
 
 /**
  * Partial Yii 2 port of protected/modules/api/controllers/TallyController.php.
  *
- * Ported: cashsale - the per-tax-rate GST summary used for the Tally export.
+ * Ported: cashsale    - the per-tax-rate GST summary for the export
+ *         stockreturn - returns to vendors, for the credit-note side
  * It is raw SQL end to end and depends on no model payloads, which makes it
  * portable in isolation.
  *
  * Not ported:
- *   stockreturn   needs ItemReturnItem::toTallyArray() and the vendor/parent
- *                 vendor chain behind it
  *   paymentreport, b2btaxwise, b2bsales
  *                 need PurchaseBillDetail::toArray1(), which calls eleven tax
  *                 arithmetic helpers (getVendorTAXNO, getTotalGstPer,
@@ -138,6 +138,52 @@ class TallyController extends Controller
 
         $out['status'] = 'OK';
         $out['grouptax'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/tally/stockreturn?date=YYYY-MM-DD
+     *
+     * Vendor returns saved against a GRN on the given day, excluding returns
+     * with a zero total.
+     *
+     * The Yii 1 version concatenates $date into the condition; bound here.
+     * Its tax columns are zeroed selectively depending on whether the vendor
+     * and outlet share a state - see ItemReturnItem::getTaxPercentage().
+     */
+    public function actionStockreturn($date = null)
+    {
+        $out = [
+            'controller' => 'tally',
+            'action' => 'stockreturn',
+            'status' => 'NOK',
+        ];
+
+        if ($date === null || $date === '') {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $items = ItemReturnItem::find()
+            ->alias('t')
+            ->joinWith(['itemReturn itemReturn'], true, 'INNER JOIN')
+            ->andWhere(['t.type_id' => 0])
+            ->andWhere(['DATE(itemReturn.grn_save_date)' => $date])
+            ->andWhere(['!=', 'itemReturn.total_amt', 0])
+            ->orderBy(['t.id' => SORT_ASC])
+            ->all();
+
+        if (empty($items)) {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($items as $item) {
+            $list[] = $item->toTallyApiArray();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
         return $out;
     }
 }
