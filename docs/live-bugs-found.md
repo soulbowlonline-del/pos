@@ -67,6 +67,48 @@ iteration reports null instead. That only changes output where 5.6 was already
 wrong, but it is a change to a tax report, so it is called out here. Moving the
 one added line above the loop would restore the old carry-over exactly.
 
+### item/barcode 500s for every bar code that matches something
+
+`BaseItem::relations()` declared the item-vendor relation as
+
+```php
+'itemVendors' => array(self::HAS_MANY, 'itemVendor', 'item_detail_id')
+```
+
+with a lowercase class name. The model is `ItemVendor`, in `ItemVendor.php`, and
+Yii's autoloader includes `<class>.php` - so this resolved only on a
+case-insensitive filesystem. On this host:
+
+```
+include(itemVendor.php): Failed to open stream: No such file or directory
+```
+
+`/api/item/barcode` reads that relation for any bar code that matches an item
+detail, so the endpoint worked only for bar codes that matched nothing.
+
+**Fixed**: corrected to `ItemVendor`.
+
+Left alone: the relation's foreign key is `item_detail_id` on a relation
+declared on `Item`, so it matches `tbl_item_vendor` rows whose `item_detail_id`
+equals the *item's* id. That column holds item detail ids everywhere else, so
+this looks like a second mistake in the same line - but changing which vendor an
+item reports is a decision about the data. **Decision needed.**
+
+### Twelve web UI pages broken by PHP 8, and 55 that never worked
+
+Covered in full in `web-ui-php8.md`, including the four causes and what was
+done about each. Summarised here so this file remains the index:
+
+  - Twelve pages were 200 on PHP 5.6 and 500 on 8.3 - null passed to `strcmp`,
+    `trim`, `strpos` and `strlen`, `count(null)` reaching the framework, and
+    `date(create_time) < ""` which MySQL 8 rejects. **All fixed.**
+  - Every `/<controller>/search` began `new Job('search')`, a scaffold
+    placeholder for a model that does not exist. 55 endpoints, returning 500
+    since they were written, on 5.6 as much as 8.3. **All fixed.**
+  - Nineteen further pages fail identically on both stacks - missing view files,
+    a relation that does not exist, an import-path problem. **Not fixed**; each
+    needs someone who knows what the page was meant to show.
+
 ### Five mail functions with the statement terminator commented out
 
 `protected/models/User.php` — a trailing `.` where a `;` belonged swallowed the
