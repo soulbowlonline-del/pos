@@ -356,6 +356,12 @@ class UserController extends GxController {
 		if (isset ( $id )) {
 			$model = $this->loadModel ( $id, 'User' );
 			if ($model->hasAttribute ( $type )) {
+				// $objects is never assigned in this action, so this call has
+				// always failed - on PHP 8 with a warning-turned-500, and before
+				// that with an empty provider. An empty array keeps the previous
+				// effective behaviour without the error; what it should actually
+				// provide needs someone who knows the intent of this screen.
+				$objects = array();
 				$dataProvider = new CArrayDataProvider ( $objects );
 				$this->renderPartial ( '/' . $view . '/_list', array (
 						'dataProvider' => $dataProvider 

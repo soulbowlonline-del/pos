@@ -138,9 +138,12 @@ class EmpController extends GxController {
 
 						if(isset($_POST ['Emp'] ['password']) &&  ($_POST ['Emp'] ['password'] != '')){
 							$usermodel->password = md5 ( $_POST ['Emp'] ['password'] );
-						}else{
-							$usermodel->password = $password;
 						}
+						// password left unset when none is supplied. The else branch
+						// here assigned $password, which is never defined in this
+						// scope: on PHP 5.6 that wrote an empty password and left the
+						// account unusable, and on PHP 8 it raises a warning that
+						// Yii 1 turns into a 500 before the user is saved at all.
 						$usermodel->username = $_POST ['Emp'] ['username'];
 						$usermodel->email = $_POST ['Emp'] ['email'];
 						$usermodel->contact_no = $_POST ['Emp'] ['contact_no'];

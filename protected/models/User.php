@@ -249,7 +249,7 @@ class User extends BaseUser
 			$body 	.= 'Admin' ."\r\n";
 		
 			$headers = 'From: ' . Yii::app()->params['adminEmail'] . "\r\n" .
-					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n" .
+					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 			//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
 			@mail($to, $subject, $body, $headers);
@@ -274,7 +274,7 @@ class User extends BaseUser
 		$body 	.= 'Admin' ."\r\n";
 
 		$headers = 'From: ' . Yii::app()->params['adminEmail'] . "\r\n" .
-				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n" .
+				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
 		@mail($to, $subject, $body, $headers);
@@ -297,7 +297,7 @@ public function mailtoadmin()
 		
 
 		$headers = 'From: ' . Yii::app()->params['adminEmail'] . "\r\n" .
-				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n" .
+				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
 		@mail($to, $subject, $body, $headers);
@@ -327,7 +327,7 @@ public function mailtoadmin()
 			$body 	.= 'Admin' ."\r\n";
 
 			$headers = 'From: ' . Yii::app()->params['adminEmail'] . "\r\n" .
-					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n" .
+					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 			//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
 			@mail($to, $subject, $body, $headers);
@@ -385,7 +385,7 @@ public function mailtoadmin()
 		$body 	.= 'Admin' ."\r\n";
 
 		$headers = 'From: ' . Yii::app()->params['adminEmail'] . "\r\n" .
-				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n" .
+				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
 		@mail($to, $subject, $body, $headers);

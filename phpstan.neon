@@ -1,0 +1,22 @@
+# Sweep configuration: this is not an attempt to make the codebase pass static
+# analysis. It targets one family of defect - the reads of undefined variables
+# and nulls-into-scalar-parameters that PHP 5.6 tolerated and PHP 8 reports,
+# which Yii 1's error handler then turns into a 500.
+parameters:
+    level: 2
+    paths:
+        - protected/components
+        - protected/controllers
+        - protected/models
+        - protected/modules
+        - config
+    # The framework is scanned so Yii 1's classes resolve, but is not analysed.
+    scanDirectories:
+        - framework
+        - ext-prod
+    excludePaths:
+        analyse:
+            - protected/models/_base
+            - protected/extensions
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false

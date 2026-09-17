@@ -212,7 +212,10 @@ class MrnDetail extends BaseMrnDetail {
 	}
 	public function getCssClass()
 	{
-		$cssClass;
+		// Was a bare `$cssClass;` - a statement that reads an undefined
+		// variable and discards it, which is a PHP 8 warning and therefore a
+		// 500 from Yii 1's error handler on every call. Initialised instead.
+		$cssClass = '';
 		$purchase_amount = $this->getPurchaseAmount();
 		$sale_amount = $this->getSaleAmount();
 		$purchase_qty = $this->getPurchaseQty();
