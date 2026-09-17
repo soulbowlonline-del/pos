@@ -38,6 +38,10 @@ if (getenv('POS_V2_COOKIE_KEY') === false || getenv('POS_V2_COOKIE_KEY') === '')
 defined('YII_DEBUG') or define('YII_DEBUG', getenv('POS_V2_DEBUG') === '1');
 defined('YII_ENV') or define('YII_ENV', 'prod');
 
+// The same outbound stub the Yii 1 application loads - one file, so the
+// two cannot drift. Inert unless POS_STUB_OUTBOUND=1.
+require_once $root . '/lib/PosOutbound.php';
+
 require $root . '/vendor/autoload.php';
 require $root . '/vendor/yiisoft/yii2/Yii.php';
 

@@ -252,7 +252,9 @@ class User extends BaseUser
 					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 			//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-			@mail($to, $subject, $body, $headers);
+			(class_exists('PosOutbound') && PosOutbound::isStubbed())
+				? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, array('subject' => $subject, 'body' => $body, 'headers' => $headers))
+				: @mail($to, $subject, $body, $headers);
 
 			//if ( YII_ENV == 'dev' && !isset( Yii::app()->controller->module ) ) echo $body;
 			//exit();
@@ -277,7 +279,9 @@ class User extends BaseUser
 				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-		@mail($to, $subject, $body, $headers);
+		(class_exists('PosOutbound') && PosOutbound::isStubbed())
+				? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, array('subject' => $subject, 'body' => $body, 'headers' => $headers))
+				: @mail($to, $subject, $body, $headers);
 
 		if ( YII_ENV == 'dev' && !isset( Yii::app()->controller->module ) ) echo $body;
 	}
@@ -300,7 +304,9 @@ public function mailtoadmin()
 				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-		@mail($to, $subject, $body, $headers);
+		(class_exists('PosOutbound') && PosOutbound::isStubbed())
+				? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, array('subject' => $subject, 'body' => $body, 'headers' => $headers))
+				: @mail($to, $subject, $body, $headers);
 
 		if ( YII_ENV == 'dev' && !isset( Yii::app()->controller->module ) ) echo $body;
 	}
@@ -330,7 +336,9 @@ public function mailtoadmin()
 					'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 			//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-			@mail($to, $subject, $body, $headers);
+			(class_exists('PosOutbound') && PosOutbound::isStubbed())
+				? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, array('subject' => $subject, 'body' => $body, 'headers' => $headers))
+				: @mail($to, $subject, $body, $headers);
 
 			//if ( YII_ENV == 'dev' )
 			return $password;
@@ -388,7 +396,9 @@ public function mailtoadmin()
 				'Reply-To: ' . Yii::app()->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
 		//	'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-		@mail($to, $subject, $body, $headers);
+		(class_exists('PosOutbound') && PosOutbound::isStubbed())
+				? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, array('subject' => $subject, 'body' => $body, 'headers' => $headers))
+				: @mail($to, $subject, $body, $headers);
 
 		if ( YII_ENV == 'dev' && !isset( Yii::app()->controller->module ) ) echo $body;
 

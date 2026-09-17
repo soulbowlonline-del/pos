@@ -24,6 +24,12 @@ if (is_file($__envFile)) {
 }
 unset($__envFile);
 
+// --- Outbound stub transport ------------------------------------------------
+// Loaded unconditionally but inert unless POS_STUB_OUTBOUND=1. Both this
+// application and the Yii 2 one require the same file so the two stubs
+// cannot drift apart.
+require_once dirname(__FILE__) . '/lib/PosOutbound.php';
+
 // --- Composer autoloader ---------------------------------------------------
 // Third-party libraries (PHPMailer 6, mPDF 8, PhpSpreadsheet) are managed by
 // Composer. Nothing previously required this file, so vendor/ was unreachable;

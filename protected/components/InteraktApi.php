@@ -21,6 +21,15 @@ class InteraktApi extends CApplicationComponent
     if (!empty($queryParams)) {
       $url .= '?' . http_build_query($queryParams);
     }
+    // Stubbed outbound: record the call and answer with a canned response
+    // instead of making it. Inert unless POS_STUB_OUTBOUND=1.
+    if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+      return PosOutbound::intercept(
+        PosOutbound::CHANNEL_HTTP,
+        strtoupper($method) . ' ' . $url,
+        $data
+      );
+    }
     // echo $url; die;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -111,6 +120,11 @@ class InteraktApi extends CApplicationComponent
   }
 
   public function uploadFileToSoulBowl($fileName, $id) {
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			return PosOutbound::intercept(
+				PosOutbound::CHANNEL_FTP, 'ftp-upload', array('file' => $fileName, 'id' => $id)
+			);
+		}
     $tofile = 'whatsapp'.$fileName; 
     $uploadFileName = $id.'.pdf';
     $ftp_server =  "143.110.254.206";
@@ -191,6 +205,11 @@ class InteraktApi extends CApplicationComponent
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://sect4.soulbowl.in/pos/uploadProductOrder.php';
 		$upload_url = 'http://61.2.241.71/pos/uploadProductOrder.php';
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			return PosOutbound::intercept(
+				PosOutbound::CHANNEL_UPLOAD, $upload_url, array('file' => basename($file_path))
+			);
+		}
 
 		if (!file_exists($file_path)) {
 			return 'Error: File not found.';

@@ -6,11 +6,10 @@ use yii\db\ActiveRecord;
 /**
  * Ported from protected/models/CustomerOtp.php (Yii 1).
  *
- * Only the verification path is ported. generateOTP() is not, because the one
- * caller that uses it - customer/sendOTP - also despatches a real WhatsApp
- * message, so it cannot be exercised by a comparison test without messaging a
- * real phone number. That action stays with Yii 1 until there is a stubbed
- * transport to send through.
+ * The generate and verify paths are both ported. generateOTP()'s caller,
+ * customer/sendOTP, despatches a WhatsApp message - that goes through the
+ * shared outbound stub, so with POS_STUB_OUTBOUND=1 it can be compared without
+ * anything leaving the server.
  */
 class CustomerOtp extends ActiveRecord
 {
@@ -75,5 +74,50 @@ class CustomerOtp extends ActiveRecord
         }
 
         return ['success' => false, 'message' => 'Failed to verify OTP'];
+    }
+
+    /**
+     * Deletes a customer's expired or already-used codes.
+     *
+     * Reproduced including its flaw: expires_at is written from PHP's clock but
+     * compared here against MySQL's NOW(), and the two run 5h30m apart in this
+     * stack, so expired codes survive far longer than intended. Fixing it means
+     * aligning the clocks, which is a configuration change beyond this port.
+     */
+    public static function cleanupExpiredOTPs($customerId)
+    {
+        static::deleteAll([
+            'and',
+            ['customer_id' => $customerId],
+            ['or', ['<', 'expires_at', new \yii\db\Expression('NOW()')], ['is_verified' => 1]],
+        ]);
+    }
+
+    /** Issues a fresh six-digit code, valid for five minutes. */
+    public static function generateOTP($customerId, $phoneNumber)
+    {
+        self::cleanupExpiredOTPs($customerId);
+
+        $otpCode = str_pad((string)mt_rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+
+        $otp = new static();
+        $otp->customer_id = $customerId;
+        $otp->phone_number = $phoneNumber;
+        $otp->otp_code = $otpCode;
+        $otp->attempts = 0;
+        $otp->is_verified = 0;
+        $otp->expires_at = $expiresAt;
+        $otp->created_at = date('Y-m-d H:i:s');
+
+        if ($otp->save(false)) {
+            return [
+                'success' => true,
+                'otp_id' => $otp->id,
+                'otp_code' => $otpCode,
+                'expires_at' => $expiresAt,
+            ];
+        }
+        return ['success' => false, 'message' => 'Failed to generate OTP'];
     }
 }

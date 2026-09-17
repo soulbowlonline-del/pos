@@ -7,6 +7,7 @@ use app\models\Country;
 use app\models\Customer;
 use app\models\CustomerOtp;
 use app\models\CustomerOtpVerification;
+use app\components\OTPService;
 use app\models\Discount;
 use app\models\Order;
 use app\models\Outlet;
@@ -26,7 +27,7 @@ use yii\web\Response;
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
  *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
- *              update, verifywhatappotp, getOrderHold
+ *              update, verifywhatappotp, getOrderHold, sendOTP
  *
  * Not ported - needs the Order model:
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
@@ -547,6 +548,84 @@ class CustomerController extends Controller
         // Rendered before the delete, as in Yii 1.
         $out['order'][] = $order->toApiArray();
         $order->delete();
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/send-otp
+     *
+     * Issues a code and despatches it over WhatsApp. The despatch goes through
+     * the shared outbound stub, so with POS_STUB_OUTBOUND=1 nothing leaves the
+     * server and the attempt is recorded for comparison instead.
+     *
+     * Note the Yii 1 behaviour on a failed send, reproduced here: the OTP has
+     * already been generated at that point, so the action still reports OK and
+     * adds a 'warning' key rather than failing the request.
+     */
+    public function actionSendOtp()
+    {
+        $out = $this->envelope('sendOTP');
+        $req = Yii::$app->request;
+
+        $phoneNumber = $req->post('phone_number');
+        $customerId = $req->post('customer_id');
+
+        if (!$phoneNumber) {
+            $out['message'] = 'Phone number is required';
+            return $out;
+        }
+
+        $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
+        if (strlen($phoneNumber) != 10) {
+            $out['message'] = 'Invalid phone number format';
+            return $out;
+        }
+
+        $model = $customerId
+            ? Customer::findOne($customerId)
+            : Customer::getUserByContactNo($phoneNumber);
+
+        if (!$model) {
+            $out['message'] = 'Unable to find customer with provided details';
+            return $out;
+        }
+
+        if (CustomerOtp::hasPendingOTP($model->id)) {
+            $out['message'] = 'OTP already sent. Please wait before requesting again.';
+            return $out;
+        }
+
+        $otpResult = CustomerOtp::generateOTP($model->id, $phoneNumber);
+        if (!$otpResult['success']) {
+            $out['message'] = $otpResult['message'];
+            return $out;
+        }
+
+        try {
+            OTPService::sendOTPWhatsApp($phoneNumber, $model->name, $otpResult['otp_code']);
+
+            $model->is_enable_wa = 1;
+            $model->save(false);
+
+            $out['status'] = 'OK';
+            $out['message'] = 'OTP sent successfully via WhatsApp';
+            $out['data'] = [
+                'customer_id' => (string)$model->id,
+                'phone_number' => $phoneNumber,
+                'otp_expires_in' => 300,
+                'otp_id' => (string)$otpResult['otp_id'],
+            ];
+        } catch (\Throwable $e) {
+            $out['message'] = 'OTP generated but failed to send via WhatsApp: ' . $e->getMessage();
+            $out['status'] = 'OK';
+            $out['data'] = [
+                'customer_id' => (string)$model->id,
+                'phone_number' => $phoneNumber,
+                'otp_expires_in' => 300,
+                'otp_id' => (string)$otpResult['otp_id'],
+                'warning' => 'SMS delivery may have failed',
+            ];
+        }
         return $out;
     }
 }
