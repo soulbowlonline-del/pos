@@ -28,5 +28,9 @@ cmp_case "getItem (unknown code)"     "/api/item/getItem?code=NOSUCHCODE" "/v2/a
 for c in $CODES; do
   cmp_case "getItem $c!99.50" "/api/item/getItem?code=$c!99.50" "/v2/api/item/get-item?code=$c!99.50"
 done
+
+for q in "?name=PO" "?name=RICE" "?title=OIL" "?name=P&title=OIL" "?rate=100" "?name=ZZZNOMATCH" "" "?name=A&rate=50"; do
+  cmp_case "search ${q:-(no filter)}" "/api/item/search$q" "/v2/api/item/search$q"
+done
 echo
 echo "  passed: $PASS   mismatched: $FAIL"

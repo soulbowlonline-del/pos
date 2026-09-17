@@ -440,4 +440,39 @@ class ItemDetail extends ActiveRecord
 
         return $json;
     }
+
+    /**
+     * Stock available for sale, from ItemDetail::checkStock().
+     *
+     * The first active detail row for an item is treated as always in stock and
+     * returns the sentinel 2 without consulting tbl_item_stock at all; every
+     * other row sums its own stock balances. Negative totals clamp to 0.
+     * Callers only ever test "> 0", so the 2 is a flag rather than a quantity.
+     */
+    public function checkStock()
+    {
+        $remaining = 0;
+
+        $detail = static::find()
+            ->where(['id' => $this->id, 'status' => self::STATUS_ACTIVE])
+            ->one();
+        if (!$detail) {
+            return 0;
+        }
+
+        $first = static::find()
+            ->where(['item_id' => $detail->item_id, 'status' => self::STATUS_ACTIVE])
+            ->orderBy(['id' => SORT_ASC])
+            ->limit(1)
+            ->one();
+
+        if ($first && $first->id == $detail->id) {
+            return 2;
+        }
+
+        foreach (ItemStock::findAll(['item_detail_id' => $detail->id]) as $stock) {
+            $remaining += $stock->balance_qty;
+        }
+        return $remaining < 0 ? 0 : $remaining;
+    }
 }

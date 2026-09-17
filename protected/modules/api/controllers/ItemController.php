@@ -713,6 +713,10 @@ class ItemController extends GxController {
 		}
 		$criteria->addCondition('item.status ='.Item::STATUS_ACTIVE);
 		$criteria->addCondition('t.status ='.ItemDetail::STATUS_ACTIVE);
+		// Deterministic search results. Without an order the LIMIT 50 took
+		// whichever fifty rows MySQL happened to return, so the same search
+		// could list different items between calls.
+		$criteria->order = 't.id ASC';
 		$itemdetails = ItemDetail::model ()->findAll( $criteria );
 		Yii::log ( CVarDumper::dumpAsString ( $criteria ), CLogger::LEVEL_WARNING, '$criteria' );
 	/* 	if ($items) {

@@ -6,6 +6,8 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Item.php (Yii 1). */
 class Item extends ActiveRecord
 {
+    public const STATUS_ACTIVE = 0;
+
     public static function tableName()
     {
         return '{{%item}}';
