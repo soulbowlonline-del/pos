@@ -1,323 +1,147 @@
 # PHP 8 fragility sweep
 
-Static analysis (PHPStan level 2) across `protected/`, looking for one family of
-defect: reads of undefined variables.
+PHP 5.6 let a program read a variable that was never assigned: it emitted a
+notice and carried on with null. PHP 8 raises a warning, and Yii 1's error
+handler turns a warning into a rendered 500. So code that limped along for
+years now takes an endpoint down - and only on the paths where the variable
+really is unset, which is why it does not show up in ordinary use.
 
-PHP 5.6 tolerated these. PHP 8 reports them, and Yii 1's error handler turns any
-reported error into a 500 - so each one is a page that fails on particular data,
-while passing a lint and looking fine in review.
+This is a sweep for that one family of defect. It is not an attempt to make the
+codebase pass static analysis.
 
-Four such faults were found one at a time during the Yii 2 API port
-(`round(null)` on orders with no lines, a null date of birth in `GetAge()`,
-`$json_list` in two report actions, `$bill_prefix` in the B2B summary). This
-sweep looks for the rest of them systematically.
+## Method
+
+PHPStan at level 2 over `protected/` and `config/`, with `framework/` scanned
+but not analysed. Two messages matter:
+
+  - `Undefined variable: $x`        - read, never assigned anywhere in scope
+  - `Variable $x might not be defined.` - assigned on some paths only
+
+Level 2 sees variables, not array keys, so `$_POST['id']` read without a check
+is invisible to it. That class is covered separately below.
+
+Counts as of the latest run: **22 definite**, **256 conditional**.
+
+## Triage
+
+The conditional list is mostly noise, and the noise has a shape. Each finding
+is classified by where the variable is written relative to where it is read,
+using brace depth rather than indentation:
+
+| bucket | count | meaning |
+| --- | --- | --- |
+| noise | 34 | `$this` inside a view; the framework always provides it |
+| column-builder | 35 | `getXxxColumns()` builds `$columns` inside `if ($selected)`, and `$selected` falls back to a non-empty literal, so the loop always runs. PHPStan cannot see that the literal is non-empty |
+| assigned-before | 129 | a plain assignment appears earlier in the function at the same or lower depth as the read |
+| write-encloses-read | 4 | every write sits in a block that also contains the read, so the read is unreachable without one |
+| **reachable** | **54** | the read can be reached with no write having run. This is the group that needs eyes |
+
+The script that produces this is `tests/port/triage-sweep.py`; it reads a
+PHPStan run and writes the buckets, so the classification can be re-derived
+rather than trusted.
 
 ## Definite: read, never assigned anywhere in scope
 
-All fixed - see the commit that added this file.
+  - protected/components/GxActiveRecord.php:612  $this
+  - protected/components/GxActiveRecord.php:614  $this
+  - protected/components/GxActiveRecord.php:659  $this
+  - protected/controllers/MrnDetailController.php:503  $existmrs
+  - protected/controllers/MrnDetailController.php:504  $existmrs
+  - protected/controllers/MrnDetailController.php:505  $existmrs
+  - protected/controllers/MrnDetailController.php:506  $existmrs
+  - protected/controllers/MrnDetailController.php:751  $mrsid
+  - protected/controllers/PurchaseOrderDetailController.php:641  $mrsid
+  - protected/controllers/PurchaseOrderDetailController.php:896  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:900  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:904  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:908  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:912  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:916  $mrnIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:919  $mrsIdAll
+  - protected/controllers/PurchaseOrderDetailController.php:922  $mrsIdAll
+  - protected/models/OrderItem.php:756  $month
+  - protected/models/OrderItem.php:757  $tank
+  - protected/models/OrderItem.php:758  $year
+  - protected/models/OrderItem.php:852  $month
+  - protected/models/OrderItem.php:864  $month
 
-  - protected/controllers/EmpController.php:142:Undefined variable: $password
-  - protected/controllers/MrnDetailController.php:503:Undefined variable: $existmrs
-  - protected/controllers/MrnDetailController.php:504:Undefined variable: $existmrs
-  - protected/controllers/MrnDetailController.php:505:Undefined variable: $existmrs
-  - protected/controllers/MrnDetailController.php:506:Undefined variable: $existmrs
-  - protected/controllers/MrnDetailController.php:751:Undefined variable: $mrsid
-  - protected/controllers/PurchaseOrderDetailController.php:641:Undefined variable: $mrsid
-  - protected/controllers/PurchaseOrderDetailController.php:896:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:900:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:904:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:908:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:912:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:916:Undefined variable: $mrnIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:919:Undefined variable: $mrsIdAll
-  - protected/controllers/PurchaseOrderDetailController.php:922:Undefined variable: $mrsIdAll
-  - protected/controllers/UserController.php:359:Undefined variable: $objects
-  - protected/models/MrnDetail.php:215:Undefined variable: $cssClass
-  - protected/models/OrderItem.php:756:Undefined variable: $month
-  - protected/models/OrderItem.php:757:Undefined variable: $tank
-  - protected/models/OrderItem.php:758:Undefined variable: $year
-  - protected/models/OrderItem.php:852:Undefined variable: $month
-  - protected/models/OrderItem.php:864:Undefined variable: $month
-  - protected/models/User.php:255:Undefined variable: $headers
-  - protected/models/User.php:280:Undefined variable: $headers
-  - protected/models/User.php:303:Undefined variable: $headers
-  - protected/models/User.php:333:Undefined variable: $headers
-  - protected/models/User.php:391:Undefined variable: $headers
+Three of these are `$this` inside `GxActiveRecord`, which is an analyser
+artefact. The rest are real, and all of them are in the web UI rather than the
+API:
 
-## Conditional: assigned on some paths only
+  - `MrnDetailController` builds a `PurchaseOrder` out of `$existmrs`, which is
+    never assigned. Every field it copies is a read of an undefined variable
+    followed by a property read on null.
+  - `PurchaseOrderDetailController` reads `$mrsid`, `$mrnIdAll` and `$mrsIdAll`,
+    none of them assigned.
+  - `OrderItem::getcsvexcel()` reads `$month`, `$tank` and `$year`, and calls
+    `Tank::findOne()` and `Nozzle::find()->where()` - Yii 2 syntax, in a Yii 1
+    model, for two classes that do not exist in this application at all. It is
+    called from `OrderController::actionorderexcel()` as
+    `$ordermodel = new Order(); $ordermodel->getcsvexcel();`, and `Order` does
+    not define that method either. `/order/orderexcel` cannot ever have worked.
 
-**Not yet triaged.** Each needs reading in context - many will be harmless (a
-variable assigned in every branch that matters), and some will be the same
-defect as the four above. Listed here so the work is visible rather than
-rediscovered one 500 at a time.
+None are fixed here. Each needs a decision about what the code was meant to do,
+and they are in the part of the application that has no differential harness
+yet. They are listed so the work is visible.
 
-  - protected/components/GxActiveRecord.php:466:Variable $relatedFkName might not be defined.
-  - protected/components/GxActiveRecord.php:467:Variable $thisFkName might not be defined.
-  - protected/components/GxActiveRecord.php:472:Variable $relatedFkName might not be defined.
-  - protected/components/GxActiveRecord.php:497:Variable $relatedFkName might not be defined.
-  - protected/components/GxActiveRecord.php:497:Variable $thisFkName might not be defined.
-  - protected/components/GxActiveRecord.php:500:Variable $relatedFkName might not be defined.
-  - protected/components/GxActiveRecord.php:500:Variable $thisFkName might not be defined.
-  - protected/components/GxActiveRecord.php:685:Variable $transacted might not be defined.
-  - protected/components/GxActiveRecord.php:686:Variable $transaction might not be defined.
-  - protected/components/GxActiveRecord.php:750:Variable $controllerID might not be defined.
-  - protected/components/views/commentPortlet.php:2:Variable $this might not be defined.
-  - protected/components/views/commentPortlet.php:17:Variable $this might not be defined.
-  - protected/components/views/commentPortlet.php:19:Variable $this might not be defined.
-  - protected/components/views/commentPortlet.php:35:Variable $this might not be defined.
-  - protected/components/views/commentPortlet.php:55:Variable $this might not be defined.
-  - protected/components/views/commentPortlet.php:63:Variable $this might not be defined.
-  - protected/controllers/AdvancePaymentController.php:74:Variable $oldbal might not be defined.
-  - protected/controllers/AdvancePaymentController.php:75:Variable $oldpay might not be defined.
-  - protected/controllers/B2BPurchaseBillDetailController.php:97:Variable $billmodel might not be defined.
-  - protected/controllers/B2BPurchaseBillDetailController.php:208:Variable $itemdetail might not be defined.
-  - protected/controllers/B2BPurchaseBillDetailController.php:307:Variable $purchaseBill might not be defined.
-  - protected/controllers/B2BPurchaseBillDetailController.php:539:Variable $qtys might not be defined.
-  - protected/controllers/B2BPurchaseBillDetailController.php:636:Variable $qtys might not be defined.
-  - protected/controllers/B2bPurchaseBillController.php:529:Variable $billno might not be defined.
-  - protected/controllers/B2bPurchaseBillController.php:529:Variable $invoicedate might not be defined.
-  - protected/controllers/ItemController.php:201:Variable $adjusted_qty might not be defined.
-  - protected/controllers/ItemController.php:476:Variable $last_id might not be defined.
-  - protected/controllers/ItemController.php:639:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:682:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:693:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:744:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:764:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:845:Variable $outlet might not be defined.
-  - protected/controllers/ItemController.php:881:Variable $outlet might not be defined.
-  - protected/controllers/ItemExpireItemController.php:121:Variable $total_amt might not be defined.
-  - protected/controllers/ItemReturnItemController.php:142:Variable $itemdetail might not be defined.
-  - protected/controllers/ItemStockController.php:101:Variable $item might not be defined.
-  - protected/controllers/MrnDetailController.php:357:Variable $itemdetail might not be defined.
-  - protected/controllers/MrnDetailController.php:849:Variable $qtys might not be defined.
-  - protected/controllers/MrnDetailController.php:918:Variable $qtys might not be defined.
-  - protected/controllers/MrnDetailController.php:1073:Variable $status might not be defined.
-  - protected/controllers/MrsDetailController.php:246:Variable $itemdetail might not be defined.
-  - protected/controllers/MrsDetailController.php:829:Variable $qtys might not be defined.
-  - protected/controllers/MrsDetailController.php:831:Variable $qtys might not be defined.
-  - protected/controllers/MrsDetailController.php:865:Variable $qtys might not be defined.
-  - protected/controllers/MrsDetailController.php:866:Variable $qtys might not be defined.
-  - protected/controllers/OnlineOrderController.php:345:Variable $user might not be defined.
-  - protected/controllers/OrderController.php:265:Variable $order_id might not be defined.
-  - protected/controllers/OrderController.php:424:Variable $oldcgst might not be defined.
-  - protected/controllers/OrderController.php:427:Variable $oldcgst might not be defined.
-  - protected/controllers/OrderController.php:431:Variable $oldcgst might not be defined.
-  - protected/controllers/PurchaseBillDetailController.php:199:Variable $itemdetail might not be defined.
-  - protected/controllers/PurchaseBillDetailController.php:298:Variable $purchaseBill might not be defined.
-  - protected/controllers/PurchaseBillDetailController.php:516:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseBillDetailController.php:581:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseBillDetailController_11_1_22_kara.php:181:Variable $itemdetail might not be defined.
-  - protected/controllers/PurchaseBillDetailController_11_1_22_kara.php:388:Variable $purchaseBill might not be defined.
-  - protected/controllers/PurchaseBillDetailController_11_1_22_kara.php:615:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseBillDetailController_11_1_22_kara.php:692:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseOrderDetailController.php:753:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseOrderDetailController.php:841:Variable $vendoruser might not be defined.
-  - protected/controllers/PurchaseOrderDetailController.php:857:Variable $qtys might not be defined.
-  - protected/controllers/PurchaseOrderDetailController.php:989:Variable $status might not be defined.
-  - protected/models/B2bOrder.php:529:Variable $columns might not be defined.
-  - protected/models/B2bOrder.php:671:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBill.php:371:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBill.php:446:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBill.php:606:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBill.php:747:Variable $addqty might not be defined.
-  - protected/models/B2bPurchaseBillDetail.php:460:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBillDetail.php:688:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBillDetail.php:869:Variable $columns might not be defined.
-  - protected/models/B2bPurchaseBillDetail.php:1421:Variable $columns might not be defined.
-  - protected/models/Customer.php:291:Variable $columns might not be defined.
-  - protected/models/ItemCategory.php:97:Variable $columns might not be defined.
-  - protected/models/ItemCompany.php:159:Variable $columns might not be defined.
-  - protected/models/ItemExpire.php:86:Variable $columns might not be defined.
-  - protected/models/ItemReturn.php:78:Variable $columns might not be defined.
-  - protected/models/ItemReturnItem.php:431:Variable $columns might not be defined.
-  - protected/models/ItemTax.php:157:Variable $columns might not be defined.
-  - protected/models/OnlineOrder.php:129:Variable $json_list might not be defined.
-  - protected/models/OnlineOrder.php:142:Variable $json_list might not be defined.
-  - protected/models/Order.php:655:Variable $columns might not be defined.
-  - protected/models/Order.php:804:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:475:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:612:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:753:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:845:Variable $last_sale might not be defined.
-  - protected/models/OrderItem.php:917:Variable $array12 might not be defined.
-  - protected/models/OrderItem.php:932:Variable $diff might not be defined.
-  - protected/models/OrderItem.php:945:Variable $array16 might not be defined.
-  - protected/models/OrderItem.php:1063:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:1158:Variable $columns might not be defined.
-  - protected/models/OrderItem.php:1278:Variable $columns might not be defined.
-  - protected/models/OrderRefundItem.php:133:Variable $columns might not be defined.
-  - protected/models/Order_15_7_21.php:536:Variable $columns might not be defined.
-  - protected/models/Order_15_7_21.php:665:Variable $columns might not be defined.
-  - protected/models/PaymentReport.php:68:Variable $columns might not be defined.
-  - protected/models/PurchaseBill.php:371:Variable $columns might not be defined.
-  - protected/models/PurchaseBill.php:512:Variable $addqty might not be defined.
-  - protected/models/PurchaseBillDetail.php:347:Variable $columns might not be defined.
-  - protected/models/ScannedItems.php:124:Variable $columns might not be defined.
-  - protected/models/StockAdjustLog.php:147:Variable $columns might not be defined.
-  - protected/models/Tax.php:120:Variable $columns might not be defined.
-  - protected/models/Vendor.php:362:Variable $columns might not be defined.
-  - protected/models/WhatsappLogs.php:103:Variable $columns might not be defined.
-  - protected/modules/api/controllers/EmpController.php:243:Variable $list might not be defined.
-  - protected/modules/api/controllers/EmpController.php:275:Variable $list might not be defined.
-  - protected/modules/api/controllers/ItemController.php:118:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:119:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:120:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:121:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:122:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:123:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:125:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:125:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:126:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:126:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:127:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:127:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:128:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:128:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:131:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:134:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:137:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:138:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:145:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:146:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:204:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:206:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:238:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:268:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:269:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:274:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:283:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:293:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:331:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:337:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:346:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:352:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:430:Variable $outlet_id might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1038:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1039:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1040:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1041:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1042:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1043:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1045:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1045:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1046:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1046:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1047:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1047:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1048:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1048:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1051:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1054:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1057:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1058:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1065:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1066:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1124:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1127:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1160:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1190:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1191:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1196:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1205:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1215:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1254:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1257:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1261:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1270:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1279:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1363:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1406:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1417:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1468:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1489:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1573:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1609:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:1815:Variable $outlet might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2090:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2091:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2092:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2093:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2094:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2095:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2097:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2097:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2098:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2098:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2099:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2099:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2100:Variable $customer might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2100:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2103:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2109:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2111:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2112:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2119:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2120:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2178:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2181:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2189:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2217:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2218:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2223:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2232:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2242:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2281:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2284:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2288:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2297:Variable $order might not be defined.
-  - protected/modules/api/controllers/ItemController.php:2306:Variable $order might not be defined.
-  - protected/modules/api/controllers/OrderController.php:374:Variable $taxarr might not be defined.
-  - protected/modules/api/controllers/OrderController.php:805:Variable $refundmodel might not be defined.
-  - protected/modules/api/controllers/OrderController.php:806:Variable $refundmodel might not be defined.
-  - protected/modules/api/controllers/TallyController.php:95:Variable $gst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:101:Variable $cgst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:102:Variable $sgst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:104:Variable $igst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:105:Variable $total_amt might not be defined.
-  - protected/modules/api/controllers/TallyController.php:419:Variable $gst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:425:Variable $cgst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:426:Variable $sgst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:428:Variable $igst might not be defined.
-  - protected/modules/api/controllers/TallyController.php:429:Variable $total_amt might not be defined.
-  - protected/modules/api/views/default/index.php:2:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:3:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:6:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:6:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:9:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:10:Variable $this might not be defined.
-  - protected/modules/api/views/default/index.php:11:Variable $this might not be defined.
-  - protected/modules/backup/views/default/_list.php:1:Variable $this might not be defined.
-  - protected/modules/backup/views/default/_list.php:3:Variable $dataProvider might not be defined.
-  - protected/modules/backup/views/default/index.php:2:Variable $this might not be defined.
-  - protected/modules/backup/views/default/index.php:8:Variable $this might not be defined.
-  - protected/modules/backup/views/default/index.php:9:Variable $this might not be defined.
-  - protected/modules/backup/views/default/index.php:27:Variable $this might not be defined.
-  - protected/modules/backup/views/default/index.php:28:Variable $dataProvider might not be defined.
-  - protected/modules/backup/views/default/restore.php:2:Variable $this might not be defined.
-  - protected/modules/backup/views/default/restore.php:6:Variable $this might not be defined.
-  - protected/modules/backup/views/default/upload.php:2:Variable $this might not be defined.
-  - protected/modules/backup/views/default/upload.php:6:Variable $this might not be defined.
-  - protected/modules/backup/views/default/upload.php:11:Variable $this might not be defined.
-  - protected/modules/backup/views/default/upload.php:18:Variable $model might not be defined.
-  - protected/modules/backup/views/default/upload.php:19:Variable $model might not be defined.
-  - protected/modules/backup/views/default/upload.php:20:Variable $model might not be defined.
-  - protected/modules/backup/views/default/upload.php:24:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/admin_layout.php:6:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/admin_layout.php:670:Variable $permission might not be defined.
-  - protected/modules/backup/views/layouts/admin_layout.php:737:Variable $content might not be defined.
-  - protected/modules/backup/views/layouts/column1.php:1:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column1.php:7:Variable $content might not be defined.
-  - protected/modules/backup/views/layouts/column1.php:14:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column2.php:1:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column2.php:4:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column2.php:4:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column2.php:11:Variable $content might not be defined.
-  - protected/modules/backup/views/layouts/column2.php:17:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column3.php:1:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/column3.php:10:Variable $content might not be defined.
-  - protected/modules/backup/views/layouts/column3.php:21:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/main.php:17:Variable $this might not be defined.
-  - protected/modules/backup/views/layouts/main.php:91:Variable $content might not be defined.
+## Reachable: the read can happen with nothing assigned
+
+54 findings. Seven are in the API module, where there is a harness:
+
+  - protected/modules/api/controllers/EmpController.php:243  $list
+  - protected/modules/api/controllers/EmpController.php:275  $list
+  - protected/modules/api/controllers/ItemController.php:433  $outlet_id
+  - protected/modules/api/controllers/ItemController.php:1819  $outlet
+  - protected/modules/api/controllers/OrderController.php:821  $refundmodel
+  - protected/modules/api/controllers/OrderController.php:822  $refundmodel
+
+Of those:
+
+  - `EmpController` twice, and `ItemController::adjustitemtozero` - not
+    triggerable. The Emp loops sit inside `if ($users)`, so they always run at
+    least once, and the outlet lookup only fails if `tbl_outlet` is empty.
+  - `ItemController::getGRN` - `$outlet_id` is set inside `if ($outlet)`. No
+    user in this database is in that state today, so it cannot be reached here,
+    but a user whose employee row points at a missing outlet would 500.
+  - `OrderController::actionRefund` - `$refundmodel` is written inside the item
+    loop and read after it, so a refund posted with an `item_details` array
+    that decodes to nothing reaches the read with nothing assigned. **Open.**
+    actionRefund is the one order action still on Yii 1 only; this should be
+    fixed as part of porting it, with a test that posts an empty array.
+  - `OrderController::actionReprint` - **fixed**. `$taxarr` was only written
+    inside the loop, so an order with no lines returned a 500. Both stacks now
+    initialise it to null, which is what 5.6 emitted.
+
+The remaining 48 are in the web UI, by file:
+
+    4  protected/controllers/OrderController.php
+    3  protected/controllers/B2BPurchaseBillDetailController.php
+    3  protected/controllers/MrnDetailController.php
+    3  protected/controllers/PurchaseBillDetailController.php
+    3  protected/controllers/PurchaseBillDetailController_11_1_22_kara.php
+    3  protected/models/OrderItem.php
+    3  protected/modules/backup/views/default/upload.php
+    2  protected/controllers/AdvancePaymentController.php
+    2  protected/controllers/B2bPurchaseBillController.php
+    2  protected/controllers/ItemController.php
+    2  protected/controllers/PurchaseOrderDetailController.php
+    2  protected/models/OnlineOrder.php
+    2  protected/modules/backup/views/layouts/admin_layout.php
+    1  protected/components/GxActiveRecord.php
+    1  protected/controllers/ItemExpireItemController.php
+    1  protected/controllers/ItemReturnItemController.php
+    1  protected/controllers/ItemStockController.php
+    1  protected/controllers/MrsDetailController.php
+    1  protected/controllers/OnlineOrderController.php
+    1  protected/models/B2bPurchaseBill.php
+    1  protected/models/PurchaseBill.php
+    1  protected/modules/backup/views/default/_list.php
+    1  protected/modules/backup/views/default/index.php
+    1  protected/modules/backup/views/layouts/column1.php
+    1  protected/modules/backup/views/layouts/column2.php
+    1  protected/modules/backup/views/layouts/column3.php
+    1  protected/modules/backup/views/layouts/main.php
 
 ## A different class: unchecked request keys
 
@@ -327,29 +151,17 @@ above. They matter just as much on PHP 8: what was a notice returning null in
 5.6 is a warning now, and Yii 1's error handler turns a warning into a rendered
 500, so an endpoint that used to limp along returns an error page.
 
-Found during the port, both in `customer/uploadbill`:
+Found so far, all reproduced in the ports rather than fixed, so the two stacks
+behave identically and the difference can be decided deliberately later:
 
-  - protected/modules/api/controllers/CustomerController.php - `$_POST['id']`
-    read with no check. A request without an id returns a 500 instead of
-    "user not found".
-  - protected/modules/api/controllers/CustomerController.php - `$_FILES['file']['name']`
-    read in the WhatsApp block even when the upload branch above already
-    concluded no file was sent. A request with an id but no file 500s, where
-    5.6 would have sent a message with an empty file name.
+  - `customer/uploadbill` - `$_POST['id']` and `$_FILES['file']['name']`.
+  - `item/scannedItem` - `$_POST['computer_name']` and `$_POST['user_id']` are
+    tested without `isset`, so a request missing either returns a 500 rather
+    than the "details are missing" reply the code appears to offer. `count()`
+    on a failed `json_decode` is a TypeError for the same reason.
 
-Both are reproduced in the Yii 2 port rather than fixed, so the two stacks
-behave identically and the difference can be decided deliberately later.
-`tests/port/customer-uploadbill-difftest.sh` covers both, comparing status and
-side effects rather than the body, since each framework renders its own error
-page.
-
-Neither is reachable from the POS client, which always sends an id and a file.
-Raising them to real 4xx responses is a one-line change each, but it is a
-behaviour change and so is left for the API's own pass.
-
-To find the rest of this class, PHPStan level 5 or higher is needed - it was
-not run, because at level 2 the untriaged conditional list below is already
-267 entries.
+To find the rest of this class, PHPStan level 5 or higher is needed. It has not
+been run: at level 2 the reachable list above is already the work in hand.
 
 ## Excluded as noise
 
@@ -362,5 +174,8 @@ not run, because at level 2 the untriaged conditional list below is already
 
 ```bash
 docker run --rm -v $PWD:/app -v /root/pos/tools:/tools -w /app php:8.3-cli \
-  php -d memory_limit=3G /tools/phpstan.phar analyse --no-progress -c phpstan.neon
+  php -d memory_limit=3G /tools/phpstan.phar analyse --no-progress \
+  --error-format=raw -c phpstan.neon > phpstan.txt
+
+python3 tests/port/triage-sweep.py phpstan.txt
 ```

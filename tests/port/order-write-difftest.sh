@@ -13,6 +13,15 @@ PASS=0; FAIL=0
 REAL_ORDER=1581602
 
 reset() {
+  # setup_test too: the reprint cases name order 9990001, which lives there.
+  # Without it that case compared two identical "no such order" envelopes and
+  # looked like it passed.
+  docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/setup_test.sql >/dev/null 2>&1
+  # and emp_fixture, which owns user 9990002 - the rider the completeOrder
+  # cases authenticate as. This suite used to rely on that having been
+  # loaded by something else, which made it pass or fail depending on what
+  # ran before it.
+  docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/emp_fixture.sql >/dev/null 2>&1
   docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/online_fixture.sql >/dev/null 2>&1
   docker exec pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE -e "DELETE FROM tbl_outbound_stub_log;"' >/dev/null 2>&1
 }

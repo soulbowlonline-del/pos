@@ -374,6 +374,10 @@ class OrderController extends GxController {
 			$criteria->order = 'tax_id,item_id,item.hsn_code';
 			$criteria->compare ( 'order_id', $order->id );
 			$itemms = OrderItem::model ()->findAll ( $criteria );
+			// $taxarr is only written inside the loop below, so an order with no
+			// lines read it undefined: a notice on 5.6, a warning and a 500 on
+			// PHP 8. Null matches what 5.6 emitted and what the Yii 2 port does.
+			$taxarr = null;
 			
 			if ($itemms) {
 				foreach ( $itemms as $itemmtax ) {
