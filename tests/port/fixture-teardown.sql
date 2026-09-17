@@ -13,6 +13,19 @@ DELETE FROM tbl_customer                   WHERE contact_no = '9995550001';
 DELETE FROM tbl_customer                   WHERE id = 9990001;
 DELETE FROM tbl_online_order_item          WHERE order_id = 9990100;
 DELETE FROM tbl_online_order               WHERE id IN (9990100, 9990101);
+-- order/refund fixture: its own item, detail, stock, order and lines, plus
+-- everything a refund of them writes.
+DELETE FROM tbl_stock_log                  WHERE item_id = 9990500;
+DELETE FROM tbl_order_refund_item          WHERE item_id = 9990500;
+DELETE FROM tbl_order_refund               WHERE order_id = 9990500;
+DELETE FROM tbl_order_item                 WHERE order_id = 9990500;
+DELETE FROM tbl_order                      WHERE id = 9990500;
+DELETE FROM tbl_mrs_detail                 WHERE item_id = 9990500;
+DELETE FROM tbl_mrs                        WHERE id = 9990500;
+DELETE FROM tbl_item_stock                 WHERE item_id = 9990500;
+DELETE FROM tbl_item_detail                WHERE item_id = 9990500;
+DELETE FROM tbl_item                       WHERE id = 9990500;
+DELETE FROM tbl_credit_note                WHERE amt IN (100, 200, 300, 1000);
 DELETE FROM tbl_user                       WHERE id = 9990002;
 -- GRN fixture (see item-grn-fixture-setup.sql). The user row has to go
 -- before the emp row it points at.

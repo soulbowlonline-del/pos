@@ -12,24 +12,28 @@ use app\models\Outlet;
 use app\models\User;
 use PosOutbound;
 use app\models\PurchaseBillDetail;
+use app\models\ItemDetail;
+use app\models\Item;
+use app\models\ItemStock;
+use app\models\OrderRefund;
+use app\models\OrderRefundItem;
+use app\models\StockLog;
+use app\models\CreditNote;
+use app\models\Mrs;
+use app\models\MrsDetail;
+use app\models\Mrn;
+use app\components\LoyaltyService;
 use yii\web\Controller;
 use yii\web\Response;
 
 /**
  * Yii 2 port of protected/modules/api/controllers/OrderController.php.
  *
- * Sixteen of the eighteen actions are ported and covered by differential
+ * Seventeen of the eighteen actions are ported and covered by differential
  * tests. Yii 1 still serves every /api/order/* route; nothing is cut over by
  * this file existing.
  *
  * Not ported:
- *
- *   refund   The refund path writes OrderRefund, OrderRefundItem, ItemStock
- *            and StockLog, and deletes MrsDetail and Mrs rows, inside one
- *            transaction. It needs four models that do not exist on this side
- *            yet and it moves both money and stock, so it wants its own
- *            increment with a fixture order to refund against - not a port
- *            bundled in with the endpoints around it.
  *
  *   search   Queries tbl_order_item for bill_date, bill_no and customer_id,
  *            three columns that only exist on tbl_order, so it throws for
@@ -836,5 +840,241 @@ class OrderController extends Controller
         curl_close($ch);
 
         return json_decode($body, true);
+    }
+    /**
+     * POST /v2/api/order/refund
+     *
+     * Refunds lines of an order: writes an OrderRefund and its items, puts the
+     * quantity back into stock, logs the movement, adjusts loyalty points, and
+     * raises a credit note when type_id is 2. All inside one transaction, which
+     * is rolled back if any step fails.
+     *
+     * Faithful to the Yii 1 version in several ways that matter:
+     *
+     *   - one OrderRefund per *order*, not per request. The first refund
+     *     creates it; later refunds of the same order find it and overwrite
+     *     qty, type_id and the address fields. Its total_amt is then set to
+     *     this request's total, not to the running total of all refunds.
+     *   - $refundmodel is written inside the item loop and read after it, so a
+     *     request whose item_details decodes to an empty array reaches that
+     *     read with nothing assigned. On PHP 8 that is a warning and a 500.
+     *     Reproduced rather than guarded - see docs/php8-fragility-sweep.md -
+     *     because the alternative is inventing a response for a case Yii 1 has
+     *     no answer to.
+     *   - the item lookup is by bar_code alone and takes the first match, so an
+     *     item detail sharing a barcode with another resolves to the lower id.
+     *   - discount and tax are apportioned by dividing the line's amount by its
+     *     quantity and multiplying by the returned quantity, with no rounding.
+     *   - $json_list is built but only ever assigned an empty array; the `data`
+     *     key it produces is therefore always []. Kept so the response shape
+     *     matches.
+     *
+     * The stock row it adjusts is the newest for that item detail (id DESC),
+     * and previous_qty on the log is computed as the *current* stock less the
+     * returned quantity - which is read after the stock row has already been
+     * updated, so it does not mean what it looks like. Reproduced.
+     */
+    public function actionRefund()
+    {
+        $out = $this->envelope('refund');
+
+        $post = Yii::$app->request->post();
+        $loginId = $this->headerUserId();
+
+        if (!isset($post['item_details']) || !isset($post['order_id']) || !isset($post['type_id'])) {
+            $out['message'] = 'No data posted';
+            return $out;
+        }
+
+        $itemArrays = json_decode($post['item_details']);
+        if (!$itemArrays) {
+            return $out;   // bare envelope, as in Yii 1
+        }
+
+        $totalAmount = 0;
+        $ok = true;
+        $refundModel = null;
+        $transaction = Yii::$app->db->beginTransaction();
+
+        try {
+            foreach ($itemArrays as $itemArray) {
+                $itemDetail = ItemDetail::find()
+                    ->where(['bar_code' => $itemArray->bar_code])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+
+                if (!$itemDetail) {
+                    $ok = false;
+                    $out['message'] = 'No Item found';
+                    continue;
+                }
+
+                $orderItem = OrderItem::find()
+                    ->where(['item_detail_id' => $itemDetail->id, 'order_id' => $post['order_id']])
+                    ->andWhere('qty >= :ret', [':ret' => $itemArray->is_return])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+
+                if (!$orderItem) {
+                    // no 'data' key here: Yii 1 sets it at the foot of the
+                    // branch that *found* an order item, not this one.
+                    $ok = false;
+                    $out['message'] = 'No order found';
+                    continue;
+                }
+
+                $order = Order::findOne($orderItem->order_id);
+                $item = Item::findOne($itemDetail->item_id);
+
+                $refundModel = OrderRefund::find()->where(['order_id' => $order->id])->one();
+                if ($refundModel === null) {
+                    $refundModel = new OrderRefund();
+                }
+                $refundModel->qty = $itemArray->is_return;
+                $refundModel->type_id = $post['type_id'];
+                $refundModel->city_id = $order->city_id;
+                $refundModel->state_id = $order->state_id;
+                $refundModel->country_id = $order->country_id;
+                $refundModel->address = $order->address;
+                $refundModel->note = $order->note;
+                $refundModel->customer_id = $order->customer_id;
+                $refundModel->order_id = $orderItem->order_id;
+
+                if (!$refundModel->save()) {
+                    // Yii 1 does not stop here: it sets its flag and falls
+                    // through to the 'data' assignment below.
+                    $ok = false;
+                    $out['data'] = [];
+                    continue;
+                }
+
+                $refundItem = OrderRefundItem::find()
+                    ->where([
+                        'order_refund_id' => $refundModel->id,
+                        'item_detail_id' => $itemDetail->id,
+                        'item_id' => $itemDetail->item_id,
+                    ])
+                    ->one();
+                if ($refundItem === null) {
+                    $refundItem = new OrderRefundItem();
+                }
+                $refundItem->order_refund_id = $refundModel->id;
+                $refundItem->item_detail_id = $itemDetail->id;
+                $refundItem->item_id = $itemDetail->item_id;
+                $refundItem->qty = $itemArray->is_return;
+                $refundItem->total_amt = $itemArray->total_sale;
+                $refundItem->price = $orderItem->price;
+                $refundItem->discount_id = $orderItem->discount_id;
+                $refundItem->discount_amt = ($orderItem->discount_amt / $orderItem->qty) * $itemArray->is_return;
+                $refundItem->tax_id = $orderItem->tax_id;
+                $refundItem->tax_amt = ($orderItem->tax_amount / $orderItem->qty) * $itemArray->is_return;
+                $refundItem->order_discount = $orderItem->order_discount;
+                $refundItem->create_user_id = $loginId;
+
+                $refundItemSaved = $refundItem->save();
+                if (!$refundItemSaved) {
+                    // As in Yii 1: the flag is set, the stock work is skipped,
+                    // but the item's total is still added below and 'data' is
+                    // still set. It adds the total of a row that was not
+                    // written - reproduced, not corrected.
+                    $ok = false;
+                }
+
+                $stock = $refundItemSaved ? ItemStock::find()
+                    ->where(['item_detail_id' => $itemDetail->id, 'item_id' => $itemDetail->item_id])
+                    ->orderBy(['id' => SORT_DESC])
+                    ->one() : null;
+
+                if ($stock) {
+                    $stock->purchase_qty = $stock->purchase_qty + $itemArray->is_return;
+                    $stock->balance_qty = $stock->balance_qty + $itemArray->is_return;
+
+                    if ($stock->save()) {
+                        $stockLog = new StockLog();
+                        $stockLog->item_detail_id = $stock->item_detail_id;
+                        $stockLog->item_id = $stock->item_id;
+                        $stockLog->batch_no = $stock->batch_number;
+                        $stockLog->current_qty = $itemDetail->getStockQty();
+                        $stockLog->previous_qty = $itemDetail->getStockQty() - $itemArray->is_return;
+                        $stockLog->Qty = $itemArray->is_return;
+                        $stockLog->outlet_id = $stock->outlet_id;
+                        $stockLog->vendor_id = $stock->vendor_id;
+                        $stockLog->type_id = StockLog::TYPE_REFUND;
+
+                        if (!$stockLog->save()) {
+                            $ok = false;
+                        }
+
+                        // Returning stock can take an item back above its
+                        // reorder level, in which case the pending requisition
+                        // for it is deleted - and the requisition itself too,
+                        // if that was its only line and no goods receipt exists.
+                        $remaining = $item->getTotalRemainingQuantity();
+                        if ($remaining > $item->min_qty) {
+                            $mrsDetails = MrsDetail::find()
+                                ->where(['item_id' => $item->id, 'status' => Mrs::STATUS_PENDING])
+                                ->orderBy(['id' => SORT_ASC])
+                                ->all();
+
+                            foreach ($mrsDetails as $mrsDetail) {
+                                $mrsId = $mrsDetail->mrs_id;
+                                $mrsItemId = $mrsDetail->item_id;
+                                $lineCount = MrsDetail::find()->where(['mrs_id' => $mrsDetail->mrs_id])->count();
+
+                                if ($item->id == $mrsDetail->item_id) {
+                                    $mrsDetail->delete();
+                                }
+
+                                if ($lineCount == 1) {
+                                    $mrs = Mrs::findOne($mrsId);
+                                    if ($mrs && $item->id == $mrsItemId) {
+                                        $mrn = Mrn::find()->where(['mrs_id' => $mrs->id])->one();
+                                        if (!$mrn) {
+                                            $mrs->delete();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        $ok = false;
+                    }
+                }
+
+                $totalAmount = $totalAmount + $refundItem->total_amt;
+                $out['data'] = [];
+            }
+
+            if ($ok) {
+                $transaction->commit();
+
+                if (isset($post['order_id'])) {
+                    LoyaltyService::processRefundDeductPoints($post['order_id'], $totalAmount);
+                }
+                if ($post['type_id'] == 2) {
+                    $creditNote = new CreditNote();
+                    $creditNote->credit_number = User::randomBarcode('11');
+                    $creditNote->amt = $totalAmount;
+                    $creditNote->save();
+                    $out['credit_amt'] = $totalAmount;
+                }
+
+                // $refundModel is null when the loop never reached a save;
+                // Yii 1 reads it unconditionally here and warns - see the
+                // docblock.
+                $refundModel->total_amt = $totalAmount;
+                $refundModel->save(false, ['total_amt']);
+
+                $out['status'] = 'OK';
+                $out['refund_date'] = date('Y-m-d');
+                $out['refund_amount'] = $totalAmount;
+            } else {
+                $transaction->rollBack();
+            }
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+        }
+
+        return $out;
     }
 }

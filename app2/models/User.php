@@ -179,4 +179,18 @@ class User extends ActiveRecord
         curl_exec($ch);
         curl_close($ch);
     }
+
+    /**
+     * Yii 1's randomBarcode(): $count random digits. It uses rand(), so the
+     * value differs between two runs of the same request - the differential
+     * suite normalises the credit-note number for that reason.
+     */
+    public static function randomBarcode($count = 13)
+    {
+        $digits = '';
+        for ($i = 0; $i < $count; $i++) {
+            $digits .= (string)rand(0, 9);
+        }
+        return $digits;
+    }
 }
