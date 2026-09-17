@@ -191,4 +191,59 @@ class Order extends ActiveRecord
 
         return $json;
     }
+
+    /**
+     * Payload from Order::toArray2() - the bill view, with loyalty totals.
+     *
+     * Differs from toApiArray() in three ways: total_amt here is the gross
+     * (sale total plus discount) with the net exposed separately as total_sale,
+     * the loyalty figures are included, and the line items are rendered in
+     * their "return" form, which emits is_return rather than box.
+     */
+    public function toApiArray2()
+    {
+        $json = [];
+        $json['id'] = (string)$this->id;
+        $json['bill_no'] = $this->getOrderBillNo();
+        $json['bill_date'] = $this->bill_date;
+        $json['mode_of_payment'] = isset($this->modePayment) ? $this->modePayment->title : '';
+        $json['mode_of_delivery'] = isset($this->modeDelivery) ? $this->modeDelivery->title : '';
+        $json['qty'] = $this->qty === null ? null : (string)$this->qty;
+        $json['discount_amt'] = $this->discount_amt;
+        $json['total_sale'] = $this->total_amt;
+        $json['total_amt'] = $this->total_amt + $this->discount_amt;
+        $json['paid_amt'] = $this->paid_amt;
+        $json['status'] = $this->status === null ? null : (string)$this->status;
+        $json['type_id'] = $this->type_id === null ? null : (string)$this->type_id;
+        $json['city_id'] = $this->city_id === null ? null : (string)$this->city_id;
+        $json['state_id'] = $this->state_id === null ? null : (string)$this->state_id;
+        $json['country_id'] = $this->country_id === null ? null : (string)$this->country_id;
+        $json['address'] = $this->address;
+        $json['note'] = $this->note;
+        $json['create_time'] = $this->create_time;
+        $json['customer_id'] = $this->customer_id === null ? null : (string)$this->customer_id;
+        $json['is_mobile'] = $this->is_mobile === null ? null : (string)$this->is_mobile;
+        $json['gross_total_amt'] = $this->gross_total_amt;
+        $json['customer_name'] = isset($this->customer) ? $this->customer->name : '';
+
+        // Most recent redemption against this order, if any.
+        $redeemed = LoyaltyTransaction::find()
+            ->where(['order_id' => $this->id, 'transaction_type' => LoyaltyTransaction::TYPE_REDEEM])
+            ->orderBy(['created_at' => SORT_DESC])
+            ->one();
+        $json['redeemed_points'] = $redeemed ? $redeemed->points : 0;
+
+        $json['lifetime_earn'] = LoyaltyTransaction::getLoyaltyLifetimeEarnedPoints($this->customer_id);
+        $json['lifetime_redeem'] = LoyaltyTransaction::getLoyaltyLifetimeRedeemedPoints($this->customer_id);
+        $json['current_bill_earn'] = LoyaltyTransaction::getLoyaltyCurrentBillEarnedPoints($this->customer_id, $this->id);
+
+        $items = [];
+        foreach ($this->orderItems as $orderItem) {
+            // $return = 1 switches the item payload's 'box' key to 'is_return'.
+            $items[] = $orderItem->toApiArray(1);
+        }
+        $json['order_items'] = $items;
+
+        return $json;
+    }
 }

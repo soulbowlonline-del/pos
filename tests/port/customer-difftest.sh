@@ -47,5 +47,8 @@ run_case "orderList (empty outlet)"         orderList     order-list      "?id=9
 run_case "getLatestBill (outlet 0)"         GetLatestBill get-latest-bill "?id=0"
 run_case "getLatestBill (outlet 5)"         GetLatestBill get-latest-bill "?id=5"
 run_case "getLatestBill (no such outlet)"   GetLatestBill get-latest-bill "?id=99999"
+for _oid in 1581602 1581598 1581597 1581594 1581593 1581592 99999999; do
+  run_case "getOrder ($_oid)" getOrder get-order "?id=$_oid"
+done
 echo
 echo "  passed: $PASS   mismatched: $FAIL"

@@ -34,4 +34,38 @@ class LoyaltyTransaction extends ActiveRecord
             ]],
         ];
     }
+
+    /**
+     * Lifetime EARN points for a customer. Reproduces the Yii 1 helpers, which
+     * SUM(points) and coalesce a null (no rows) to 0.
+     */
+    public static function getLoyaltyLifetimeEarnedPoints($customerId)
+    {
+        $total = static::find()
+            ->where(['customer_id' => $customerId, 'transaction_type' => self::TYPE_EARN])
+            ->sum('points');
+        return $total ? $total : 0;
+    }
+
+    /** Lifetime REDEEM points for a customer. */
+    public static function getLoyaltyLifetimeRedeemedPoints($customerId)
+    {
+        $total = static::find()
+            ->where(['customer_id' => $customerId, 'transaction_type' => self::TYPE_REDEEM])
+            ->sum('points');
+        return $total ? $total : 0;
+    }
+
+    /** EARN points recorded against one bill. */
+    public static function getLoyaltyCurrentBillEarnedPoints($customerId, $billId)
+    {
+        $total = static::find()
+            ->where([
+                'customer_id' => $customerId,
+                'order_id' => $billId,
+                'transaction_type' => self::TYPE_EARN,
+            ])
+            ->sum('points');
+        return $total ? $total : 0;
+    }
 }

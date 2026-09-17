@@ -23,10 +23,9 @@ use yii\web\Response;
  * serve every /api/customer/* route, so nothing has to move before it is ready.
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
- *              holdOrderList, orderList, getLatestBill
+ *              holdOrderList, orderList, getLatestBill, getOrder
  *
  * Not ported - needs the Order model:
- *   getOrder        needs Order::toArray2()
  *   getOrderHold    reads an OrderHold and then deletes it, so it cannot be
  *                   compared without rebuilding the fixture between calls
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
@@ -333,6 +332,28 @@ class CustomerController extends Controller
         $out['status'] = 'OK';
         // bill_no is an int column; Yii 1 emitted it as a string.
         $out['bill_no'] = $order->bill_no === null ? null : (string)$order->bill_no;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/get-order?id=N
+     *
+     * The bill view of an order: gross and net totals, loyalty figures and the
+     * line items in their return form.
+     */
+    public function actionGetOrder($id)
+    {
+        $out = $this->envelope('getOrder');
+
+        $order = Order::findOne($id);
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        // Yii 1 wraps the single order in a list; preserved.
+        $out['order'][] = $order->toApiArray2();
         return $out;
     }
 }
