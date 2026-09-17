@@ -30,8 +30,13 @@ echo "=== order/online + getOnlineOrder + getAssignList differential ==="
 run_case "online, default (pending)"          "online"                      "online"
 run_case "online, status=1 packed"            "online?status=1"             "online?status=1"
 run_case "online, status=2 packed or shipped" "online?status=2"             "online?status=2"
-run_case "online, status=3 completed"         "online?status=3"             "online?status=3"
-run_case "online, status=4 cancelled"         "online?status=4"             "online?status=4"
+# status 3 and 4 are the big buckets - 3,954 and 954 orders, and every row
+# costs several queries on both stacks. Windowed to a month: the code path is
+# the same and the whole-table versions took longer than the rest of the
+# regression put together. The unwindowed status=2 case above still covers a
+# few hundred rows end to end.
+run_case "online, status=3 completed"         "online?status=3"             "online?status=3" 1 "start_date=2023-01-01&end_date=2023-01-31"
+run_case "online, status=4 cancelled"         "online?status=4"             "online?status=4" 1 "start_date=2023-01-01&end_date=2023-01-31"
 run_case "online, status=0 falls back"        "online?status=0"             "online?status=0"
 run_case "online, narrow date window"          "online" "online" 1 "start_date=2023-01-01&end_date=2023-01-31"
 run_case "online, window with no orders"       "online" "online" 1 "start_date=1990-01-01&end_date=1990-01-02"

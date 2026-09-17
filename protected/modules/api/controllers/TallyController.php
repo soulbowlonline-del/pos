@@ -77,6 +77,14 @@ $taxable = $totaltaxable['total'] - $refundtaxable;
 
 		$query13 = "SELECT * FROM `tbl_tax` WHERE `id` = $tax_id";
 $row13 = Yii::app()->db->createCommand($query13)->queryRow();
+// The five figures below are only assigned inside this branch. Before
+// this line they were left from the previous iteration, or undefined
+// on the first one - and an order item carrying tax_id = 0 (there are
+// 32, across 23 dates) has no tbl_tax row and sorts first, so on PHP 8
+// the undefined reads took the whole report down with a 500. Cleared
+// per iteration, which also stops a row that finds no tax row from
+// reporting the previous row's GST as its own.
+$cgst = $sgst = $cess = $igst = $gst = $total_amt = null;
 if($row13){
 	$cgst = $taxable * ($row13['tax_val1'] * 0.01);
 	$sgst = $taxable * ($row13['tax_val2'] * 0.01);
@@ -356,7 +364,14 @@ if($row13){
 
                     $query13 = "SELECT * FROM `tbl_tax` WHERE `id` = $tax_id";
                     $row13 = Yii::app()->db->createCommand($query13)->queryRow();
-
+                    // The five figures below are only assigned inside this branch. Before
+                    // this line they were left from the previous iteration, or undefined
+                    // on the first one - and an order item carrying tax_id = 0 (there are
+                    // 32, across 23 dates) has no tbl_tax row and sorts first, so on PHP 8
+                    // the undefined reads took the whole report down with a 500. Cleared
+                    // per iteration, which also stops a row that finds no tax row from
+                    // reporting the previous row's GST as its own.
+                    $cgst = $sgst = $cess = $igst = $gst = $total_amt = null;
                     if ($row13) {
                         $tax = $row13['tax_val1'] + $row13['tax_val2']  + $row13['tax_val4'];
                         $cgst = $taxable * ($row13['tax_val1'] * 0.01);

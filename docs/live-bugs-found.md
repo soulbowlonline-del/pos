@@ -28,6 +28,45 @@ that was meant, and there is no second quantity column, so the fallback is
 `null`. The PHP 5.6 baseline is deliberately left alone — it is the
 byte-comparison reference and the bug is unreachable in real data.
 
+### tally/cashsale returned a 500 for 23 dates on PHP 8
+
+`actionCashsale` and `actionB2btaxwise` both compute five GST figures inside a
+branch:
+
+```php
+$row13 = ...queryRow();          // the tbl_tax row for this tax_id
+if($row13){
+    $cgst = ...; $sgst = ...; $cess = ...; $igst = ...; $gst = ...;
+    $total_amt = $taxable + $gst;
+}
+$json_list [] = array(..., 'Gst'=>$gst, 'Cgst'=>$cgst, ..., 'Amount'=>$total_amt);
+```
+
+Nothing sets them when the tax row is missing. 32 order items carry
+`tax_id = 0` and there is no `tbl_tax` row with id 0; the query groups and
+orders by `tax_id`, so 0 sorts first and those five are read before they have
+ever been assigned. On PHP 5.6 that was a notice and five nulls. On PHP 8 it is
+a warning, which Yii 1's error handler renders as a 500 - so the report was
+down for all 23 dates those items fall on:
+
+```
+POST /api/tally/cashsale?date=2020-04-30   ->  500
+POST /api/tally/cashsale?date=2026-09-16   ->  200
+```
+
+Found by triaging the conditional findings in `php8-fragility-sweep.md`, not by
+a test - the suite only used dates where every tax row resolved.
+
+**Fixed** on both stacks by clearing the five per iteration, which restores the
+PHP 5.6 output (nulls) and removes the 500.
+
+One deliberate difference from 5.6: on the second and later iterations those
+variables previously held the *previous* row's values, so a tax row that failed
+to resolve mid-list reported another row's GST as its own. Clearing per
+iteration reports null instead. That only changes output where 5.6 was already
+wrong, but it is a change to a tax report, so it is called out here. Moving the
+one added line above the loop would restore the old carry-over exactly.
+
 ### Five mail functions with the statement terminator commented out
 
 `protected/models/User.php` — a trailing `.` where a `;` belonged swallowed the
@@ -86,6 +125,51 @@ knowing what the client parses, so this is not a call to make while porting.
 Until it is decided the action is not ported: porting it would mean either
 reproducing a guaranteed 500 or inventing an API contract. It is the only
 action in the controller left unported for this reason.
+
+### item/billUpdate flips one hardcoded row, for anyone who asks
+
+```php
+public function actionBillUpdate(){
+    $purchaseBill = PurchaseBill::model()->findByPk('97');
+    if($purchaseBill){ $purchaseBill->status = 0; $purchaseBill->save(); }
+    $arr ['status'] = 'OK';
+```
+
+That is the whole action. It takes no parameters, checks no caller, and sets
+the status of purchase bill 97 - a literal id - to 0. It answers OK whether or
+not the row exists and whether or not the save worked.
+
+It reads like a debug leftover that shipped. It is live on /api/item/billUpdate
+today and anyone who can reach the API can call it.
+
+Ported as-is so the two stacks agree, and left in place: deleting a live
+endpoint is the owner's call, not the porter's. **Decision needed: remove it,
+or is something calling it?**
+
+### order/online and order/getOnlineOrder are not authenticated
+
+Both read the caller id from a header and then overwrite it:
+
+```php
+$loginid = isset ( $headers ['userlogin'] ) ? $headers ['userlogin'] : null;
+...
+$loginid = '1';
+```
+
+so the `if ($loginid)` below can never fail. Every online order in the date
+window is readable by anyone who can reach the endpoint, with customer names,
+addresses and phone numbers. order/cancelOrder has a real login check but no
+ownership check, so any logged-in caller can cancel any online order.
+
+Reproduced in the port rather than fixed, because tightening an endpoint the
+delivery app calls is a change that needs testing against that app.
+
+### item/adjustitemtozero logs every adjustment against the first outlet
+
+The outlet is not a parameter. Yii 1 takes the first outlet by id and writes
+that on the stock adjustment log regardless of where the adjustment happened,
+so the log cannot distinguish outlets. Reproduced; worth deciding whether the
+log should take the outlet from the caller.
 
 ---
 

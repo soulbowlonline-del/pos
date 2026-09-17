@@ -17,10 +17,7 @@ use yii\web\Response;
 /**
  * Partial Yii 2 port of protected/modules/api/controllers/ItemController.php.
  *
- * The Yii 1 controller is 2,343 lines over fourteen actions and contains 37
- * cURL calls. Most of it is the POS write path - actionOrder creates orders,
- * actionAdjust and actionUpdateStock move stock, actionPunchorder and
- * actionBillUpdate post to external services. None of that is ported here.
+ * The Yii 1 controller is 2,343 lines over fourteen actions. Eight are ported.
  *
  * Ported: list        - the catalogue feed, built on ItemDetail::toonlineArray()
  *         getItem     - a single item by barcode, or the first 50, built on
@@ -28,13 +25,31 @@ use yii\web\Response;
  *         search      - the same payload, filtered by name/title/rate
  *         getGRN      - the caller's outlet's unapproved purchase bills
  *         getGRNItems - the lines of one purchase bill
+ *         billUpdate  - see the note on the action; it is one hardcoded row
+ *         adjustitemtozero - writes a stock adjustment log
+ *         scannedItem - records what a till scanned
  *
- * Not ported:
- *   order, adjust, updateStock, punchorder, billUpdate, adjustitemtozero,
- *   scannedItem, barcode, ordertest
- *                     write paths and external integrations; they need a
- *                     fixture-based harness and, for the cURL calls, a stubbed
- *                     transport before they can be compared safely.
+ * Not ported - the POS transaction paths:
+ *   order (349 lines), adjust (412), punchorder (481), ordertest (329),
+ *   updateStock (129), barcode (62)
+ *
+ *   The first five create orders and move stock, across several models that do
+ *   not exist on this side yet (StockLog, Mrs, MrsDetail, Mrn), and they carry
+ *   most of this controller's cURL calls. They want a fixture-based harness of
+ *   their own rather than being folded in with the endpoints around them.
+ *   barcode is small but needs ItemDetail::toArray() plus the stockAdjustLogs
+ *   and itemVendors relations.
+ *
+ * Yii 1 action ids are camelCase; the Yii 2 routes are hyphenated, so
+ * /api/item/scannedItem is /v2/api/item/scanned-item.
+ *
+ * Several Yii 1 behaviours are reproduced rather than corrected, each
+ * commented at its call site and written up in docs/live-bugs-found.md:
+ * billUpdate mutates one hardcoded row for any caller, adjustitemtozero logs
+ * every adjustment against the first outlet whatever outlet it happened at,
+ * and scannedItem reads two request keys without checking them, so a request
+ * missing either returns a 500 rather than the "details are missing" reply the
+ * code appears to offer.
  */
 class ItemController extends Controller
 {
@@ -217,6 +232,16 @@ class ItemController extends Controller
         $out['item'] = $list;
         return $out;
     }
+    /** The response envelope every action in this controller starts from. */
+    private function envelope($action)
+    {
+        return [
+            'controller' => 'item',
+            'action' => $action,
+            'status' => 'NOK',
+        ];
+    }
+
     /** The unverified caller id. Yii 1 reads 'userlogin', then 'login_id'. */
     private function headerUserId()
     {
@@ -427,10 +452,18 @@ class ItemController extends Controller
         $out = $this->envelope('scannedItem');
 
         $post = Yii::$app->request->post();
-        $items = empty($post['items']) ? null : json_decode($post['items'], true);
 
-        if (empty($post['items']) || !is_array($items) || count($items) === 0
-            || empty($post['computer_name']) || empty($post['user_id'])) {
+        // Written the way Yii 1 writes it, unchecked reads and all: it tests
+        // $post['computer_name'] and $post['user_id'] without isset, so a
+        // request missing either is a PHP 8 warning and a 500 rather than the
+        // "details are missing" reply it looks like it would give. count() on
+        // a failed json_decode is a TypeError for the same reason. Guarding
+        // them here would make the ported endpoint behave better than the one
+        // it replaces, which is not what this port is for.
+        if (!empty($post['items']) && count(json_decode($post['items'], true)) > 0
+            && $post['computer_name'] && $post['user_id']) {
+            $items = json_decode($post['items'], true);
+        } else {
             $out['message'] = 'No item provided or some details are missing';
             return $out;
         }

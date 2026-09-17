@@ -2,7 +2,16 @@
 # Differential test for the ported tally cashsale action.
 BASE=http://127.0.0.1:8084
 PASS=0; FAIL=0
-for d in 2026-09-15 2026-09-14 2026-09-13 2026-08-20 2026-08-01 1990-01-01; do
+# The first three dates below carry order items with tax_id = 0. There is no
+# tbl_tax row 0, and the query orders by tax_id, so that row is rendered first
+# with the tax figures still unset - which was a 500 on PHP 8 until both
+# stacks cleared them per iteration. 32 order items across 23 dates are in
+# this state; without one of them here the case was never exercised.
+BADTAX=$(docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD -N $MYSQL_DATABASE -e "
+  SELECT DISTINCT oi.create_date FROM tbl_order_item oi
+    LEFT JOIN tbl_tax t ON t.id = oi.tax_id
+   WHERE t.id IS NULL AND oi.create_date IS NOT NULL ORDER BY oi.create_date LIMIT 3;"' 2>/dev/null | tr '\n' ' ')
+for d in $BADTAX 2026-09-15 2026-09-14 2026-09-13 2026-08-20 2026-08-01 1990-01-01; do
   r1=$(curl -sS --max-time 240 -X POST "$BASE/api/tally/cashsale?date=$d")
   r2=$(curl -sS --max-time 240 -X POST "$BASE/v2/api/tally/cashsale?date=$d")
   if [ "$r1" = "$r2" ]; then printf "  cashsale %-12s OK  (%s bytes)\n" "$d" "${#r1}"; PASS=$((PASS+1))
