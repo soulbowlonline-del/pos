@@ -7,6 +7,7 @@ use yii\db\ActiveRecord;
 class Discount extends ActiveRecord
 {
     public const STATUS_ACTIVE = 0;
+    public const TYPE_PERCENTAGE = 1;
 
     public static function tableName()
     {

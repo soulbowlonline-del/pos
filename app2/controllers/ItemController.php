@@ -14,13 +14,13 @@ use yii\web\Response;
  * actionAdjust and actionUpdateStock move stock, actionPunchorder and
  * actionBillUpdate post to external services. None of that is ported here.
  *
- * Ported: list - the catalogue feed, built on ItemDetail::toonlineArray().
+ * Ported: list    - the catalogue feed, built on ItemDetail::toonlineArray()
+ *         getItem - a single item by barcode, or the first 50, built on
+ *                   ItemDetail::toArray()
  *
  * Not ported:
- *   getItem, search   need ItemDetail::toArray(), 127 lines calling six further
- *                     helpers (getItemDetailSaleRate, getBasePrice,
- *                     getItemDetailMrp, getItemTaxAmount and the item discount
- *                     chain). Worth doing, but as its own increment.
+ *   search            needs the filter query builder on top of the payload
+ *                     that getItem now uses.
  *   order, adjust, updateStock, punchorder, billUpdate, adjustitemtozero,
  *   scannedItem, barcode, getGRN, getGRNItems, ordertest
  *                     write paths and external integrations; they need a
@@ -77,6 +77,64 @@ class ItemController extends Controller
         }
 
         // Yii 1 reports OK even when the list is empty.
+        $out['status'] = 'OK';
+        $out['item'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/item/get-item?code=BARCODE
+     *
+     * With a code, returns that one active item. The code may carry an
+     * overriding price after a '!' - "12345!99.50" - which is used in place of
+     * the item's own sale rate throughout the pricing calculation.
+     *
+     * With no code, returns the first 50 active items.
+     *
+     * Neither query in the Yii 1 version has an ORDER BY, so which 50 items
+     * came back was left to MySQL. Ordered by id on both sides.
+     */
+    public function actionGetItem($code = null)
+    {
+        $out = [
+            'controller' => 'item',
+            'action' => 'getItem',
+            'status' => 'NOK',
+        ];
+
+        if ($code !== null && $code !== '') {
+            $price = null;
+            $parts = explode('!', $code, 2);
+            if (isset($parts[0])) {
+                $code = $parts[0];
+            }
+            if (isset($parts[1])) {
+                $price = $parts[1];
+            }
+
+            $itemDetail = ItemDetail::find()
+                ->where(['bar_code' => $code, 'status' => ItemDetail::STATUS_ACTIVE])
+                ->orderBy(['id' => SORT_ASC])
+                ->one();
+
+            if ($itemDetail) {
+                $out['status'] = 'OK';
+                $out['item'] = [$itemDetail->toApiArray($price)];
+            }
+            // No match leaves the NOK envelope with no message, as in Yii 1.
+            return $out;
+        }
+
+        $rows = ItemDetail::find()
+            ->where(['status' => ItemDetail::STATUS_ACTIVE])
+            ->orderBy(['id' => SORT_ASC])
+            ->limit(50)
+            ->all();
+
+        $list = [];
+        foreach ($rows as $row) {
+            $list[] = $row->toApiArray();
+        }
         $out['status'] = 'OK';
         $out['item'] = $list;
         return $out;

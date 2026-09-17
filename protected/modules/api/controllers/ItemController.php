@@ -649,6 +649,8 @@ class ItemController extends GxController {
 			$criteria = new CDbCriteria ();
 			$criteria->compare ( "bar_code ", $code );
 			$criteria->addCondition('status ='.ItemDetail::STATUS_ACTIVE);
+			// Deterministic item lookup; barcodes are not guaranteed unique.
+			$criteria->order = 'id ASC';
 			$itemdetail = ItemDetail::model ()->find ( $criteria );
 
 			if ($itemdetail) {
@@ -666,6 +668,7 @@ class ItemController extends GxController {
 			$criteria = new CDbCriteria ();
 			$criteria->limit = '50';
 			$criteria->addCondition('status ='.ItemDetail::STATUS_ACTIVE);
+			$criteria->order = 'id ASC';
 			$itemdetails = ItemDetail::model ()->findAll($criteria);
 			if($itemdetails){
 				foreach($itemdetails as $itemdetail){
