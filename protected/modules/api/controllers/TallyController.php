@@ -239,6 +239,10 @@ if($row13){
 	//if($skey != null){
 	//	if($skey == 'b3V0bGluZUAxMjM='){
 		$purchase_bill_ids = array();
+		// Initialised up front: it is only assigned inside the id filter
+		// below, so a filter matching nothing left it undefined - a warning
+		// on PHP 8, which Yii 1 escalates into a 500.
+		$json_list = array(); // initialised
 		
 		$criteria1 = new CDbCriteria;
 		

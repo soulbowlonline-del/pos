@@ -683,6 +683,10 @@ class ItemController extends GxController {
 		$this->sendJSONResponse ( $arr );
 	}
 		public function actionSearch($name = null,$rate=null,$title=null) {
+		// Initialised up front: if rows match but none passes the stock
+		// check below, this was read while undefined - a PHP 8 warning that
+		// Yii 1 turns into a 500.
+		$json_list = array(); // initialised
 		$arr = array (
 				'controller' => $this->id,
 				'action' => $this->action->id,

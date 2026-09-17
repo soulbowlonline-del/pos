@@ -3,6 +3,8 @@ namespace app\controllers;
 
 use Yii;
 use app\models\ItemReturnItem;
+use app\models\PurchaseBill;
+use app\models\PurchaseBillDetail;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -10,13 +12,14 @@ use yii\web\Response;
  * Partial Yii 2 port of protected/modules/api/controllers/TallyController.php.
  *
  * Ported: cashsale    - the per-tax-rate GST summary for the export
- *         stockreturn - returns to vendors, for the credit-note side
+ *         stockreturn   - returns to vendors, for the credit-note side
+ *         paymentreport - approved purchase bills for a day
  * It is raw SQL end to end and depends on no model payloads, which makes it
  * portable in isolation.
  *
  * Not ported:
- *   paymentreport, b2btaxwise, b2bsales
- *                 need PurchaseBillDetail::toArray1(), which calls eleven tax
+ *   b2btaxwise, b2bsales
+ *                 build on PurchaseBillDetail::toArray1(), which calls eleven tax
  *                 arithmetic helpers (getVendorTAXNO, getTotalGstPer,
  *                 getTaxPercentage, getBasicAmount, getMainDiscount,
  *                 getTotalGstAmt, getCgstAmount, getSgstAmount, getIgstAmount,
@@ -182,6 +185,62 @@ class TallyController extends Controller
         foreach ($items as $item) {
             $list[] = $item->toTallyApiArray();
         }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/tally/paymentreport?date=YYYY-MM-DD&id=N
+     *
+     * Approved purchase bills starting on the given day, one row per
+     * bill-and-tax-rate combination. The optional id returns only rows whose
+     * detail id is greater than it, which is how the caller pages through.
+     *
+     * $date is bound rather than concatenated, as elsewhere in this controller.
+     */
+    public function actionPaymentreport($date = null, $id = null)
+    {
+        $out = [
+            'controller' => 'tally',
+            'action' => 'paymentreport',
+            'status' => 'NOK',
+        ];
+
+        if ($date === null || $date === '') {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $billIds = PurchaseBill::find()
+            ->select('id')
+            ->where(['start_date' => $date, 'status' => PurchaseBill::STATUS_APPROVED])
+            ->column();
+
+        // An empty IN() matches nothing, which is what Yii 1's addInCondition
+        // produces for an empty array too.
+        $details = empty($billIds) ? [] : PurchaseBillDetail::find()
+            ->where(['purchase_bill_id' => $billIds])
+            ->groupBy(['purchase_bill_id', 'tax_id'])
+            ->orderBy(['approved_qty' => SORT_DESC])
+            ->all();
+
+        if (empty($details)) {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($details as $detail) {
+            if ($id !== null && $id !== '') {
+                if ($detail->id > $id) {
+                    $list[] = $detail->toApiArray1(true);
+                }
+            } else {
+                $list[] = $detail->toApiArray1(true);
+            }
+        }
+
         $out['status'] = 'OK';
         $out['orders'] = $list;
         return $out;
