@@ -1,20 +1,35 @@
 {
     "name": "soulbowl/pos",
-    "description": "POS (Yii 1.1.32, PHP 8.3). Mail via PHPMailer 6, PDF via mPDF 8, spreadsheets via PhpSpreadsheet.",
+    "description": "POS. Yii 1.1.32 on PHP 8.3, with Yii 2 running alongside it for the incremental port.",
     "type": "project",
     "license": "proprietary",
+    "minimum-stability": "stable",
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ],
     "require": {
         "php": ">=8.1",
         "phpmailer/phpmailer": "^6.9",
         "mpdf/mpdf": "^8.2",
-        "phpoffice/phpspreadsheet": "^2.3"
+        "phpoffice/phpspreadsheet": "^2.3",
+        "yiisoft/yii2": "^2.0"
     },
     "config": {
         "platform": {
             "php": "8.3.33"
         },
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "yiisoft/yii2-composer": true
+        }
+    },
+    "extra": {
+        "asset-installer-paths": {
+            "npm-asset-library": "vendor/npm",
+            "bower-asset-library": "vendor/bower"
         }
     }
 }

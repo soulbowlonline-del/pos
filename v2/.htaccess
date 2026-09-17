@@ -1,0 +1,8 @@
+# Front controller for the Yii 2 application. The web root's own .htaccess
+# excludes /v2 so requests reach this directory untouched.
+RewriteEngine on
+RewriteBase /v2
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . index.php

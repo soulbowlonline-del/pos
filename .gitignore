@@ -58,3 +58,6 @@ SBProducts*.txt
 phpinfo.php
 adminer.php
 adminer-*.php
+
+app2/runtime/*
+!app2/runtime/.gitkeep

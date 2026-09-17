@@ -5,6 +5,8 @@ RewriteEngine on
 # if a directory or a file exists, use it directly
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+# /v2 is the Yii 2 application and has its own front controller.
+RewriteCond %{REQUEST_URI} !^/v2
 
 # otherwise forward it to index.php
 RewriteRule . index.php
