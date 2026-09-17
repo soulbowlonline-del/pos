@@ -68,16 +68,21 @@ class OrderController extends GxController {
 			$criteria = new CDbCriteria ();
 			$criteria->addBetweenCondition ( 'date(order_date)', $start_date, $end_date );
 			if ($status == 3) {
-				$criteria->addCondition ( 'order_status =' . $status );
+				// bound, not concatenated: $status arrives from the URL
+				$criteria->addCondition ( 'order_status = :status' );
+				$criteria->params[':status'] = $status;
 			} else {
 
 				$criteria->addCondition ( 'is_shipped =' . OnlineOrder::ORDER_SHIPPED );
 					
 				$criteria->addCondition ( 'order_status !=' . OnlineOrder::ORDERSTATUS_COMPLETED );
 			}
-			$criteria->addCondition ( 'delivery_boy_id =' . $loginid);
+			// bound, not concatenated: $loginid arrives from a request header
+			$criteria->addCondition ( 'delivery_boy_id = :dbid' );
+			$criteria->params[':dbid'] = $loginid;
 				
 			
+			$criteria->order = 'id ASC';
 			$orders = OnlineOrder::model ()->findAll ( $criteria );
 				
 			if (! empty ( $orders )) {
@@ -161,13 +166,15 @@ class OrderController extends GxController {
 				curl_setopt ( $ch, CURLOPT_URL, "http://sect4.soulbowl.in/deliveryoption/index/sendemailnotificationdelivery" );
 				curl_setopt ( $ch, CURLOPT_POST, 1 );
 				
-				curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-						'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$onlineorder->order_id,'action'=>'update_dispatch_status','status'=>'2'
+				curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( $__stubFields = array (
+						'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$onlineorder->order_id,'action'=>'update_dispatch_status','status'=>'2'
 				) ) );
 				
 				curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
 				
-				$server_output = curl_exec ( $ch );
+				$server_output = (class_exists('PosOutbound') && PosOutbound::isStubbed())
+					? json_encode(PosOutbound::intercept(PosOutbound::CHANNEL_HTTP, 'POST http://sect4.soulbowl.in/deliveryoption/index/sendemailnotificationdelivery', $__stubFields))
+					: curl_exec ( $ch );
 				
 				curl_close ( $ch );
 				$response = json_decode ( $server_output, true );
@@ -242,13 +249,15 @@ class OrderController extends GxController {
 				
 					curl_setopt ( $ch, CURLOPT_POST, 1 );
 					
-					curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-							'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$onlineorder->order_id,'action'=>'update_dispatch_status','status'=>'3'
+					curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( $__stubFields = array (
+							'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$onlineorder->order_id,'action'=>'update_dispatch_status','status'=>'3'
 					) ) );
 					
 					curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
 					
-					$server_output = curl_exec ( $ch );
+					$server_output = (class_exists('PosOutbound') && PosOutbound::isStubbed())
+						? json_encode(PosOutbound::intercept(PosOutbound::CHANNEL_HTTP, 'POST http://sect4.soulbowl.in/deliveryoption/index/sendemailnotificationcomplete', $__stubFields))
+						: curl_exec ( $ch );
 					
 					curl_close ( $ch );
 					$response = json_decode ( $server_output, true );
@@ -406,12 +415,15 @@ class OrderController extends GxController {
 					$criteria->addInCondition( 'order_status',array('1','2') );
 					
 				}else{
-				$criteria->addCondition ( 'order_status =' . $status );
+				// bound, not concatenated: $status arrives from the URL
+				$criteria->addCondition ( 'order_status = :status' );
+				$criteria->params[':status'] = $status;
 				}
 			} else {
 				$criteria->addCondition ( 'order_status =' . OnlineOrder::ORDERSTATUS_PENDING );
 			}
 			
+			$criteria->order = 'id ASC';
 			$orders = OnlineOrder::model ()->findAll ( $criteria );
 			
 			if (! empty ( $orders )) {

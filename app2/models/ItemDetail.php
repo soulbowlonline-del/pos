@@ -475,4 +475,81 @@ class ItemDetail extends ActiveRecord
         }
         return $remaining < 0 ? 0 : $remaining;
     }
+
+    /**
+     * Payload from ItemDetail::toOnlineOrderArray($order_item) - the line of an
+     * online order that has no POS order behind it yet. Not to be confused with
+     * toOnlineApiArray(), which is the product feed.
+     *
+     * Two things worth knowing about the original:
+     *   - it declares $price = null and never assigns it, so both "if ($price
+     *     != null)" branches are dead and every rate comes from the model.
+     *     Kept as a plain call rather than reproducing the dead branch.
+     *   - total_amount is qty * sale rate, formatted; tax and GST amounts are
+     *     qty * the per-unit amount, left unformatted. That asymmetry is the
+     *     Yii 1 behaviour and the client reads both.
+     */
+    public function toOnlineOrderApiArray($orderItem)
+    {
+        $qty = number_format($orderItem->qty, 2, '.', '');
+
+        $out = [];
+        $out['item_id'] = (string)$this->id;
+        $out['bar_code'] = $this->bar_code;
+        $out['item_name'] = $this->item ? $this->item->title : '';
+        $out['item_desc'] = $this->item ? $this->item->short_name : '';
+        $out['unit_name'] = $this->item ? Item::getMeasurementTypeOptions($this->item->unit) : '';
+        // Yii 1 reads this through PDO::ATTR_STRINGIFY_FETCHES, so an int
+        // column comes back as a string; NULL stays NULL.
+        $out['is_coupon'] = $this->item
+            ? ($this->item->is_coupon === null ? null : (string)$this->item->is_coupon)
+            : '';
+        $out['box'] = 0;
+        $out['qty'] = $qty;
+        $out['stock_qty'] = $this->getStockQty();
+        $out['total_remain'] = $this->item ? $this->item->getTotalRemainingQuantity() : '0.000';
+        $out['sale_rate'] = $this->getItemDetailSaleRate();
+        $out['base_price'] = $this->getBasePrice();
+        $out['mrp'] = $this->getItemDetailMrp();
+
+        $out['batch_numbers'] = '';
+        $itemStock = $this->itemStock;
+        if (!empty($itemStock)) {
+            $out['batch_numbers'] = $itemStock->batch_number;
+        }
+
+        $out['discount_id'] = 0;
+        $out['discount_val'] = 0;
+        $out['discount_type'] = 1;
+        $out['discount_amt'] = 0;
+        $out['tax_id'] = $this->getItemTax();
+        $out['tax_percent'] = $this->getItemTaxPercent();
+        $out['tax_amt'] = $qty * $this->getItemTaxAmount();
+
+        $discount = $this->activeDiscountRow();
+        if ($discount !== null) {
+            $out['discount_val'] = $discount->amount;
+            $out['discount_type'] = $discount->type_id;
+            $out['discount_id'] = $discount->id;
+            $out['discount_amt'] = $this->getItemDiscountAmount();
+        }
+
+        $out['total_amount'] = number_format($orderItem->qty * $this->getItemDetailSaleRate(), 2, '.', '');
+        $out['cgst_amt'] = $qty * $this->getCgstAmount();
+        $out['sgst_amt'] = $qty * $this->getSgstAmount();
+        $out['cess_amount'] = $qty * $this->getCessAmount();
+        $out['igst_amount'] = $qty * $this->getIgstAmount();
+        $out['cgst_per'] = $this->getCgstPercent();
+        $out['sgst_per'] = $this->getSgstPercent();
+        $out['cess_per'] = $this->getCessPercent();
+        $out['igst_per'] = $this->getIgstPercent();
+
+        return $out;
+    }
+
+    /** activeDiscount() is private; this exposes it to the method above. */
+    private function activeDiscountRow()
+    {
+        return $this->activeDiscount();
+    }
 }

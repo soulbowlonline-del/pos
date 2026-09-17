@@ -71,6 +71,12 @@ class User extends BaseUser
 
 	function sendGCM($registatoin_ids, $notification) {
 		$url = 'https://fcm.googleapis.com/fcm/send';
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			return PosOutbound::intercept(
+				PosOutbound::CHANNEL_HTTP, 'POST ' . $url,
+				array('registration_ids' => $registatoin_ids, 'data' => $notification)
+			);
+		}
 			$fields = array(
 				//	'to' => $recipient,
         'registration_ids' => $registatoin_ids,
@@ -78,7 +84,7 @@ class User extends BaseUser
 			);
 			Yii::log ( CVarDumper::dumpAsString ( $fields ), CLogger::LEVEL_WARNING, '$$fields');				
 		// Firebase API Key
-		$headers = array('Authorization: key=' . 'AAAA0Ek0QCA:APA91bFCylXkXO8AQaLSIXnaGCU39EzDcYz56NiXm7VSFA2rIsjeOec88jgqX81Uh0pYxkyIpfHTsNfTAMmOPbXu5McoL3nLl8q0d0EiQ-oWUmU8783sDjPHxfb7SFmVjB31kiaZpeks','Content-Type:application/json');
+		$headers = array('Authorization: key=' . getenv('POS_FCM_SERVER_KEY'),'Content-Type:application/json');
 		// Open connection
 		$ch = curl_init();
 		// Set the url, number of POST vars, POST data

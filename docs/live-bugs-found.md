@@ -60,18 +60,32 @@ SELECT * FROM `tbl_order_item` `t` WHERE bill_no =:ycp0
 All three columns exist on `tbl_order`; none exists on `tbl_order_item`. So
 the endpoint throws a `CDbException` for every request that reaches the query.
 
-It is not reached at all unless the caller's user row has an employee record —
-every user in this database has `emp_id = 0`, so in practice every call stops
-one branch earlier at "No employee found". That is why a completely broken
-endpoint has gone unnoticed.
+It is only reached if the caller's user row has an employee record, and most
+do not: of 590 users, 190 have `emp_id = 0` and 388 have it NULL. But **12 have
+a valid employee row**, and for those the endpoint is live-broken today:
+
+```
+curl -X POST -H 'userlogin: 11' -d 'bill_no=1' /api/order/search   -> 500 CDbException
+curl -X POST -H 'userlogin: 1'  -d 'bill_no=1' /api/order/search   -> {"message":"No employee found"}
+```
+
+(An earlier version of this file said every user had `emp_id = 0`, which was
+wrong - it was read off a partial query. The endpoint is reachable, and it
+returns a 500 rather than never being called.)
 
 The fix is one word: query `Order` rather than `OrderItem`. But `Order::toArray()`
 and `OrderItem::toArray()` return quite different payloads, so that choice
 defines the endpoint's contract, and whatever client calls `order/search`
 expects one of them. **Decision needed: what should order/search return?**
 
-Until then it is not ported — porting it would mean either reproducing a
-guaranteed 500 or inventing an API contract.
+The evidence points one way - the local variable is `$orders`, the response key
+is `orders`, and every other order-listing action in this controller returns
+`Order::toArray()` under that key - but "points one way" is not the same as
+knowing what the client parses, so this is not a call to make while porting.
+
+Until it is decided the action is not ported: porting it would mean either
+reproducing a guaranteed 500 or inventing an API contract. It is the only
+action in the controller left unported for this reason.
 
 ---
 

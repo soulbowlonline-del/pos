@@ -224,7 +224,7 @@ class ItemController extends GxController {
 	 																curl_setopt ( $ch, CURLOPT_POST, 1 );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-	 																		'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$online_order->order_id,'action'=>'update_dispatch_status','status'=>'1'
+	 																		'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$online_order->order_id,'action'=>'update_dispatch_status','status'=>'1'
 	 																) ) );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
@@ -313,7 +313,7 @@ class ItemController extends GxController {
 	 																curl_setopt ( $ch, CURLOPT_POST, 1 );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-	 																		'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
+	 																		'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
 	 																) ) );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
@@ -1149,7 +1149,7 @@ class ItemController extends GxController {
 	 																curl_setopt ( $ch, CURLOPT_POST, 1 );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-	 																		'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$online_order->order_id,'action'=>'update_dispatch_status','status'=>'1'
+	 																		'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$online_order->order_id,'action'=>'update_dispatch_status','status'=>'1'
 	 																) ) );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
@@ -1240,7 +1240,7 @@ class ItemController extends GxController {
 	 																curl_setopt ( $ch, CURLOPT_POST, 1 );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-	 																		'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
+	 																		'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
 	 																) ) );
 	 																
 	 																curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
@@ -2267,7 +2267,7 @@ class ItemController extends GxController {
 											curl_setopt ( $ch, CURLOPT_POST, 1 );
 											
 											curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-													'sKeY' => 'f$*@g644^@cghjku853c$','order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
+													'sKeY' => getenv('POS_SOULBOWL_KEY'),'order_id'=>$online_order->order_id,'action'=>'update_dispatch_status2','status'=>'1','data'=>$item_str,'date'=>$date
 											) ) );
 											
 											curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );

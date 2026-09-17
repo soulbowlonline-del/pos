@@ -9,6 +9,8 @@ use app\models\Outlet;
 use app\models\PurchaseBill;
 use app\models\PurchaseBillDetail;
 use app\models\User;
+use app\models\StockAdjustLog;
+use app\models\ScannedItems;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -324,6 +326,133 @@ class ItemController extends Controller
             $out['items'] = $list;
         }
 
+        return $out;
+    }
+    /**
+     * POST /v2/api/item/bill-update
+     *
+     * Reproduced as found. This action takes no parameters and does one thing:
+     * it loads purchase bill 97 - a literal id in the source - and sets its
+     * status to 0. Any caller, authenticated or not, can flip that one row, and
+     * it always answers OK whether or not the row exists or the save worked.
+     *
+     * It reads like a debug leftover that shipped. Ported rather than dropped
+     * so the two stacks match, and recorded in docs/live-bugs-found.md, because
+     * removing a live endpoint is the owner's call.
+     */
+    public function actionBillUpdate()
+    {
+        $out = $this->envelope('billUpdate');
+
+        $purchaseBill = PurchaseBill::findOne(97);
+        if ($purchaseBill) {
+            $purchaseBill->status = 0;
+            $purchaseBill->save();
+        }
+
+        $out['status'] = 'OK';
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/item/adjustitemtozero
+     *
+     * Writes a stock adjustment log that zeroes an item detail's counted stock.
+     * It records the adjustment; it does not change tbl_item_stock.
+     *
+     * The outlet is not a parameter - Yii 1 takes the first outlet by id and
+     * uses that for every adjustment, whichever outlet the caller is at. Kept,
+     * and noted, because changing it would change what gets logged.
+     */
+    public function actionAdjustitemtozero()
+    {
+        $out = $this->envelope('adjustitemtozero');
+
+        $post = Yii::$app->request->post();
+        if (!isset($post['itemdetail_id']) || !isset($post['user_id'])) {
+            $out['message'] = 'Please pass required parameters';
+            return $out;
+        }
+
+        $itemDetail = ItemDetail::findOne($post['itemdetail_id']);
+        if (!$itemDetail) {
+            $out['message'] = 'Item not found with the provided ID.';
+            return $out;
+        }
+
+        $outletId = null;
+        $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+        if ($outlet) {
+            $outletId = $outlet->id;
+        }
+
+        // Yii 1 does not check this lookup before reading ->id, so an item
+        // detail pointing at a missing item is a fatal on both stacks.
+        $item = Item::findOne($itemDetail->item_id);
+
+        $log = new StockAdjustLog();
+        $log->date = date('Y-m-d');
+        $log->item_detail_id = $itemDetail->id;
+        $log->item_id = $item->id;
+        $log->mrp = $itemDetail->getItemDetailMrp();
+        $log->outlet_id = $outletId;
+        $log->current_stock = 0;
+        $log->actual_stock = 0;
+        $log->adjusted = 0;
+        $log->create_user_id = $post['user_id'];
+        $log->remarks = 'Reset';
+
+        if ($log->save()) {
+            $out['status'] = 'OK';
+            $out['message'] = 'Stock adjusted to zero.';
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/item/scanned-item
+     *
+     * Records what a till scanned, for later analysis. Each element of the
+     * posted `items` JSON becomes a row; the whole element is also stored
+     * verbatim in item_detail.
+     *
+     * Yii 1 saves each row with validation on and ignores the result, so a row
+     * that fails validation is dropped silently and the response is still OK.
+     * It also reads $_POST['user_email'] and each element's keys without
+     * checking them, which warns on PHP 8. Both reproduced.
+     */
+    public function actionScannedItem()
+    {
+        $out = $this->envelope('scannedItem');
+
+        $post = Yii::$app->request->post();
+        $items = empty($post['items']) ? null : json_decode($post['items'], true);
+
+        if (empty($post['items']) || !is_array($items) || count($items) === 0
+            || empty($post['computer_name']) || empty($post['user_id'])) {
+            $out['message'] = 'No item provided or some details are missing';
+            return $out;
+        }
+
+        foreach ($items as $item) {
+            $model = new ScannedItems();
+            $model->user_id = $post['user_id'];
+            $model->computer_name = $post['computer_name'];
+            $model->user_email = $post['user_email'];
+            $model->item_id = $item['item_id'];
+            $model->bar_code = $item['bar_code'];
+            $model->is_coupon = $item['is_coupon'];
+            $model->qty = $item['qty'];
+            $model->sale_rate = $item['sale_rate'];
+            $model->base_price = $item['base_price'];
+            $model->mrp = $item['mrp'];
+            $model->item_detail = json_encode($item);
+            $model->created_at = date('Y-m-d H:i:s', strtotime($post['created_at']));
+            $model->save();
+        }
+
+        $out['status'] = 'OK';
         return $out;
     }
 }

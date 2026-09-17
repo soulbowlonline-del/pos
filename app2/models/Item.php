@@ -51,4 +51,53 @@ class Item extends ActiveRecord
     {
         return $this->hasOne(ItemCompany::class, ['id' => 'company_id']);
     }
+
+    /**
+     * Yii 1's getItemBarcodes(): despite the plural, this returns the bar code
+     * of the item's first active detail row, or '' when it has none.
+     */
+    public function getItemBarcodes()
+    {
+        $detail = ItemDetail::find()
+            ->where(['item_id' => $this->id, 'status' => ItemDetail::STATUS_ACTIVE])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        return $detail ? $detail->bar_code : '';
+    }
+
+    /**
+     * Yii 1's getTotalRemainingQuantity(): positive stock movements less the
+     * absolute value of the negative ones, to three decimal places via bcsub.
+     * Rows with no item_detail_id are excluded. Two queries rather than a
+     * single SUM because bcsub over the PHP-side accumulation is what produces
+     * the string the API returns.
+     */
+    public function getTotalRemainingQuantity()
+    {
+        $add = '0.000';
+        $sub = '0.000';
+
+        $positive = ItemStock::find()
+            ->where(['item_id' => $this->id])
+            ->andWhere('balance_qty > 0.000')
+            ->andWhere('item_detail_id IS NOT NULL')
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+        foreach ($positive as $stock) {
+            $add = $add + $stock->balance_qty;
+        }
+
+        $negative = ItemStock::find()
+            ->where(['item_id' => $this->id])
+            ->andWhere('balance_qty < 0.000')
+            ->andWhere('item_detail_id IS NOT NULL')
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+        foreach ($negative as $stock) {
+            $sub = $sub + abs($stock->balance_qty);
+        }
+
+        return bcsub((string)$add, (string)$sub, 3);
+    }
 }

@@ -6,39 +6,55 @@ use app\models\Order;
 use app\models\PaymentMode;
 use app\models\PurchaseBill;
 use app\models\Discount;
+use app\models\OnlineOrder;
+use app\models\OrderItem;
+use app\models\Outlet;
+use app\models\User;
+use PosOutbound;
 use app\models\PurchaseBillDetail;
 use yii\web\Controller;
 use yii\web\Response;
 
 /**
- * Partial Yii 2 port of protected/modules/api/controllers/OrderController.php.
+ * Yii 2 port of protected/modules/api/controllers/OrderController.php.
  *
- * The Yii 1 controller has eighteen actions across 1,117 lines, backed by an
- * Order model of 1,246 lines and an OrderItem model of 2,809. Three read
- * actions are ported here, the ones that need only Order::toArray1():
+ * Sixteen of the eighteen actions are ported and covered by differential
+ * tests. Yii 1 still serves every /api/order/* route; nothing is cut over by
+ * this file existing.
  *
- *   modes, list, getLastOrder, get, getDescriptionByBillId,
- *   getDescriptionByGrn
+ * Not ported:
  *
- * Not ported yet:
- *   search          needs the search/filter query builder
- *   customer/getOrderHold  reads an OrderHold and then deletes it, so it cannot
- *                   be compared without rebuilding the fixture between calls;
- *                   it also needs OrderHold::toArray()
- *   toArray() is 248 lines with its own dependency tree (refunds, loyalty
- *   transactions, outlets, payment and delivery modes). It is the next
- *   increment, and it also unblocks customer/orderList, customer/getOrder and
- *   customer/getOrderHold.
+ *   refund   The refund path writes OrderRefund, OrderRefundItem, ItemStock
+ *            and StockLog, and deletes MrsDetail and Mrs rows, inside one
+ *            transaction. It needs four models that do not exist on this side
+ *            yet and it moves both money and stock, so it wants its own
+ *            increment with a fixture order to refund against - not a port
+ *            bundled in with the endpoints around it.
  *
- * Not ported - order write paths:
- *   cancelOrder, shipOrder, completeOrder, assignOrder, orderUpdate, refund,
- *   reprint, online, getOnlineOrder, getAssignList, discount,
- *   getDescriptionByBillId, getDescriptionByGrn
- *   These are the critical POS flows: they move stock, take payment and issue
- *   refunds. They deserve their own increment with the differential harness
- *   run against a fixture order, not a port bundled in with read endpoints.
+ *   search   Queries tbl_order_item for bill_date, bill_no and customer_id,
+ *            three columns that only exist on tbl_order, so it throws for
+ *            every request that reaches it. Twelve users can reach it. Fixing
+ *            it means choosing what the endpoint returns, which is a decision
+ *            rather than a port: see docs/live-bugs-found.md.
  *
- * Yii 1 continues to serve every /api/order/* route meanwhile.
+ * Yii 1 action ids are camelCase; the Yii 2 routes are hyphenated, so
+ * /api/order/getOnlineOrder is /v2/api/order/get-online-order. Both read their
+ * parameters from the query string, except the date windows, which are POSTed.
+ *
+ * Reproduced rather than corrected, each commented at its call site:
+ * online() and getOnlineOrder() overwrite the caller id with the literal '1',
+ * so neither is authenticated; cancelOrder() lets any logged-in caller cancel
+ * any order; shipOrder() sends its dispatch notification before saving and
+ * never checks the reply; reprint() leaves `taxes` null when an order has no
+ * lines; and orderUpdate() sets the text `status` column while completeOrder()
+ * sets the numeric `order_status` - different fields with similar names.
+ *
+ * shipOrder and completeOrder reach the webshop's dispatch endpoint and
+ * Firebase. Both go through lib/PosOutbound.php when POS_STUB_OUTBOUND=1, and
+ * the differential suite compares the recorded calls as well as the response
+ * and the row.
+ *
+ * Response envelopes are reproduced exactly, as with the other ports.
  */
 class OrderController extends Controller
 {
@@ -324,5 +340,501 @@ class OrderController extends Controller
         }
 
         return $out;
+    }
+    /** The unverified caller id. Yii 1 reads 'userlogin', then 'login_id'. */
+    private function headerUserId()
+    {
+        $headers = Yii::$app->request->getHeaders();
+        $v = $headers->get('userlogin');
+        if ($v === null || $v === '') {
+            $v = $headers->get('login_id');
+        }
+        return ($v === null || $v === '') ? null : $v;
+    }
+
+    /**
+     * The date window these three actions share. Yii 1 runs both POSTed dates
+     * through strtotime, so anything strtotime understands is accepted and
+     * anything it does not becomes 1970-01-01. Reproduced.
+     */
+    private function dateWindow($defaultStart)
+    {
+        $post = Yii::$app->request->post();
+        if (isset($post['start_date']) && $post['start_date'] != ''
+            && isset($post['end_date']) && $post['end_date'] != '') {
+            return [
+                date('Y-m-d', strtotime($post['start_date'])),
+                date('Y-m-d', strtotime($post['end_date'])),
+            ];
+        }
+        return [$defaultStart, date('Y-m-d')];
+    }
+
+    /**
+     * POST /v2/api/order/get-assign-list
+     *
+     * The online orders assigned to the calling delivery rider. status=3 asks
+     * for the completed ones; anything else means shipped-but-not-completed.
+     *
+     * The Yii 1 query concatenated both the status and the caller id - which
+     * comes from a request header - straight into the SQL. Both are bound
+     * parameters now, on both stacks. It also had no ORDER BY; ordered by id.
+     */
+    public function actionGetAssignList($status = null)
+    {
+        $out = $this->envelope('getAssignList');
+
+        $loginId = $this->headerUserId();
+        if ($loginId === null) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        list($startDate, $endDate) = $this->dateWindow('2020-05-21');
+
+        $query = OnlineOrder::find()
+            ->where(['between', 'date(order_date)', $startDate, $endDate]);
+
+        if ($status == 3) {
+            $query->andWhere('order_status = :status', [':status' => $status]);
+        } else {
+            $query->andWhere(['is_shipped' => OnlineOrder::ORDER_SHIPPED])
+                  ->andWhere(['!=', 'order_status', OnlineOrder::ORDERSTATUS_COMPLETED]);
+        }
+
+        $orders = $query->andWhere('delivery_boy_id = :dbid', [':dbid' => $loginId])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        if (empty($orders)) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($orders as $order) {
+            $list[] = $order->toApiArray();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/online
+     *
+     * The online orders in a status. Note that Yii 1 overwrites the caller id
+     * with the literal '1' immediately after reading it, so the login check
+     * below can never fail and the endpoint is effectively unauthenticated.
+     * Reproduced, and recorded in docs/live-bugs-found.md.
+     *
+     * status=2 means "packed or shipped", not "status 2".
+     */
+    public function actionOnline($status = null)
+    {
+        $out = $this->envelope('online');
+
+        $this->headerUserId();
+        $loginId = '1';   // as in Yii 1 - see above
+
+        if (!$loginId) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        list($startDate, $endDate) = $this->dateWindow('2021-05-14');
+
+        $query = OnlineOrder::find()
+            ->where(['between', 'date(order_date)', $startDate, $endDate]);
+
+        if ($status != null && $status != 0 && $status != '') {
+            if ($status == 2) {
+                $query->andWhere(['order_status' => ['1', '2']]);
+            } else {
+                $query->andWhere('order_status = :status', [':status' => $status]);
+            }
+        } else {
+            $query->andWhere(['order_status' => OnlineOrder::ORDERSTATUS_PENDING]);
+        }
+
+        $orders = $query->orderBy(['id' => SORT_ASC])->all();
+
+        if (empty($orders)) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($orders as $order) {
+            $list[] = $order->toApiArray();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/get-online-order
+     *
+     * One online order, with its line items. Same hardcoded caller id as
+     * online(). With no id at all Yii 1 falls through every branch and returns
+     * the bare envelope - no message key - which is reproduced here.
+     */
+    public function actionGetOnlineOrder($id = null)
+    {
+        $out = $this->envelope('getOnlineOrder');
+
+        $this->headerUserId();
+        $loginId = '1';   // as in Yii 1
+
+        if (!$loginId) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        if ($id === null) {
+            return $out;   // no message key, as in Yii 1
+        }
+
+        $order = OnlineOrder::findOne($id);
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $out['order'] = $order->toApiArray(true);
+        return $out;
+    }
+    /**
+     * POST /v2/api/order/cancel-order?id=N
+     *
+     * Any logged-in caller can cancel any online order - the id is not checked
+     * against the caller. Reproduced; recorded in docs/live-bugs-found.md.
+     *
+     * When save() fails the Yii 1 version falls through with status NOK and no
+     * message at all, which is also reproduced.
+     */
+    public function actionCancelOrder($id = null)
+    {
+        $out = $this->envelope('cancelOrder');
+
+        if ($this->headerUserId() === null) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        $onlineOrder = OnlineOrder::findOne($id);
+        if (!$onlineOrder) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        $onlineOrder->order_status = OnlineOrder::ORDERSTATUS_CANCELLED;
+        if ($onlineOrder->save()) {
+            $out['status'] = 'OK';
+            $out['message'] = 'Order is cancelled successfully';
+            $out['assigned'] = $onlineOrder->toApiArray();
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/assign-order?id=N
+     *
+     * Sets the picker and/or the delivery rider. Either may be omitted; an
+     * empty value leaves the existing one alone.
+     */
+    public function actionAssignOrder($id = null)
+    {
+        $out = $this->envelope('assignOrder');
+
+        if ($this->headerUserId() === null) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        $onlineOrder = OnlineOrder::findOne($id);
+        if (!$onlineOrder) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        $post = Yii::$app->request->post();
+        if (isset($post['picker_id']) && $post['picker_id'] != '') {
+            $onlineOrder->picker_id = $post['picker_id'];
+        }
+        if (isset($post['delivery_boy_id']) && $post['delivery_boy_id'] != '') {
+            $onlineOrder->delivery_boy_id = $post['delivery_boy_id'];
+        }
+
+        if ($onlineOrder->save()) {
+            $out['status'] = 'OK';
+            $out['assigned'] = $onlineOrder->toApiArray();
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/order-update?id=N
+     *
+     * Sets the online order's *text* status to Completed. Note this is the
+     * `status` column, not `order_status` - completeOrder() sets the other one.
+     * No login check on this one at all.
+     *
+     * With no id the Yii 1 version returns the bare envelope, no message.
+     */
+    public function actionOrderUpdate($id = null)
+    {
+        $out = $this->envelope('orderUpdate');
+
+        if ($id === null) {
+            return $out;
+        }
+
+        $order = OnlineOrder::findOne($id);
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $order->status = OnlineOrder::STATUS_COMPLETED;
+        if ($order->save()) {
+            $out['status'] = 'OK';
+            $out['message'] = 'Order is completed successfully';
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/reprint?id=N
+     *
+     * The bill header and its tax summary, grouped by tax, item and HSN code.
+     *
+     * The id has no default, as in Yii 1, so a request without one is an error
+     * on both stacks - each rendered by its own framework, so the suite
+     * compares those two by status rather than by body.
+     *
+     * Two Yii 1 behaviours reproduced: an unknown id returns the bare envelope
+     * with no taxes key, and an order whose lines produce no rows leaves
+     * $taxarr undefined, so `taxes` comes back null and PHP 8 warns. The
+     * grouped query had no ORDER BY until the MySQL 8 work; it is ordered by
+     * the grouped columns on both stacks.
+     */
+    public function actionReprint($id)
+    {
+        $out = $this->envelope('reprint');
+
+        $order = Order::findOne($id);
+        if (!$order) {
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+
+        $billPrefix = 'B';
+        $outlet = Outlet::findOne($order->outlet_id);
+        if ($outlet && $outlet->bill_prefix != '') {
+            $billPrefix = $outlet->bill_prefix;
+        }
+
+        $out['bill_no'] = $billPrefix . '-' . $order->bill_no;
+        $out['bill_date'] = date('d-m-Y', strtotime($order->bill_date));
+        // read off Order, which typecasts; Yii 1 emits the stringified column
+        $out['is_mobile'] = $order->is_mobile === null ? null : (string)$order->is_mobile;
+
+        $items = OrderItem::find()
+            ->select('SUM(qty) AS qty, SUM(tax_amount) AS tax_amount, SUM(cgst_amt) AS cgst_amt,'
+                   . ' SUM(sgst_amt) AS sgst_amt, SUM(cess_amt) AS cess_amt, SUM(igst_amt) AS igst_amt, t.*')
+            ->alias('t')
+            ->joinWith('item item')
+            ->where(['t.order_id' => $order->id])
+            ->groupBy(['t.tax_id', 't.item_id', 'item.hsn_code'])
+            ->orderBy('t.tax_id, t.item_id, item.hsn_code')
+            ->all();
+
+        // left null when there are no rows, as in Yii 1
+        $taxes = null;
+        foreach ($items as $item) {
+            $taxes[] = $item->getTaxApiArray();
+        }
+        $out['taxes'] = $taxes;
+
+        return $out;
+    }
+    /**
+     * Notifies a set of devices, through the same stubbed transport the Yii 1
+     * side uses. Returns nothing: neither caller looks at the result.
+     */
+    private function notifyDevices($sender, array $tokens, array $message)
+    {
+        if ($sender === null || empty($tokens)) {
+            return;
+        }
+        $sender->sendGCM($tokens, $message);
+    }
+
+    /**
+     * POST /v2/api/order/ship-order?id=N
+     *
+     * Marks an online order shipped, tells the webshop's dispatch endpoint, and
+     * pushes a notification to the assigned rider's device.
+     *
+     * Order of operations is load-bearing and reproduced exactly: the dispatch
+     * call goes out *before* the row is saved, and its response is neither
+     * checked nor returned - the Yii 1 code that would have checked it is
+     * commented out, so a failed dispatch still reports success. The push is
+     * sent only after a successful save.
+     *
+     * Both outbound calls run through PosOutbound when stubbed.
+     */
+    public function actionShipOrder($id = null)
+    {
+        $out = $this->envelope('shipOrder');
+
+        if ($this->headerUserId() === null) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        $onlineOrder = OnlineOrder::findOne($id);
+        if (!$onlineOrder) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        $onlineOrder->is_shipped = OnlineOrder::ORDER_SHIPPED;
+        $onlineOrder->order_status = OnlineOrder::ORDERSTATUS_SHIPPED;
+
+        $this->dispatchNotify('sendemailnotificationdelivery', $onlineOrder->order_id, '2');
+
+        if ($onlineOrder->save()) {
+            if ($onlineOrder->delivery_boy_id != '' && $onlineOrder->delivery_boy_id !== null) {
+                $rider = User::find()
+                    ->where(['id' => $onlineOrder->delivery_boy_id])
+                    ->andWhere('device_token IS NOT NULL')
+                    ->one();
+                if ($rider) {
+                    $this->notifyDevices($rider, [$rider->device_token], [
+                        'body' => 'A new order is assigned',
+                        'message' => 'A new order is assigned',
+                        'title' => 'New Order',
+                        'sound' => 'default',
+                        'type' => 1,
+                        'id' => 1,
+                    ]);
+                }
+            }
+
+            $out['status'] = 'OK';
+            $out['message'] = 'Order is shipped successfully';
+            $out['assigned'] = $onlineOrder->toApiArray();
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/complete-order?id=N
+     *
+     * The rider marks their own delivery complete. Only the assigned rider may:
+     * anyone else gets "Online Order not assigned to you".
+     *
+     * Note this sets order_status, where orderUpdate() sets the text status
+     * column - they are different fields and neither touches the other.
+     *
+     * The push goes to every role-7 user with a device token, sent as the
+     * calling user. If the caller id in the header matches no user row that is
+     * a call on null, and it fails the same way on both stacks.
+     */
+    public function actionCompleteOrder($id = null)
+    {
+        $out = $this->envelope('completeOrder');
+
+        $loginId = $this->headerUserId();
+        if ($loginId === null) {
+            $out['message'] = 'Please login';
+            return $out;
+        }
+
+        $loginUser = User::findOne($loginId);
+        $onlineOrder = OnlineOrder::findOne($id);
+        if (!$onlineOrder) {
+            $out['message'] = 'Online Order not available';
+            return $out;
+        }
+
+        if ($onlineOrder->delivery_boy_id != $loginId) {
+            $out['message'] = 'Online Order not assigned to you';
+            return $out;
+        }
+
+        $onlineOrder->order_status = OnlineOrder::ORDERSTATUS_COMPLETED;
+
+        $this->dispatchNotify('sendemailnotificationcomplete', $onlineOrder->order_id, '3');
+
+        if ($onlineOrder->save()) {
+            $users = User::find()
+                ->where('role_id = 7')
+                ->andWhere('device_token IS NOT NULL')
+                ->orderBy(['id' => SORT_ASC])
+                ->all();
+
+            if ($users) {
+                $tokens = [];
+                foreach ($users as $user) {
+                    $tokens[] = $user->device_token;
+                }
+                $orderId = $onlineOrder->order_id;
+                $this->notifyDevices($loginUser, $tokens, [
+                    'body' => "$orderId order is completed",
+                    'message' => "$orderId order is completed",
+                    'title' => 'New Order',
+                    'sound' => 'default',
+                    'type' => 1,
+                    'id' => 1,
+                ]);
+            }
+
+            $out['status'] = 'OK';
+            $out['message'] = 'Order is completed successfully';
+            $out['assigned'] = $onlineOrder->toApiArray();
+        }
+
+        return $out;
+    }
+
+    /**
+     * The webshop's dispatch-status callback. The shared key lives in the
+     * environment now; it used to be a literal in this file and is therefore
+     * in the repository's history, so it needs rotating.
+     */
+    private function dispatchNotify($endpoint, $orderId, $status)
+    {
+        $url = 'http://sect4.soulbowl.in/deliveryoption/index/' . $endpoint;
+        $fields = [
+            'sKeY' => getenv('POS_SOULBOWL_KEY'),
+            // string, as Yii 1 sends it straight from a stringified fetch
+            'order_id' => (string)$orderId,
+            'action' => 'update_dispatch_status',
+            'status' => $status,
+        ];
+
+        if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+            return PosOutbound::intercept(PosOutbound::CHANNEL_HTTP, 'POST ' . $url, $fields);
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $body = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($body, true);
     }
 }

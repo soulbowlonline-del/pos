@@ -143,4 +143,40 @@ class User extends ActiveRecord
         $host = $req->getHostInfo();
         return $host . '/user/download?file=' . urlencode((string)$file);
     }
+
+    /**
+     * Firebase push, ported from User::sendGCM(). Goes through the outbound
+     * stub when one is configured, exactly as the Yii 1 method does.
+     *
+     * The server key used to be a literal in protected/models/User.php; it is
+     * read from the environment now, but it is in the repository's history and
+     * needs rotating. The endpoint itself is the legacy FCM API.
+     *
+     * Returns nothing on the live path - neither caller reads a result.
+     */
+    public function sendGCM($registrationIds, $notification)
+    {
+        $url = 'https://fcm.googleapis.com/fcm/send';
+        $fields = [
+            'registration_ids' => $registrationIds,
+            'data' => $notification,
+        ];
+
+        if (class_exists('PosOutbound') && \PosOutbound::isStubbed()) {
+            return \PosOutbound::intercept(\PosOutbound::CHANNEL_HTTP, 'POST ' . $url, $fields);
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: key=' . getenv('POS_FCM_SERVER_KEY'),
+            'Content-Type:application/json',
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+        curl_exec($ch);
+        curl_close($ch);
+    }
 }

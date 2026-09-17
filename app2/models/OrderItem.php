@@ -17,6 +17,11 @@ class OrderItem extends ActiveRecord
         return '{{%order_item}}';
     }
 
+    public function getTax()
+    {
+        return $this->hasOne(Tax::class, ['id' => 'tax_id']);
+    }
+
     public function getItemDetail()
     {
         return $this->hasOne(ItemDetail::class, ['id' => 'item_detail_id']);
@@ -127,5 +132,76 @@ class OrderItem extends ActiveRecord
         }
 
         return $json;
+    }
+
+    /**
+     * Payload from OrderItem::toArray1(), which differs from toArray() in
+     * exactly three places, all of them key names rather than values:
+     * no hsn_code, tax_amt instead of tax_amount, and cess_amount/igst_amount
+     * instead of cess_amt/igst_amt. Built by rewriting toApiArray() rather
+     * than duplicating sixty lines, so the two cannot drift apart.
+     */
+    public function toApiArray1($return = 0)
+    {
+        $row = $this->toApiArray($return);
+
+        unset($row['hsn_code']);
+
+        $renamed = [];
+        foreach ($row as $key => $value) {
+            if ($key === 'tax_amount') {
+                $renamed['tax_amt'] = $value;
+            } elseif ($key === 'cess_amt') {
+                $renamed['cess_amount'] = $value;
+            } elseif ($key === 'igst_amt') {
+                $renamed['igst_amount'] = $value;
+            } else {
+                $renamed[$key] = $value;
+            }
+        }
+
+        return $renamed;
+    }
+
+    /**
+     * Payload from OrderItem::getTaxArray(), used by order/reprint for the tax
+     * summary lines. The Yii 1 version opens with a loop that sums cgst, sgst,
+     * cess and igst across every line sharing this order and tax id, and then
+     * never reads the totals - the keys it emits are this line's own amounts.
+     * The loop is left out here rather than reproduced: it costs a query per
+     * summary row and cannot affect the output.
+     *
+     * cgst_per and friends come off the Tax row as tax_val1..tax_val4. That
+     * mapping is the one recorded in docs/live-bugs-found.md as suspect
+     * (getSgstPercent() reads tax_val1 elsewhere); reproduced, not corrected.
+     */
+    public function getTaxApiArray()
+    {
+        $order = Order::findOne($this->order_id);
+        $itemDetail = $this->itemDetail;
+
+        $out = [];
+        $out['hsn_code'] = $this->item ? $this->item->hsn_code : '';
+        $out['total_amt'] = $this->total_amt;
+        $out['price'] = $this->qty * $this->price;
+        $out['tax_amount'] = $this->tax_amount;
+        $out['unit_name'] = $this->item ? Item::getMeasurementTypeOptions($this->item->unit) : '';
+        $out['qty'] = $this->qty;
+        // Yii 1 emits the stringified column; Yii 2's AR casts it to int
+        $out['tax_id'] = $this->tax_id === null ? null : (string)$this->tax_id;
+        $out['tax_percent'] = $itemDetail->getItemTaxPercent();
+        $out['cgst_per'] = $this->tax ? $this->tax->tax_val1 : '';
+        $out['sgst_per'] = $this->tax ? $this->tax->tax_val2 : '';
+        $out['cess_per'] = $this->tax ? $this->tax->tax_val3 : '';
+        $out['igst_per'] = $this->tax ? $this->tax->tax_val4 : '';
+        $out['cgst_amt'] = $this->cgst_amt;
+        $out['sgst_amt'] = $this->sgst_amt;
+        $out['cess_amount'] = $this->cess_amt;
+        $out['igst_amount'] = $this->igst_amt;
+        if ($order) {
+            $out['bill_date'] = date('d-m-Y', strtotime($order->bill_date));
+        }
+
+        return $out;
     }
 }
