@@ -7,6 +7,7 @@ use app\models\Country;
 use app\models\Customer;
 use app\models\CustomerOtp;
 use app\models\CustomerOtpVerification;
+use app\components\InteraktApi;
 use app\components\OTPService;
 use app\models\Discount;
 use app\models\Order;
@@ -27,7 +28,8 @@ use yii\web\Response;
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
  *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
- *              update, verifywhatappotp, getOrderHold, sendOTP
+ *              update, verifywhatappotp, getOrderHold, sendOTP, add,
+ *              sentwhatappotp
  *
  * Not ported - needs the Order model:
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
@@ -626,6 +628,114 @@ class CustomerController extends Controller
                 'warning' => 'SMS delivery may have failed',
             ];
         }
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/add
+     *
+     * Requires name and contact_no; the address fields fall back to fixed
+     * defaults (city 1, state 1, country 1, zip 160059) when not supplied.
+     *
+     * After saving, the customer is registered with the WhatsApp CRM. That call
+     * is wrapped in a catch-all in Yii 1 and stays that way: a CRM failure must
+     * not undo a customer who is already saved. With POS_STUB_OUTBOUND=1 it is
+     * recorded rather than made.
+     */
+    public function actionAdd()
+    {
+        $out = $this->envelope('add');
+        $req = Yii::$app->request;
+
+        $name = $req->post('name');
+        $contactNo = $req->post('contact_no');
+        if ($name === null || $contactNo === null) {
+            return $out;   // Yii 1 falls through with no message
+        }
+
+        $model = new Customer();
+        $model->name = $name;
+        $model->contact_no = $contactNo;
+        $model->state_id = $req->post('state_id', 1);
+        $model->city_id = $req->post('city_id', 1);
+        $model->country_id = $req->post('country_id', 1);
+        $model->zip_code = $req->post('zip_code', '160059');
+
+        foreach (['email', 'opening_balance', 'credit_limit', 'payment_days', 'is_enable_wa'] as $optional) {
+            if ($req->post($optional) !== null) {
+                $model->$optional = $req->post($optional);
+            }
+        }
+
+        if (Customer::getUserByContactNo($model->contact_no)) {
+            $out['message'] = 'Contact no. already in use.';
+            return $out;
+        }
+
+        $model->state_id = 1;   // "activates account set 1" - see actionUpdate
+
+        if (!$model->save(false)) {
+            $out['message'] = '';
+            return $out;
+        }
+
+        try {
+            $whatsappNo = preg_replace('/[^0-9]/', '', $model->contact_no);
+            if ($whatsappNo != '') {
+                $api = new InteraktApi(getenv('POS_INTERAKT_API_KEY') ?: null);
+                $api->createCustomer([
+                    'phoneNumber' => $whatsappNo,
+                    'countryCode' => '+91',
+                    'traits' => ['name' => $model->name, 'email' => $model->email],
+                    'tags' => ['Added By POS'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // swallowed, as in Yii 1: the customer is saved either way
+        }
+
+        $out['status'] = 'OK';
+        $out['profile'][] = $model->toApiArray();
+        $out['message'] = 'Customer is added successfully';
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/sentwhatappotp?id=N
+     *
+     * Issues a code and sends it on the welcome_message template.
+     *
+     * Two behaviours carried over: is_enable_wa is set to 1 but the model is
+     * never saved, so it affects only the returned payload and not the stored
+     * row; and 'message' is whatever sendApprovalOrderMessageNew returns, which
+     * is null because that method has no return statement.
+     */
+    public function actionSentwhatappotp($id)
+    {
+        $out = $this->envelope('sentwhatappotp');
+
+        $model = Customer::findOne($id);
+        if (!$model) {
+            $out['message'] = 'Setting not found';   // yes, that is the message
+            return $out;
+        }
+
+        $model->is_enable_wa = 1;   // not saved - see above
+        $otp = CustomerOtpVerification::generateOtp($model->id);
+
+        $whatsappNo = preg_replace('/[^0-9]/', '', (string)$model->contact_no);
+        if ($whatsappNo != '') {
+            $api = new InteraktApi(getenv('POS_INTERAKT_API_KEY') ?: null);
+            $out['message'] = $api->sendApprovalOrderMessageNew(
+                'welcome_message', $whatsappNo, [$model->name, $otp], '', ''
+            );
+        }
+
+        $out['status'] = 'OK';
+        // toApiArray1 casts is_enable_wa to a string; Yii 1 emits the int it
+        // just assigned. Same situation as verifyOTP.
+        $profile = $model->toApiArray();
+        $out['profile'][] = $profile;
         return $out;
     }
 }

@@ -84,4 +84,49 @@ class InteraktApi
         ];
         return $this->sendTemplate($data);
     }
+
+    public function createCustomer($data)
+    {
+        return $this->sendRequest('POST', '/track/users/', $data);
+    }
+
+    /**
+     * Sends a template, optionally with a document header.
+     *
+     * Returns null: the Yii 1 method ends with $this->sendTemplate(...) and no
+     * return statement, so its caller stores null in the response. Reproduced,
+     * because customer/sentwhatappotp puts that value straight into its
+     * 'message' key.
+     */
+    public function sendApprovalOrderMessageNew($template, $phone, $bodyValues, $pdfUrl, $fileName = 'text', $extraData = [])
+    {
+        if ($pdfUrl == '') {
+            $data = [
+                'countryCode' => '+91',
+                'phoneNumber' => $phone,
+                'type' => 'Template',
+                'template' => [
+                    'name' => $template,
+                    'languageCode' => 'en',
+                    'bodyValues' => $bodyValues,
+                ],
+            ];
+        } else {
+            $data = [
+                'countryCode' => '+91',
+                'phoneNumber' => $phone,
+                'type' => 'Template',
+                'template' => [
+                    'name' => $template,
+                    'languageCode' => 'en',
+                    'headerValues' => $pdfUrl,
+                    'fileName' => $fileName,
+                    'bodyValues' => $bodyValues,
+                ],
+            ];
+        }
+
+        $this->sendTemplate($data, $extraData);
+        return null;   // as in Yii 1
+    }
 }

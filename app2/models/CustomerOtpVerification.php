@@ -38,4 +38,24 @@ class CustomerOtpVerification extends ActiveRecord
         }
         return false;
     }
+
+    /**
+     * Issues a six-digit code valid for five minutes and returns it.
+     *
+     * Unlike CustomerOtp::generateOTP this does not clean up prior codes, so a
+     * customer accumulates rows here. Reproduced as-is.
+     */
+    public static function generateOtp($customerId, $expiryMinutes = 5)
+    {
+        $otp = rand(100000, 999999);
+
+        $entry = new static();
+        $entry->customer_id = $customerId;
+        $entry->otp_code = $otp;
+        $entry->expires_at = date('Y-m-d H:i:s', strtotime("+{$expiryMinutes} minutes"));
+        $entry->is_verified = 0;
+        $entry->save(false);
+
+        return $otp;
+    }
 }
