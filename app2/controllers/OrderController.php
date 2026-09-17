@@ -14,10 +14,13 @@ use yii\web\Response;
  * Order model of 1,246 lines and an OrderItem model of 2,809. Three read
  * actions are ported here, the ones that need only Order::toArray1():
  *
- *   modes, list, getLastOrder
+ *   modes, list, getLastOrder, get
  *
- * Not ported yet - need Order::toArray():
- *   get, search
+ * Not ported yet:
+ *   search          needs the search/filter query builder
+ *   customer/getOrderHold  reads an OrderHold and then deletes it, so it cannot
+ *                   be compared without rebuilding the fixture between calls;
+ *                   it also needs OrderHold::toArray()
  *   toArray() is 248 lines with its own dependency tree (refunds, loyalty
  *   transactions, outlets, payment and delivery modes). It is the next
  *   increment, and it also unblocks customer/orderList, customer/getOrder and
@@ -131,6 +134,27 @@ class OrderController extends Controller
         $out['status'] = 'OK';
         // Yii 1 wrapped the single order in a list; preserved.
         $out['orders'][] = $order->toApiArray1();
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/order/get?id=N
+     *
+     * The full order with its line items, quantities and totals reported net of
+     * any refund against the same item.
+     */
+    public function actionGet($id)
+    {
+        $out = $this->envelope('get');
+
+        $order = Order::findOne($id);
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $out['order'] = $order->toApiArray();
         return $out;
     }
 }

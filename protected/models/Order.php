@@ -83,7 +83,11 @@ class Order extends BaseOrder
 		$criteria->addCondition('order_id = '.$this->id);
 		$criteria->select = 'sum(qty) as qty';
 		$orderitem = OrderItem::model()->find($criteria);
-		if($orderitem){
+		// SUM() over no rows returns NULL, not 0, and the find() still yields a
+		// row - so an order with no line items left $itemqty null and round(null)
+		// is deprecated from PHP 8.1. Yii 1 escalates that into a 500, which took
+		// out /api/order/getLastOrder and the order lists for any such order.
+		if($orderitem && $orderitem->qty !== null){
 		$itemqty = $orderitem->qty;
 		}
 		$refundorders = OrderRefund::model()->findAllByAttributes(array('order_id'=>$this->id));
@@ -94,7 +98,7 @@ class Order extends BaseOrder
 				$criteria->addCondition('order_refund_id = '.$refundorder->id);
 				$criteria->select = 'sum(qty) as qty';
 				$orderrefunditem = OrderRefundItem::model()->find($criteria);
-				if($orderrefunditem){
+				if($orderrefunditem && $orderrefunditem->qty !== null){
 				$refund = $refund + $orderrefunditem->qty;
 				}
 	
@@ -1148,20 +1152,30 @@ class Order extends BaseOrder
 	public function getOrderBillNo(){
 		$bill_prefix = 'B';
 		$billno =  $this->bill_no;
-		$month =  date('m',strtotime($this->bill_date));
+		// getOrderBillNo(): guarded for PHP 8. bill_date is nullable and the
+		// column also holds '0000-00-00' rows; strtotime() returns false for both,
+		// and the chain of date() calls below then trips Yii 1's error handler,
+		// which turns any reported error into a 500. Falling back to the current
+		// time keeps the previous shape of the bill number for valid dates and
+		// stops an unparseable one taking the endpoint down.
+		$billts = strtotime((string)$this->bill_date);
+		if ($billts === false) {
+			$billts = time();
+		}
+		$month =  date('m',$billts);
 	 									if($month > 3){
-	 										$year = date('Y',strtotime($this->bill_date));
+	 										$year = date('Y',$billts);
 	 										$yearlast = $year + 1;
 	 										
 	 									}else{
-											$year = date('Y',strtotime($this->bill_date));
+											$year = date('Y',$billts);
 											$year = $year - 1;
-	 										$yearlast = date('Y',strtotime($this->bill_date));
+	 										$yearlast = date('Y',$billts);
 	 									
 	 									
 	 									}
 										
-		$billyear =  date('Y',strtotime($this->bill_date));
+		$billyear =  date('Y',$billts);
 		$newyear = $billyear + 1;
 		$outlet = Outlet::model()->findByPk($this->outlet_id);
 		if($outlet){

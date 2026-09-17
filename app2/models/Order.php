@@ -22,6 +22,21 @@ class Order extends ActiveRecord
         return $this->hasOne(Customer::class, ['id' => 'customer_id']);
     }
 
+    public function getModePayment()
+    {
+        return $this->hasOne(PaymentMode::class, ['id' => 'mode_of_payment']);
+    }
+
+    public function getModeDelivery()
+    {
+        return $this->hasOne(PaymentMode::class, ['id' => 'mode_of_delivery']);
+    }
+
+    public function getOrderItems()
+    {
+        return $this->hasMany(OrderItem::class, ['order_id' => 'id']);
+    }
+
     public function getOutlet()
     {
         return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
@@ -135,5 +150,42 @@ class Order extends ActiveRecord
                 ? (string)$this->customer->is_enable_wa
                 : '0',
         ];
+    }
+
+    /**
+     * Payload from Order::toArray() - the full form, with line items.
+     *
+     * The Yii 1 version computes a $bill_prefix at the top of the method and
+     * never uses it (getOrderBillNo() derives its own), so it is not reproduced.
+     */
+    public function toApiArray()
+    {
+        $json = [];
+        $json['id'] = (string)$this->id;
+        $json['bill_no'] = $this->getOrderBillNo();
+        $json['bill_date'] = $this->bill_date;
+        $json['mode_of_payment'] = isset($this->modePayment) ? $this->modePayment->title : '';
+        $json['mode_of_delivery'] = isset($this->modeDelivery) ? $this->modeDelivery->title : '';
+        $json['qty'] = $this->qty === null ? null : (string)$this->qty;
+        $json['discount_amt'] = $this->discount_amt;
+        $json['total_amt'] = $this->total_amt;
+        $json['paid_amt'] = $this->paid_amt;
+        $json['status'] = $this->status === null ? null : (string)$this->status;
+        $json['type_id'] = $this->type_id === null ? null : (string)$this->type_id;
+        $json['city_id'] = $this->city_id === null ? null : (string)$this->city_id;
+        $json['state_id'] = $this->state_id === null ? null : (string)$this->state_id;
+        $json['country_id'] = $this->country_id === null ? null : (string)$this->country_id;
+        $json['address'] = $this->address;
+        $json['note'] = $this->note;
+        $json['create_time'] = $this->create_time;
+        $json['customer_id'] = $this->customer_id === null ? null : (string)$this->customer_id;
+
+        $items = [];
+        foreach ($this->orderItems as $orderItem) {
+            $items[] = $orderItem->toApiArray();
+        }
+        $json['order_items'] = $items;
+
+        return $json;
     }
 }

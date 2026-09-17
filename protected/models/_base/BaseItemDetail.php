@@ -171,10 +171,15 @@ abstract class BaseItemDetail extends GxActiveRecord {
 						'item_detail_id' 
 				),
 				
+				// An item detail has one stock row per batch; without an order the
+				// relation returned an arbitrary one - in practice the highest id,
+				// i.e. the most recent batch - so the batch number on an
+				// order line was not stable between calls.
 				'itemStock' => array (
 						self::HAS_ONE,
 						'ItemStock',
-						'item_detail_id' 
+						'item_detail_id',
+						'order' => 'id DESC' 
 				),
 				'itemStocks' => array (
 						self::HAS_MANY,
