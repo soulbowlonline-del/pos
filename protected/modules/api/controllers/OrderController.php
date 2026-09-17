@@ -1080,6 +1080,9 @@ class OrderController extends GxController {
 				$detailCriteria->addCondition('purchase_bill_id = :bill_id');
 				$detailCriteria->params = array(':bill_id' => $purchaseBill->id);
 				$detailCriteria->with = array('item'); // Assuming relationship exists
+				// Deterministic item order within a GRN; without this the lines
+				// could be rendered in a different sequence between calls.
+				$detailCriteria->order = 't.id ASC';
 				
 				$purchaseDetails = PurchaseBillDetail::model()->findAll($detailCriteria);
 				

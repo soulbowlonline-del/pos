@@ -27,4 +27,9 @@ class PurchaseBillDetail extends ActiveRecord
             ->one();
         return $detail ? $detail->sale_tax_id : 0;
     }
+
+    public function getItem()
+    {
+        return $this->hasOne(Item::class, ['id' => 'item_id']);
+    }
 }
