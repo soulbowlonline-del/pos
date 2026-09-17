@@ -55,6 +55,7 @@ return [
                 // and several of these take an id from the query string.
                 'api/customer/<action:[\w-]+>' => 'customer/<action>',
                 'api/order/<action:[\w-]+>' => 'order/<action>',
+                'api/tally/<action:[\w-]+>' => 'tally/<action>',
             ],
         ],
         'response' => [

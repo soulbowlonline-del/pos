@@ -1,0 +1,143 @@
+<?php
+namespace app\controllers;
+
+use Yii;
+use yii\web\Controller;
+use yii\web\Response;
+
+/**
+ * Partial Yii 2 port of protected/modules/api/controllers/TallyController.php.
+ *
+ * Ported: cashsale - the per-tax-rate GST summary used for the Tally export.
+ * It is raw SQL end to end and depends on no model payloads, which makes it
+ * portable in isolation.
+ *
+ * Not ported:
+ *   stockreturn   needs ItemReturnItem::toTallyArray() and the vendor/parent
+ *                 vendor chain behind it
+ *   paymentreport, b2btaxwise, b2bsales
+ *                 need PurchaseBillDetail::toArray1(), which calls eleven tax
+ *                 arithmetic helpers (getVendorTAXNO, getTotalGstPer,
+ *                 getTaxPercentage, getBasicAmount, getMainDiscount,
+ *                 getTotalGstAmt, getCgstAmount, getSgstAmount, getIgstAmount,
+ *                 getCessAmount, getSchemeDiscount). That tree belongs with the
+ *                 purchase and billing module's port rather than being pulled
+ *                 in through Tally.
+ *
+ * Yii 1 continues to serve every /api/tally/* route.
+ */
+class TallyController extends Controller
+{
+    public $enableCsrfValidation = false;
+
+    public function beforeAction($action)
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        return parent::beforeAction($action);
+    }
+
+    /**
+     * POST /v2/api/tally/cashsale?date=YYYY-MM-DD
+     *
+     * Per tax rate for the given day: taxable value net of refunds, then CGST,
+     * SGST, CESS and IGST derived from the tax row.
+     *
+     * The Yii 1 version concatenates $date straight into three queries. All
+     * parameters are bound here.
+     */
+    public function actionCashsale($date = null)
+    {
+        $out = [
+            'controller' => 'tally',
+            'action' => 'cashsale',
+            'status' => 'NOK',
+        ];
+
+        // A deliberate deviation from Yii 1, and the only one in this action.
+        // With no date the Yii 1 version builds `create_date = ''`, which
+        // throws CDbException; the same query here matches zero-dated rows and
+        // then runs two subqueries per tax rate, so the request ran for the
+        // full execution limit before dying. Neither behaviour is useful and a
+        // request that occupies a worker for five minutes is the worse of the
+        // two, so a missing date returns the normal empty envelope instead.
+        if ($date === null || $date === '') {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $db = Yii::$app->db;
+
+        // One row per tax rate present on the day. The Yii 1 query groups
+        // without ordering, so the row order was left to MySQL; ordered here
+        // and on the Yii 1 side so the export is stable.
+        $items = $db->createCommand(
+            'SELECT * FROM `tbl_order_item` WHERE `create_date` = :date GROUP BY `tax_id` ORDER BY `tax_id`',
+            [':date' => $date]
+        )->queryAll();
+
+        $list = [];
+        foreach ($items as $item) {
+            $taxId = $item['tax_id'];
+
+            $totalTaxable = $db->createCommand(
+                'SELECT sum(`price` * `qty`) as total FROM `tbl_order_item`'
+                . ' WHERE `create_date` = :date AND `tax_id` = :tax',
+                [':date' => $date, ':tax' => $taxId]
+            )->queryOne();
+
+            $refundRow = $db->createCommand(
+                'SELECT sum(`price` * `qty`) as total FROM `tbl_order_refund_item`'
+                . ' WHERE date(`create_time`) = :date AND `tax_id` = :tax',
+                [':date' => $date, ':tax' => $taxId]
+            )->queryOne();
+
+            $taxable = $totalTaxable['total'] - $refundRow['total'];
+
+            // Initialised before the lookup: the Yii 1 version leaves these
+            // undefined when the tax row is missing, which on PHP 8 raises a
+            // warning that Yii 1's error handler turns into a 500.
+            $cgst = $sgst = $cess = $igst = $gst = $totalAmt = null;
+
+            $taxRow = $db->createCommand(
+                'SELECT * FROM `tbl_tax` WHERE `id` = :tax',
+                [':tax' => $taxId]
+            )->queryOne();
+
+            if ($taxRow) {
+                $cgst = $taxable * ($taxRow['tax_val1'] * 0.01);
+                $sgst = $taxable * ($taxRow['tax_val2'] * 0.01);
+                $cess = $taxable * ($taxRow['tax_val3'] * 0.01);
+                $igst = $taxable * ($taxRow['tax_val4'] * 0.01);
+                $tax = $taxRow['tax_val1'] + $taxRow['tax_val2'] + $taxRow['tax_val4'];
+                $gst = ($taxable * ($tax * 0.01)) + ($taxable * ($item['cess_per'] * 0.01));
+                $totalAmt = $taxable + $gst;
+            }
+
+            // Key order and spelling are reproduced exactly; these become column
+            // headings in the Tally import.
+            $list[] = [
+                'Bill Date' => $date,
+                'Taxable' => $taxable,
+                'Gst' => $gst,
+                'Cgst_per' => $item['cgst_per'],
+                'Sgst_per' => $item['sgst_per'],
+                'Cess_per' => $item['cess_per'],
+                'Igst_per' => $item['igst_per'],
+                'Cgst' => $cgst,
+                'Sgst' => $sgst,
+                'Cess' => $taxable * ($item['cess_per'] * 0.01),
+                'Igst' => $igst,
+                'Amount' => $totalAmt,
+            ];
+        }
+
+        if (empty($list)) {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $out['grouptax'] = $list;
+        return $out;
+    }
+}

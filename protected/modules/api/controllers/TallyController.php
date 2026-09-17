@@ -55,7 +55,7 @@ class TallyController extends GxController {
 		
 		// for($i = 1; $i <= $total_days; $i++){
 			// $date = "'".$year.'-'.$current_month.'-'.$i."'";
-		$query16 = "SELECT * FROM `tbl_order_item` WHERE `create_date` = '".$date."' group by `tax_id` ";
+		$query16 = "SELECT * FROM `tbl_order_item` WHERE `create_date` = '".$date."' group by `tax_id` order by `tax_id` ";
 		$items = Yii::app()->db->createCommand($query16)->queryAll();
 		
 		if($items){
