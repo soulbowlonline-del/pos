@@ -319,6 +319,38 @@ rediscovered one 500 at a time.
   - protected/modules/backup/views/layouts/main.php:17:Variable $this might not be defined.
   - protected/modules/backup/views/layouts/main.php:91:Variable $content might not be defined.
 
+## A different class: unchecked request keys
+
+PHPStan at level 2 reports undefined *variables*, not undefined *array keys*,
+so reads straight out of `$_POST` and `$_FILES` are invisible to the sweep
+above. They matter just as much on PHP 8: what was a notice returning null in
+5.6 is a warning now, and Yii 1's error handler turns a warning into a rendered
+500, so an endpoint that used to limp along returns an error page.
+
+Found during the port, both in `customer/uploadbill`:
+
+  - protected/modules/api/controllers/CustomerController.php - `$_POST['id']`
+    read with no check. A request without an id returns a 500 instead of
+    "user not found".
+  - protected/modules/api/controllers/CustomerController.php - `$_FILES['file']['name']`
+    read in the WhatsApp block even when the upload branch above already
+    concluded no file was sent. A request with an id but no file 500s, where
+    5.6 would have sent a message with an empty file name.
+
+Both are reproduced in the Yii 2 port rather than fixed, so the two stacks
+behave identically and the difference can be decided deliberately later.
+`tests/port/customer-uploadbill-difftest.sh` covers both, comparing status and
+side effects rather than the body, since each framework renders its own error
+page.
+
+Neither is reachable from the POS client, which always sends an id and a file.
+Raising them to real 4xx responses is a one-line change each, but it is a
+behaviour change and so is left for the API's own pass.
+
+To find the rest of this class, PHPStan level 5 or higher is needed - it was
+not run, because at level 2 the untriaged conditional list below is already
+267 entries.
+
 ## Excluded as noise
 
 - `Access to an undefined property <Model>::$x` - Yii 1 resolves ActiveRecord

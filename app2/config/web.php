@@ -20,6 +20,11 @@ return [
     'timeZone' => 'Asia/Kolkata',
     'aliases' => [
         '@app' => dirname(__DIR__),
+        // Yii 2's own @webroot is the directory of this front controller, /v2.
+        // The Yii 1 application reads and writes uploads under the web root
+        // one level up, and ported actions have to use that same directory or
+        // a file written by one stack would be invisible to the other.
+        '@legacyroot' => dirname(dirname(__DIR__)),
     ],
     'components' => [
         'request' => [

@@ -205,15 +205,20 @@ class InteraktApi extends CApplicationComponent
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://sect4.soulbowl.in/pos/uploadProductOrder.php';
 		$upload_url = 'http://61.2.241.71/pos/uploadProductOrder.php';
-		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
-			return PosOutbound::intercept(
-				PosOutbound::CHANNEL_UPLOAD, $upload_url, array('file' => basename($file_path))
-			);
-		}
-
 		if (!file_exists($file_path)) {
 			return 'Error: File not found.';
 		}
+
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			// record and answer as a successful upload: this method discards the
+			// response body and returns a bool, so the canned CHANNEL_UPLOAD
+			// body would never reach a caller.
+			PosOutbound::record(
+				PosOutbound::CHANNEL_UPLOAD, $upload_url, array('file' => basename($file_path))
+			);
+			return true;
+		}
+
 	
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://your-server-b.com/upload.php';

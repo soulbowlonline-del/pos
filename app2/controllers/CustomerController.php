@@ -17,38 +17,33 @@ use app\models\Setting;
 use app\models\State;
 use yii\web\Controller;
 use yii\web\Response;
+use yii\web\UploadedFile;
+use PosOutbound;
 
 /**
- * Partial Yii 2 port of protected/modules/api/controllers/CustomerController.php.
+ * Yii 2 port of protected/modules/api/controllers/CustomerController.php.
  *
- * The Yii 1 controller has twenty actions. The six read paths that belong to
- * the customer domain are ported here; the rest are deliberately left with
- * Yii 1, for reasons recorded against each group below. Yii 1 continues to
- * serve every /api/customer/* route, so nothing has to move before it is ready.
+ * Complete: all twenty actions of the Yii 1 customer API are ported and
+ * covered by differential tests. Yii 1 still serves every /api/customer/*
+ * route - nothing is cut over by this file's existence - so the two can be
+ * compared for as long as is useful before the routes are moved.
  *
- * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
- *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
- *              update, verifywhatappotp, getOrderHold, sendOTP, add,
- *              sentwhatappotp, uploadwhatapporder
+ * Seven of the twenty reach outside the server: sendOTP, sentwhatappotp,
+ * verifywhatappotp, add, update, uploadwhatapporder and uploadbill send
+ * WhatsApp messages, register customers with an external CRM, or post a file
+ * to a remote endpoint. None could be tested differentially until the outbound
+ * stub landed (lib/PosOutbound.php), because a comparison run would have fired
+ * each call twice, for real. With POS_STUB_OUTBOUND=1 the call is recorded
+ * instead of made, and the harness compares those recordings alongside the
+ * response, the database state and - for uploadbill - the file on disk.
  *
- * Seven of those - sendOTP, sentwhatappotp, verifywhatappotp, add, update and
- * uploadwhatapporder - send WhatsApp messages or register customers with an
- * external CRM, so they could not be tested differentially until the outbound
- * stub landed (lib/PosOutbound.php). With POS_STUB_OUTBOUND=1 the request is
- * recorded rather than made, and the harness compares the recorded calls
- * alongside the response and the database state.
- *
- * Not ported - needs the Order model:
- *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
- *   pulls in the core POS entity. It belongs with the order module's port, not
- *   with customer.
- *
- * Not ported - uploads a file to a remote server:
- *   uploadbill
- *   This one receives a multipart upload, writes it under webroot, and posts it
- *   on with an inline cURL request built in the controller rather than through
- *   InteraktApi - so the stub does not intercept it yet. It needs an upload
- *   channel on PosOutbound first.
+ * Several Yii 1 quirks are reproduced rather than fixed, each commented at its
+ * call site, because this response is what the POS client parses:
+ * uploadwhatapporder and uploadbill leave status at 'NOK' on success,
+ * sendApprovalOrderMessageNew has no return so "message" comes back null,
+ * sentwhatappotp assigns is_enable_wa without saving it, and uploadbill reads
+ * $_POST['id'] and $_FILES['file']['name'] unchecked - see
+ * docs/php8-fragility-sweep.md.
  *
  * Response envelopes are reproduced exactly, as with the loyalty and emp ports.
  */
@@ -772,5 +767,135 @@ class CustomerController extends Controller
 
         // status deliberately left at 'NOK' - as in Yii 1
         return $out;
+    }
+    /**
+     * Posts the uploaded bill on to a remote endpoint and sends it over
+     * WhatsApp. The Yii 1 version reads $_POST['id'] and $_FILES['file']['name']
+     * without checking them, so a request with no id or no file emits PHP 8
+     * undefined-key warnings; that is reproduced rather than papered over,
+     * because the two stacks should log the same thing and the request is
+     * recorded in docs/php8-fragility-sweep.md. As with uploadwhatapporder,
+     * status stays 'NOK' even on success.
+     *
+     * The upload itself goes through PosOutbound when stubbed: the Yii 1
+     * controller keeps its own copy of uploadFileToServer, hooked the same way,
+     * and both return a plain bool.
+     */
+    public function actionUploadbill()
+    {
+        $out = $this->envelope('uploadbill');
+
+        // @legacyroot, not @webroot - see the alias note in config/web.php
+        $uploadDir = Yii::getAlias('@legacyroot') . '/uploadbills/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        if (isset($_FILES['file'])) {
+            $file = UploadedFile::getInstanceByName('file');
+            if ($file !== null) {
+                $fileName = $file->name;
+                $filePath = $uploadDir . $fileName;
+                if ($file->saveAs($filePath)) {
+                    $response = [
+                        'dd' => $this->uploadFileToServer($filePath),
+                        'status' => 'success',
+                        'message' => 'File uploaded successfully!',
+                        'file_name' => $fileName,
+                        'file_path' => Yii::$app->request->hostInfo . '/uploadbills/' . $fileName,
+                    ];
+                } else {
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'Failed to save the uploaded file.',
+                    ];
+                }
+            } else {
+                $response = [
+                    'status' => 'error',
+                    'message' => 'No file was uploaded.',
+                ];
+            }
+        } else {
+            $response = [
+                'status' => 'error',
+                'message' => 'No file was uploaded or invalid request.',
+            ];
+        }
+
+        $out['response'] = $response;
+
+        $id = $_POST['id'];   // unchecked, as in Yii 1
+        $model = Customer::findOne($id);
+        if (!$model) {
+            $out['message'] = 'user not found';
+            return $out;
+        }
+
+        $whatsappNo = preg_replace('/[^0-9]/', '', (string)$model->contact_no);
+        $fileNms = $_FILES['file']['name'];   // unchecked, as in Yii 1
+
+        $template = 'purchase_order';
+        if (strpos(strtolower($fileNms), 'reprint') !== false) {
+            $template = 'reprint_order';
+        } elseif (strpos(strtolower($fileNms), 'refund') !== false) {
+            $template = 'refund_order';
+        }
+
+        $urlPdf = 'http://61.2.241.71/pos/whatapporder/' . $fileNms;
+
+        $pdfName = str_replace('.pdf', '', $fileNms);
+        $pdfName = str_replace(['_Reprint', '_Refund', '-Reprint', '-Refund'], '', $pdfName);
+
+        $api = new InteraktApi(getenv('POS_INTERAKT_API_KEY') ?: null);
+        $out['message'] = $api->sendApprovalOrderMessageNew(
+            $template,
+            $whatsappNo,
+            [$model->name, $pdfName],
+            [$urlPdf],
+            $fileNms,
+            [
+                'user_id' => isset($_POST['user_id']) ? $_POST['user_id'] : null,
+                'computer_name' => isset($_POST['computer_name']) ? $_POST['computer_name'] : null,
+            ]
+        );
+
+        return $out;
+    }
+
+    /**
+     * The Yii 1 controller's own uploadFileToServer, not the one on InteraktApi.
+     * Returns 'Error: File not found.', false or true - never the response body.
+     */
+    protected function uploadFileToServer($filePath)
+    {
+        $uploadUrl = 'http://61.2.241.71/pos/uploadProductOrder.php';
+
+        if (!file_exists($filePath)) {
+            return 'Error: File not found.';
+        }
+
+        if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+            PosOutbound::record(
+                PosOutbound::CHANNEL_UPLOAD, $uploadUrl, ['file' => basename($filePath)]
+            );
+            return true;
+        }
+
+        $token = getenv('POS_UPLOAD_TOKEN') ?: '';
+        $ch = curl_init($uploadUrl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'file' => new \CURLFile($filePath, 'application/pdf', basename($filePath)),
+            'token' => $token,
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: multipart/form-data']);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response === false ? false : true;
     }
 }

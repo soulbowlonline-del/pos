@@ -850,6 +850,16 @@ class CustomerController extends GxController {
 		if (!file_exists($file_path)) {
 			return 'Error: File not found.';
 		}
+
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			// record and answer as a successful upload: this method discards
+			// the response body and returns a bool, so the canned
+			// CHANNEL_UPLOAD body would never reach a caller.
+			PosOutbound::record(
+				PosOutbound::CHANNEL_UPLOAD, $upload_url, array('file' => basename($file_path))
+			);
+			return true;
+		}
 	
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://your-server-b.com/upload.php';
