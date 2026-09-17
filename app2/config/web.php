@@ -45,8 +45,11 @@ return [
             'rules' => [
                 'GET health' => 'site/health',
                 // Ported from the Yii 1 api module. Yii 1 still serves
-                // /api/loyalty/* for everything not yet moved across.
-                'POST api/loyalty/get-customer-loyalty' => 'loyalty/get-customer-loyalty',
+                // /api/<controller>/* for everything not yet moved across.
+                // Yii 1 action ids are camelCase and Yii 2 routes them
+                // hyphenated, so /v2/api/loyalty/pre-redeem-points answers
+                // what Yii 1 serves at /api/loyalty/preRedeemPoints.
+                'POST api/loyalty/<action:[\w-]+>' => 'loyalty/<action>',
             ],
         ],
         'response' => [
