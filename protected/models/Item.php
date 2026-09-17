@@ -39,6 +39,15 @@ class Item extends BaseItem
 		}else{
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('item_id ='.$this->id);
+			// With no start date in the session this built
+			// `date(create_time) < ""`. MySQL 5.7 treated that as a warning and
+			// matched nothing; MySQL 8 rejects it outright (error 1525,
+			// Incorrect DATE value). Returning 0 without running the query is
+			// the same answer 5.7 gave, without the error.
+			if (Yii::app ()->session ['stock_start_date'] === null
+					|| Yii::app ()->session ['stock_start_date'] === '') {
+				return $qty;
+			}
 			$criteria->addCondition('date(create_time) <"'.Yii::app ()->session ['stock_start_date'].'"');
 			$criteria->order = 'id desc';
 			$stock = StockLog::model()->find($criteria);

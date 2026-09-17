@@ -783,7 +783,12 @@ class TbActiveForm extends CActiveForm
 
 		foreach ($data as $value => $label)
 		{
-			$checked = !is_array($select) && !strcmp($value, $select) || is_array($select) && in_array($value, $select);
+			// (string)$select, not $select: PHP 8.1 deprecates passing null to
+            // strcmp, and Yii 1 renders a deprecation as a 500. Nothing selected
+            // means $select is null here, which is the normal case for a fresh
+            // form. The cast reproduces the coercion PHP 7 did implicitly, so a
+            // null $select still matches only an empty $value.
+            $checked = !is_array($select) && !strcmp($value, (string)$select) || is_array($select) && in_array($value, $select);
 			$checkAll = $checkAll && $checked;
 			$htmlOptions['value'] = $value;
 			$htmlOptions['id'] = $baseID . '_' . $id++;

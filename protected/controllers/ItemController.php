@@ -1051,7 +1051,7 @@ curl_close($ch);
 		 *
 		 * $criteria->condition = "hsn_code LIKE :hsn_code";
 		 * $criteria->params = array (
-		 * ':hsn_code' => trim ( $term ) . '%'
+		 * ':hsn_code' => trim ( (string)$term ) . '%'
 		 * );
 		 * $criteria->limit = '100';
 		 *
@@ -1094,7 +1094,7 @@ curl_close($ch);
 		if ($term != '') {
 			$criteria->condition = "title LIKE :hsn_code";
 			$criteria->params = array (
-					':hsn_code' => trim ( $term ) . '%' 
+					':hsn_code' => trim ( (string)$term ) . '%' 
 			);
 		}
 		if ($vendor_id != null) {
@@ -1147,7 +1147,7 @@ curl_close($ch);
 		
 		$criteria->condition = "hsn_code LIKE :hsn_code";
 		$criteria->params = array (
-				':hsn_code' => trim ( $term ) . '%' 
+				':hsn_code' => trim ( (string)$term ) . '%' 
 		);
 		$criteria->limit = '100';
 		
@@ -1190,7 +1190,7 @@ curl_close($ch);
 		}
 		$criteria->condition = "name LIKE :name";
 		$criteria->params = array (
-				':name' => trim ( $term ) . '%' 
+				':name' => trim ( (string)$term ) . '%' 
 		);
 		
 		$criteria->limit = '100';
@@ -1451,7 +1451,10 @@ curl_close($ch);
 		if (isset ( Yii::app ()->session ['idList'] )) {
 			$item_detail_ids = Yii::app ()->session ['idList'];
 		}
-		$criteria->addInCondition ( 'id', Yii::app ()->session ['idList'] );
+		// $item_detail_ids, not the session value: it is built above for exactly
+		// this call and defaults to array(). The session key is unset on a first
+		// visit, and addInCondition() calls count() on it - a TypeError on PHP 8.
+		$criteria->addInCondition ( 'id', $item_detail_ids );
 		$item_count = ItemDetail::model ()->count ( $criteria );
 		
 		$dataProvider = new CActiveDataProvider ( 'ItemDetail', array (
@@ -1928,7 +1931,13 @@ curl_close($ch);
 			Yii::app ()->session ['stock_start_date'] = $_POST ['Item'] ['start_date'];
 			$_GET ['Item'] ['start_date'] = $_POST ['Item'] ['start_date'];
 		} else {
-			if(isset(Yii::app ()->session ['stock_start_date']) && (Yii::app ()->session ['stock_start_date'] == '')){
+			// !isset || empty, not isset && empty: on a first visit the key is not
+			// set at all, so the old condition was false and the else branch below
+			// assigned the unset value to itself - leaving the date null. Every
+			// query built from it then read `date(create_time) < ""`, which MySQL
+			// 5.7 warned about and MySQL 8 rejects (error 1525), taking
+			// /item/report down.
+			if(!isset(Yii::app ()->session ['stock_start_date']) || (Yii::app ()->session ['stock_start_date'] == '')){
 			Yii::app ()->session ['stock_start_date'] = date ( 'Y-m-d' );
 			$_GET ['Item'] ['start_date'] = date ( 'Y-m-d' );
 			}else{
@@ -1940,7 +1949,7 @@ curl_close($ch);
 			Yii::app ()->session ['stock_end_date'] = $_POST ['Item'] ['end_date'];
 			$_GET ['Item'] ['end_date'] = $_POST ['Item'] ['end_date'];
 		} else {
-			if(isset(Yii::app ()->session ['stock_end_date']) && (Yii::app ()->session ['stock_end_date'] == '')){
+			if(!isset(Yii::app ()->session ['stock_end_date']) || (Yii::app ()->session ['stock_end_date'] == '')){
 			Yii::app ()->session ['stock_end_date'] = date ( 'Y-m-d' );
 			$_GET ['Item'] ['end_date'] = date ( 'Y-m-d' );
 			}else{

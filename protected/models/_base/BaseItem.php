@@ -332,14 +332,14 @@ abstract class BaseItem extends GxActiveRecord {
 // 		if ($this->name != null) {
 // 			$criteria->condition = "title LIKE :title";
 // 			$criteria->params = array (
-// 					':title' => trim ( $this->title ) . '%',
+// 					':title' => trim ( (string)$this->title ) . '%',
 // 					':title1' => '%' . trim ( $this->name ) . '%'
 // 			);
 // 		} else {
 			$criteria->condition = "title LIKE :title ";
 	
 			$criteria->params = array (
-					':title' => trim ( $this->title ) . '%'
+					':title' => trim ( (string)$this->title ) . '%'
 			);
 		/* } */
 		Yii::log ( CVarDumper::dumpAsString ( $this->name ), CLogger::LEVEL_WARNING, '$$this->name' );
@@ -455,14 +455,14 @@ abstract class BaseItem extends GxActiveRecord {
 		if ($this->name != null) {
 			$criteria->condition = "title LIKE :title AND title LIKE :title1 ";
 			$criteria->params = array (
-					':title' => trim ( $this->title ) . '%',
+					':title' => trim ( (string)$this->title ) . '%',
 					':title1' => '%' . trim ( $this->name ) . '%'
 			);
 		} else {
 			$criteria->condition = "title LIKE :title ";
 				
 			$criteria->params = array (
-					':title' => trim ( $this->title ) . '%'
+					':title' => trim ( (string)$this->title ) . '%'
 			);
 		}
 		Yii::log ( CVarDumper::dumpAsString ( $this->name ), CLogger::LEVEL_WARNING, '$$this->name' );
@@ -578,14 +578,14 @@ abstract class BaseItem extends GxActiveRecord {
 		if ($this->name != null) {
 			$criteria->condition = "title LIKE :title AND title LIKE :title1 ";
 			$criteria->params = array (
-					':title' => trim ( $this->title ) . '%',
+					':title' => trim ( (string)$this->title ) . '%',
 					':title1' => '%' . trim ( $this->name ) . '%' 
 			);
 		} else {
 			$criteria->condition = "title LIKE :title ";
 			
 			$criteria->params = array (
-					':title' => trim ( $this->title ) . '%' 
+					':title' => trim ( (string)$this->title ) . '%' 
 			);
 		}
 		Yii::log ( CVarDumper::dumpAsString ( $this->name ), CLogger::LEVEL_WARNING, '$$this->name' );
@@ -714,15 +714,15 @@ abstract class BaseItem extends GxActiveRecord {
 		if ($this->name != null) {
 			$criteria->condition = "title LIKE :title AND title LIKE :title1 ";
 			$criteria->params = array (
-					//':title' => trim ( $this->title ) . '%',
-					//':title' => "%" .trim ( $this->title ) . '%',
+					//':title' => trim ( (string)$this->title ) . '%',
+					//':title' => "%" .trim ( (string)$this->title ) . '%',
 					':title1' => '%' . trim ( $this->name ) . '%' 
 			);
 		} else {
 			// $criteria->condition = "title LIKE :title ";
 			
 			// $criteria->params = array (
-			// 		':title' => trim ( $this->title ) . '%' 
+			// 		':title' => trim ( (string)$this->title ) . '%' 
 			// );
 		}
 		Yii::log ( CVarDumper::dumpAsString ( $this->name ), CLogger::LEVEL_WARNING, '$$this->name' );

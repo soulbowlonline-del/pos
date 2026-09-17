@@ -168,7 +168,11 @@ src="<?php  echo Yii::app()->theme->baseUrl; ?>/js/jQuery.print.js"
     
   <?php 
   $criteria = new CDbCriteria();
-  $criteria->addInCondition('id', Yii::app()->session['billidList']);
+  // The session key is unset until a bill has been picked, and
+  // addInCondition() calls count() on its argument - a TypeError on PHP 8
+  // where PHP 7 warned and carried on with zero.
+  $criteria->addInCondition('id', is_array(Yii::app()->session['billidList'])
+      ? Yii::app()->session['billidList'] : array());
   $purchasebilldetails = PurchaseBillDetail::model()->findAll($criteria);
   Yii::log ( CVarDumper::dumpAsString ( Yii::app()->session['billidList'] ), CLogger::LEVEL_WARNING, '$ids' );
   $result = array();

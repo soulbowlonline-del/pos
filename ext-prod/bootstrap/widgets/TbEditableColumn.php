@@ -115,10 +115,12 @@ class TbEditableColumn extends TbDataColumn
         $trigger = '$("#"+id).trigger("ajaxUpdate.yiiGridView");';
 
         //check if trigger already inserted by another column
-        if (strpos($this->grid->afterAjaxUpdate, $trigger) !== false) return;
+        // (string): afterAjaxUpdate is null until some column sets it, and
+        // passing null to strpos/strlen is deprecated on PHP 8.1.
+        if (strpos((string)$this->grid->afterAjaxUpdate, $trigger) !== false) return;
 
         //inserting trigger
-        if (strlen($this->grid->afterAjaxUpdate)) {
+        if (strlen((string)$this->grid->afterAjaxUpdate)) {
             $orig = $this->grid->afterAjaxUpdate;
             if (strpos($orig, 'js:')===0) $orig = substr($orig,3);
             $orig = "\n($orig).apply(this, arguments);";
