@@ -24,7 +24,8 @@ use yii\web\Response;
  * serve every /api/customer/* route, so nothing has to move before it is ready.
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
- *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP
+ *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
+ *              update
  *
  * Not ported - needs the Order model:
  *   getOrderHold    reads an OrderHold and then deletes it, so it cannot be
@@ -422,6 +423,76 @@ class CustomerController extends Controller
             'verified_at' => $result['verified_at'],
             'customer_profile' => $profile,
         ];
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/update?id=N
+     *
+     * Requires name, address, city_id, state_id, country_id, zip_code and
+     * contact_no together; anything less is silently ignored, as in Yii 1,
+     * which leaves the NOK envelope untouched with no message.
+     *
+     * Two behaviours carried over deliberately:
+     *
+     *  - state_id is overwritten with 1 immediately after being read from the
+     *    request ("activates account set 1" in the original). Whatever the
+     *    caller sends for state_id is therefore discarded. It looks like the
+     *    column is being used both as a geographic state and as a status flag,
+     *    but changing it would alter stored data.
+     *  - the duplicate-phone check excludes the customer being edited. Without
+     *    that, getUserByContactNo() matches the customer against itself and
+     *    every update that did not also change the phone number was rejected
+     *    with "Contact no. already in use." Fixed on the Yii 1 side too.
+     */
+    public function actionUpdate($id)
+    {
+        $out = $this->envelope('update');
+        $req = Yii::$app->request;
+
+        $model = Customer::findOne($id);
+        if (!$model) {
+            $out['message'] = 'Customer not found';
+            return $out;
+        }
+
+        $required = ['name', 'address', 'city_id', 'state_id', 'country_id', 'zip_code', 'contact_no'];
+        foreach ($required as $field) {
+            if ($req->post($field) === null) {
+                return $out;   // Yii 1 falls through with no message
+            }
+        }
+
+        $model->name = $req->post('name');
+        $model->address = $req->post('address');
+        $model->city_id = $req->post('city_id');
+        $model->state_id = $req->post('state_id');
+        $model->country_id = $req->post('country_id');
+        $model->zip_code = $req->post('zip_code');
+        $model->contact_no = $req->post('contact_no');
+
+        foreach (['email', 'opening_balance', 'credit_limit', 'payment_days'] as $optional) {
+            if ($req->post($optional) !== null) {
+                $model->$optional = $req->post($optional);
+            }
+        }
+
+        $existing = Customer::getUserByContactNo($model->contact_no);
+        if ($existing && $existing->id != $model->id) {
+            $out['message'] = 'Contact no. already in use.';
+            return $out;
+        }
+
+        $model->state_id = 1;   // see the note above
+
+        if (!$model->save(false)) {
+            $out['message'] = '';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $out['profile'] = $model->toApiArray();
+        $out['message'] = 'Customer is updated successfully';
         return $out;
     }
 }

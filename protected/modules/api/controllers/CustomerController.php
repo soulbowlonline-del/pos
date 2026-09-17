@@ -498,7 +498,11 @@ class CustomerController extends GxController {
 				if (isset ( $_POST ['payment_days'] ))
 					$model->payment_days = $_POST ['payment_days'];
 				$user = Customer::getUserByContactNo ( $model->contact_no );
-				if (! $user) {
+				// a customer's own number is not a duplicate. getUserByContactNo()
+				// returns any customer holding the number, including the one being
+				// edited, so this check rejected every update that did not also
+				// change the phone number - which is to say almost all of them.
+				if (! $user || $user->id == $model->id) {
 					
 					$model->state_id = 1; // activates account set 1
 					if ($model->save ()) {
