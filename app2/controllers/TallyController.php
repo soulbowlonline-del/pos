@@ -5,6 +5,9 @@ use Yii;
 use app\models\ItemReturnItem;
 use app\models\PurchaseBill;
 use app\models\PurchaseBillDetail;
+use app\models\B2bPurchaseBill;
+use app\models\Outlet;
+use app\models\Vendor;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -14,18 +17,12 @@ use yii\web\Response;
  * Ported: cashsale    - the per-tax-rate GST summary for the export
  *         stockreturn   - returns to vendors, for the credit-note side
  *         paymentreport - approved purchase bills for a day
+ *         b2btaxwise    - B2B purchase tax summary
  * It is raw SQL end to end and depends on no model payloads, which makes it
  * portable in isolation.
  *
  * Not ported:
- *   b2btaxwise, b2bsales
- *                 build on PurchaseBillDetail::toArray1(), which calls eleven tax
- *                 arithmetic helpers (getVendorTAXNO, getTotalGstPer,
- *                 getTaxPercentage, getBasicAmount, getMainDiscount,
- *                 getTotalGstAmt, getCgstAmount, getSgstAmount, getIgstAmount,
- *                 getCessAmount, getSchemeDiscount). That tree belongs with the
- *                 purchase and billing module's port rather than being pulled
- *                 in through Tally.
+ *   b2bsales      the remaining B2B report
  *
  * Yii 1 continues to serve every /api/tally/* route.
  */
@@ -243,6 +240,134 @@ class TallyController extends Controller
 
         $out['status'] = 'OK';
         $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/tally/b2btaxwise?date=YYYY-MM-DD
+     *
+     * B2B purchase tax summary for a day, one row per bill-and-tax-rate.
+     *
+     * Raw SQL end to end, like cashsale. The Yii 1 version builds a CDbCriteria
+     * query first and then overwrites its result with the raw query on the very
+     * next line, so that criteria is dead; only the raw path is ported.
+     *
+     * Note the refund subquery: the Yii 1 code runs it and assigns the result,
+     * then computes $taxable from the gross alone - the line that subtracted
+     * refunds is commented out. The query is kept so the behaviour is identical
+     * if it is ever reinstated, but it does not affect the output today.
+     *
+     * The bill-number prefix logic is inverted here exactly as in
+     * Order::getOrderBillNo(): an outlet with a prefix has it discarded in
+     * favour of 'B'. Reproduced; see the note on that method.
+     */
+    public function actionB2btaxwise($date = null)
+    {
+        $out = [
+            'controller' => 'tally',
+            'action' => 'b2btaxwise',
+            'status' => 'NOK',
+        ];
+
+        if ($date === null || $date === '') {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $db = Yii::$app->db;
+
+        $items = $db->createCommand(
+            'SELECT * FROM `tbl_b2bpurchase_bill_detail` WHERE date(create_time) = :date'
+            . ' GROUP BY `tax_id`, `purchase_bill_id` ORDER BY `tax_id`, `purchase_bill_id`',
+            [':date' => $date]
+        )->queryAll();
+
+        $list = [];
+        foreach ($items as $item) {
+            $taxId = $item['tax_id'];
+            $billId = $item['purchase_bill_id'];
+
+            $totalTaxable = $db->createCommand(
+                'SELECT sum(`price` * `approved_qty`) as total FROM `tbl_b2bpurchase_bill_detail`'
+                . ' WHERE date(`create_time`) = :date AND `tax_id` = :tax AND `purchase_bill_id` = :bill',
+                [':date' => $date, ':tax' => $taxId, ':bill' => $billId]
+            )->queryOne();
+
+            // Run, as in Yii 1, but not subtracted - that line is commented out there.
+            $db->createCommand(
+                'SELECT sum(`price` * `qty`) as total FROM `tbl_order_refund_item`'
+                . ' WHERE date(`create_time`) = :date AND `tax_id` = :tax',
+                [':date' => $date, ':tax' => $taxId]
+            )->queryOne();
+
+            $taxable = $totalTaxable['total'];
+
+            $cgst = $sgst = $cess = $igst = $gst = $totalAmt = null;
+            $taxRow = $db->createCommand(
+                'SELECT * FROM `tbl_tax` WHERE `id` = :tax', [':tax' => $taxId]
+            )->queryOne();
+            if ($taxRow) {
+                $tax = $taxRow['tax_val1'] + $taxRow['tax_val2'] + $taxRow['tax_val4'];
+                $cgst = $taxable * ($taxRow['tax_val1'] * 0.01);
+                $sgst = $taxable * ($taxRow['tax_val2'] * 0.01);
+                $cess = $taxable * ($taxRow['tax_val3'] * 0.01);
+                $igst = $taxable * ($taxRow['tax_val4'] * 0.01);
+                $gst = ($taxable * ($tax * 0.01)) + ($taxable * ($item['cess_per'] * 0.01));
+                $totalAmt = $taxable + $gst;
+            }
+
+            $bill = B2bPurchaseBill::findOne($billId);
+            $vendor = $bill ? Vendor::findOne($bill->vendor_id) : null;
+            $vendorName = $vendor ? $vendor->name : '';
+
+            $billNo = '';
+            if ($bill && !empty($bill->start_date)) {
+                $ts = strtotime((string)$bill->start_date);
+                $month = (int)date('m', $ts);
+                if ($month > 3) {
+                    $year = substr(date('Y', $ts), -2);
+                    $yearLast = substr((string)((int)$year + 1), -2);
+                } else {
+                    $year = substr((string)((int)date('Y', $ts) - 1), -2);
+                    $yearLast = substr(date('Y', $ts), -2);
+                }
+
+                // Defaulted so a missing outlet cannot leave this undefined -
+                // in Yii 1 that is a PHP 8 warning and therefore a 500.
+                $billPrefix = 'B';
+                $outlet = Outlet::findOne($item['outlet_id']);
+                if ($outlet) {
+                    $billPrefix = ($outlet->bill_prefix == '') ? $outlet->bill_prefix : 'B';
+                }
+
+                $billNo = 'B2B ' . $year . '-' . $yearLast . '/' . $billPrefix . '-' . $bill->id;
+            }
+
+            $list[] = [
+                'Bill_No' => $billNo,
+                'bill_date' => $date,
+                'customer' => $vendorName,
+                'taxable' => $taxable,
+                'gst' => $gst,
+                'cgst_per' => $item['cgst_per'],
+                'Sgst_per' => $item['sgst_per'],
+                'cess_per' => $item['cess_per'],
+                'igst_per' => $item['igst_per'],
+                'cgst' => $cgst,
+                'sgst' => $sgst,
+                'cess' => $taxable * ($item['cess_per'] * 0.01),
+                'igst' => $igst,
+                'amount' => $totalAmt,
+            ];
+        }
+
+        if (empty($list)) {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $out['status'] = 'OK';
+        $out['grouptax'] = $list;
         return $out;
     }
 }

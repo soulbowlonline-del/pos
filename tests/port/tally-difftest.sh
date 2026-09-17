@@ -21,6 +21,13 @@ for q in "?date=2026-09-16" "?date=2026-09-15" "?date=2026-09-14" "?date=2026-09
   if [ "$r1" = "$r2" ]; then printf "  paymentreport %-28s OK  (%s bytes)\n" "$q" "${#r1}"; PASS=$((PASS+1))
   else printf "  paymentreport %-28s MISMATCH (yii1=%s yii2=%s)\n" "$q" "${#r1}" "${#r2}"; FAIL=$((FAIL+1)); fi
 done
+B2BDATES=$(docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD -N $MYSQL_DATABASE -e "SELECT DISTINCT DATE(create_time) FROM tbl_b2bpurchase_bill_detail ORDER BY create_time DESC LIMIT 4;"' 2>/dev/null | tr '\n' ' ')
+for d in $B2BDATES 1990-01-01; do
+  r1=$(curl -sS --max-time 400 -X POST "$BASE/api/tally/b2btaxwise?date=$d")
+  r2=$(curl -sS --max-time 400 -X POST "$BASE/v2/api/tally/b2btaxwise?date=$d")
+  if [ "$r1" = "$r2" ]; then printf "  b2btaxwise %-13s OK  (%s bytes)\n" "$d" "${#r1}"; PASS=$((PASS+1))
+  else printf "  b2btaxwise %-13s MISMATCH (yii1=%s yii2=%s)\n" "$d" "${#r1}" "${#r2}"; FAIL=$((FAIL+1)); fi
+done
 # An empty date is not compared: it is broken on both stacks in different ways
 # (Yii 1 throws CDbException, Yii 2 would run to the execution limit), and the
 # port deliberately short-circuits it. See the commit message.

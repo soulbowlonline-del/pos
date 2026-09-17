@@ -333,7 +333,7 @@ if($row13){
 			
 			$items = B2bPurchaseBillDetail::model()->findAll($criteria);
 
-            $query16 = "SELECT * FROM `tbl_b2bpurchase_bill_detail`  Where date(create_time) = '".$date."' group by `tax_id`,`purchase_bill_id` ";
+            $query16 = "SELECT * FROM `tbl_b2bpurchase_bill_detail`  Where date(create_time) = '".$date."' group by `tax_id`,`purchase_bill_id` order by `tax_id`,`purchase_bill_id` ";
             $items = Yii::app()->db->createCommand($query16)->queryAll();
 
             if ($items) {
@@ -393,6 +393,9 @@ $detail = B2bPurchaseBillDetail::model()->findByPk($item['id']);
 
         $billyear = date('Y', strtotime($bill->start_date));
         $newyear = $billyear + 1;
+        // Defaulted: assigned only inside the if below, so a missing outlet
+        // left it undefined - a PHP 8 warning, and therefore a 500.
+        $bill_prefix = 'B'; // default
         $outlet = Outlet::model()->findByPk($item['outlet_id']);
         if ($outlet) {
             if ($outlet->bill_prefix == '') {
