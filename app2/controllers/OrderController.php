@@ -5,6 +5,7 @@ use Yii;
 use app\models\Order;
 use app\models\PaymentMode;
 use app\models\PurchaseBill;
+use app\models\Discount;
 use app\models\PurchaseBillDetail;
 use yii\web\Controller;
 use yii\web\Response;
@@ -269,6 +270,59 @@ class OrderController extends Controller
         $out['grn_number'] = $grnNumber;
         $out['bill_date'] = $billDate;
         $out['item_count'] = count($details);
+        return $out;
+    }
+    /**
+     * POST /v2/api/order/discount
+     *
+     * The order-level discounts that are live today. A discount with both
+     * times at 00:00:00 counts as all-day; otherwise the current time has to
+     * fall inside the window.
+     *
+     * Yii 1 sets status to 'OK' as soon as any discount matches the *date*
+     * filter, before the time filter runs - so a discount that exists but is
+     * outside its hours returns status OK, a "Discount not available" message
+     * and no discountList at all. Reproduced: the client reads status.
+     *
+     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     */
+    public function actionDiscount()
+    {
+        $out = $this->envelope('discount');
+
+        $today = date('Y-m-d');
+        $now = date('H:i:s');
+
+        $discounts = Discount::find()
+            ->where(['<=', 'start_date', $today])
+            ->andWhere(['>=', 'end_date', $today])
+            ->andWhere(['discount_type' => Discount::DISCOUNT_ORDER])
+            ->andWhere(['status' => Discount::STATUS_ACTIVE])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        if (empty($discounts)) {
+            $out['message'] = 'Discount not available';
+            return $out;
+        }
+
+        // set before the time filter, as in Yii 1
+        $out['status'] = 'OK';
+
+        $list = [];
+        foreach ($discounts as $discount) {
+            $allDay = ($discount->start_time == '00:00:00') && ($discount->end_time == '00:00:00');
+            if ($allDay || ($discount->start_time <= $now && $discount->end_time >= $now)) {
+                $list[] = $discount->toApiArray();
+            }
+        }
+
+        if (!empty($list)) {
+            $out['discountList'] = $list;
+        } else {
+            $out['message'] = 'Discount not available';
+        }
+
         return $out;
     }
 }

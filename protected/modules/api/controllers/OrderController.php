@@ -962,6 +962,9 @@ class OrderController extends GxController {
 		$criteria->addCondition ( 'end_date >= ' . '"' . date ( 'Y-m-d' ) . '"' );
 		$criteria->addCondition ( 'discount_type =' . Discount::DISCOUNT_ORDER );
 		$criteria->addCondition ( 'status =' . Discount::STATUS_ACTIVE );
+		// ORDER BY added: MySQL 8 returns no implicit order, and the Yii 2 port
+		// has to agree with this one.
+		$criteria->order = 'id ASC';
 		$discounts = Discount::model ()->findAll ( $criteria );
 		
 		if (! empty ( $discounts )) {
