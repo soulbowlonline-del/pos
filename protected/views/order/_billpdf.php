@@ -133,6 +133,11 @@ table {
 			
 	$criteria = new CDbCriteria();
 	 												$criteria->group = 'tax_id';
+	 												// MySQL 5.7 implicitly sorted GROUP BY results; MySQL 8.0 does not, so
+	 												// without an explicit order the GST summary lines on a bill come back in
+	 												// an unspecified sequence and the same invoice prints its tax rows in a
+	 												// different order between renders. Sort explicitly to match 5.7.
+	 												$criteria->order = 'tax_id';
 	 												$criteria->compare('order_id',$order->id);
 	 												$itemms = OrderItem::model()->findAll($criteria);
 	if($itemms){
