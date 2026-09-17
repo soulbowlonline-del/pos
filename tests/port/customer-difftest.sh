@@ -41,5 +41,11 @@ run_case "holdOrderList (orders, outlet 0)"  holdOrderList hold-order-list "?id=
 run_case "holdOrderList (held, outlet 0)"    holdOrderList hold-order-list "?id=0&status=2"
 run_case "holdOrderList (empty outlet)"      holdOrderList hold-order-list "?id=99999&status=1"
 run_case "holdOrderList (bad status)"        holdOrderList hold-order-list "?id=0&status=9"
+run_case "orderList (orders, outlet 0)"     orderList     order-list      "?id=0&status=1"
+run_case "orderList (held, outlet 0)"       orderList     order-list      "?id=0&status=2"
+run_case "orderList (empty outlet)"         orderList     order-list      "?id=99999&status=1"
+run_case "getLatestBill (outlet 0)"         GetLatestBill get-latest-bill "?id=0"
+run_case "getLatestBill (outlet 5)"         GetLatestBill get-latest-bill "?id=5"
+run_case "getLatestBill (no such outlet)"   GetLatestBill get-latest-bill "?id=99999"
 echo
 echo "  passed: $PASS   mismatched: $FAIL"

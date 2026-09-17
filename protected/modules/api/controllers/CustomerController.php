@@ -111,13 +111,15 @@ class CustomerController extends GxController {
 		$json_list = array ();
 		
 		if ($status == 1) {
+			// Deterministic order for the order list; findAllByAttributes() alone
+			// leaves the sequence to MySQL.
 			$orders = Order::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
-			) );
+			), array ( 'order' => 'id ASC' ) );
 		} elseif ($status == 2) {
 			$orders = OrderHold::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
-			) );
+			), array ( 'order' => 'id ASC' ) );
 		}
 		if (! empty ( $orders )) {
 			

@@ -7,6 +7,7 @@ use app\models\Country;
 use app\models\Customer;
 use app\models\Discount;
 use app\models\Order;
+use app\models\Outlet;
 use app\models\OrderHold;
 use app\models\Setting;
 use app\models\State;
@@ -22,10 +23,12 @@ use yii\web\Response;
  * serve every /api/customer/* route, so nothing has to move before it is ready.
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
- *              holdOrderList
+ *              holdOrderList, orderList, getLatestBill
  *
  * Not ported - needs the Order model:
- *   orderList, getOrderHold, getOrder, getLatestBill
+ *   getOrder        needs Order::toArray2()
+ *   getOrderHold    reads an OrderHold and then deletes it, so it cannot be
+ *                   compared without rebuilding the fixture between calls
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
  *   pulls in the core POS entity. It belongs with the order module's port, not
  *   with customer.
@@ -257,6 +260,79 @@ class CustomerController extends Controller
         }
         $out['status'] = 'OK';
         $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/order-list
+     *
+     * status=1 returns billed orders for an outlet, status=2 held ones, both in
+     * full with their line items.
+     *
+     * Unpaginated, like the Yii 1 version: outlet 5 holds over 1.5 million
+     * orders and neither framework can serve that. See the note in the commit
+     * that added holdOrderList.
+     *
+     * The Yii 1 version filters with findAllByAttributes() and no ordering, so
+     * the sequence was left to MySQL; ordered by id on both sides.
+     */
+    public function actionOrderList($id, $status)
+    {
+        $out = $this->envelope('orderList');
+
+        $orders = [];
+        if ((string)$status === '1') {
+            $orders = Order::find()
+                ->where(['outlet_id' => $id])
+                ->orderBy(['id' => SORT_ASC])
+                ->all();
+        } elseif ((string)$status === '2') {
+            $orders = OrderHold::find()
+                ->where(['outlet_id' => $id])
+                ->orderBy(['id' => SORT_ASC])
+                ->all();
+        }
+
+        if (empty($orders)) {
+            $out['message'] = 'No data to display';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($orders as $order) {
+            $list[] = $order->toApiArray();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/get-latest-bill?id=OUTLET
+     *
+     * The highest bill number issued at an outlet, with that outlet's prefix.
+     * The Yii 1 version concatenates $id into the condition; bound here.
+     */
+    public function actionGetLatestBill($id)
+    {
+        $out = $this->envelope('GetLatestBill');
+
+        $order = Order::find()
+            ->where(['outlet_id' => $id])
+            ->orderBy(['bill_no' => SORT_DESC])
+            ->one();
+
+        if (empty($order)) {
+            $out['message'] = 'Order not available';
+            return $out;
+        }
+
+        $outlet = Outlet::findOne($id);
+        // Key order follows Yii 1: bill_prefix is set before status.
+        $out['bill_prefix'] = $outlet ? $outlet->bill_prefix : 'B';
+        $out['status'] = 'OK';
+        // bill_no is an int column; Yii 1 emitted it as a string.
+        $out['bill_no'] = $order->bill_no === null ? null : (string)$order->bill_no;
         return $out;
     }
 }

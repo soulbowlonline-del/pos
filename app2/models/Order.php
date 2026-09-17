@@ -34,7 +34,10 @@ class Order extends ActiveRecord
 
     public function getOrderItems()
     {
-        return $this->hasMany(OrderItem::class, ['order_id' => 'id']);
+        // Line items had no explicit order, so the two frameworks listed
+        // them differently within the same order. Ordered by id on both.
+        return $this->hasMany(OrderItem::class, ['order_id' => 'id'])
+            ->orderBy(['id' => SORT_ASC]);
     }
 
     public function getOutlet()
