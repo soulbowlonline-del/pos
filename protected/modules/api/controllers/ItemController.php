@@ -615,6 +615,9 @@ class ItemController extends GxController {
 		$pages->pageSize=10;
 		$pages->applyLimit($criteria);
 		$criteria->addCondition('status ='.ItemDetail::STATUS_ACTIVE);
+		// Deterministic page contents; without an order the same page could
+		// return different items between calls.
+		$criteria->order = 'id ASC';
 		$itemdetails=ItemDetail::model()->findAll($criteria);
 		if($itemdetails){
 			foreach($itemdetails as $itemdetail){

@@ -34,4 +34,19 @@ class Item extends ActiveRecord
         }
         return $id;
     }
+
+    public function getCategory()
+    {
+        return $this->hasOne(ItemCategory::class, ['id' => 'category_id']);
+    }
+
+    public function getSubcategory()
+    {
+        return $this->hasOne(ItemCategory::class, ['id' => 'sub_category_id']);
+    }
+
+    public function getCompany()
+    {
+        return $this->hasOne(ItemCompany::class, ['id' => 'company_id']);
+    }
 }

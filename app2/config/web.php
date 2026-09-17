@@ -56,6 +56,7 @@ return [
                 'api/customer/<action:[\w-]+>' => 'customer/<action>',
                 'api/order/<action:[\w-]+>' => 'order/<action>',
                 'api/tally/<action:[\w-]+>' => 'tally/<action>',
+                'api/item/<action:[\w-]+>' => 'item/<action>',
             ],
         ],
         'response' => [
