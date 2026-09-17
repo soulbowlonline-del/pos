@@ -145,6 +145,9 @@ abstract class BaseOrderItem extends GxActiveRecord {
 
 		$criteria->with = array('itemDetail','item','order');
 		$criteria->group = 'item_detail_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'item_detail_id';
 		
 		if ((Yii::app ()->session ['start_date'] != '') && (Yii::app ()->session ['end_date'] != '')) {
 			$order_ids = array();
@@ -301,6 +304,9 @@ abstract class BaseOrderItem extends GxActiveRecord {
 	
 		$criteria->with = array('itemDetail','item','order');
 		$criteria->group = 't.tax_id,t.create_date';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 't.tax_id,t.create_date';
 		$criteria->compare('item.title', $this->item_id ,true);
 	
 		$criteria->compare('order.bill_no', $this->order_id);

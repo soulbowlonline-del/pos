@@ -345,6 +345,9 @@ class OrderItem extends BaseOrderItem {
 			$criteria1 = new CDbCriteria ();
 			$criteria1->addInCondition ( 'order_id', $order_ids );
 			$criteria1->group = 'item_detail_id';
+			// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+			// explicitly by the grouped columns to preserve the previous output order.
+			$criteria1->order = 'item_detail_id';
 			$orderitems = OrderItem::model ()->findAll ( $criteria1 );
 			if ($orderitems) {
 				foreach ( $orderitems as $orderitem ) {

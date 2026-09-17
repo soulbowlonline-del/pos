@@ -168,6 +168,9 @@ abstract class BaseOrder extends GxActiveRecord {
 		} 
 		// $criteria->select ='t.*, sum(total_amt) as total_amt ';
 		$criteria->group = 'create_user_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'create_user_id';
 		$criteria->compare('id', $this->id);
 		$criteria->compare('bill_no', $this->bill_no);
 		$criteria->compare('qty', $this->qty);

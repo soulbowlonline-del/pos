@@ -346,6 +346,9 @@ class ItemController extends GxController {
 	 												$arr['bill_no'] = $order->getOrderBillNo();
 	 												$criteria = new CDbCriteria();
 	 												$criteria->group = 'tax_id';
+	 												// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+	 												// explicitly by the grouped columns to preserve the previous output order.
+	 												$criteria->order = 'tax_id';
 	 												$criteria->compare('order_id',$order->id);
 	 												$itemms = OrderItem::model()->findAll($criteria);
 
@@ -1256,6 +1259,9 @@ class ItemController extends GxController {
 													$criteria->select ='SUM(qty) AS qty,SUM(tax_amount) AS tax_amount, SUM(cgst_amt) AS cgst_amt, SUM(sgst_amt) AS sgst_amt, SUM(cess_amt) AS cess_amt, SUM(igst_amt) AS igst_amt,t.*';
 													$criteria->with = 'item';
 													$criteria->group = 'tax_id,item_id,item.hsn_code';
+													// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+													// explicitly by the grouped columns to preserve the previous output order.
+													$criteria->order = 'tax_id,item_id,item.hsn_code';
 	 												$criteria->compare('order_id',$order->id);
 	 												$itemms = OrderItem::model()->findAll($criteria);
 
@@ -2280,6 +2286,9 @@ class ItemController extends GxController {
 							$criteria->select ='SUM(qty) AS qty,SUM(tax_amount) AS tax_amount, SUM(cgst_amt) AS cgst_amt, SUM(sgst_amt) AS sgst_amt, SUM(cess_amt) AS cess_amt, SUM(igst_amt) AS igst_amt,t.*';
 							$criteria->with = 'item';
 							$criteria->group = 'tax_id,item_id,item.hsn_code';
+							// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+							// explicitly by the grouped columns to preserve the previous output order.
+							$criteria->order = 'tax_id,item_id,item.hsn_code';
 							$criteria->compare('order_id',$order->id);
 							$itemms = OrderItem::model()->findAll($criteria);
 

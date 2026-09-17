@@ -55,6 +55,9 @@ class CustomerController extends GxController {
 	/* public function actionDuplicate() {
 		$criteria = new CDbCriteria();
 		$criteria->group = 'email';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'email';
 		$customers = Customer::model()->findAll($criteria);
 		
 	} */

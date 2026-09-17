@@ -1,5 +1,6 @@
 <?php
-$mysqli = new mysqli("localhost","root","welcome@100","pos");
+require_once __DIR__ . '/report-db.php';
+$mysqli = pos_report_db();
 // Check connection
 if ($mysqli -> connect_errno) {
   echo "Failed to connect to MySQL: " . $mysqli -> connect_error;

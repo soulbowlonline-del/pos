@@ -323,6 +323,9 @@ if($row13){
 			
 				$criteria->addCondition('date(create_time) = "'.$date.'"');
 				$criteria->group = 'tax_id';
+				// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+				// explicitly by the grouped columns to preserve the previous output order.
+				$criteria->order = 'tax_id';
 			
 			$items = B2bPurchaseBillDetail::model()->findAll($criteria);
 

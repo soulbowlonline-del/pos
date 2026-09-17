@@ -1,5 +1,6 @@
 <?php
-$mysqli = new mysqli("localhost","root","welcome@100","pos");
+require_once __DIR__ . '/report-db.php';
+$mysqli = pos_report_db();
 // Check connection
 if ($mysqli -> connect_errno) {
   echo "Failed to connect to MySQL: " . $mysqli -> connect_error;
@@ -63,10 +64,13 @@ $current_year = date('Y');
 	// $_GET[from]
 	// $_GET[to]
 
+// These values are interpolated directly into the SQL below, so they must
+// be escaped: the script is reachable unauthenticated and 'from'/'to' came
+// straight from the query string.
 if(isset($_GET['from']) && isset($_GET['to'])){
 
-$start_date = "'".$_GET['from']."'";
-$last_date = "'".$_GET['to']."'";
+$start_date = "'".$mysqli->real_escape_string($_GET['from'])."'";
+$last_date = "'".$mysqli->real_escape_string($_GET['to'])."'";
 }else{
 $start_date = "'".$current_year.'-'.$current_month.'-01'."'";
 $last_date = "'".$current_year.'-' .$current_month.'-31'."'";

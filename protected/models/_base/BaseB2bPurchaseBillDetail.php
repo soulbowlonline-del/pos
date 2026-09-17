@@ -276,6 +276,9 @@ abstract class BaseB2bPurchaseBillDetail extends GxActiveRecord {
 		}
 		
 		$criteria->group = 'purchase_bill_id,tax_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'purchase_bill_id,tax_id';
 		$criteria->addInCondition('purchase_bill_id', $purchase_bill_ids);
 		Yii::log ( CVarDumper::dumpAsString ( Yii::app ()->session ['tally_start_date'] ), CLogger::LEVEL_WARNING, 'start_date' );
 		Yii::log ( CVarDumper::dumpAsString ( Yii::app ()->session ['tally_start_date'] ), CLogger::LEVEL_WARNING, 'end_date' );
@@ -438,6 +441,9 @@ abstract class BaseB2bPurchaseBillDetail extends GxActiveRecord {
 		$criteria->select ='t.*, SUM(t.approved_qty) AS approved_qty, SUM(t.amount) AS amount ';
 		$criteria->addCondition('b2bPurchaseBill.status ='. B2bPurchaseBill::STATUS_APPROVED);
 		$criteria->group = 'item_detail_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'item_detail_id';
 		if ((Yii::app ()->session ['start_date'] != '') && (Yii::app ()->session ['end_date'] != '')) {
 			$order_ids = array();
 			$criteria1 = new CDbCriteria();
@@ -684,6 +690,9 @@ abstract class BaseB2bPurchaseBillDetail extends GxActiveRecord {
 	
 		$criteria->with = array('itemDetail','item','b2bPurchaseBill');
 		$criteria->group = 't.tax_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 't.tax_id';
 		//$criteria->group = 't.tax_id,t.order_id';
 		$criteria->compare('item.title', $this->item_id ,true);
 	
@@ -752,6 +761,9 @@ abstract class BaseB2bPurchaseBillDetail extends GxActiveRecord {
 		// $criteria->select ='t.*,SUM(cgst_amt) AS cgst_amt ,SUM(sgst_amt) AS sgst_amt,SUM(igst_amt) AS igst_amt,SUM(cess_amt) AS cess_amt,SUM(cgst_amt) AS cgst_amt';
 		$criteria->select ='t.*, SUM(t.cgst_amt) AS cgst_amt ,SUM(t.sgst_amt) AS sgst_amt,SUM(t.igst_amt) AS igst_amt,SUM(t.cess_amt) AS cess_amt, SUM(t.price * approved_qty) AS price, SUM(t.amount ) AS amount, SUM(t.discount_amt) AS discount_amt,SUM(t.discount_amt1) AS discount_amt1';
 		$criteria->group = 't.tax_id,b2bPurchaseBill.id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 't.tax_id,b2bPurchaseBill.id';
 		
 		// $criteria->group = 't.tax_id,b2bPurchaseBill.vendor_id';
 		$criteria->compare('item.title', $this->item_id ,true);

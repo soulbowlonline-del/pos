@@ -274,6 +274,9 @@ abstract class BasePurchaseBillDetail extends GxActiveRecord {
 		}
 		
 		$criteria->group = 'purchase_bill_id,tax_id';
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$criteria->order = 'purchase_bill_id,tax_id';
 		$criteria->addInCondition('purchase_bill_id', $purchase_bill_ids);
 		Yii::log ( CVarDumper::dumpAsString ( Yii::app ()->session ['tally_start_date'] ), CLogger::LEVEL_WARNING, 'start_date' );
 		Yii::log ( CVarDumper::dumpAsString ( Yii::app ()->session ['tally_start_date'] ), CLogger::LEVEL_WARNING, 'end_date' );
