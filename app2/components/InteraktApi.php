@@ -64,7 +64,7 @@ class InteraktApi
         $log->user_id = isset($extraData['user_id']) ? $extraData['user_id'] : null;
         $log->computer_name = isset($extraData['computer_name']) ? $extraData['computer_name'] : null;
         $log->created_at = date('Y-m-d H:i:s');
-        $log->save(false);
+        $log->save();   // validated, as in Yii 1 - see WhatsappLogs::rules()
 
         return $response;
     }

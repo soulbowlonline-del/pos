@@ -29,21 +29,26 @@ use yii\web\Response;
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
  *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP,
  *              update, verifywhatappotp, getOrderHold, sendOTP, add,
- *              sentwhatappotp
+ *              sentwhatappotp, uploadwhatapporder
+ *
+ * Seven of those - sendOTP, sentwhatappotp, verifywhatappotp, add, update and
+ * uploadwhatapporder - send WhatsApp messages or register customers with an
+ * external CRM, so they could not be tested differentially until the outbound
+ * stub landed (lib/PosOutbound.php). With POS_STUB_OUTBOUND=1 the request is
+ * recorded rather than made, and the harness compares the recorded calls
+ * alongside the response and the database state.
  *
  * Not ported - needs the Order model:
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
  *   pulls in the core POS entity. It belongs with the order module's port, not
  *   with customer.
  *
- * Not ported - outward-facing side effects:
- *   sendOTP, sentwhatappotp, verifywhatappotp, uploadwhatapporder,
- *   uploadbill, add, update
- *   These send real SMS and WhatsApp messages, register customers with an
- *   external CRM, and upload files to a remote server. A differential test
- *   would have to trigger those for real against both stacks, so they need
- *   their own approach - a stubbed transport, or manual verification - rather
- *   than being ported blind.
+ * Not ported - uploads a file to a remote server:
+ *   uploadbill
+ *   This one receives a multipart upload, writes it under webroot, and posts it
+ *   on with an inline cURL request built in the controller rather than through
+ *   InteraktApi - so the stub does not intercept it yet. It needs an upload
+ *   channel on PosOutbound first.
  *
  * Response envelopes are reproduced exactly, as with the loyalty and emp ports.
  */
@@ -736,6 +741,36 @@ class CustomerController extends Controller
         // just assigned. Same situation as verifyOTP.
         $profile = $model->toApiArray();
         $out['profile'][] = $profile;
+        return $out;
+    }
+    /**
+     * Yii 1 ignores the $urlPdf it builds and sends a hard-coded test PDF
+     * instead, and leaves status at 'NOK' even when the send succeeds.
+     * Both are reproduced: this endpoint's response is what the POS client
+     * parses, so "fixing" either would be a behaviour change.
+     */
+    public function actionUploadwhatapporder($id)
+    {
+        $out = $this->envelope('uploadwhatapporder');
+
+        $model = Customer::findOne($id);
+        if (!$model) {
+            $out['message'] = 'user not found';
+            return $out;
+        }
+
+        $whatsappNo = preg_replace('/[^0-9]/', '', (string)$model->contact_no);
+
+        $api = new InteraktApi(getenv('POS_INTERAKT_API_KEY') ?: null);
+        $out['message'] = $api->sendApprovalOrderMessageNew(
+            'purchase_order',
+            $whatsappNo,
+            [$model->name],
+            ['http://61.2.241.71/pos/whatapporder/payBillTest.pdf'],
+            'order.pdf'
+        );
+
+        // status deliberately left at 'NOK' - as in Yii 1
         return $out;
     }
 }

@@ -1,5 +1,5 @@
 DELETE FROM tbl_outbound_stub_log;
-DELETE FROM tbl_whatsapp_logs              WHERE number IN ('9990001234', '9995550001');
+DELETE FROM tbl_whatsapp_logs              WHERE number IN ('9990001234', '9995550001') OR number = '' OR number IS NULL;
 DELETE FROM tbl_customer_otp_verification  WHERE customer_id = 9990001;
 DELETE FROM tbl_customer_otp               WHERE customer_id = 9990001;
 DELETE FROM tbl_loyalty_transactions       WHERE customer_id = 9990001;
