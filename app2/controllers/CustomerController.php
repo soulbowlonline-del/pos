@@ -5,6 +5,7 @@ use Yii;
 use app\models\City;
 use app\models\Country;
 use app\models\Customer;
+use app\models\CustomerOtp;
 use app\models\Discount;
 use app\models\Order;
 use app\models\Outlet;
@@ -23,7 +24,7 @@ use yii\web\Response;
  * serve every /api/customer/* route, so nothing has to move before it is ready.
  *
  * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
- *              holdOrderList, orderList, getLatestBill, getOrder
+ *              holdOrderList, orderList, getLatestBill, getOrder, verifyOTP
  *
  * Not ported - needs the Order model:
  *   getOrderHold    reads an OrderHold and then deletes it, so it cannot be
@@ -33,7 +34,7 @@ use yii\web\Response;
  *   with customer.
  *
  * Not ported - outward-facing side effects:
- *   sendOTP, verifyOTP, sentwhatappotp, verifywhatappotp, uploadwhatapporder,
+ *   sendOTP, sentwhatappotp, verifywhatappotp, uploadwhatapporder,
  *   uploadbill, add, update
  *   These send real SMS and WhatsApp messages, register customers with an
  *   external CRM, and upload files to a remote server. A differential test
@@ -354,6 +355,73 @@ class CustomerController extends Controller
         $out['status'] = 'OK';
         // Yii 1 wraps the single order in a list; preserved.
         $out['order'][] = $order->toApiArray2();
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/verify-otp
+     *
+     * Checks a code against the customer's most recent unverified OTP and, on
+     * success, marks the customer as WhatsApp-verified (is_enable_wa = 2).
+     *
+     * The companion sendOTP action is not ported: it despatches a real WhatsApp
+     * message, so a comparison run would message a real phone number twice.
+     */
+    public function actionVerifyOtp()
+    {
+        $out = $this->envelope('verifyOTP');
+        $req = Yii::$app->request;
+
+        $customerId = $req->post('customer_id');
+        $otpCode = $req->post('otp_code');
+        $phoneNumber = $req->post('phone_number');
+
+        if (!$customerId && !$phoneNumber) {
+            $out['message'] = 'Customer ID or phone number is required';
+            return $out;
+        }
+        if (!$otpCode) {
+            $out['message'] = 'OTP code is required';
+            return $out;
+        }
+
+        if ($customerId) {
+            $model = Customer::findOne($customerId);
+        } else {
+            $model = Customer::getUserByContactNo(preg_replace('/[^0-9]/', '', $phoneNumber));
+        }
+
+        if (!$model) {
+            $out['message'] = 'Customer not found';
+            return $out;
+        }
+
+        $result = CustomerOtp::verifyOTP($model->id, $otpCode);
+
+        if (!$result['success']) {
+            $out['message'] = $result['message'];
+            return $out;
+        }
+
+        $model->is_enable_wa = 2;   // verified
+        $model->save(false);
+
+        // toApiArray1() casts is_enable_wa to a string, because every other
+        // caller reads it from the database where Yii 1 yields a string. Here the
+        // attribute was just assigned in PHP, so Yii 1 emits the int it holds.
+        // Restore that just-assigned int so the payloads agree.
+        $profile = $model->toApiArray1();
+        $profile['is_enable_wa'] = 2;
+
+        $out['status'] = 'OK';
+        $out['message'] = $result['message'];
+        $out['data'] = [
+            'customer_id' => (string)$model->id,
+            'customer_name' => $model->name,
+            'phone_number' => $model->contact_no,
+            'verified_at' => $result['verified_at'],
+            'customer_profile' => $profile,
+        ];
         return $out;
     }
 }
