@@ -54,6 +54,7 @@ return [
                 // No method prefix: the Yii 1 routes answer GET and POST alike,
                 // and several of these take an id from the query string.
                 'api/customer/<action:[\w-]+>' => 'customer/<action>',
+                'api/order/<action:[\w-]+>' => 'order/<action>',
             ],
         ],
         'response' => [

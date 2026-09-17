@@ -6,6 +6,8 @@ use app\models\City;
 use app\models\Country;
 use app\models\Customer;
 use app\models\Discount;
+use app\models\Order;
+use app\models\OrderHold;
 use app\models\Setting;
 use app\models\State;
 use yii\web\Controller;
@@ -19,10 +21,11 @@ use yii\web\Response;
  * Yii 1, for reasons recorded against each group below. Yii 1 continues to
  * serve every /api/customer/* route, so nothing has to move before it is ready.
  *
- * Ported:      discounts, countryList, stateList, cityList, index, get, setting
+ * Ported:      discounts, countryList, stateList, cityList, index, get, setting,
+ *              holdOrderList
  *
  * Not ported - needs the Order model:
- *   orderList, holdOrderList, getOrderHold, getOrder, getLatestBill
+ *   orderList, getOrderHold, getOrder, getLatestBill
  *   These render Order::toArray(), which is 173 lines of a 1,246-line model and
  *   pulls in the core POS entity. It belongs with the order module's port, not
  *   with customer.
@@ -214,6 +217,46 @@ class CustomerController extends Controller
 
         $out['status'] = 'OK';
         $out['profile'][] = $model->toApiArray();
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/customer/hold-order-list
+     *
+     * status=1 lists orders for an outlet, status=2 lists held orders. Both use
+     * the compact toArray1() payload.
+     *
+     * The Yii 1 version builds this with addCondition('outlet_id =' . $id),
+     * concatenating a request parameter into SQL. Bound here.
+     */
+    public function actionHoldOrderList($id, $status)
+    {
+        $out = $this->envelope('holdOrderList');
+
+        $orders = [];
+        if ((string)$status === '1') {
+            $orders = Order::find()
+                ->where(['outlet_id' => $id])
+                ->orderBy(['id' => SORT_ASC])
+                ->all();
+        } elseif ((string)$status === '2') {
+            $orders = OrderHold::find()
+                ->where(['outlet_id' => $id])
+                ->orderBy(['id' => SORT_ASC])
+                ->all();
+        }
+
+        if (empty($orders)) {
+            $out['message'] = 'No data to display';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($orders as $order) {
+            $list[] = $order->toApiArray1();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
         return $out;
     }
 }

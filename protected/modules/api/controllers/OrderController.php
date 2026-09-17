@@ -493,6 +493,10 @@ class OrderController extends GxController {
 		$json_list = array ();
 		$criteria = new CDbCriteria ();
 		$criteria->addCondition ( 'type_id =' . $type );
+		// Without an explicit order MySQL may return payment modes in any
+		// sequence, so the dropdown order was never guaranteed. 'id desc'
+		// matches the order this endpoint has been returning in practice.
+		$criteria->order = 'id desc';
 		$modes = PaymentMode::model ()->findAll ( $criteria );
 		if (! empty ( $modes )) {
 			foreach ( $modes as $mode ) {

@@ -35,5 +35,11 @@ run_case "cityList (no matches)"        cityList    city-list    "?id=99999"
 run_case "get (customer 1)"             get         get          "?id=1"
 run_case "get (nonexistent)"            get         get          "?id=99999999"
 run_case "index (all customers)"        index       index        ""
+# outlet 0 has 322 orders; outlet 5 has 1.58M and neither stack can serve it
+# (Yii 1 exhausts memory, Yii 2 times out) - see the note in the commit.
+run_case "holdOrderList (orders, outlet 0)"  holdOrderList hold-order-list "?id=0&status=1"
+run_case "holdOrderList (held, outlet 0)"    holdOrderList hold-order-list "?id=0&status=2"
+run_case "holdOrderList (empty outlet)"      holdOrderList hold-order-list "?id=99999&status=1"
+run_case "holdOrderList (bad status)"        holdOrderList hold-order-list "?id=0&status=9"
 echo
 echo "  passed: $PASS   mismatched: $FAIL"
