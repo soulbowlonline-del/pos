@@ -50,10 +50,23 @@ return [
                 // hyphenated, so /v2/api/loyalty/pre-redeem-points answers
                 // what Yii 1 serves at /api/loyalty/preRedeemPoints.
                 'POST api/loyalty/<action:[\w-]+>' => 'loyalty/<action>',
+                'POST api/emp/<action:[\w-]+>' => 'emp/<action>',
             ],
         ],
         'response' => [
             'format' => \yii\web\Response::FORMAT_JSON,
+            'formatters' => [
+                \yii\web\Response::FORMAT_JSON => [
+                    'class' => \yii\web\JsonResponseFormatter::class,
+                    // Yii 1 encoded with a bare json_encode(), which escapes
+                    // slashes and unicode. Yii 2 defaults to
+                    // JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE, so the same
+                    // payload would serialise to different bytes. 0 restores the
+                    // Yii 1 encoding exactly.
+                    'encodeOptions' => 0,
+                    'prettyPrint' => false,
+                ],
+            ],
         ],
         'errorHandler' => [
             'errorAction' => 'site/error',

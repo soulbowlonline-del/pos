@@ -136,8 +136,18 @@ class User extends BaseUser
 
 	public function GetAge()
 	{
-		$start = new DateTime(date('Y-m-d'));
-		$end = new DateTime($this->date_of_birth);
+		// GetAge(): guarded for PHP 8. date_of_birth is nullable, and passing null
+		// to DateTime::__construct() is deprecated from PHP 8.1. Yii 1's error
+		// handler escalates any reported error, so on a user with no date of birth
+		// this turned /api/emp/deliveryboy into a 500. Casting to string keeps the
+		// previous behaviour - null and '' both mean 'now', giving an age of 0 -
+		// without emitting the deprecation.
+		try {
+			$start = new DateTime(date('Y-m-d'));
+			$end = new DateTime((string)$this->date_of_birth);
+		} catch (Exception $e) {
+			return 0;
+		}
 		$form = $start->diff($end);
 
 		return $form->y;
