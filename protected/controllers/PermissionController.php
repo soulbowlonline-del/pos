@@ -112,7 +112,7 @@ class PermissionController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Permission ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

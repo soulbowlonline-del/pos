@@ -112,7 +112,7 @@ class SessionController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Session ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -115,7 +115,7 @@ class QuestionController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Question ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

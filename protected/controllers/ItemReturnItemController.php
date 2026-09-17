@@ -766,7 +766,7 @@ public function actionReport($id = null) {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new ItemReturnItem ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

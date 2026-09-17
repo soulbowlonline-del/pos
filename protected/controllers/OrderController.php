@@ -671,7 +671,7 @@ if($oldgst != $newgst){
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Order ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

@@ -172,7 +172,7 @@ class CountryController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Country ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -150,7 +150,7 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new VendorSchemes ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

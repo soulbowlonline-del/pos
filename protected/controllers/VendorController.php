@@ -307,7 +307,7 @@ class VendorController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Vendor ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

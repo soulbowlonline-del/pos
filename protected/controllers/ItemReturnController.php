@@ -125,7 +125,7 @@ class ItemReturnController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new ItemReturn ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

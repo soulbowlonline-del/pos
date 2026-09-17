@@ -112,7 +112,7 @@ class EmpShiftController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new EmpShift ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

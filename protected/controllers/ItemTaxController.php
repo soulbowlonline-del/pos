@@ -124,7 +124,7 @@ class ItemTaxController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new ItemTax ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

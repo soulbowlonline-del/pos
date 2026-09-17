@@ -169,7 +169,7 @@ class TaxController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Tax ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

@@ -115,7 +115,7 @@ class OutletController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Outlet ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -214,7 +214,7 @@ class ItemCategoryController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new ItemCategory ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

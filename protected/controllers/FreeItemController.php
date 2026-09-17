@@ -167,7 +167,7 @@ class FreeItemController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new FreeItem ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -112,7 +112,7 @@ class OrderRefundController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new OrderRefund ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

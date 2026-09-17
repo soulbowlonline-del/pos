@@ -138,7 +138,7 @@ class AdvancePaymentController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new AdvancePayment ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

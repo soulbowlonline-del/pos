@@ -379,7 +379,7 @@ class ItemDetailController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new ItemDetail ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

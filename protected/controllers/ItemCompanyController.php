@@ -213,7 +213,7 @@ class ItemCompanyController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new ItemCompany ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -112,7 +112,7 @@ class StockLogController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new StockLog ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

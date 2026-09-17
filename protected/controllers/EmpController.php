@@ -302,7 +302,7 @@ class EmpController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Emp ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 

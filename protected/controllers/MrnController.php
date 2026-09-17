@@ -145,7 +145,7 @@ class MrnController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Mrn ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

@@ -112,7 +112,7 @@ class AdvanceLogsController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new AdvanceLogs ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

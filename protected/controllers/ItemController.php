@@ -1901,7 +1901,7 @@ curl_close($ch);
 		
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Item ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

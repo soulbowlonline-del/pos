@@ -156,7 +156,7 @@ class DesignationController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Designation ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

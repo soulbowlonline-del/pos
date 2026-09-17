@@ -150,7 +150,7 @@ class MrsController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Mrs ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

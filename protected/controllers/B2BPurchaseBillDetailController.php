@@ -464,7 +464,7 @@ class B2BPurchaseBillDetailController extends GxController {
 	}
 	
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new B2bPurchaseBillDetail ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

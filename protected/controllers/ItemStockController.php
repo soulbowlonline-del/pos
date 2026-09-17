@@ -293,7 +293,7 @@ class ItemStockController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new ItemStock ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

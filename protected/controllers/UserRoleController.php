@@ -115,7 +115,7 @@ class UserRoleController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new UserRole ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

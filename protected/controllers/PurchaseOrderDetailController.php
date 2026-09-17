@@ -535,7 +535,7 @@ class PurchaseOrderDetailController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new PurchaseOrderDetail ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

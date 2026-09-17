@@ -208,7 +208,7 @@ class DiscountController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Discount ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

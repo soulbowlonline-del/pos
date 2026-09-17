@@ -112,7 +112,7 @@ class NotificationController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Notification ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

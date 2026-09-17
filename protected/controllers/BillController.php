@@ -122,7 +122,7 @@ class BillController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Bill ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

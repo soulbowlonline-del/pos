@@ -115,7 +115,7 @@ class ShiftController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new Shift ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	

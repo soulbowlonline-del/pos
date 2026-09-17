@@ -420,7 +420,7 @@ class CustomerController extends GxController {
 		) );
 	}
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new Customer ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

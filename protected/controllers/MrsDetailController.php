@@ -528,7 +528,7 @@ class MrsDetailController extends GxController {
 		) );
 	} */
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new MrsDetail ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

@@ -445,7 +445,7 @@ class PurchaseBillDetailController extends GxController {
 	}
 	
 	public function actionSearch() {
-		$model = new Job ( 'search' );
+		$model = new PurchaseBillDetail ( 'search' );
 		$model->unsetAttributes ();
 		$this->updateMenuItems ( $model );
 		

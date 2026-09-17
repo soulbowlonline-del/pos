@@ -112,7 +112,7 @@ class PaymentReportController extends GxController {
 	
 	public function actionSearch()
 	{
-		$model = new Job('search');
+		$model = new PaymentReport ('search');
 		$model->unsetAttributes();
 		$this->updateMenuItems($model);
 	
