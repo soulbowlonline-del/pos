@@ -426,9 +426,12 @@ class ItemController extends GxController {
 					}
 				}
 						
+					// ORDER BY added: MySQL 8 no longer returns an implicit order, and
+					// the Yii 2 port has to agree with this one. Same fix as the other
+					// unordered API queries.
 					$purchaseBills = PurchaseBill::model ()->findAllByAttributes ( array (
 							'outlet_id' => $outlet_id,'status'=>PurchaseBill::STATUS_UNAPPROVED
-					) );
+					), array ( 'order' => 'id ASC' ) );
 					if ($purchaseBills) {
 						$json_list = array ();
 						foreach ( $purchaseBills as $purchaseBill ) {
@@ -455,9 +458,10 @@ class ItemController extends GxController {
 		if ($id != null) {
 			
 			$purchaseBill = PurchaseBill::model ()->findByPk ( $id );
+			// ORDER BY added - see actionGetGRN
 			$purchaseBillDetails = PurchaseBillDetail::model ()->findAllByAttributes ( array (
 					'purchase_bill_id' => $id
-			) );
+			), array ( 'order' => 'id ASC' ) );
 			if ($purchaseBillDetails) {
 				$json_list = array ();
 				foreach ( $purchaseBillDetails as $purchaseBillDetail ) {

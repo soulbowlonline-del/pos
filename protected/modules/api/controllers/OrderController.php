@@ -1092,8 +1092,15 @@ class OrderController extends GxController {
 					$description .= "Items:\n";
 					
 					foreach ($purchaseDetails as $detail) {
-						$productName = isset($detail->item) ? $detail->item->short_name : 'Product ID: ' . $detail->product_id;
-						$approvedQty = isset($detail->approved_qty) ? $detail->approved_qty : $detail->qty;
+						// product_id and qty do not exist on tbl_purchase_bill_detail, so
+						// both fallbacks raised "Property ... is not defined" rather than
+						// falling back. item_id is the column that was meant, and there is
+						// no second quantity column to fall back to. Reachable whenever a
+						// line has a NULL approved_qty or an item_id with no matching item -
+						// neither of which occurs in the current data, which is why this
+						// endpoint has never been seen to fail.
+						$productName = isset($detail->item) ? $detail->item->short_name : 'Product ID: ' . $detail->item_id;
+						$approvedQty = isset($detail->approved_qty) ? $detail->approved_qty : null;
 						$mrp = isset($detail->mrp) ? number_format($detail->mrp, 2) : '0.00';
 						$price = isset($detail->unit_price) ? number_format($detail->unit_price, 2) : (isset($detail->price) ? number_format($detail->price, 2) : '0.00');
 						$amount = isset($detail->amount) ? number_format($detail->amount, 2) : ($approvedQty * $price);

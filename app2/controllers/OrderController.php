@@ -206,9 +206,16 @@ class OrderController extends Controller
      * The Yii 1 version reads $detail->unit_price, $detail->qty and
      * $detail->product_id behind isset() guards, but none of those columns
      * exists on tbl_purchase_bill_detail - the table has approved_qty, mrp,
-     * price and amount. Those branches are therefore unreachable, and reaching
-     * them would raise an unknown-property error in either framework. Only the
-     * live branches are ported.
+     * price and amount.
+     *
+     * isset() on a missing property is merely false, so unit_price harmlessly
+     * falls through to price. The other two are read directly, and a direct
+     * read of a property Yii 1 does not know raises "Property ... is not
+     * defined" - so a line with a NULL approved_qty, or an item_id with no
+     * matching item, took this endpoint down. No such line exists in the
+     * current data, which is why it has never been seen to fail; the GRN
+     * fixture creates both, which is how it was found. The Yii 1 action now
+     * uses item_id and falls back to null, and this port matches it.
      *
      * The line query has no ORDER BY in Yii 1, so the item order within a GRN
      * was the database's choice; ordered by id on both sides.

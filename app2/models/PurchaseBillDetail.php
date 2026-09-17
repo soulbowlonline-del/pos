@@ -38,6 +38,11 @@ class PurchaseBillDetail extends ActiveRecord
         return $this->hasOne(PurchaseBill::class, ['id' => 'purchase_bill_id']);
     }
 
+    public function getItemDetail()
+    {
+        return $this->hasOne(ItemDetail::class, ['id' => 'item_detail_id']);
+    }
+
     public function getTax()
     {
         return $this->hasOne(Tax::class, ['id' => 'tax_id']);
@@ -221,6 +226,26 @@ class PurchaseBillDetail extends ActiveRecord
      * Several figures are per-tax-group rather than per-line, so every line of
      * a group repeats the same totals. That is how the Tally import expects it.
      */
+    /**
+     * PurchaseBillDetail::toArray() in Yii 1. Renamed because yii\base\Model
+     * already carries a toArray() through Arrayable.
+     *
+     * rec_qty is hard-coded to 0 by the Yii 1 version - the received quantity
+     * is filled in by the client, not read from the bill.
+     */
+    public function toApiArray()
+    {
+        return [
+            'id' => (string)$this->id,
+            'item' => isset($this->item) ? $this->item->title : '',
+            'bar_code' => isset($this->itemDetail) ? $this->itemDetail->bar_code : '',
+            'req_qty' => isset($this->req_qty) ? (string)$this->req_qty : '',
+            'mrp' => isset($this->itemDetail) ? $this->itemDetail->getItemDetailMrp() : '',
+            'approved_qty' => isset($this->approved_qty) ? (string)$this->approved_qty : '',
+            'rec_qty' => 0,   // a literal in Yii 1 too, so it stays an int
+        ];
+    }
+
     public function toApiArray1($saleTax = false)
     {
         $bill = $this->purchaseBill;

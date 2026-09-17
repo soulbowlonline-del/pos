@@ -2,8 +2,13 @@
 namespace app\controllers;
 
 use Yii;
+use app\models\Emp;
 use app\models\Item;
 use app\models\ItemDetail;
+use app\models\Outlet;
+use app\models\PurchaseBill;
+use app\models\PurchaseBillDetail;
+use app\models\User;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -15,14 +20,16 @@ use yii\web\Response;
  * actionAdjust and actionUpdateStock move stock, actionPunchorder and
  * actionBillUpdate post to external services. None of that is ported here.
  *
- * Ported: list    - the catalogue feed, built on ItemDetail::toonlineArray()
- *         getItem - a single item by barcode, or the first 50, built on
- *                   ItemDetail::toArray()
- *         search  - the same payload, filtered by name/title/rate
+ * Ported: list        - the catalogue feed, built on ItemDetail::toonlineArray()
+ *         getItem     - a single item by barcode, or the first 50, built on
+ *                       ItemDetail::toArray()
+ *         search      - the same payload, filtered by name/title/rate
+ *         getGRN      - the caller's outlet's unapproved purchase bills
+ *         getGRNItems - the lines of one purchase bill
  *
  * Not ported:
  *   order, adjust, updateStock, punchorder, billUpdate, adjustitemtozero,
- *   scannedItem, barcode, getGRN, getGRNItems, ordertest
+ *   scannedItem, barcode, ordertest
  *                     write paths and external integrations; they need a
  *                     fixture-based harness and, for the cURL calls, a stubbed
  *                     transport before they can be compared safely.
@@ -206,6 +213,117 @@ class ItemController extends Controller
 
         $out['status'] = 'OK';
         $out['item'] = $list;
+        return $out;
+    }
+    /** The unverified caller id. Yii 1 reads 'userlogin', then 'login_id'. */
+    private function headerUserId()
+    {
+        $headers = Yii::$app->request->getHeaders();
+        $v = $headers->get('userlogin');
+        if ($v === null || $v === '') {
+            $v = $headers->get('login_id');
+        }
+        return ($v === null || $v === '') ? null : $v;
+    }
+
+    /**
+     * POST /v2/api/item/get-grn
+     *
+     * The unapproved purchase bills for the outlet the caller belongs to, as
+     * bare ids. The outlet comes from the caller's employee record; if the user
+     * has no employee row, Yii 1 falls back to whichever outlet the database
+     * returns first, and if there are no outlets at all it goes on to use an
+     * undefined $outlet_id - a 500 on PHP 8. Reproduced, since a deployment
+     * with no outlets is not a real state.
+     *
+     * status stays 'NOK' when the caller is unknown or has no bills, and the
+     * 'grns' key is absent - not an empty list.
+     *
+     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     */
+    public function actionGetGrn()
+    {
+        $out = [
+            'controller' => 'item',
+            'action' => 'getGRN',
+            'status' => 'NOK',
+        ];
+
+        $loginId = $this->headerUserId();
+        if ($loginId === null) {
+            return $out;
+        }
+
+        $user = User::findOne($loginId);
+        if (!$user) {
+            return $out;
+        }
+
+        $emp = Emp::findOne($user->emp_id);
+        if ($emp) {
+            $outletId = $emp->outlet_id;
+        } else {
+            $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+            if ($outlet) {
+                $outletId = $outlet->id;
+            }
+        }
+
+        $bills = PurchaseBill::find()
+            ->where([
+                'outlet_id' => $outletId,
+                'status' => PurchaseBill::STATUS_UNAPPROVED,
+            ])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        if ($bills) {
+            $list = [];
+            foreach ($bills as $bill) {
+                $list[] = ['id' => (string)$bill->id];   // string, as Yii 1 returns
+            }
+            $out['status'] = 'OK';
+            $out['grns'] = $list;
+        }
+
+        return $out;
+    }
+
+    /**
+     * POST /v2/api/item/get-grnitems?id=N
+     *
+     * The lines of one purchase bill. Yii 1 loads the bill itself into a
+     * variable it never uses, and logs the id at warning level on every call;
+     * neither is reproduced, as neither is observable in the response.
+     *
+     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     */
+    public function actionGetGrnitems($id)
+    {
+        $out = [
+            'controller' => 'item',
+            'action' => 'getGRNItems',
+            'status' => 'NOK',
+        ];
+
+        if ($id === null) {
+            return $out;
+        }
+
+        $details = PurchaseBillDetail::find()
+            ->where(['purchase_bill_id' => $id])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        if ($details) {
+            $list = [];
+            foreach ($details as $detail) {
+                $list[] = $detail->toApiArray();
+            }
+            $out['status'] = 'OK';
+            $out['items'] = $list;
+        }
+
         return $out;
     }
 }
