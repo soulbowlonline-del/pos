@@ -291,7 +291,7 @@ if($modes){
 			array(
 			
 					'header'=>'<a>Status</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 						

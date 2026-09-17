@@ -3,9 +3,9 @@
  * CApplication class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -42,7 +42,7 @@
  * CApplication will undergo the following lifecycles when processing a user request:
  * <ol>
  * <li>load application configuration;</li>
- * <li>set up class autoloader and error handling;</li>
+ * <li>set up error handling;</li>
  * <li>load static application components;</li>
  * <li>{@link onBeginRequest}: preprocess the user request;</li>
  * <li>{@link processRequest}: process the user request;</li>
@@ -73,6 +73,7 @@
  * @property CPhpMessageSource $coreMessages The core message translations.
  * @property CMessageSource $messages The application message translations.
  * @property CHttpRequest $request The request component.
+ * @property CFormatter $format The formatter component.
  * @property CUrlManager $urlManager The URL manager component.
  * @property CController $controller The currently active controller. Null is returned in this base class.
  * @property string $baseUrl The relative URL for the application.
@@ -97,6 +98,10 @@ abstract class CApplication extends CModule
 	 * the language that the messages and view files are in. Defaults to 'en_us' (US English).
 	 */
 	public $sourceLanguage='en_us';
+	/**
+	 * @var string the class used to get locale data. Defaults to 'CLocale'.
+	 */
+	public $localeClass='CLocale';
 
 	private $_id;
 	private $_basePath;
@@ -128,7 +133,7 @@ abstract class CApplication extends CModule
 	{
 		Yii::setApplication($this);
 
-		// set basePath at early as possible to avoid trouble
+		// set basePath as early as possible to avoid trouble
 		if(is_string($config))
 			$config=require($config);
 		if(isset($config['basePath']))
@@ -343,7 +348,7 @@ abstract class CApplication extends CModule
 	 * Returns the time zone used by this application.
 	 * This is a simple wrapper of PHP function date_default_timezone_get().
 	 * @return string the time zone used by this application.
-	 * @see http://php.net/manual/en/function.date-default-timezone-get.php
+	 * @see https://php.net/manual/en/function.date-default-timezone-get.php
 	 */
 	public function getTimeZone()
 	{
@@ -354,7 +359,7 @@ abstract class CApplication extends CModule
 	 * Sets the time zone used by this application.
 	 * This is a simple wrapper of PHP function date_default_timezone_set().
 	 * @param string $value the time zone used by this application.
-	 * @see http://php.net/manual/en/function.date-default-timezone-set.php
+	 * @see https://php.net/manual/en/function.date-default-timezone-set.php
 	 */
 	public function setTimeZone($value)
 	{
@@ -395,11 +400,11 @@ abstract class CApplication extends CModule
 	/**
 	 * Returns the locale instance.
 	 * @param string $localeID the locale ID (e.g. en_US). If null, the {@link getLanguage application language ID} will be used.
-	 * @return CLocale the locale instance
+	 * @return CLocale an instance of CLocale
 	 */
 	public function getLocale($localeID=null)
 	{
-		return CLocale::getInstance($localeID===null?$this->getLanguage():$localeID);
+		return call_user_func_array(array($this->localeClass, 'getInstance'),array($localeID===null?$this->getLanguage():$localeID));
 	}
 
 	/**
@@ -409,7 +414,10 @@ abstract class CApplication extends CModule
 	 */
 	public function getLocaleDataPath()
 	{
-		return CLocale::$dataPath===null ? Yii::getPathOfAlias('system.i18n.data') : CLocale::$dataPath;
+		$vars=get_class_vars($this->localeClass);
+		if(empty($vars['dataPath']))
+			return Yii::getPathOfAlias('system.i18n.data');
+		return $vars['dataPath'];
 	}
 
 	/**
@@ -419,7 +427,8 @@ abstract class CApplication extends CModule
 	 */
 	public function setLocaleDataPath($value)
 	{
-		CLocale::$dataPath=$value;
+		$class=new ReflectionClass($this->localeClass);
+		$class->setStaticPropertyValue('dataPath',$value);
 	}
 
 	/**
@@ -523,6 +532,15 @@ abstract class CApplication extends CModule
 	}
 
 	/**
+	 * Returns the formatter component.
+	 * @return CFormatter the formatter component
+	 */
+	public function getFormat()
+	{
+		return $this->getComponent('format');
+	}
+
+	/**
 	 * @return CController the currently active controller. Null is returned in this base class.
 	 * @since 1.1.8
 	 */
@@ -554,7 +572,7 @@ abstract class CApplication extends CModule
 	public function createAbsoluteUrl($route,$params=array(),$schema='',$ampersand='&')
 	{
 		$url=$this->createUrl($route,$params,$ampersand);
-		if(strpos($url,'http')===0)
+		if(strpos($url,'http')===0 || strpos($url,'//')===0)
 			return $url;
 		else
 			return $this->getRequest()->getHostInfo($schema).$url;
@@ -784,9 +802,7 @@ abstract class CApplication extends CModule
 
 			$log="$message ($file:$line)\nStack trace:\n";
 			$trace=debug_backtrace();
-			// skip the first 3 stacks as they do not tell the error position
-			if(count($trace)>3)
-				$trace=array_slice($trace,3);
+			array_shift($trace);
 			foreach($trace as $i=>$t)
 			{
 				if(!isset($t['file']))
@@ -885,13 +901,13 @@ abstract class CApplication extends CModule
 		if(YII_DEBUG)
 		{
 			echo "<h1>PHP Error [$code]</h1>\n";
-			echo "<p>$message ($file:$line)</p>\n";
+			echo "<p>".nl2br($this->htmlEncodeInternal($message))." (".$this->htmlEncodeInternal($file).":$line)</p>\n";
 			echo '<pre>';
 
 			$trace=debug_backtrace();
-			// skip the first 3 stacks as they do not tell the error position
-			if(count($trace)>3)
-				$trace=array_slice($trace,3);
+			// skip the first 2 stacks as they are always irrelevant
+			if(count($trace)>2)
+				$trace=array_slice($trace,2);
 			foreach($trace as $i=>$t)
 			{
 				if(!isset($t['file']))
@@ -911,7 +927,7 @@ abstract class CApplication extends CModule
 		else
 		{
 			echo "<h1>PHP Error [$code]</h1>\n";
-			echo "<p>$message</p>\n";
+			echo "<p>".nl2br($this->htmlEncodeInternal($message))."</p>\n";
 		}
 	}
 
@@ -926,18 +942,28 @@ abstract class CApplication extends CModule
 		if(YII_DEBUG)
 		{
 			echo '<h1>'.get_class($exception)."</h1>\n";
-			echo '<p>'.$exception->getMessage().' ('.$exception->getFile().':'.$exception->getLine().')</p>';
-			echo '<pre>'.$exception->getTraceAsString().'</pre>';
+			echo '<p>'.nl2br($this->htmlEncodeInternal($exception->getMessage())).' ('.$this->htmlEncodeInternal($exception->getFile()).':'.$exception->getLine().')</p>';
+			echo '<pre>'.$this->htmlEncodeInternal($exception->getTraceAsString()).'</pre>';
 		}
 		else
 		{
 			echo '<h1>'.get_class($exception)."</h1>\n";
-			echo '<p>'.$exception->getMessage().'</p>';
+			echo '<p>'.nl2br($this->htmlEncodeInternal($exception->getMessage())).'</p>';
 		}
 	}
 
 	/**
-	 * Initializes the class autoloader and error handlers.
+	 * Encode html without a dependency on CHtml::encode(). This method is internally used by displayError/displayException.
+	 * @param string $string
+	 * @return string
+	 */
+	private function htmlEncodeInternal($string)
+	{
+		return htmlspecialchars($string, ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+	}
+
+	/**
+	 * Initializes the error handlers.
 	 */
 	protected function initSystemHandlers()
 	{

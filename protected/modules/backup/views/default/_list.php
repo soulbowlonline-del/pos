@@ -6,7 +6,7 @@
 		'size',
 		'create_time',
 		array(
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 			'template' => ' {download}{delete}',
 			  'buttons'=>array
 			    (
@@ -25,7 +25,7 @@
 			    ),		
 		),
 		/* array(
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 			'template' => '{delete}',
 			  'buttons'=>array
 			    (

@@ -3,9 +3,9 @@
  * CMysqlSchema class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -23,9 +23,11 @@ class CMysqlSchema extends CDbSchema
 	 */
 	public $columnTypes=array(
 		'pk' => 'int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY',
+		'bigpk' => 'bigint(20) NOT NULL AUTO_INCREMENT PRIMARY KEY',
 		'string' => 'varchar(255)',
 		'text' => 'text',
 		'integer' => 'int(11)',
+		'bigint' => 'bigint(20)',
 		'float' => 'float',
 		'decimal' => 'decimal',
 		'datetime' => 'datetime',

@@ -3,9 +3,9 @@
  * CForm class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -133,6 +133,14 @@ class CForm extends CFormElement implements ArrayAccess
 	 * @since 1.1.14
 	 */
 	public $showErrors;
+	/**
+	 * @var string|null HTML code to prepend to the list of errors in the error summary. See {@link CActiveForm::errorSummary()}.
+	 */
+	public $errorSummaryHeader;
+	/**
+	 * @var string|null HTML code to append to the list of errors in the error summary. See {@link CActiveForm::errorSummary()}.
+	 */
+	public $errorSummaryFooter;
 	/**
 	 * @var array the configuration used to create the active form widget.
 	 * The widget will be used to render the form tag and the error messages.
@@ -427,7 +435,7 @@ class CForm extends CFormElement implements ArrayAccess
 				$options['htmlOptions']=$this->attributes;
 			ob_start();
 			$this->_activeForm=$this->getOwner()->beginWidget($class, $options);
-			return ob_get_clean() . "<div style=\"visibility:hidden\">".CHtml::hiddenField($this->getUniqueID(),1)."</div>\n";
+			return ob_get_clean() . "<div style=\"display:none\">".CHtml::hiddenField($this->getUniqueID(),1)."</div>\n";
 		}
 	}
 
@@ -476,7 +484,7 @@ class CForm extends CFormElement implements ArrayAccess
 			$output.="<div class=\"description\">\n".$this->description."</div>\n";
 
 		if($this->showErrorSummary && ($model=$this->getModel(false))!==null)
-			$output.=$this->getActiveFormWidget()->errorSummary($model)."\n";
+			$output.=$this->getActiveFormWidget()->errorSummary($model,$this->errorSummaryHeader,$this->errorSummaryFooter)."\n";
 
 		$output.=$this->renderElements()."\n".$this->renderButtons()."\n";
 
@@ -530,7 +538,7 @@ class CForm extends CFormElement implements ArrayAccess
 			if($element instanceof CFormInputElement)
 			{
 				if($element->type==='hidden')
-					return "<div style=\"visibility:hidden\">\n".$element->render()."</div>\n";
+					return "<div style=\"display:none\">\n".$element->render()."</div>\n";
 				else
 					return "<div class=\"row field_{$element->name}\">\n".$element->render()."</div>\n";
 			}
@@ -596,6 +604,7 @@ class CForm extends CFormElement implements ArrayAccess
 	 * @param mixed $offset the offset to check on
 	 * @return boolean
 	 */
+	#[ReturnTypeWillChange]
 	public function offsetExists($offset)
 	{
 		return $this->getElements()->contains($offset);
@@ -604,9 +613,10 @@ class CForm extends CFormElement implements ArrayAccess
 	/**
 	 * Returns the element at the specified offset.
 	 * This method is required by the interface ArrayAccess.
-	 * @param integer $offset the offset to retrieve element.
+	 * @param mixed $offset the offset to retrieve element.
 	 * @return mixed the element at the offset, null if no element is found at the offset
 	 */
+	#[ReturnTypeWillChange]
 	public function offsetGet($offset)
 	{
 		return $this->getElements()->itemAt($offset);
@@ -615,9 +625,10 @@ class CForm extends CFormElement implements ArrayAccess
 	/**
 	 * Sets the element at the specified offset.
 	 * This method is required by the interface ArrayAccess.
-	 * @param integer $offset the offset to set element
+	 * @param mixed $offset the offset to set element
 	 * @param mixed $item the element value
 	 */
+	#[ReturnTypeWillChange]
 	public function offsetSet($offset,$item)
 	{
 		$this->getElements()->add($offset,$item);
@@ -628,6 +639,7 @@ class CForm extends CFormElement implements ArrayAccess
 	 * This method is required by the interface ArrayAccess.
 	 * @param mixed $offset the offset to unset element
 	 */
+	#[ReturnTypeWillChange]
 	public function offsetUnset($offset)
 	{
 		$this->getElements()->remove($offset);

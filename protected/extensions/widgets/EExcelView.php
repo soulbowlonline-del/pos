@@ -30,7 +30,40 @@ class EExcelView extends CGridView
 	public $stream = true; //stream to browser
 
 	//mime types used for streaming
+	/**
+	 * Legacy PHPExcel writer names mapped to their PhpSpreadsheet equivalents.
+	 * Callers may still pass 'Excel5'/'Excel2007'; both spellings resolve.
+	 */
+	public $writerAliases = array(
+			'Excel5'    => 'Xls',
+			'Excel2007' => 'Xlsx',
+			'PDF'       => 'Mpdf',
+			'HTML'      => 'Html',
+			'CSV'       => 'Csv',
+	);
+
 	public $mimeTypes = array(
+			'Xls'           => array(
+					'Content-type'=>'application/vnd.ms-excel',
+					'extension'=>'xls',
+			),
+			'Xlsx'          => array(
+					'Content-type'=>'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+					'extension'=>'xlsx',
+			),
+			'Mpdf'          => array(
+					'Content-type'=>'application/pdf',
+					'extension'=>'pdf',
+			),
+			'Html'          => array(
+					'Content-type'=>'text/html',
+					'extension'=>'html',
+			),
+			'Csv'           => array(
+					'Content-type'=>'application/csv',
+					'extension'=>'csv',
+			),
+			// --- legacy PHPExcel spellings, kept for backward compatibility ---
 			'Excel5'        => array(
 					'Content-type'=>'application/vnd.ms-excel',
 					'extension'=>'xls',
@@ -58,10 +91,10 @@ class EExcelView extends CGridView
 		$this->title = $this->title ? $this->title : Yii::app()->getController()->getPageTitle();
 		parent::init();
 		//Autoload fix
-		spl_autoload_unregister(array('YiiBase','autoload'));
-		Yii::import('ext-prod.PHPExcel', true);
-		$this->objPHPExcel = new PHPExcel();
-		spl_autoload_register(array('YiiBase','autoload'));
+		// PhpSpreadsheet is Composer-autoloaded, so the old dance of
+		// unregistering YiiBase::autoload around Yii::import('ext-prod.PHPExcel')
+		// is gone (that path no longer exists either).
+		$this->objPHPExcel = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
 		// Creating a workbook
 		$this->objPHPExcel->getProperties()->setCreator($this->creator);
 		$this->objPHPExcel->getProperties()->setTitle($this->title);
@@ -246,7 +279,7 @@ class EExcelView extends CGridView
 			foreach($this->columns as $n=>$column)
 			$this->objPHPExcel->getActiveSheet()->getColumnDimension($this->columnName($n+1))->setAutoSize(true);
 		//create writer for saving
-		$objWriter = PHPExcel_IOFactory::createWriter($this->objPHPExcel, $this->exportType);
+		$objWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($this->objPHPExcel, $this->resolveWriterType());
 		if(!$this->stream)
 			$objWriter->save($this->filename);
 		else //output to browser
@@ -256,8 +289,8 @@ class EExcelView extends CGridView
 			ob_end_clean();
 			header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
 			header('Pragma: public');
-			header('Content-type: '.$this->mimeTypes[$this->exportType]['Content-type']);
-			header('Content-Disposition: attachment; filename="'.$this->filename.'.'.$this->mimeTypes[$this->exportType]['extension'].'"');
+			header('Content-type: '.$this->mimeTypes[$this->resolveWriterType()]['Content-type']);
+			header('Content-Disposition: attachment; filename="'.$this->filename.'.'.$this->mimeTypes[$this->resolveWriterType()]['extension'].'"');
 			header('Cache-Control: max-age=0');
 			$objWriter->save('php://output');
 			Yii::app()->end();
@@ -281,4 +314,17 @@ class EExcelView extends CGridView
 			throw new Exception("Invalid Column # ".($index + 1));
 	}
 
+
+	/**
+	 * Maps $exportType onto a PhpSpreadsheet writer name, accepting both the
+	 * legacy PHPExcel spelling ('Excel5') and the current one ('Xls').
+	 *
+	 * @return string a PhpSpreadsheet writer identifier
+	 */
+	protected function resolveWriterType()
+	{
+		return isset($this->writerAliases[$this->exportType])
+			? $this->writerAliases[$this->exportType]
+			: $this->exportType;
+	}
 }

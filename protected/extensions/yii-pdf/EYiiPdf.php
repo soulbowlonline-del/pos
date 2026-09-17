@@ -40,7 +40,7 @@ class EYiiPdf extends CApplicationComponent
 	public $params = array();
 
 	/**
-	 * @var mpdf|null
+	 * @var \Mpdf\Mpdf|null
 	 */
 	protected $_mpdf = null;
 
@@ -97,12 +97,69 @@ class EYiiPdf extends CApplicationComponent
 	}
 
 	/**
-	 * @return mpdf
+	 * Legacy mPDF 6/7 constructor parameters, in positional order. mPDF 8 takes
+	 * a single associative config array instead, so calls such as
+	 * mpdf('', 'A4') are translated through this map.
+	 * @var array
+	 */
+	protected static $mpdfPositional = array(
+		'mode',
+		'format',
+		'default_font_size',
+		'default_font',
+		'margin_left',
+		'margin_right',
+		'margin_top',
+		'margin_bottom',
+		'margin_header',
+		'margin_footer',
+		'orientation',
+	);
+
+	/**
+	 * Returns an mPDF instance.
+	 *
+	 * Previously this reflectively instantiated the un-namespaced `mpdf` class
+	 * bundled under ext-prod/mpdf, which does not parse on PHP 8. It now builds
+	 * \Mpdf\Mpdf (Composer, 8.x) instead.
+	 *
+	 * The signature is unchanged, so existing callers - mpdf(), mpdf('', 'A4')
+	 * and mpdf('', 'A5') - keep working: positional arguments are mapped onto
+	 * mPDF 8's config array. Empty arguments are dropped so mPDF applies its own
+	 * defaults rather than receiving ''.
+	 *
+	 * @return \Mpdf\Mpdf
 	 */
 	public function mpdf()
 	{
-		$args=func_get_args();
-		$this->initLibrary(__FUNCTION__, $args);
+		$config = array();
+
+		foreach (func_get_args() as $i => $value) {
+			if (!isset(self::$mpdfPositional[$i]) || $value === '' || $value === null)
+				continue;
+			$config[self::$mpdfPositional[$i]] = $value;
+		}
+
+		# Component-level defaults fill anything the caller did not pass.
+		if (isset($this->params['mpdf']['defaultParams']))
+			$config += (array)$this->params['mpdf']['defaultParams'];
+
+		# mPDF 8 replaced the _MPDF_TEMP_PATH constant with a 'tempDir' config
+		# key. Honour whichever the application has configured, else fall back to
+		# the Yii runtime directory. mPDF writes font caches here, so it must
+		# exist and be writable or every PDF render fails.
+		if (!isset($config['tempDir'])) {
+			if (defined('_MPDF_TEMP_PATH'))
+				$config['tempDir'] = _MPDF_TEMP_PATH;
+			elseif (isset($this->params['mpdf']['constants']['_MPDF_TEMP_PATH']))
+				$config['tempDir'] = $this->params['mpdf']['constants']['_MPDF_TEMP_PATH'];
+			else
+				$config['tempDir'] = Yii::getPathOfAlias('application.runtime');
+		}
+		if (!is_dir($config['tempDir']))
+			@mkdir($config['tempDir'], 0777, true);
+
+		$this->_mpdf = new \Mpdf\Mpdf($config);
 		return $this->_mpdf;
 	}
 

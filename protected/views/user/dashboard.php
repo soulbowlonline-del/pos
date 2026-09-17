@@ -389,7 +389,7 @@ echo $form->dropDownListRow($model, 'session_id',
 
 array(
 		'header'=>'Actions',
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 'template' => '{view}{update}'
 	
 ),

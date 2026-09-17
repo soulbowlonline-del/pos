@@ -3,9 +3,9 @@
  * CJuiTabs class file.
  *
  * @author Sebastian Thierer <sebathi@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 Yii::import('zii.widgets.jui.CJuiWidget');
@@ -13,7 +13,7 @@ Yii::import('zii.widgets.jui.CJuiWidget');
 /**
  * CJuiTabs displays a tabs widget.
  *
- * CJuiTabs encapsulates the {@link http://jqueryui.com/tabs/ JUI tabs}
+ * CJuiTabs encapsulates the {@link https://jqueryui.com/tabs/ JUI tabs}
  * plugin.
  *
  * To use this widget, you may insert the following code in a view:
@@ -34,9 +34,9 @@ Yii::import('zii.widgets.jui.CJuiWidget');
  *
  * By configuring the {@link options} property, you may specify the options
  * that need to be passed to the JUI tabs plugin. Please refer to
- * the {@link http://api.jqueryui.com/tabs/ JUI Tabs API} documentation
+ * the {@link https://api.jqueryui.com/tabs/ JUI Tabs API} documentation
  * for possible options (name-value pairs) and
- * {@link http://jqueryui.com/tabs/ JUI Tabs page} for general
+ * {@link https://jqueryui.com/tabs/ JUI Tabs page} for general
  * description and demo.
  *
  * Note, in case you're using &lt;base/&gt; HTML tag you may run into the
@@ -82,7 +82,7 @@ class CJuiTabs extends CJuiWidget
 	 * The token "{title}" in the template will be replaced with the panel title and
 	 * the token "{url}" will be replaced with "#TabID" or with the url of the ajax request.
 	 */
-	public $headerTemplate='<li><a href="{url}" title="{id}">{title}</a></li>';
+	public $headerTemplate='<li><a href="{url}" title="{title}">{title}</a></li>';
 	/**
 	 * @var string the template that is used to generated every tab content.
 	 * The token "{content}" in the template will be replaced with the panel content
@@ -134,16 +134,5 @@ class CJuiTabs extends CJuiWidget
 
 		$options=CJavaScript::encode($this->options);
 		Yii::app()->getClientScript()->registerScript(__CLASS__.'#'.$id,"jQuery('#{$id}').tabs($options);");
-	}
-
-	/**
-	 * Registers the core script files.
-	 * This method overrides the parent implementation by registering the cookie plugin when cookie option is used.
-	 */
-	protected function registerCoreScripts()
-	{
-		parent::registerCoreScripts();
-		if(isset($this->options['cookie']))
-			Yii::app()->getClientScript()->registerCoreScript('cookie');
 	}
 }

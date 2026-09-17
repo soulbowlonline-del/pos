@@ -3,9 +3,9 @@
  * COciCommandBuilder class file.
  *
  * @author Ricardo Grana <rickgrana@yahoo.com.br>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -33,7 +33,6 @@ class COciCommandBuilder extends CDbCommandBuilder
 
 	/**
 	 * Alters the SQL to apply LIMIT and OFFSET.
-	 * Default implementation is applicable for PostgreSQL, MySQL and SQLite.
 	 * @param string $sql SQL query string without LIMIT and OFFSET.
 	 * @param integer $limit maximum number of rows, -1 to ignore limit.
 	 * @param integer $offset row offset, -1 to ignore offset.

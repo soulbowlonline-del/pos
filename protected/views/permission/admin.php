@@ -70,7 +70,7 @@ $('.search-form form').submit(function(){
 			), */
 			array(
 					'header'=>'Actions',
-					'class' => 'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}{update}{delete}'
 		
 			),

@@ -1,10 +1,10 @@
 <?php
 
 
-Yii::import('zii.widgets.grid.CButtonColumn');
+Yii::import('application.components.FaButtonColumn');
 //Yii::import('bootstrap.widgets.TbButtonColumn');
 
-class CxButtonColumn extends CButtonColumn
+class CxButtonColumn extends FaButtonColumn
 {
 
 	/**

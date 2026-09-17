@@ -65,7 +65,7 @@ Define a JToggleColumn in your CGridView widget:
                                             'htmlOptions'=>array('style'=>'text-align:center;min-width:60px;')
                     ),
                     array(
-                            'class'=>'CButtonColumn',
+                            'class'=>'FaButtonColumn',
                     ),
             ),
     )); 
@@ -147,7 +147,7 @@ New Qtoggle usage demo:
                                                                 'htmlOptions'=>array('style'=>'text-align:center;min-width:60px;')
                                         ),
                     array(
-                            'class'=>'CButtonColumn',
+                            'class'=>'FaButtonColumn',
                     ),
             ),
     ));

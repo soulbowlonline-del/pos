@@ -165,7 +165,7 @@ $('.search-form form').submit(function(){
 			array(
 			
 					'header'=>'<a>PDF</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{pdf}',
 					//'template' => '{view}{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
@@ -190,7 +190,7 @@ $('.search-form form').submit(function(){
 			array(
 						
 					'header'=>'<a>Actions</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}',
 					//'template' => '{view}{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),

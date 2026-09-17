@@ -3,9 +3,9 @@
  * CActiveRecordBehavior class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -54,7 +54,7 @@ class CActiveRecordBehavior extends CModelBehavior
 	 * Responds to {@link CActiveRecord::onAfterSave} event.
 	 * Override this method and make it public if you want to handle the corresponding event
 	 * of the {@link CBehavior::owner owner}.
-	 * @param CModelEvent $event event parameter
+	 * @param CEvent $event event parameter
 	 */
 	protected function afterSave($event)
 	{

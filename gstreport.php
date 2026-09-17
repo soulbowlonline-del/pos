@@ -43,7 +43,7 @@ $list = array(
 
 
 
-$objPHPExcel = new PHPExcel();
+$objPHPExcel = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
 
 $running_month = date('m');
 
@@ -447,5 +447,5 @@ if ($result14 = $mysqli->query($query15)) {
 header('Content-Type: application/vnd.ms-excel');
 header('Content-Disposition: attachment;filename="GST.xls"');
 header('Cache-Control: max-age=0');
-$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+$objWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($objPHPExcel, 'Xls');
 $objWriter->save('php://output');

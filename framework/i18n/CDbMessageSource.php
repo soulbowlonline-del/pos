@@ -3,9 +3,9 @@
  * CDbMessageSource class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -121,14 +121,11 @@ class CDbMessageSource extends CMessageSource
 	 */
 	protected function loadMessagesFromDb($category,$language)
 	{
-		$sql=<<<EOD
-SELECT t1.message AS message, t2.translation AS translation
-FROM {$this->sourceMessageTable} t1, {$this->translatedMessageTable} t2
-WHERE t1.id=t2.id AND t1.category=:category AND t2.language=:language
-EOD;
-		$command=$this->getDbConnection()->createCommand($sql);
-		$command->bindValue(':category',$category);
-		$command->bindValue(':language',$language);
+		$command=$this->getDbConnection()->createCommand()
+			->select("t1.message AS message, t2.translation AS translation")
+			->from(array("{$this->sourceMessageTable} t1","{$this->translatedMessageTable} t2"))
+			->where('t1.id=t2.id AND t1.category=:category AND t2.language=:language',array(':category'=>$category,':language'=>$language))
+		;
 		$messages=array();
 		foreach($command->queryAll() as $row)
 			$messages[$row['message']]=$row['translation'];

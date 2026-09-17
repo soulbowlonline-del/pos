@@ -1,23 +1,20 @@
 {
     "name": "soulbowl/pos",
-    "description": "Legacy POS (Yii 1.x, PHP 5.6). Excel export via PHPExcel.",
+    "description": "POS (Yii 1.1.32, PHP 8.3). Mail via PHPMailer 6, PDF via mPDF 8, spreadsheets via PhpSpreadsheet.",
     "type": "project",
     "license": "proprietary",
     "require": {
-        "php": ">=5.6",
-        "phpoffice/phpexcel": "^1.8"
+        "php": ">=8.1",
+        "phpmailer/phpmailer": "^6.9",
+        "mpdf/mpdf": "^8.2",
+        "phpoffice/phpspreadsheet": "^2.3"
     },
     "config": {
         "platform": {
-            "php": "5.6.40"
+            "php": "8.3.33"
         },
-        "audit": {
-            "abandoned": "ignore"
-        },
-        "policy": {
-            "advisories": {
-                "block": false
-            }
+        "allow-plugins": {
+            "php-http/discovery": true
         }
     }
 }

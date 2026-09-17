@@ -3,9 +3,9 @@
  * CSort class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -245,9 +245,9 @@ class CSort extends CComponent
 				if(is_array($definition))
 				{
 					if($descending)
-						$orders[]=isset($definition['desc']) ? $definition['desc'] : $attribute.' DESC';
+						$orders[]=isset($definition['desc']) ? (is_array($definition['desc']) ? implode(', ',$definition['desc']) : $definition['desc']) : $attribute.' DESC';
 					else
-						$orders[]=isset($definition['asc']) ? $definition['asc'] : $attribute;
+						$orders[]=isset($definition['asc']) ? (is_array($definition['asc']) ? implode(', ',$definition['asc']) : $definition['asc']) : $attribute;
 				}
 				elseif($definition!==false)
 				{

@@ -4,16 +4,16 @@
  * CCaptchaAction class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
  * CCaptchaAction renders a CAPTCHA image.
  *
  * CCaptchaAction is used together with {@link CCaptcha} and {@link CCaptchaValidator}
- * to provide the {@link http://en.wikipedia.org/wiki/Captcha CAPTCHA} feature.
+ * to provide the {@link https://en.wikipedia.org/wiki/Captcha CAPTCHA} feature.
  *
  * You must configure properties of CCaptchaAction to customize the appearance of
  * the generated image.
@@ -173,6 +173,8 @@ class CCaptchaAction extends CAction
 	 */
 	public function validate($input,$caseSensitive)
 	{
+		if(!is_string($input))
+			return false;
 		$code = $this->getVerifyCode();
 		$valid = $caseSensitive ? ($input === $code) : strcasecmp($input,$code)===0;
 		$session = Yii::app()->session;
@@ -258,7 +260,7 @@ class CCaptchaAction extends CAction
 				$this->foreColor % 0x100);
 
 		if($this->fontFile === null)
-			$this->fontFile = dirname(__FILE__) . '/SpicyRice.ttf';
+			$this->fontFile = dirname(__FILE__).DIRECTORY_SEPARATOR.'SpicyRice.ttf';
 
 		$length = strlen($code);
 		$box = imagettfbbox(30,0,$this->fontFile,$code);
@@ -301,7 +303,7 @@ class CCaptchaAction extends CAction
 		$image->newImage($this->width,$this->height,$backColor);
 
 		if($this->fontFile===null)
-			$this->fontFile=dirname(__FILE__).'/SpicyRice.ttf';
+			$this->fontFile=dirname(__FILE__).DIRECTORY_SEPARATOR.'SpicyRice.ttf';
 
 		$draw=new ImagickDraw();
 		$draw->setFont($this->fontFile);
@@ -331,6 +333,6 @@ class CCaptchaAction extends CAction
 		header('Content-Transfer-Encoding: binary');
 		header("Content-Type: image/png");
 		$image->setImageFormat('png');
-		echo $image;
+		echo $image->getImageBlob();
 	}
 }

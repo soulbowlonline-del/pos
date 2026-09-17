@@ -31,7 +31,7 @@
 		*/
 		 array(
 		 	'header'=>'Actions',
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 		 	'template'=>'{delete}'
 		), 
 	),

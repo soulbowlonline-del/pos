@@ -24,6 +24,18 @@ if (is_file($__envFile)) {
 }
 unset($__envFile);
 
+// --- Composer autoloader ---------------------------------------------------
+// Third-party libraries (PHPMailer 6, mPDF 8, PhpSpreadsheet) are managed by
+// Composer. Nothing previously required this file, so vendor/ was unreachable;
+// the old bundled copies under protected/extensions and ext-prod were used
+// instead. Registering it here - before Yii boots - makes the modern packages
+// available to the whole application.
+$__autoload = dirname(__FILE__) . '/vendor/autoload.php';
+if (is_file($__autoload)) {
+    require_once $__autoload;
+}
+unset($__autoload);
+
 date_default_timezone_set('Asia/Calcutta');
 defined('YII_ENV') or define('YII_ENV','prod');
 

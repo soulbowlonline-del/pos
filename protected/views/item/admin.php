@@ -112,7 +112,7 @@ $('.search-form form').submit(function(){
 			array(
 					'visible'=>$model->checkPermission ("item/create")=="true",
 					'header'=>'<a>Status</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
@@ -343,7 +343,7 @@ $('.search-form form').submit(function(){
 			/* array(
 					'visible'=>$model->checkPermission ("item/active")=="true",
 					'header'=>'<a>Active/InActive</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{Active}{InActive}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
@@ -431,7 +431,7 @@ $('.search-form form').submit(function(){
 			array(
 						
 					'header'=>'<a>Details</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{Details}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
@@ -448,7 +448,7 @@ $('.search-form form').submit(function(){
 			array(
 			
 					'header'=>'<a>Free </a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{Free}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(

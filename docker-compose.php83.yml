@@ -1,0 +1,71 @@
+# Phase 2 — PHP 8.3 + MySQL 8.0, running alongside the PHP 5.6 baseline.
+#
+#   docker compose -f docker-compose.php83.yml up -d --build
+#   App:        http://<host>:8084          (5.6 baseline stays on :8082)
+#   phpMyAdmin: http://127.0.0.1:8085       (localhost only - tunnel to reach it)
+#   MySQL:      127.0.0.1:3310              (localhost only)
+#
+# Unlike the legacy stack, the DB and phpMyAdmin are NOT published to 0.0.0.0.
+# Reach them over an SSH tunnel:
+#   ssh -L 3310:127.0.0.1:3310 -L 8085:127.0.0.1:8085 root@<host>
+services:
+  php:
+    build: ./docker/php83
+    container_name: pos-php-83
+    ports:
+      - "8084:80"
+    volumes:
+      - ./:/var/www/html/
+    depends_on:
+      - db
+    networks:
+      - pos83-net
+    environment:
+      TZ: Asia/Kolkata
+
+  db:
+    # Service name "db" matches the host in config/prod-db.php.
+    image: mysql:8.0
+    container_name: pos-mysql-8
+    restart: always
+    ports:
+      - "127.0.0.1:3310:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    # sql_mode="" for now: matches 5.6-era permissive behaviour so we change ONE
+    # variable at a time (PHP version). Strict mode is tightened in a later step,
+    # after the regression checklist is green.
+    command: >-
+      --sql-mode=""
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-name-resolve
+      --innodb-buffer-pool-size=2G
+      --innodb-redo-log-capacity=2G
+      --innodb-flush-log-at-trx-commit=2
+    volumes:
+      - db_data_8:/var/lib/mysql
+    networks:
+      - pos83-net
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pos-phpmyadmin-8
+    ports:
+      - "127.0.0.1:8085:80"
+    environment:
+      PMA_HOST: db
+      UPLOAD_LIMIT: 1G
+    depends_on:
+      - db
+    networks:
+      - pos83-net
+
+volumes:
+  db_data_8:
+
+networks:
+  pos83-net:

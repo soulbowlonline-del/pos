@@ -82,7 +82,7 @@ $this->widget ( 'bootstrap.widgets.TbButtonGroup', array (
 			array (
 					'visible'=> $create == true,
 					'header' => 'Actions',
-					'class' => 'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}{update}{delete}'
 			),
 	),

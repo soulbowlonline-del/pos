@@ -3,9 +3,9 @@
  * CPgsqlSchema class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 /**
@@ -25,9 +25,11 @@ class CPgsqlSchema extends CDbSchema
 	 */
 	public $columnTypes=array(
 		'pk' => 'serial NOT NULL PRIMARY KEY',
+		'bigpk' => 'bigserial NOT NULL PRIMARY KEY',
 		'string' => 'character varying (255)',
 		'text' => 'text',
 		'integer' => 'integer',
+		'bigint' => 'bigint',
 		'float' => 'double precision',
 		'decimal' => 'numeric',
 		'datetime' => 'timestamp',
@@ -164,7 +166,12 @@ class CPgsqlSchema extends CDbSchema
 	protected function findColumns($table)
 	{
 		$sql=<<<EOD
-SELECT a.attname, LOWER(format_type(a.atttypid, a.atttypmod)) AS type, d.adsrc, a.attnotnull, a.atthasdef,
+SELECT
+	a.attname,
+	LOWER(format_type(a.atttypid, a.atttypmod)) AS type,
+	pg_get_expr(adbin, adrelid) AS adsrc,
+	a.attnotnull,
+	a.atthasdef,
 	pg_catalog.col_description(a.attrelid, a.attnum) AS comment
 FROM pg_attribute a LEFT JOIN pg_attrdef d ON a.attrelid = d.adrelid AND a.attnum = d.adnum
 WHERE a.attnum > 0 AND NOT a.attisdropped
@@ -184,7 +191,7 @@ EOD;
 			$c=$this->createColumn($column);
 			$table->columns[$c->name]=$c;
 
-			if(stripos($column['adsrc'],'nextval')===0 && preg_match('/nextval\([^\']*\'([^\']+)\'[^\)]*\)/i',$column['adsrc'],$matches))
+			if(isset($column['adsrc']) && stripos($column['adsrc'],'nextval')===0 && preg_match('/nextval\([^\']*\'([^\']+)\'[^\)]*\)/i',$column['adsrc'],$matches))
 			{
 				if(strpos($matches[1],'.')!==false || $table->schemaName===self::DEFAULT_SCHEMA)
 					$this->_sequences[$table->rawName.'.'.$c->name]=$matches[1];
@@ -223,15 +230,16 @@ EOD;
 	protected function findConstraints($table)
 	{
 		$sql=<<<EOD
-SELECT conname, consrc, contype, indkey FROM (
+SELECT
+	conname,
+	consrc,
+	contype,
+	indkey
+FROM (
 	SELECT
 		conname,
-		CASE WHEN contype='f' THEN
-			pg_catalog.pg_get_constraintdef(oid)
-		ELSE
-			'CHECK (' || consrc || ')'
-		END AS consrc,
-		contype,
+		pg_catalog.pg_get_constraintdef(oid) AS consrc,
+		contype::char,
 		conrelid AS relid,
 		NULL AS indkey
 	FROM
@@ -391,7 +399,7 @@ EOD;
 		$type=$this->getColumnType($type);
 		$sql='ALTER TABLE ' . $this->quoteTableName($table)
 			. ' ADD COLUMN ' . $this->quoteColumnName($column) . ' '
-			. $this->getColumnType($type);
+			. $type;
 		return $sql;
 	}
 

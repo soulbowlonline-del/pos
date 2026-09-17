@@ -287,7 +287,7 @@
 
 array(
 		'header'=>'Actions',
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 'template' => '{view}{update}{delete}'
 	
 ),

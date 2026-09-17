@@ -72,7 +72,7 @@ $('.search-form form').submit(function(){
 			array(
 					
 					'header'=>'<a>Status</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{inactivate}{activate}',  //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
@@ -133,7 +133,7 @@ $('.search-form form').submit(function(){
 			array(
 			
 					'header'=>'<a>Status</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(

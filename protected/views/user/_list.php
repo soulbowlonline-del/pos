@@ -49,7 +49,7 @@
 		'login_error_count',
 		*/
 		array(
-			'class' => 'CButtonColumn',
+			'class'=>'FaButtonColumn',
 		'template' => '{view}{update}'
 		),
 	),

@@ -3,9 +3,9 @@
  * CAssetManager class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 
@@ -178,7 +178,7 @@ class CAssetManager extends CApplicationComponent
 	 * that holds the published assets. This problem can be avoided altogether by 'requesting'
 	 * in advance all the resources that are supposed to trigger a 'publish()' call, and doing
 	 * that in the application deployment phase, before system goes live. See more in the following
-	 * discussion: http://code.google.com/p/yii/issues/detail?id=2579
+	 * discussion: https://code.google.com/p/yii/issues/detail?id=2579
 	 *
 	 * @param string $path the asset (file or directory) to be published
 	 * @param boolean $hashByName whether the published directory should be named as the hashed basename.
@@ -211,7 +211,7 @@ class CAssetManager extends CApplicationComponent
 			throw new CException(Yii::t('yii','The "forceCopy" and "linkAssets" cannot be both true.'));
 		if(isset($this->_published[$path]))
 			return $this->_published[$path];
-		elseif(($src=realpath($path))!==false)
+		elseif(is_string($path) && ($src=realpath($path))!==false)
 		{
 			$dir=$this->generatePath($src,$hashByName);
 			$dstDir=$this->getBasePath().DIRECTORY_SEPARATOR.$dir;
@@ -271,7 +271,7 @@ class CAssetManager extends CApplicationComponent
 	 */
 	public function getPublishedPath($path,$hashByName=false)
 	{
-		if(($path=realpath($path))!==false)
+		if(is_string($path) && ($path=realpath($path))!==false)
 		{
 			$base=$this->getBasePath().DIRECTORY_SEPARATOR.$this->generatePath($path,$hashByName);
 			return is_file($path) ? $base.DIRECTORY_SEPARATOR.basename($path) : $base ;
@@ -295,7 +295,7 @@ class CAssetManager extends CApplicationComponent
 	{
 		if(isset($this->_published[$path]))
 			return $this->_published[$path];
-		if(($path=realpath($path))!==false)
+		if(is_string($path) && ($path=realpath($path))!==false)
 		{
 			$base=$this->getBaseUrl().'/'.$this->generatePath($path,$hashByName);
 			return is_file($path) ? $base.'/'.basename($path) : $base;
@@ -325,9 +325,9 @@ class CAssetManager extends CApplicationComponent
 	protected function generatePath($file,$hashByName=false)
 	{
 		if (is_file($file))
-			$pathForHashing=$hashByName ? basename($file) : dirname($file).filemtime($file);
+			$pathForHashing=$hashByName ? dirname($file) : dirname($file).filemtime($file);
 		else
-			$pathForHashing=$hashByName ? basename($file) : $file.filemtime($file);
+			$pathForHashing=$hashByName ? $file : $file.filemtime($file);
 
 		return $this->hash($pathForHashing);
 	}

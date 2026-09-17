@@ -25,15 +25,21 @@ return array(
 
 		'modules'=>array(
 				'debugger','api',
-		'gii' => array(
+		// Gii (code generator) writes PHP files into the webroot, so reaching it is
+		// equivalent to remote code execution. It was previously enabled
+		// unconditionally with password 'gii' and
+		//     'ipFilters' => array($_SERVER['REMOTE_ADDR'])
+		// which matches whoever is calling and therefore filtered nothing at all.
+		// Now: disabled unless POS_ENABLE_GII=1, and even then localhost-only with
+		// the password supplied from .env.
+		) + (getenv('POS_ENABLE_GII') === '1' ? array('gii' => array(
 						'class' => 'system.gii.GiiModule',
-						'password' => 'gii',
-						// If removed, Gii defaults to localhost only. Edit carefully to taste.
-						'ipFilters' => array($_SERVER['REMOTE_ADDR']),
+						'password' => getenv('POS_GII_PASSWORD'),
+						'ipFilters' => array('127.0.0.1', '::1'),
 						'generatorPaths' => array(
 								'bootstrap.gii',
 						),
-				), 
+				),) : array()) + array(
 				'backup'=> array('path' => dirname(__FILE__).'/../wdir/_backup/'),
 				
 		),

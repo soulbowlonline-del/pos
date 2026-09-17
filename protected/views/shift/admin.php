@@ -82,7 +82,7 @@ $('.search-form form').submit(function(){
 			array(
 			
 					'header'=>'<a>Action</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{view}{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(

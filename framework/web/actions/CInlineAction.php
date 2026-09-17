@@ -3,9 +3,9 @@
  * CInlineAction class file.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright 2008-2013 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 
@@ -45,8 +45,8 @@ class CInlineAction extends CAction
 		$method=new ReflectionMethod($controller, $methodName);
 		if($method->getNumberOfParameters()>0)
 			return $this->runWithParamsInternal($controller, $method, $params);
-		else
-			return $controller->$methodName();
-	}
 
+		$controller->$methodName();
+		return true;
+	}
 }

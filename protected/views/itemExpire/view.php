@@ -169,7 +169,7 @@ array(
 			/* array(
 						
 					'header'=>'<a>Action</a>',
-					'class'=>'CButtonColumn',
+					'class'=>'FaButtonColumn',
 					'template' => '{delete}', //include the standard buttons plus the new status button
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
