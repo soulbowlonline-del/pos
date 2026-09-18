@@ -171,6 +171,28 @@ def read_only(text):
     return not WRITES.search(text)
 
 
+def public_properties(base, concrete):
+    """
+    The public properties a Yii 1 model declares.
+
+    These are attributes that are not columns - Emp declares $shift_id,
+    $username and $password - and the forms post to them, the rules validate
+    them and the actions assign them. Without the declaration Yii 2 throws
+    "Setting unknown property" the moment the action runs.
+
+    Only simple declarations are taken; anything with a default expression is
+    left, because the expression may be Yii 1 code.
+    """
+    found = []
+    for src in (base, concrete):
+        for m in re.finditer(r'(?m)^[ \t]*public\s+(\$\w+)\s*(?:=\s*([^;]+))?;', src or ''):
+            name, default = m.group(1), m.group(2)
+            if any(name == n for n, _ in found):
+                continue
+            found.append((name, default.strip() if default else None))
+    return found
+
+
 def relations_of(model):
     """The relation names and kinds declared by the giix base class."""
     p = f'{ROOT}/protected/models/_base/Base{model}.php'
@@ -415,6 +437,33 @@ def mask_comments(text):
     return '\n'.join(lines), restore
 
 
+def default_order_of(cls):
+    """The order another model's defaultScope() applies, as a PHP expression."""
+    base = f'{ROOT}/protected/models/_base/Base{cls}.php'
+    concrete = f'{ROOT}/protected/models/{cls}.php'
+    if not os.path.exists(base) and not os.path.exists(concrete):
+        return None
+    body = None
+    for path in (concrete, base):
+        if os.path.exists(path):
+            body = parse_block(read(path), 'defaultScope')
+            if body is not None:
+                break
+    if body is None:
+        return "['id' => SORT_DESC]"        # the inherited default
+    stripped = re.sub(r'//[^\n]*', '', body)
+    m = re.search(r"'order'\s*=>\s*'([^']+)'", stripped)
+    if not m:
+        return None                          # overridden to no ordering
+    bits = m.group(1).split()
+    col = bits[0]
+    if col.startswith('t.'):
+        col = col[2:]
+    desc = len(bits) > 1 and bits[1].lower().startswith('desc')
+
+    return "['%s' => %s]" % (col, 'SORT_DESC' if desc else 'SORT_ASC')
+
+
 def convert_criteria(text):
     """
     Rewrites a CDbCriteria query as a Yii 2 query, statement by statement.
@@ -447,9 +496,16 @@ def convert_criteria(text):
 
     out = text
 
-    # the declaration becomes the query
+    # The declaration becomes the query - carrying that model's defaultScope,
+    # because Yii 1's X::model()->findAll() applies it and Yii 2's X::find()
+    # does not. Without it the rows come back in a different order, which is
+    # visible wherever the result becomes an option list.
+    scope = default_order_of(cls)
+    start = '$query = ' + cls + '::find();'
+    if scope and scope != 'null' and 'order' not in text.lower():
+        start += '\n        $query->orderBy(' + scope + ');'
     out = re.sub(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;',
-                 lambda m: '$query = ' + cls + '::find();', out)
+                 lambda m: start, out)
 
     # assignments
     def order_by(m):
@@ -639,14 +695,15 @@ def port_concrete(src, model):
             i += 1
         text = src[m.start(1):i]
 
-        if name in YII2_PUBLIC_HOOKS and not read_only(text):
-            # A lifecycle hook that writes is behaviour, and this generator has
-            # no way to know whether the Yii 2 model wants it. Order::afterSave()
-            # reached a model the API port wrote and, being protected where
-            # Yii 2 declares it public, stopped the class loading entirely - ten
-            # suites failed at once. The test needs the method body, so it has
-            # to come after the body is extracted, not before.
-            notes.append('%s(): not ported - a lifecycle hook that writes' % name)
+        if name in YII2_PUBLIC_HOOKS:
+            # No lifecycle hook is carried over, whether it writes or not.
+            # Yii 1 and Yii 2 declare them with different signatures -
+            # afterSave() against afterSave($insert, $changedAttributes) - and
+            # different visibility, so the Yii 1 version is never a valid
+            # override. Order::afterSave() reached the model the API uses twice
+            # this way: once failing on visibility, once on the signature, and
+            # both times the class could not be loaded at all.
+            notes.append('%s(): not ported - Yii 2 declares this hook differently' % name)
             continue
 
         text = arrays(text)
@@ -694,6 +751,7 @@ def generate(model, table_alias):
     warn = []
 
     consts = re.findall(r'const\s+(\w+)\s*=\s*([^;]+);', base)
+    props = public_properties(base, concrete)
 
     # the getXOptions helpers, copied across with their array syntax updated
     options = []
@@ -756,6 +814,13 @@ def generate(model, table_alias):
     for n, v in consts:
         A('    public const %s = %s;' % (n, v.strip()))
     if consts:
+        A('')
+    if props:
+        A('    // Declared on the Yii 1 model and not columns: the forms post to')
+        A('    // these and the actions assign them. Yii 2 throws on an unknown')
+        A('    // property, so the declarations have to come across.')
+        for n, default in props:
+            A('    public %s%s;' % (n, ' = ' + default if default else ''))
         A('')
     A('    public static function tableName()')
     A('    {')
@@ -1134,6 +1199,19 @@ def merge(existing, generated, model, warn):
             continue
         body += '\n\n' + text.strip('\n')
         added.append(name)
+
+    # public properties the generated model declares and the existing one
+    # lacks. Emp declares $username and $password - not columns, but the form
+    # posts to them and the update action assigns them, and Yii 2 throws
+    # "Setting unknown property" the moment it does.
+    for m in re.finditer(r'(?m)^    public (\$\w+)(\s*=\s*[^;]+)?;', generated):
+        name = m.group(1)
+        if re.search(r'(?m)^\s*public\s+' + re.escape(name) + r'\s*[;=]', body):
+            continue
+        body = re.sub(r'(class\s+\w+\s+extends\s+\w+\s*\{)',
+                      lambda mm: mm.group(1) + '\n    public %s%s;' % (name, m.group(2) or ''),
+                      body, count=1)
+        added.append('property ' + name)
 
     # constants the generated model declares and the existing one lacks
     for m in re.finditer(r'    public const (\w+) = ([^;]+);', generated):

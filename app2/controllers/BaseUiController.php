@@ -111,8 +111,15 @@ abstract class BaseUiController extends Controller
     public function modelClass()
     {
         $short = (new \ReflectionClass($this))->getShortName();
+        $short = substr($short, 0, -strlen('Controller'));
 
-        return 'app\\models\\' . substr($short, 0, -strlen('Controller'));
+        // ItemUiController edits Item: the suffix distinguishes the controller
+        // from the API one of the same name, not the model.
+        if (substr($short, -2) === 'Ui') {
+            $short = substr($short, 0, -2);
+        }
+
+        return 'app\\models\\' . $short;
     }
 
     /**

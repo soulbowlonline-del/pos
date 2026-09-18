@@ -159,28 +159,45 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page - 28 of the 59
-controllers, 164 comparison cases:
+Served by Yii 2 and matching Yii 1 on every compared page - 30 of the 59
+controllers, 182 comparison cases:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
 `state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
-`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`.
+`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`, `customer`, `emp`.
 
 ## Names that exist twice
 
 `Emp`, `Customer`, `Item` and `Order` are each an API controller in
-`app2/controllers` *and* a CRUD controller in the web UI. The generator writes
-`app2/controllers/<Model>Controller.php`, so porting the UI one overwrites the
-API one - which is what happened to `EmpController`: every `/v2/api/emp/*`
-route answered 404 and `emp_difftest` went from 14 green to 0, with every UI
-page still green, because nothing in the UI touches those routes.
+`app2/controllers` *and* a CRUD controller in the web UI. One class cannot be
+both, and the API port is the finished one, so the UI controller takes a
+suffixed class:
 
-The generator now refuses to overwrite a controller it did not write. Those
-four need either a distinct class name for the UI controller or the API
-controller absorbing the UI actions; until that is decided they cannot be
-ported.
+| URL | class |
+|---|---|
+| `/v2/api/emp/profile` | `EmpController` (the API port) |
+| `/v2/emp/admin` | `EmpUiController` |
+
+`Ui::toYii2Id()` maps the route `emp` to the controller id `emp-ui` for these
+names, and `Ui::toYii1Id()` strips the suffix again, so views, permissions and
+`loadModel()` all still resolve against `emp`. The URL is unchanged.
+
+`customer` and `emp` are ported this way. `item` and `order` are not, for
+reasons that have nothing to do with the collision - see below.
+
+## item and order
+
+The two largest controllers, and the two whose grids the generators do not yet
+model:
+
+  - `item`'s admin lists 101 rows where the port lists 11, so its page size
+    comes from somewhere the generator does not read.
+  - `order`'s admin applies a filter the port does not.
+
+Both need reading rather than another generator rule. Nothing for them is
+committed.
 
 ## Where a listing's order comes from
 

@@ -48,6 +48,9 @@ class Ui
         'rolePermission',
         'itemTax',
         'tax',
+        'customer',
+        'emp',
+        'itemCompanyCategory',
     ];
 
     /**
@@ -93,6 +96,26 @@ class Ui
     }
 
     /**
+     * Controllers whose name the API port already uses.
+     *
+     * Emp, Customer, Item and Order are each an API controller in
+     * app2/controllers *and* a CRUD controller in the web UI. One class name
+     * cannot be both, and the API port is the one that is finished and
+     * verified, so the UI controller takes a suffixed id instead:
+     * /v2/item/admin is served by ItemUiController, while /v2/api/item/* keeps
+     * ItemController.
+     *
+     * The URL does not change - only which class answers it.
+     */
+    public const API_NAMES = ['emp', 'customer', 'item', 'order', 'loyalty', 'tally', 'site'];
+
+    /** True when the UI controller for this name needs the suffix. */
+    public static function needsUiSuffix($controller)
+    {
+        return in_array($controller, self::API_NAMES, true);
+    }
+
+    /**
      * paymentMode -> payment-mode.
      *
      * Yii 1 spells controller and action ids in camelCase; Yii 2 requires
@@ -103,12 +126,18 @@ class Ui
      */
     public static function toYii2Id($id)
     {
-        return strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1-$2', $id));
+        $hyphenated = strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1-$2', $id));
+
+        return self::needsUiSuffix($id) ? $hyphenated . '-ui' : $hyphenated;
     }
 
     /** payment-mode -> paymentMode */
     public static function toYii1Id($id)
     {
+        if (substr($id, -3) === '-ui') {
+            $id = substr($id, 0, -3);
+        }
+
         return lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $id))));
     }
 

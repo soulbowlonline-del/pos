@@ -1,3 +1,10 @@
+<?php
+/**
+ * Ported from protected/views/item/_pdf.php.
+ */
+
+
+?>
 <div style="width: 100%; font-size: 10px; line-height: normal; font-family: Arial, sans-serif;">
   <!-- Header -->
   <div style="margin-bottom: 5px;">

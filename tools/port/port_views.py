@@ -44,8 +44,13 @@ def arrays_to_brackets(src):
             j = src.find('*/', i)
             j = n if j < 0 else j + 2
             out.append(src[i:j]); i = j; continue
-        m = re.match(r'\barray\s*\(', src[i:])
-        if m:
+        # The word-boundary has to be tested against the *original* string, not
+        # the slice: re.match on src[i:] sees the slice's start as a boundary,
+        # so the `array(` inside `in_array(` matched and became `in_[`. Every
+        # in_array, is_array and array_merge in a generated file was being
+        # corrupted this way.
+        m = re.match(r'array\s*\(', src[i:])
+        if m and (i == 0 or not (src[i - 1].isalnum() or src[i - 1] == '_')):
             out.append('[')
             stack.append(True)
             i += m.end()
@@ -80,6 +85,7 @@ BOOSTER = {
     'CJuiRadioButtonList': 'CJuiRadioButtonList',
     'CJuiDatePicker': 'CJuiDatePicker',
     'TbTypeAhead': 'TbTypeAhead',
+    'TbEditableColumn': 'EditableColumn',
 }
 
 
@@ -330,6 +336,8 @@ def rewrite(src, ctrl, unknown):
                  visible_expr, src)
 
     # the button columns
+    src = re.sub(r"'class'\s*=>\s*'(?:bootstrap\.widgets\.)?TbEditableColumn'",
+                 lambda m: "'class' => EditableColumn::class", src)
     src = re.sub(r"'class'\s*=>\s*'(?:bootstrap\.widgets\.)?(?:CCheckBoxColumn|CheckBoxColumn)'",
                  lambda m: "'class' => CheckboxColumn::class", src)
     src = re.sub(r"'class'\s*=>\s*'(?:bootstrap\.widgets\.)?(?:TbButtonColumn|CxButtonColumn|FaButtonColumn|CButtonColumn)'",
@@ -359,6 +367,8 @@ def imports(src, ctrl):
         need.append('use app\\widgets\\ActionColumn;')
     if 'CheckboxColumn::' in src:
         need.append('use app\\widgets\\CheckboxColumn;')
+    if 'EditableColumn::' in src:
+        need.append('use app\\widgets\\EditableColumn;')
     if 'ActiveForm::' in src:
         need.append('use app\\widgets\\ActiveForm;')
     # Model classes the file names, in any form: a static call, a constant,
