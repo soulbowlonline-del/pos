@@ -159,14 +159,14 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page - 26 of the 59
-controllers, 152 comparison cases:
+Served by Yii 2 and matching Yii 1 on every compared page - 28 of the 59
+controllers, 164 comparison cases:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
 `state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
-`mrs`, `organization`, `rolePermission`.
+`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`.
 
 ## Names that exist twice
 
@@ -182,34 +182,30 @@ four need either a distinct class name for the UI controller or the API
 controller absorbing the UI actions; until that is decided they cannot be
 ported.
 
-## The listings that cannot be compared - a decision for the owner
+## The listings with no ORDER BY - and a correction
 
-Eighteen of the 56 model-backed controllers have a listing with **no
-`ORDER BY`**. Their model overrides `GxActiveRecord::defaultScope()` with an
-empty array, which removes the inherited `id DESC`:
+An earlier version of this document said eighteen listings had no `ORDER BY`
+and asked the owner to decide whether to add one. **Ten of those eighteen were
+wrong.** They do order their grid - `search()` sets `'defaultOrder'` on the
+data provider's sort - and the generator never read it, because it looked only
+at `defaultScope()`. The Yii 2 provider had no order and the rows differed.
+That was a bug here, not a property of the application.
 
-`b2bPurchaseBill`, `customer`, `item`, `itemDetail`, `itemExpire`,
-`itemReturn`, `itemReturnItem`, `itemTax`, `mrnDetail`, `mrsDetail`, `order`,
-`orderItem`, `orderRefund`, `orderRefundItem`, `purchaseBillDetail`,
-`purchaseOrderDetail`, `stockAdjustLog`, `tax`.
+`itemTax`, `itemExpire` and `tax` now match with no behaviour change at all.
+`purchaseBillDetail` sorts by `t.order Asc`, so `id DESC` would have been the
+wrong answer for it regardless.
 
-For those pages, which ten of the rows appear on page one is decided by the
-query plan rather than by the data. That is not a defect in the port and it is
-not instability *within* a stack - Yii 1's grid footer does sum the ten rows
-Yii 1 displays, and repeated requests return the same ten. But Yii 1 and Yii 2
-build different, equivalent SQL, and two SQL builders cannot be made to agree
-on an unordered `LIMIT`.
+Eight listings genuinely have no ordering of any kind:
 
-Every controller rejected by the comparison so far has been one of these
-eighteen, and every other failure turned out to be a bug in the generators.
-That is the evidence that ordering is the whole of the problem here.
+`customer`, `itemReturn`, `itemReturnItem`, `mrnDetail`, `mrsDetail`,
+`orderRefund`, `orderRefundItem`, `purchaseOrderDetail`.
 
-**The decision:** giving those eighteen listings `ORDER BY id DESC` would make
-them deterministic, and portable. It is the order every other listing in the
-application already has, inherited from `defaultScope()`, so it makes them
-consistent rather than novel - but it does change which rows an operator sees
-first on eighteen pages that work today. Until that is decided they stay on
-Yii 1, and no generated code for them is committed.
+For these, which ten rows appear on page one is decided by the query plan.
+Each stack is self-consistent - repeated requests return the same ten, and
+Yii 1's grid footer sums the ten Yii 1 shows - but two SQL builders cannot be
+made to agree on an unordered `LIMIT`. They need an explicit order before they
+can be ported and checked, and adding one changes which rows an operator sees
+first. That is the owner's call.
 
 ## What is not carried across
 

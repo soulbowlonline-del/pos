@@ -46,6 +46,8 @@ class Ui
         'mrs',
         'organization',
         'rolePermission',
+        'itemTax',
+        'tax',
     ];
 
     /**

@@ -279,6 +279,39 @@ def port_with(body):
     return paths
 
 
+def port_search_sort(body):
+    """
+    The order Yii 1's search() gives its data provider.
+
+    Read from the CActiveDataProvider's `sort` => `defaultOrder`, which is
+    where ten of these models put it. An earlier version of this generator
+    looked only at defaultScope() and concluded those listings had no order at
+    all - they do, and the grids were being compared against a Yii 2 provider
+    that had none because the sort was never ported.
+
+    The column may carry the query alias ('t.id DESC'); Yii 2 wants the bare
+    column.
+    """
+    if not body:
+        return None
+    stripped = re.sub(r'//[^\n]*', '', body)
+    stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.S)
+    m = re.search(r"'defaultOrder'\s*=>\s*'([^']+)'", stripped)
+    if not m:
+        return None
+
+    cols = []
+    for part in m.group(1).split(','):
+        bits = part.strip().split()
+        if not bits:
+            continue
+        col = bits[0].split('.')[-1]
+        desc = len(bits) > 1 and bits[1].lower().startswith('desc')
+        cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+
+    return '[' + ', '.join(cols) + ']' if cols else None
+
+
 def port_search(body, warn):
     """The compare() calls that back the admin grid."""
     exact, partial = [], []
@@ -292,6 +325,13 @@ def port_search(body, warn):
 
 # Names Yii 2's ActiveRecord/Model already define with an incompatible
 # signature, so a Yii 1 method of the same name cannot simply be carried over.
+# Yii 2 declares these public on BaseActiveRecord. A Yii 1 model declares the
+# same methods protected, and PHP will not let a subclass narrow visibility.
+YII2_PUBLIC_HOOKS = {
+    'beforeSave', 'afterSave', 'beforeDelete', 'afterDelete', 'afterFind',
+    'beforeValidate', 'afterValidate', 'afterRefresh',
+}
+
 CLASHES_WITH_YII2 = {
     'toArray', 'fields', 'extraFields', 'attributes', 'load', 'validate',
     'save', 'delete', 'refresh', 'init', 'behaviors', 'scenarios',
@@ -558,6 +598,14 @@ def port_concrete(src, model):
         name = m.group(2)
         if name == 'model':
             continue        # Yii 1's static model() has no Yii 2 equivalent
+        if name in YII2_PUBLIC_HOOKS and not read_only(text):
+            # A lifecycle hook that writes is behaviour, and this generator has
+            # no way to know whether the Yii 2 model wants it. Order::afterSave()
+            # reached a model the API port wrote and, being protected where
+            # Yii 2 declares it public, stopped the class loading at all - ten
+            # suites failed at once.
+            notes.append('%s(): not ported - a lifecycle hook that writes' % name)
+            continue
         if name in CLASHES_WITH_YII2:
             # Yii 2's ActiveRecord already declares these, with signatures the
             # Yii 1 versions do not match - City::toArray() against
@@ -595,6 +643,14 @@ def port_concrete(src, model):
         text, converted, why = convert_criteria(text)
         if not converted and '$criteria' in text:
             notes.append('%s(): %s, left as it was' % (name, why))
+
+        # Yii 1 declares the lifecycle hooks protected; Yii 2 declares them
+        # public, and PHP refuses to narrow a method's visibility - the class
+        # then fails to load at all, taking down every page that touches the
+        # model. The hook still runs; only the keyword changes.
+        if name in YII2_PUBLIC_HOOKS:
+            text = re.sub(r'\b(?:protected|private)(\s+(?:static\s+)?function\s+' + name + r'\b)',
+                          lambda mm: 'public' + mm.group(1), text)
 
         # The shared conversions - logging, the Html helpers, the finders.
         # These used to be repeated here; they are one function now, because a
@@ -648,6 +704,7 @@ def generate(model, table_alias):
     search_body = parse_block(base, 'search') or ''
     exact, partial = port_search(search_body, warn)
     eager = port_with(search_body)
+    search_sort = port_search_sort(search_body)
 
     has_before_validate = 'function beforeValidate' in base
     default_order = port_default_scope(base, warn, concrete)
@@ -902,7 +959,12 @@ def generate(model, table_alias):
         A("        $query->joinWith([%s]);" % ', '.join("'%s'" % x for x in eager))
     A('        $provider = new ActiveDataProvider([')
     A("            'query' => $query,")
-    A("            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],")
+    if search_sort:
+        A("            // The order Yii 1's search() gives its provider, which is not")
+        A('            // always the model\'s defaultScope(): the grid can name its own.')
+        A("            'sort' => ['defaultOrder' => %s]," % search_sort)
+    else:
+        A("            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],")
     A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
     A('        ]);')
     A('')
@@ -1137,20 +1199,50 @@ def write_model(path, content, what):
 
     open(path, 'w', encoding='utf-8').write(content)
 
-    check = subprocess.run(
-        ['docker', 'exec', 'pos-php-83', 'php', '-l',
-         '/var/www/html/' + os.path.relpath(path, ROOT)],
-        capture_output=True, text=True)
-    if check.returncode == 0:
-        return True
+    rel = os.path.relpath(path, ROOT)
 
+    # Syntax first...
+    check = subprocess.run(
+        ['docker', 'exec', 'pos-php-83', 'php', '-l', '/var/www/html/' + rel],
+        capture_output=True, text=True)
+    if check.returncode != 0:
+        return refuse(path, previous, what, check)
+
+    # ...then actually load the class. php -l does not catch a fatal that only
+    # happens at class-load time, and the one that matters here is visibility:
+    # Yii 1 declares the lifecycle hooks protected, Yii 2 declares them public,
+    # and PHP refuses to narrow. The file parsed perfectly and the class could
+    # not be loaded, which took ten suites down at once.
+    cls = 'app\\models\\' + os.path.basename(path)[:-4]
+    load = subprocess.run(
+        ['docker', 'exec', 'pos-php-83', 'php', '-r',
+         'require "/var/www/html/vendor/autoload.php";'
+         'require "/var/www/html/vendor/yiisoft/yii2/Yii.php";'
+         'Yii::setAlias("@app", "/var/www/html/app2");'
+         'spl_autoload_register(function($c){'
+         '  $f = "/var/www/html/app2/" . str_replace("\\\\", "/", substr($c, 4)) . ".php";'
+         '  if (is_file($f)) require_once $f;'
+         '});'
+         'new ReflectionClass("' + cls + '");'],
+        capture_output=True, text=True)
+    if load.returncode != 0 and 'Fatal error' in (load.stdout + load.stderr):
+        return refuse(path, previous, what, load)
+
+    return True
+
+    return True
+
+
+def refuse(path, previous, what, result):
+    """Put the file back as it was and say why the new one was rejected."""
     if previous is None:
         os.remove(path)
     else:
         open(path, 'w', encoding='utf-8').write(previous)
-    print('  REFUSED to write %s: the generated code does not parse' % what)
-    for line in (check.stdout or check.stderr).splitlines()[:2]:
-        print('    ' + line.strip())
+    print('  REFUSED to write %s: the generated code does not load' % what)
+    for line in (result.stdout or result.stderr).splitlines()[:2]:
+        if line.strip():
+            print('    ' + line.strip())
     return False
 
 

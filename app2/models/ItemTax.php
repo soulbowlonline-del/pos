@@ -53,6 +53,55 @@ class ItemTax extends ActiveRecord
         return null;
     }
 
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
     /** Views ask the model whether the current role may reach a route. */
     public function checkPermission($url)
     {
@@ -211,7 +260,9 @@ class ItemTax extends ActiveRecord
         $query->joinWith(['itemDetail.item', 'tax']);
         $provider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            // The order Yii 1's search() gives its provider, which is not
+            // always the model's defaultScope(): the grid can name its own.
+            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 

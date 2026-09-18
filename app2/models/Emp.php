@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -182,9 +186,9 @@ class Emp extends ActiveRecord
 
     public function getShiftOptions(){
             $list = [];
-            $shifts = Shift::find()
-                ->andWhere('status ='.Shift::STATUS_ACTIVE)
-                ->all();
+            $query = Shift::find();
+            $query->andWhere('status ='.Shift::STATUS_ACTIVE);
+            $shifts = $query->all();
             if($shifts){
                 foreach($shifts as $shift){
                     $list[$shift->id] = $shift->title;
@@ -252,4 +256,87 @@ class Emp extends ActiveRecord
     {
         return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'code' => 'Code',
+            'name' => 'Name',
+            'email' => 'Email',
+            'contact_no' => 'Contact No',
+            'gender_id' => 'Gender',
+            'date_of_birth' => 'Date Of Birth',
+            'role_id' => 'Role',
+            'date_of_joining' => 'Date Of Joining',
+            'permanent_address' => 'Permanent Address',
+            'shift_id' => 'Shift',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'temp_city_id' => 'City',
+            'temp_state_id' => 'State',
+            'temp_country_id' => 'Country',
+            'temp_address' => 'Temp Address',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'create_time' => 'Create Time',
+            'designation_id' => 'Designation',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'outlet_id' => 'Outlet',
+            'createUser' => 'Created By',
+            'updatedBy' => 'Updated By',
+            'designation' => 'Designation',
+            'empShifts' => 'EmpShifts',
+            'users' => 'Users',
+        ];
+    }
+
+    public function getRoleValues(){
+            $string = '';
+            $list = [];
+            $role_ids = explode(',',$this->role_id);
+            if(!empty($role_ids)){
+                foreach($role_ids as $role_id){
+
+                        $list[] = $this->getRoleOptions($role_id);
+
+                }
+                if(!empty($list)){
+                    $string = implode(',',$list);
+                }
+            }
+            return $string;
+        }
+
+    public function getShifts(){
+            $shift_ids = [];
+            $shifts = EmpShift::findAll(['emp_id'=>$this->id]);
+            if($shifts){
+                foreach($shifts as $shift){
+                    $shift_ids[] = $shift->shift_id;
+                }
+            }
+            return $shift_ids;
+        }
+
+    public function removeShifts(){
+            EmpShift::model()->deleteAllByAttributes(['emp_id'=>$this->id]);
+            return true;
+        }
 }
