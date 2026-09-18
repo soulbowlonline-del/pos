@@ -11,6 +11,7 @@ use app\models\UserRole;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 use app\widgets\ButtonGroup;
+use app\widgets\EChosenWidget;
 use app\widgets\TbTypeAhead;
 use yii\helpers\Html;
 ?>
@@ -144,9 +145,8 @@ HSN Code
 	<?php echo $form->fileFieldRow($model, 'image_file'); ?>
 	<?php
 	
-/* $role = UserRole::findOne( array (
-			'title' => 'Admin' 
-	) );
+/* $role = UserRole::find()->where(array (
+			'title' => 'Admin')->one());
 	$user = Yii::$app->user->model;
 	if ($user->role_id == $role->id) { */
 		?>
@@ -184,7 +184,7 @@ echo $form->dropDownListRow ( $model, 'status', $model->getStatusOptions (), [
 									<label for="inputEmail3" class="control-label col-md-3"> Vendor
 									</label>
 
-<?php echo CHtml::activeListBox($model, 'vendor_id', Item::getAllVendors(), ['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select'])?>
+<?php echo Html::activeListBox($model, 'vendor_id', Item::getAllVendors(), ActiveForm::noUnselect(['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select']))?>
 
 </div>
 
@@ -192,12 +192,11 @@ echo $form->dropDownListRow ( $model, 'status', $model->getStatusOptions (), [
 
 <?php
 
-Yii::import ( 'application.extensions.widgets.yii-chosen.EChosenWidget' );
 
 ?>
  <?php
 	
-$this->widget ( 'EChosenWidget', [
+echo EChosenWidget::widget([
 			// the select selector
 			'selector' => '.chosen' 
 	]

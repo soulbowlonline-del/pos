@@ -63,6 +63,23 @@ def known_yii1_failures():
 KNOWN = known_yii1_failures()
 
 
+def volatile_fields(url):
+    """
+    Form fields whose value changes between two loads of the same page.
+
+    Some fields are generated fresh each time - Item's create form puts a
+    random item_code in a hidden input - so they can never match across two
+    stacks, and comparing them reports a difference that is not one.
+
+    Rather than keep a list of exceptions, the page is loaded twice on the
+    *same* stack and whatever changed is excluded. A field that is stable in
+    Yii 1 is still compared.
+    """
+    first, second = form_fields(fetch(url)), form_fields(fetch(url))
+
+    return {k for k in first if first.get(k) != second.get(k)}
+
+
 def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     """
     Compare two pages, allowing for ones that legitimately refuse.
@@ -260,8 +277,13 @@ def main():
                lambda h: grid_rows(h, index_grid), 'notnone')
 
     print(f'{ctrl}/create - form fields')
+    volatile = volatile_fields(y1 + '/create')
+    if volatile:
+        print('        ignoring fields Yii 1 regenerates each load: '
+              + ', '.join(sorted(volatile)))
     check_pair('create form', y1 + '/create', y2 + '/create',
-               lambda h: sorted(form_fields(h).items()))
+               lambda h: sorted((k, v) for k, v in form_fields(h).items()
+                                if k not in volatile))
 
     if row_id:
         print(f'{ctrl}/view/{row_id} - detail pairs')
@@ -269,8 +291,13 @@ def main():
                    detail_pairs)
 
         print(f'{ctrl}/update/{row_id} - form values')
+        volatile = volatile_fields(f'{y1}/update/id/{row_id}')
+        if volatile:
+            print('        ignoring fields Yii 1 regenerates each load: '
+                  + ', '.join(sorted(volatile)))
         check_pair('update form', f'{y1}/update/id/{row_id}', f'{y2}/update?id={row_id}',
-                   lambda h: sorted(form_fields(h).items()))
+                   lambda h: sorted((k, v) for k, v in form_fields(h).items()
+                                    if k not in volatile))
 
     print()
     if FAIL:

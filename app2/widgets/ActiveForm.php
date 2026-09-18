@@ -97,6 +97,24 @@ class ActiveForm extends \yii\widgets\ActiveForm
      *
      * Reducing the selection to its scalars renders the same unchecked boxes.
      */
+    /**
+     * Stops Yii 2 emitting its hidden "nothing selected" input.
+     *
+     * Used for a multiple *select* only. Yii 1's checkBoxListRow and
+     * radioButtonListRow do emit such a field - `ytEmp_shift_id` and the like
+     * - so suppressing it there removed an input Yii 1 has and broke two
+     * controllers that had been matching. CHtml::activeListBox does not emit
+     * one, and that is the only case this is applied to.
+     */
+    public static function noUnselect($htmlOptions)
+    {
+        if (!array_key_exists('unselect', $htmlOptions)) {
+            $htmlOptions['unselect'] = null;
+        }
+
+        return $htmlOptions;
+    }
+
     private function scalarSelection($model, $attribute, $htmlOptions)
     {
         if (isset($htmlOptions['value'])) {

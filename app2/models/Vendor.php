@@ -505,4 +505,112 @@ class Vendor extends ActiveRecord
             }
             return $amount;
         }
+
+    public function getVendorSaleTotalAmount(){
+            $item_ids = $this->getVendorItem_ids();
+
+            $total = 0;
+            $query = OrderItem::find();
+            $query->andWhere(['item_id' => $item_ids]);
+            if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+            }
+            Yii::warning( var_export( Yii::$app->session['vendor_end_date']), '$start_date');
+            Yii::warning( var_export( Yii::$app->session['vendor_end_date']), '$end_date');
+            $orderitems = $query->all();
+            Yii::warning( var_export( $orderitems), '$orderitems');
+            if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                            $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+                        }
+                        $query->andWhere('item_id ='.$orderitem->item_id);
+                        $query->select('sum(total_amt) as total_amt');
+                        $orderRefundItem = $query->one();
+                        if($orderRefundItem){
+                            $refund = $refund + ($orderRefundItem->total_amt);
+                        }
+                        /* if($orderRefundItems){
+                         foreach($orderRefundItems as $orderRefundItem){
+                         $refund = $refund + ($orderRefundItem->total_amt);
+                         }
+
+
+                            } */
+
+                    }
+                    $amt = ($orderitem->total_amt) - ($refund);
+                    $total = $total + $amt;
+
+                }
+            }
+            return round($total);
+        }
+
+    public function getVendorSaleTaxAmount(){
+            $item_ids = $this->getVendorItem_ids();
+
+            $total = 0;
+            $query = OrderItem::find();
+            $query->andWhere(['item_id' => $item_ids]);
+            if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+            }
+            Yii::warning( var_export( Yii::$app->session['vendor_end_date']), '$start_date');
+            Yii::warning( var_export( Yii::$app->session['vendor_end_date']), '$end_date');
+            $orderitems = $query->all();
+            Yii::warning( var_export( $orderitems), '$orderitems');
+            if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                            $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+                        }
+                        $query->andWhere('item_id ='.$orderitem->item_id);
+                        $query->select('sum(total_amt) as total_amt');
+                        $orderRefundItem = $query->one();
+                        if($orderRefundItem){
+                            $refund = $refund + ($orderRefundItem->tax_amt);
+                        }
+                        /* if($orderRefundItems){
+                         foreach($orderRefundItems as $orderRefundItem){
+                         $refund = $refund + ($orderRefundItem->total_amt);
+                         }
+
+
+                         } */
+
+                    }
+                    $amt = ($orderitem->tax_amount) - ($refund);
+                    $total = $total + $amt;
+
+                }
+            }
+            return round($total);
+        }
 }

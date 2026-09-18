@@ -52,6 +52,8 @@ class Ui
         'emp',
         'orderRefund',
         'stockAdjustLog',
+        'item',
+        'item',
     ];
 
     /**

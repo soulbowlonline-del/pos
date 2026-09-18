@@ -159,14 +159,31 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page - 30 of the 59
-controllers, 182 comparison cases:
+33 of the 59 controllers, 200 comparison cases:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
 `state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
-`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`, `customer`, `emp`.
+`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`, `customer`, `emp`,
+`orderRefund`, `stockAdjustLog`, `item`.
+
+26 remain: 363 actions, 283 view files, ~42,800 view lines.
+
+## What "verified" covers, and what it does not
+
+Each ported controller is compared on **six page types**: the admin grid, its
+second page, index, the create form, a view page and an update form.
+
+It is not compared on anything else. The ported controllers hold roughly **230
+further actions** - barcode printing, CSV import, PDF generation, stock
+adjustment, ajax lookups - and no test exercises any of them. `item` alone has
+42. For `paymentMode` the six page types are the whole controller; for `item`
+they are a fraction of it.
+
+So a controller listed above has its CRUD pages matching Yii 1. That is not the
+same as the controller being proven, and the difference is largest exactly
+where the controller is largest.
 
 ## Names that exist twice
 
@@ -187,17 +204,12 @@ names, and `Ui::toYii1Id()` strips the suffix again, so views, permissions and
 `customer` and `emp` are ported this way. `item` and `order` are not, for
 reasons that have nothing to do with the collision - see below.
 
-## item and order
+## order
 
-The two largest controllers, and the two whose grids the generators do not yet
-model:
-
-  - `item`'s admin lists 101 rows where the port lists 11, so its page size
-    comes from somewhere the generator does not read.
-  - `order`'s admin applies a filter the port does not.
-
-Both need reading rather than another generator rule. Nothing for them is
-committed.
+`order`'s admin applies a filter the port does not. `item` was in this position
+too - its grid listed 101 rows to the port's 11 - and the cause turned out to
+be a page size the generator did not read, not anything specific to item. It
+is ported and matching now, and every fix it needed generalised.
 
 ## Where a listing's order comes from
 

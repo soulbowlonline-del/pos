@@ -14,6 +14,19 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Item.php (Yii 1). */
 class Item extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
+    public $outlet_id;
+    public $name;
+    public $bar_code;
+    public $company_bar_code;
+    public $vendor_id;
+    public $to_user_id;
+    public $qty;
+    public $end_date;
+    public $start_date;
     public const STATUS_INACTIVE = 1;
     public const STATUS_ACTIVE = 0;
 
@@ -1078,5 +1091,1318 @@ class Item extends ActiveRecord
             Yii::warning( var_export( $this->id ), '$this->item_id');
             Yii::warning( var_export( $qty ), '$saleqty');
             return $qty;
+        }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['short_name', 'title', 'create_time', 'create_user_id', 'mrp', 'sale_price'], 'required'],
+            [['item_type', 'status', 'type_id', 'is_tax', 'is_discount', 'category_id', 'sub_company_id', 'company_id', 'create_user_id', 'updated_by'], 'integer'],
+            [['title'], 'unique'],
+            [['title', 'item_code'], 'string', 'max' => 255],
+            [['short_name', 'tax_id', 'name', 'qty', 'to_user_id', 'sub_category_id', 'description', 'company_bar_code', 'tax_id', 'outlet_id', 'bar_code', 'image_file', 'min_qty', 'max_qty', 'reorder_qty', 'vendor_id', 'hsn_code', 'is_coupon', 'mrp', 'sale_price', 'weight', 'purchase_price', 'whole_sale', 'is_stockable', 'movement_type', 'opening_stock', 'unit', 'start_date', 'end_date', 'remaining_quan'], 'safe'],
+            [['description', 'image_file', 'item_type', 'status', 'type_id', 'is_tax', 'is_discount', 'category_id', 'sub_company_id', 'company_id', 'updated_by'], 'default', 'value' => null],
+            [['id', 'title', 'name', 'item_code', 'description', 'image_file', 'item_type', 'status', 'type_id', 'is_tax', 'is_discount', 'category_id', 'sub_company_id', 'company_id', 'create_time', 'create_user_id', 'updated_by', 'update_time', 'remaining_quan'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            // The page size Yii 1's search() asks its provider for, which
+            // is not always the framework default.
+            'pagination' => ['pageSize' => 100],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
+        $this->load($params, $this->formName());
+
+        foreach (['id', 'item_type', 'status', 'type_id', 'mrp', 'is_tax', 'is_discount', 'sale_price', 'purchase_price', 'sub_category_id', 'opening_stock', 'weight', 'sub_category_id', 'category_id', 'sub_company_id', 'company_id', 'create_user_id', 'updated_by'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr);
+        }
+        foreach (['short_name', 'item_code', 'description', 'image_file', 'hsn_code', 'create_time'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr, true);
+        }
+
+        return $provider;
+    }
+
+    public function getAscBarCodeTotalRemainingQuantity()
+        {
+
+            $remaining_quantity = 0;
+            $query = ItemDetail::find();
+            $query->orderBy(['id' => SORT_ASC]);
+            $query->andWhere('status ='.ItemDetail::STATUS_ACTIVE);
+            $query->andWhere('item_id ='.$this->id);
+            $item_detail = $query->one();
+            if($item_detail){
+                $remaining_quantity = '0.000';
+                $add_quantity = '0.000';
+                $sub_quantity = '0.000';
+                $query = ItemDetail::find();
+                $query->andWhere('item_detail_id ='.$item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty > 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->one();
+
+                if(!empty($stocks))
+                {
+                    foreach ($stocks as $stock)
+                    {
+                        $add_quantity = ($add_quantity) + ($stock->balance_qty);
+
+                    }
+                }
+                $query = ItemStock::find();
+                $query->andWhere('item_detail_id ='.$item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty < 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->all();
+
+                if(!empty($stocks))
+                {
+                    foreach ($stocks as $stock)
+                    {
+                        $sub_quantity = ($sub_quantity) + abs($stock->balance_qty);
+
+                    }
+                }
+                $remaining_quantity = bcsub($add_quantity,$sub_quantity,3);
+
+                /* if(!empty($item_detail))
+                 {
+
+                 $remaining_quantity += $item_detail->open_stock_qty;
+
+                 } */
+            }
+            /* if($remaining_quantity < 0)
+                {
+                $remaining_quantity =0;
+                } */
+            return $remaining_quantity;
+        }
+
+    public function getBarCodeTotalRemainingQuantity()
+        {
+
+            $remaining_quantity = 0;
+            $query = ItemDetail::find();
+            $query->orderBy(['id' => SORT_DESC]);
+            $query->andWhere('status ='.ItemDetail::STATUS_ACTIVE);
+            $query->andWhere('item_id ='.$this->id);
+            $item_detail = $query->one();
+            if($item_detail){
+                $remaining_quantity = '0.000';
+                $add_quantity = '0.000';
+                $sub_quantity = '0.000';
+                $query = ItemDetail::find();
+                $query->andWhere('item_detail_id ='.$item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty > 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->one();
+
+                if(!empty($stocks))
+                {
+                    foreach ($stocks as $stock)
+                    {
+                        $add_quantity = ($add_quantity) + ($stock->balance_qty);
+
+                    }
+                }
+                $query = ItemStock::find();
+                $query->andWhere('item_detail_id ='.$item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty < 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->all();
+
+                if(!empty($stocks))
+                {
+                    foreach ($stocks as $stock)
+                    {
+                        $sub_quantity = ($sub_quantity) + abs($stock->balance_qty);
+
+                    }
+                }
+                $remaining_quantity = bcsub($add_quantity,$sub_quantity,3);
+
+            /* if(!empty($item_detail))
+            {
+
+                    $remaining_quantity += $item_detail->open_stock_qty;
+
+            } */
+            }
+            /* if($remaining_quantity < 0)
+            {
+                $remaining_quantity =0;
+            } */
+            return $remaining_quantity;
+        }
+
+    public static function getAllVendors($id = null) {
+            $user = Yii::$app->user->model;
+            $vendor_arr = [];
+            $exist = [];
+            if($id != null){
+                $query = ItemVendor::find();
+                $query->andWhere('item_detail_id =' . $id);
+                $itemvendors = $query->all();
+                if($itemvendors){
+                    foreach($itemvendors as $itemvendor){
+                        $exist[] = $itemvendor->vendor_id;
+                    }
+                }
+            }
+            $query = Vendor::find();
+            if($user->role_id == 1){
+            $query->andWhere(['not in', 'id', $exist]);
+            }else{
+                $query->andWhere('create_user_id ='.$user->id);
+            }
+            $query->orderBy(['name' => SORT_ASC]);
+            $query->andWhere('status =' . Vendor::STATUS_ACTIVE);
+            $vendors = $query->all();
+            if ($vendors != null) {
+                foreach ( $vendors as $vendor ) {
+                    $vendor_arr [$vendor->id] = $vendor->name;
+                }
+            }
+
+            return $vendor_arr;
+        }
+
+    public function setAllNewValues($rows) {
+
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    $item = null;
+                    for ($i = 1; $i < $count; $i++) {
+                        $itemcat_values = explode(',', $rows[$i]);
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+                            $query = Item::find();
+                            if (isset($arrays['Title'])) {
+                                Criteria::compare($query, 'title', $itemcat_values[$arrays['Title']]);
+                        } else if(isset($arrays['﻿"Title"'])) {
+                                Criteria::compare($query, 'title', $itemcat_values[$arrays['﻿"Title"']]);
+
+                            }else{
+                                Criteria::compare($query, 'title', $itemcat_values[$arrays['���"Title"']]);
+                            }
+                            $item = $query->one();
+                        }
+
+
+                       if($item == null){
+                        $item = new Item();
+                       }
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+
+                            if (isset($arrays['Title'])) {
+                                $item->title = $itemcat_values[$arrays['Title']];
+
+                            } else if(isset($arrays['﻿"Title"'])) {
+                                $item->title = $itemcat_values[$arrays['﻿"Title"']];
+                            }else{
+                                $item->title = $itemcat_values[$arrays['���"Title"']];
+                            }
+                        }
+                        if (isset($arrays['Short Name']) && ($itemcat_values[$arrays['Short Name']] != '')) {
+
+                            $item->short_name =$itemcat_values[$arrays['Short Name']];
+                        }else{
+
+                        $small = substr($item->title, 0, 10);
+                        $item->short_name =$small;
+                        }
+                        /* if (isset($arrays['Bill Description'])) {
+
+                            $item->description =$itemcat_values[$arrays['Bill Description']];
+                        } */
+
+                        //if (isset($arrays['Product Code'])) {
+
+                            $item->item_code = User::randomBarcode('5');
+                        //}
+                        if (isset($arrays['HSN Code'])) {
+
+                            $item->hsn_code =$itemcat_values[$arrays['HSN Code']];
+                        }
+
+
+                            $item->item_type = 0;
+
+
+
+                            $item->status = 0;
+
+                        /* if (isset($arrays['Item Type'])) {
+
+                            $item->item_type = Item:: getTypeKeyOptions($itemcat_values[$arrays['Item Type']]);
+                        }
+                        if (isset($arrays['Status'])) {
+
+                            $item->status = Item:: getStatusKeyOptions($itemcat_values[$arrays['Status']]);
+                        } */
+                        if (isset($arrays['Item Category']) && ($arrays['Item Category']) != '') {
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Category']]);
+                            $category = $query->one();
+                            if($category){
+                                $item->category_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Item SubCategory']) && ($arrays['Item SubCategory']) != '') {
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $itemcat_values[$arrays['Item SubCategory']]);
+                            $category = $query->one();
+                            if($category){
+                                $item->category_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Item Company']) && $arrays['Item Company']) {
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Company']]);
+                            $category = $query->one();
+                            if($category){
+                                $item->company_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Sub Category'])  && $arrays['Sub Category']) {
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $itemcat_values[$arrays['Sub Category']]);
+                            $category = $query->one();
+                            if($category){
+                                $item->sub_company_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['MRP'])) {
+
+                            $item->mrp = $itemcat_values[$arrays['MRP']];
+                        }
+                        if (isset($arrays['Sale Price'])) {
+
+                            $item->sale_price = $itemcat_values[$arrays['Sale Price']];
+                        }
+                        if (isset($arrays['Purchase Price'])) {
+
+                            $item->purchase_price = $itemcat_values[$arrays['Purchase Price']];
+                        }
+                        if (isset($arrays['Weight'])) {
+
+                            $item->weight = $itemcat_values[$arrays['Weight']];
+                        }
+                        if (isset($arrays['Whole Sale'])) {
+
+                            $item->whole_sale = $itemcat_values[$arrays['Whole Sale']];
+                        }
+                        if (isset($arrays['Opening Stock'])) {
+
+                            $item->opening_stock = $itemcat_values[$arrays['Opening Stock']];
+                        }
+                        if (isset($arrays['Minimum Quantity'])) {
+
+                            $item->min_qty = $itemcat_values[$arrays['Minimum Quantity']];
+                        }
+                        if (isset($arrays['Maximum Quantity'])) {
+
+                            $item->max_qty = $itemcat_values[$arrays['Maximum Quantity']];
+                        }
+                        if (isset($arrays['Reorder Quantity'])) {
+
+                            $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
+                        }
+                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $user = Yii::$app->user->model;
+                        if($user->role_id != $role->id ){
+                            $item->state_id = Item::STATUS_INACTIVE;
+                        }
+
+                        if ($item->save()) {
+                            $itemdetail = new ItemDetail();
+                            if (isset($arrays['Tax'])) {
+                                $query = Item::find();
+                                Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
+                                $tax = $query->one();
+                                if($tax){
+                                    $itemdetail->tax_id =$tax->id;
+                                }
+
+                            }
+                            if (isset($arrays['Opening Stock'])) {
+
+                                $itemdetail->open_stock_qty = $itemcat_values[$arrays['Opening Stock']];
+                            }
+                            if (isset($arrays['Barcode'])) {
+                                $itemdetail->bar_code =$itemcat_values[$arrays['Barcode']];
+                            }
+                            $itemdetail->outlet_id = 5;
+                            $itemdetail->item_id = $item->id;
+
+                            if($itemdetail->save()){
+
+                                $batch_no =  User::randomBarcode('5');
+
+                                    $itemstock = ItemStock ::model()->findByAttributes(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,
+                                            'vendor_id'=>'0'
+                                    ]);
+                                    if($itemstock == null){
+                                        $itemstock = new ItemStock;
+                                    }
+
+                                    $itemstock->balance_qty = $itemdetail->open_stock_qty;
+                                    $itemstock->purchase_qty = $itemdetail->open_stock_qty;
+                                    $itemstock->outlet_id = $itemdetail->outlet_id ;
+                                    $itemstock->vendor_id = 0;
+                                    $itemstock->mrp = $itemdetail->getItemDetailMrp();
+                                    $itemstock->base_price = $itemdetail->getItemDetailSaleRate();
+                                    $itemstock->batch_number = $batch_no;
+                                    $itemstock->item_id = $item->id;
+                                    $itemstock->item_detail_id = $itemdetail->id;
+                                    if($itemstock->save()){
+
+                                    }else{
+                                        print_r($itemstock->getErrors());exit;
+                                    }
+
+
+                            }else{
+                                print_R($itemdetail->getErrors());
+                                exit;
+                            }
+
+                        } else {
+                            print_R($item->getErrors());
+                            exit;
+                            $set = false;
+                        }
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
+
+    public function setAllValues($rows) {
+
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $item = null;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    $new = false;
+                    for ($i = 1; $i < $count; $i++) {
+                        $itemcat_values = explode(',', $rows[$i]);
+                        Yii::warning( var_export( $itemcat_values ), 'item_values');
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+                            $query = Item::find();
+                            if (isset($arrays['Title'])) {
+                                $title = str_replace(";",",",$itemcat_values[$arrays['Title']]);
+                                $title = str_replace("!",".",$title);
+                                Criteria::compare($query, 'title', $title);
+                            } else if(isset($arrays['﻿"Title"'])) {
+                                $title = str_replace(";",",",$itemcat_values[$arrays['﻿"Title"']]);
+                                $title = str_replace("!",".",$title);
+                                Criteria::compare($query, 'title', $title);
+
+                            }else{
+                                $title = str_replace(";",",",$itemcat_values[$arrays['���"Title"']]);
+                                $title = str_replace("!",".",$title);
+                                Criteria::compare($query, 'title', $title);
+
+                            }
+
+                            $item = $query->one();
+                        }
+                        Yii::warning( var_export( $item ), '$alreadyitem');
+
+                        if($item == null){
+                            $new = true;
+                            $item = new Item();
+                        }
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+
+                            if (isset($arrays['Title'])) {
+                                $item->title = str_replace(";",",",$itemcat_values[$arrays['Title']]);
+                                $item->title = str_replace("!",".",$item->title);
+                            } else if(isset($arrays['﻿"Title"'])) {
+
+                                $item->title = str_replace(";",",",$itemcat_values[$arrays['﻿"Title"']]);
+                                $item->title = str_replace("!",".",$item->title);
+                            }else{
+                                $item->title =str_replace(";",",",$itemcat_values[$arrays['���"Title"']]);
+                                $item->title = str_replace("!",".",$item->title);
+                            }
+                        }
+                        $small = substr($item->title, 0, 10);
+                        $item->short_name =$small;
+                        if (isset($arrays['Bill Description'])) {
+
+                            $item->description =$itemcat_values[$arrays['Bill Description']];
+                        }
+
+                        if (isset($arrays['Product Code'])) {
+
+                            $item->item_code =$itemcat_values[$arrays['Product Code']];
+                        }else{
+                            $item->item_code = User::randomBarcode(5);
+                        }
+                        if (isset($arrays['Short Name'])) {
+                            if($itemcat_values[$arrays['Short Name']] != ''){
+                            $com = str_replace("!",".",$itemcat_values[$arrays['Short Name']]);
+                            $item->short_name =$itemcat_values[$arrays['Short Name']];
+                            }else{
+                                $item->short_name = substr($item->title,10);
+                            }
+                        }
+                        if (isset($arrays['HSN Code'])) {
+
+                            $item->hsn_code =$itemcat_values[$arrays['HSN Code']];
+                        }
+                        if (isset($arrays['Item Type'])) {
+
+                            $item->item_type = Item:: getTypeKeyOptions($itemcat_values[$arrays['Item Type']]);
+                        }
+                        if (isset($arrays['Status'])) {
+
+                            $item->status = Item:: getStatusKeyOptions($itemcat_values[$arrays['Status']]);
+                        }
+                        if (isset($arrays['Item Category'])) {
+                            $cat = str_replace(";",",",$itemcat_values[$arrays['Item Category']]);
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $cat);
+                            $category = $query->one();
+                            if($category){
+                                $item->category_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Sub Category'])) {
+                            $sbcat = str_replace(";",",",$itemcat_values[$arrays['Sub Category']]);
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $sbcat);
+                            $category = $query->one();
+                            if($category){
+                                $item->sub_category_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Item Company'])) {
+                            $com = str_replace(";",",",$itemcat_values[$arrays['Item Company']]);
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $com);
+                            $category = $query->one();
+                            if($category){
+                                $item->company_id =$category->id;
+                            }
+
+                        }
+                        if (isset($arrays['Item Company Category'])) {
+                            $comcat = str_replace(";",",",$itemcat_values[$arrays['Item Company Category']]);
+                            $query = Item::find();
+                            Criteria::compare($query, 'title', $comcat);
+                            $category = $query->one();
+                            if($category){
+                                $item->sub_company_id =$category->id;
+                            }
+
+                        }
+
+                        if (isset($arrays['MRP'])) {
+
+                            $item->mrp = $itemcat_values[$arrays['MRP']];
+                        }else{
+                            if($new == true){
+                            $item->mrp = '20.00';
+                            }
+                        }
+                        if (isset($arrays['Sale Price'])) {
+
+                            $item->sale_price = $itemcat_values[$arrays['Sale Price']];
+                        }else{
+                            if($new == true){
+                            $item->sale_price = '20.00';
+                            }
+                        }
+                        if (isset($arrays['Purchase Price'])) {
+
+                            $item->purchase_price = $itemcat_values[$arrays['Purchase Price']];
+                        }
+                        if (isset($arrays['Weight'])) {
+
+                            $item->weight = $itemcat_values[$arrays['Weight']];
+                        }
+                        if (isset($arrays['Whole Sale'])) {
+
+                            $item->whole_sale = $itemcat_values[$arrays['Whole Sale']];
+                        }
+                        if (isset($arrays['Opening Stock'])) {
+
+                            $item->opening_stock = $itemcat_values[$arrays['Opening Stock']];
+                        }
+                        if (isset($arrays['Minimum Quantity'])) {
+                        if( $itemcat_values[$arrays['Minimum Quantity']] != ''){
+                            $item->min_qty = $itemcat_values[$arrays['Minimum Quantity']];
+                        }
+                        }
+                        if (isset($arrays['Maximum Quantity'])) {
+                            if( $itemcat_values[$arrays['Maximum Quantity']] != ''){
+                            $item->max_qty = $itemcat_values[$arrays['Maximum Quantity']];
+                            }
+                        }
+                        if (isset($arrays['Reorder Quantity'])) {
+                            if( $itemcat_values[$arrays['Reorder Quantity']] != ''){
+                            $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
+                            }
+                        }
+                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $user = Yii::$app->user->model;
+                        if($user->role_id != $role->id ){
+                            $item->state_id = Item::STATUS_INACTIVE;
+                        }
+                        Yii::warning( var_export( $item ), '$item');
+                        if ($item->save()) {
+                            /* $itemDetailoldbars = ItemDetail::find()->where(array (
+                                    'item_id' =>  $item->id)->all());
+                            if($itemDetailoldbars){
+                                foreach($itemDetailoldbars as $itemDetailoldbar){
+                                    $itemDetailoldbar->delete();
+                                }
+                            } */
+                            if (isset($arrays['Barcode']) && ($itemcat_values[$arrays['Barcode']] != '')) {
+                                $query = Item::find();
+                                $outlet = $query->one();
+                                $itemDetailbars = ItemDetail::find()->where([
+                                        'bar_code' =>  $itemcat_values[$arrays['Barcode']],
+                                    //    'outlet_id' => $outlet->id,
+                                    //    'item_id' => $item->id,
+                                ])->all();
+
+                                if($itemDetailbars){
+                                    foreach($itemDetailbars as $itemDetailbar){
+                                        $itemDetailbar->delete();
+                                    }
+                                }
+                                $itemDetail = new ItemDetail();
+
+                                Yii::warning( var_export( $itemDetail ), '$itemDetail');
+                                $barcodestr = $itemcat_values[$arrays['Barcode']];
+                                $stringlength = strlen($barcodestr);
+                                if($stringlength < 9){
+                                    $itemDetail->company_bar_code = ItemDetail::IS_COMPANY;
+                                    $itemDetail->bar_code = $itemcat_values[$arrays['Barcode']];
+                                }else{
+                                    $itemDetail->company_bar_code = ItemDetail::IS_NOT_COMPANY;
+                                $itemDetail->bar_code = $itemcat_values[$arrays['Barcode']];
+                                }
+                                $itemDetail->mrp = $item->mrp;
+                                $itemDetail->open_stock_qty = $item->opening_stock;
+                                if($outlet)
+                                $itemDetail->outlet_id = $outlet->id;
+                                $itemDetail->item_id = $item->id;
+                                if (isset($arrays['Tax'])) {
+                                    $query = Item::find();
+                                    Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
+                                    $category = $query->one();
+                                    if($category){
+                                        $itemDetail->tax_id = $category->id;
+
+                                    }else{
+                                        $newtax = new Tax();
+                                        $newtax->title = $itemcat_values[$arrays['Tax']];
+                                        if($newtax->save()){
+                                            $itemDetail->tax_id = $newtax->id;
+                                        }
+                                    }
+                                }
+                                if($itemDetail->save()){
+                                    $batch_no =  User::randomBarcode('5');
+
+                                    $itemstock = ItemStock ::model()->findByAttributes(['outlet_id'=>$itemDetail->outlet_id ,
+                                            'vendor_id'=>'0','item_detail_id'=>$itemDetail->id ,'item_id'=>$item->id
+                                    ]);
+                                    if($itemstock == null){
+                                        $itemstock = new ItemStock;
+                                    }
+
+                                    $itemstock->balance_qty = trim($itemDetail->open_stock_qty);
+                                    $itemstock->purchase_qty = trim($itemDetail->open_stock_qty);
+                                    $itemstock->outlet_id = $itemDetail->outlet_id ;
+                                    $itemstock->vendor_id = 0;
+                                    $itemstock->mrp = $item->mrp;
+                                    $itemstock->base_price = $item->sale_price;
+                                    $itemstock->batch_number = $batch_no;
+                                    $itemstock->item_id = $item->id;
+                                    $itemstock->item_detail_id = $itemDetail->id;
+                                    if($itemstock->save()){
+
+                                    }else{
+                                        print_r($itemstock->getErrors());exit;
+                                    }
+                                    if ($itemDetail->tax_id != null) {
+
+                                            $itemtax= new ItemTax();
+                                            $itemtax->item_detail_id =$itemDetail->id;
+                                            $itemtax->tax_id =$itemDetail->tax_id;
+                                            $itemtax->save();
+
+                                    }
+                                }else{
+
+                                        print_R($itemDetail->getErrors());
+                                        exit;
+                                        $set = false;
+
+                                }
+
+                            }
+                        } else {
+                            echo '<pre>';
+                            print_R($item);
+                            print_R($item->getErrors());
+                            exit;
+                            $set = false;
+                        }
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
+
+    public function setAllVendorValues($rows) {
+
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    for ($i = 1; $i < $count; $i++) {
+                        $item_values = explode(',', $rows[$i]);
+
+
+                        $itemvendor = new ItemVendor();
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+
+                            if (isset($arrays['Title'])) {
+                                $query = Item::find();
+                                Criteria::compare($query, 'title', $item_values[$arrays['Title']]);
+                                $item = $query->one();
+                                Yii::warning( var_export( $item ), '$$$$item');
+                                if($item){
+                                    $itemvendor->item_detail_id = $item->id;
+                                }
+
+                            } else if(isset($arrays['﻿"Title"'])) {
+                                $query = Item::find();
+                                Criteria::compare($query, 'title', $item_values[$arrays['﻿"Title"']]);
+                                $item = $query->one();
+                                if($item){
+                                    $itemvendor->item_detail_id = $item->id;
+                                }
+                            }else{
+                                $query = Item::find();
+                                Criteria::compare($query, 'title', $item_values[$arrays['���"Title"']]);
+                                $item = $query->one();
+                                if($item){
+                                    $itemvendor->item_detail_id = $item->id;
+                                }
+
+                            }
+                        }
+
+
+
+                        if (isset($arrays['Vendor'])) {
+                            $query = Item::find();
+                            Criteria::compare($query, 'name', $item_values[$arrays['Vendor']]);
+                            $vendor = $query->one();
+                            Yii::warning( var_export( $vendor ), '$$vendor');
+                            if($vendor){
+                                $itemvendor->vendor_id = $vendor->id;
+                            }
+                        }
+                        $Alreadyitemvendor = ItemVendor::find()->where(['item_detail_id'=>$itemvendor->item_detail_id,
+                                'vendor_id'=>$itemvendor->vendor_id
+                        ])->one();
+                        Yii::warning( var_export( $Alreadyitemvendor ), '$Alreadyitemvendor');
+                        if($Alreadyitemvendor == null && $itemvendor->vendor_id != null && $itemvendor->item_detail_id != null){
+                        if ($itemvendor->save()) {
+
+
+                        } else {
+                            print_R($itemvendor->getErrors());
+                            exit;
+                            $set = false;
+                        }
+                        }
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
+
+    public function setAllStockValues($rows){
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    for ($i = 1; $i < $count; $i++) {
+                        $item_values = explode(',', $rows[$i]);
+
+
+                        $itemstock = new ItemStock();
+                        $product_code = null;
+                        $product_title = null;
+                        if (isset($arrays['Prod Code']) || isset($arrays['﻿"Prod Code"']) || isset($arrays['���"Prod Code"'])) {
+
+                            if (isset($arrays['Prod Code'])) {
+                                $product_code = $item_values[$arrays['Prod Code']];
+                            } else if(isset($arrays['﻿"Prod Code"'])) {
+                                $product_code = $item_values[$arrays['﻿"Prod Code"']];
+                            }else{
+                                $product_code = $item_values[$arrays['���"Prod Code"']];
+                            }
+                        }
+
+
+
+                        if (isset($arrays['Product'])) {
+                            $product_title = $item_values[$arrays["Product"]];
+                        }
+
+                        if($product_title  != null && $product_code != null){
+                        $query = Item::find();
+                        Criteria::compare($query, 'title', $product_title);
+                        //$criteria->compare('item_code',$product_code);
+                        $getItem = $query->one();
+                        Yii::warning( var_export( $getItem ), '$getItem');
+                        if($getItem){
+                            $stocks = ItemStock::model()->deleteAllByAttributes(['item_id'=>$getItem->id]);
+                            $barcode = $getItem->getItemBarcodes();
+                            if($barcode){
+                                $query = ItemDetail::find();
+                                Criteria::compare($query, 'item_id', $getItem->id);
+                                Criteria::compare($query, 'bar_code', $barcode);
+                                $getItemDetail = $query->one();
+                                Yii::warning( var_export( $getItemDetail ), '$getItemDetail');
+                                if($getItemDetail){
+                                    $batch_no =  User::randomBarcode('5');
+                            $itemstock = new ItemStock();
+                            if (isset($arrays['Total'])) {
+                            $itemstock->balance_qty =  $item_values[$arrays["Total"]];
+                            }
+                            if (isset($arrays['Opening'])) {
+                            $itemstock->purchase_qty =  $item_values[$arrays["Opening"]];
+                            }
+                            $itemstock->outlet_id = $getItemDetail->outlet_id;
+                            $itemstock->vendor_id = 0;
+
+                            if (isset($arrays['MRP'])) {
+                                $itemstock->mrp = $item_values[$arrays["MRP"]];
+                            }else{
+                                if($getItemDetail){
+                                $itemstock->mrp = $getItemDetail->mrp;
+                                }else{
+                                    $itemstock->mrp = $getItem->mrp;
+                                }
+                            }
+                            $itemstock->base_price = $getItem->sale_price;
+                            $itemstock->batch_number = $batch_no;
+                            $itemstock->item_id = $getItem->id;
+                            $itemstock->item_detail_id = $getItemDetail->id;
+
+                            if ($itemstock->save()) {
+
+
+                            } else {
+                                print_R($itemstock->getErrors());
+                                exit;
+                                $set = false;
+                            }
+                            }
+                            }
+
+                        }
+                        }
+
+
+
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
+
+    public function getMaximumQty(){
+            return $this->max_qty;
+            $max_qty = $this->max_qty;
+
+            $query = MrsDetail::find();
+            $query->andWhere('item_id ='.$this->id);
+            $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+            $query->orderBy(['id' => SORT_DESC]);
+            $last_mrs_detail = $query->one();
+            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+
+            if($last_mrs_detail){
+                $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
+                $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
+                $curent_date = date('Y-m-d');
+                $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
+                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+
+                $lastsale_qty_till_date = 0;
+                $query = MrsDetail::find();
+                $query->andWhere('item_id ='.$this->id);
+                $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+                $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
+                $query->orderBy(['id' => SORT_DESC]);
+                $seclast_mrs_detail = $query->one();
+                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+
+                if($seclast_mrs_detail){
+                    $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
+                    $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
+                    $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
+                }
+                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+
+                if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
+                    $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
+                    $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
+                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+
+                    if($inc_sale_per > 0){
+                        $get_inc = $max_qty *($inc_sale_per/100);
+                        $max_qty = $max_qty + $get_inc;
+                        $max_qty = round($max_qty);
+                        Yii::warning( var_export( $get_inc ), '$get_inc');
+                        Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                    }
+
+                }else{
+                    if($lastsale_qty_till_date > $sale_qty_till_date){
+                    $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
+                    $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
+                    Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+
+                    if($dec_sale_per > 0){
+                        $get_inc = $max_qty *($dec_sale_per/100);
+                        $max_qty = $max_qty - $get_inc;
+                        $max_qty = round($max_qty);
+                        Yii::warning( var_export( $get_inc ), '$get_inc');
+                        Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                    }
+                }
+                }
+            }
+            if($max_qty == 0){
+                $max_qty = $this->max_qty;
+            }
+            return $max_qty;
+        }
+
+    public function getMinimumQty(){
+            return $this->min_qty;
+            $max_qty = $this->min_qty;
+
+            $query = MrsDetail::find();
+            $query->andWhere('item_id ='.$this->id);
+            $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+            $query->orderBy(['id' => SORT_DESC]);
+            $last_mrs_detail = $query->one();
+            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+
+            if($last_mrs_detail){
+                $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
+                $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
+                $curent_date = date('Y-m-d');
+                $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
+                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+
+                $lastsale_qty_till_date = 0;
+                $query = MrsDetail::find();
+                $query->andWhere('item_id ='.$this->id);
+                $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+                $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
+                $query->orderBy(['id' => SORT_DESC]);
+                $seclast_mrs_detail = $query->one();
+                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+
+                if($seclast_mrs_detail){
+                    $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
+                    $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
+                    $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
+                }
+                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+
+                if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
+                    $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
+                    $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
+                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+
+                    if($inc_sale_per > 0){
+                        $get_inc = $max_qty *($inc_sale_per/100);
+                        $max_qty = $max_qty + $get_inc;
+                        $max_qty = round($max_qty);
+                        Yii::warning( var_export( $get_inc ), '$get_inc');
+                        Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                    }
+
+                }else{
+                    if($lastsale_qty_till_date > $sale_qty_till_date){
+                        $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
+                        $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
+                        Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+
+                        if($dec_sale_per > 0){
+                            $get_inc = $max_qty *($dec_sale_per/100);
+                            $max_qty = $max_qty - $get_inc;
+                            $max_qty = round($max_qty);
+                            Yii::warning( var_export( $get_inc ), '$get_inc');
+                            Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                        }
+                    }
+                }
+            }
+
+            return $max_qty;
+        }
+
+    public function getReorderQty(){
+            $max_qty = $this->reorder_qty;
+
+            $query = MrsDetail::find();
+            $query->andWhere('item_id ='.$this->id);
+            $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+            $query->orderBy(['id' => SORT_DESC]);
+            $last_mrs_detail = $query->one();
+            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+
+            if($last_mrs_detail){
+                $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
+                $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
+                $curent_date = date('Y-m-d');
+                $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
+                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+
+                $lastsale_qty_till_date = 0;
+                $query = MrsDetail::find();
+                $query->andWhere('item_id ='.$this->id);
+                $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+                $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
+                $query->orderBy(['id' => SORT_DESC]);
+                $seclast_mrs_detail = $query->one();
+                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+
+                if($seclast_mrs_detail){
+                    $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
+                    $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
+                    $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
+                }
+                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+
+                if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
+                    $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
+                    $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
+                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+
+                    if($inc_sale_per > 0){
+                        $get_inc = $max_qty *($inc_sale_per/100);
+                        $max_qty = $max_qty + $get_inc;
+                        $max_qty = round($max_qty);
+                        Yii::warning( var_export( $get_inc ), '$get_inc');
+                        Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                    }
+
+                }else{
+                    if($lastsale_qty_till_date > $sale_qty_till_date){
+                        $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
+                        $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
+                        Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+
+                        if($dec_sale_per > 0){
+                            $get_inc = $max_qty *($dec_sale_per/100);
+                            $max_qty = $max_qty - $get_inc;
+                            $max_qty = round($max_qty);
+                            Yii::warning( var_export( $get_inc ), '$get_inc');
+                            Yii::warning( var_export( $max_qty ), '$max_qty');
+
+                        }
+                    }
+                }
+            }
+        if($max_qty == 0){
+        $max_qty = $this->reorder_qty;
+        }
+            return $max_qty;
+        }
+
+    public function getReorderQtyNew(){
+            $safetyStock = $this->min_qty;
+            $rop = 0;
+
+            $query = MrsDetail::find();
+            $query->andWhere('item_id ='.$this->id);
+            $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+            $query->orderBy(['id' => SORT_DESC]);
+            $last_mrs_detail = $query->one();
+            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+
+            if($last_mrs_detail){
+                $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
+                $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
+                $curent_date = date('Y-m-d');
+                $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
+                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+
+                $mrsBetweenDays = $this->daysBetweenTwoDays($curent_date, $mrs_date);
+                Yii::warning( var_export( $mrsBetweenDays ), '$mrsBetweenDays');
+
+                $avgDailySales = round($sale_qty_till_date / $mrsBetweenDays, 2);
+                Yii::warning( var_export( $avgDailySales ), '$avgDailySales');
+
+                $avgDeliveryTime = 0;
+
+                $query = MrsDetail::find();
+                $query->andWhere('item_id ='.$this->id);
+                $query->andWhere('status ='.MrsDetail::STATUS_DONE);
+                $query->orderBy(['id' => SORT_DESC]);
+                $query->limit(3);
+                //$criteria->addCondition('item_id =' . $this->id);
+                $mrs_details = $query->all();
+                $deliveryDays = 0;
+                if (count($mrs_details) > 0) {
+                    $endDate = date('Y-m-d');
+                    foreach ($mrs_details as $key => $mrsDetail) {
+                        $mrs = Mrs::findOne($mrsDetail->mrs_id);
+                        $mrsCreateDate = date('Y-m-d',strtotime($mrs->mrs_date));
+                        $query = StockLog::find();
+                        $query->andWhere('type_id ='.StockLog::TYPE_ADDED);
+                        $query->andWhere('item_id ='.$this->id);
+                        $query->andWhere(['between', 'DATE(create_time)', $mrsCreateDate, $endDate]);
+                        $query->orderBy(['id' => SORT_DESC]);
+                        $stockLog = $query->one();
+                        if ($stockLog) {
+                            $stockDate = date('Y-m-d',strtotime($stockLog->create_time));
+                            $stockBetweenDays = $this->daysBetweenTwoDays($mrsCreateDate, $stockDate);
+                            $deliveryDays += $stockBetweenDays;
+                        }
+                        $endDate = $mrsCreateDate;
+                    }
+                    Yii::warning( var_export( $deliveryDays ), '$deliveryDays');
+                    Yii::warning( var_export( count($mrs_details) ), 'count($mrs_details)');
+                    if ($deliveryDays > 0) {
+                        $avgDeliveryTime = round($deliveryDays / count($mrs_details));
+                    }
+                }
+
+                Yii::warning( var_export( $avgDeliveryTime ), '$avgDeliveryTime');
+
+                if ($avgDailySales > 0 && $avgDeliveryTime > 0) {
+                    $rop = ($avgDailySales * $avgDeliveryTime) + $safetyStock;
+                    Yii::warning( var_export( $rop ), '$rop');
+                }
+            }
+            if($rop > 0){
+                return round($rop);
+            }
+            return $safetyStock;
+        }
+
+    public function getAscBarCodeTotalRemainingQuantityIds($quantity_verify)
+        {
+            $item_detail_ids = [];
+            $remaining_quantity = 0;
+            $query = ItemDetail::find();
+            $query->orderBy(['id' => SORT_ASC]);
+            $query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
+            //$criteria->addCondition('item_id =' . $this->id);
+            $item_details = $query->all();
+
+            if(!empty($item_details))
+            {
+
+                foreach($item_details as $item_detail)
+                {
+
+                  if ($item_detail) {
+                $remaining_quantity = '0.000';
+                $add_quantity = '0.000';
+                $sub_quantity = '0.000';
+                $query = ItemDetail::find();
+                $query->andWhere('item_detail_id =' . $item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty > 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->all();
+
+                if (! empty($stocks)) {
+                    foreach ($stocks as $stock) {
+
+                        $add_quantity = ($add_quantity) + ($stock->balance_qty);
+                    }
+                }
+                $query = ItemStock::find();
+                $query->andWhere('item_detail_id =' . $item_detail->id);
+                $query->orderBy(['id' => SORT_ASC]);
+                $query->andWhere("balance_qty < 0.000");
+                $query->andWhere('item_detail_id IS NOT NULL');
+                $stocks = $query->all();
+
+                if (! empty($stocks)) {
+                    foreach ($stocks as $stock) {
+                        $sub_quantity = ($sub_quantity) + abs($stock->balance_qty);
+                    }
+                }
+                $remaining_quantity = bcsub($add_quantity, $sub_quantity, 3);
+
+
+                if($remaining_quantity == $quantity_verify)
+                {
+
+                    $item_detail_ids [] = $item_detail->item_id;
+
+                }
+
+            }
+
+                }
+            }
+
+
+           return $item_detail_ids;
         }
 }

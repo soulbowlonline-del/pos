@@ -108,6 +108,10 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r'(?m)^(\s*)\$this\s*->\s*renderPartial\s*\(', r'\1return $this->renderPartial(', body)
     body = re.sub(r'(?m)^(\s*)\$this\s*->\s*redirect\s*\(', r'\1return $this->redirect(', body)
 
+    # Yii::import() has no Yii 2 equivalent; classes are autoloaded.
+    body = re.sub(r"(?m)^[ \t]*Yii::import\s*\([^;]*\);[ \t]*\n", '', body)
+    body = re.sub(r"Yii::import\s*\([^;]*\);", '', body)
+
     # CDbCriteria in an action body. The same converter the models use - it was
     # only ever called from there, so a controller that built a query itself
     # kept its Yii 1 code and died on a class that does not exist in Yii 2.

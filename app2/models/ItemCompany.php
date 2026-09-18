@@ -303,4 +303,56 @@ class ItemCompany extends ActiveRecord
     {
         return self::defaultOrder();
     }
+
+    public function getCompanyTotalAmount(){
+            $item_ids = $this->getCompanyItem_ids();
+            $total = 0;
+            $query = OrderItem::find();
+            $query->andWhere(['item_id' => $item_ids]);
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+
+            $orderitems = $query->all();
+
+            if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                            $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                        }
+                        $query->select('sum(total_amt) as total_amt');
+                        $query->andWhere('item_id ='.$orderitem->item_id);
+                        $orderRefundItem = $query->one();
+                        if($orderRefundItem){
+                        $refund = $refund + ($orderRefundItem->total_amt);
+                        }
+                        /* if($orderRefundItems){
+                            foreach($orderRefundItems as $orderRefundItem){
+                                $refund = $refund + ($orderRefundItem->total_amt);
+                            }
+
+
+                        } */
+
+                    }
+                    $amt = ($orderitem->total_amt) - ($refund);
+                    $total = $total + $amt;
+
+                }
+            }
+            return round($total);
+        }
 }

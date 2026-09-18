@@ -87,6 +87,7 @@ BOOSTER = {
     'CJuiDatePicker': 'CJuiDatePicker',
     'TbTypeAhead': 'TbTypeAhead',
     'TbEditableColumn': 'EditableColumn',
+    'EChosenWidget': 'EChosenWidget',
 }
 
 
@@ -227,6 +228,22 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"\b(?:Gx|C)Html::dropDownList\s*\(", 'Html::dropDownList(', src)
     src = re.sub(r"\b(?:Gx|C)Html::submitButton\s*\(", 'Html::submitButton(', src)
     src = re.sub(r"\b(?:Gx|C)Html::textField\s*\(", 'Html::textInput(', src)
+    # Html::activeListBox with multiple => true also emits Yii 2's hidden
+    # "nothing selected" input, which Yii 1 does not. ActiveForm::noUnselect()
+    # turns it off; the raw calls in the views go through it too.
+    src = re.sub(r"\b(?:Gx|C)Html::activeListBox\s*\(", 'Html::activeListBox(', src)
+    src = re.sub(r"(Html::activeListBox\s*\((?:[^()]|\([^()]*\))*?,\s*)(\[[^\[\]]*'multiple'[^\[\]]*\])(\s*\))",
+                 lambda m: m.group(1) + 'ActiveForm::noUnselect(' + m.group(2) + ')' + m.group(3), src)
+    src = re.sub(r"\b(?:Gx|C)Html::listBox\s*\(", 'Html::listBox(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeCheckBoxList\s*\(", 'Html::activeCheckboxList(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeRadioButtonList\s*\(", 'Html::activeRadioList(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeFileField\s*\(", 'Html::activeFileInput(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activePasswordField\s*\(", 'Html::activePasswordInput(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::hiddenField\s*\(", 'Html::hiddenInput(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::button\s*\(", 'Html::button(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::label\s*\(", 'Html::label(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::tag\s*\(", 'Html::tag(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::ajaxLink\s*\(", 'Html::a(', src)
     src = re.sub(r"\bGxHtml::encodeEx\s*\(", 'Gx::encodeEx(', src)
     # listDataEx over an already-loaded array of models. The rename runs
     # before the argument is rewritten below, so both forms end up as
@@ -333,6 +350,12 @@ def rewrite(src, ctrl, unknown):
         converted, ok, _ = port_model.convert_criteria(src)
         if ok:
             src = converted
+
+    # Yii::import() has no Yii 2 equivalent: classes are autoloaded, and the
+    # generated `use` statements name them. The call is dropped rather than
+    # translated - there is nothing for it to become.
+    src = re.sub(r"(?m)^[ \t]*Yii::import\s*\([^;]*\);[ \t]*\n", '', src)
+    src = re.sub(r"Yii::import\s*\([^;]*\);", '', src)
 
     # Yii 1's logger, which a few views call directly. Same mapping the models
     # and controllers use: the level becomes the method name.

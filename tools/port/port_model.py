@@ -366,6 +366,33 @@ def port_search_sort(body):
     return '[' + ', '.join(cols) + ']' if cols else None
 
 
+def port_page_size(body):
+    """
+    The rows-per-page Yii 1's search() gives its provider.
+
+    Read from the provider's `pagination` => `pageSize`, which the generator
+    previously ignored entirely in favour of CPagination's default of 10.
+    Item's admin grid asks for 100, so the port was showing a tenth of the
+    rows.
+
+    Only the first provider in the method counts: Item's search() has a second
+    `return new CActiveDataProvider` after the first, with a different page
+    size, which PHP never reaches.
+    """
+    if not body:
+        return None
+    stripped = re.sub(r'//[^\n]*', '', body)
+    stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.S)
+    cut = stripped.find('return new CActiveDataProvider')
+    if cut >= 0:
+        nxt = stripped.find('return new CActiveDataProvider', cut + 1)
+        if nxt >= 0:
+            stripped = stripped[:nxt]
+    m = re.search(r"'pageSize'\s*=>\s*'?(\d+)'?", stripped)
+
+    return m.group(1) if m else None
+
+
 def port_search(body, warn):
     """The compare() calls that back the admin grid."""
     exact, partial = [], []
@@ -513,10 +540,33 @@ def convert_criteria(text):
     decls = re.findall(r'\$(\w+)\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;', text)
     if not decls:
         return original, False, 'no CDbCriteria'
-    if len(set(decls)) > 1:
-        return original, False, 'more than one criteria variable (%s)' % ', '.join(sorted(set(decls)))
 
-    var = decls[0]
+    # A method can build more than one query - Item::getAllVendors() uses
+    # $criteria1 for the vendors already attached and $criteria for the rest.
+    # Each has its own declaration and its own finder, so each converts on its
+    # own; the first that cannot is reported and the whole method is left.
+    names = list(dict.fromkeys(decls))
+    if len(names) > 1:
+        out = text
+        for name in names:
+            converted, ok, why = convert_one_criteria(out, name)
+            if not ok:
+                return original, False, why
+            out = converted
+        if re.search(r'\$(?:' + '|'.join(re.escape(n) for n in names) + r')\b', out):
+            return original, False, 'a criteria reference survived the rewrite'
+        return restore(out), True, ''
+
+    var = names[0]
+    converted, ok, why = convert_one_criteria(text, var)
+    if not ok:
+        return original, False, why
+
+    return restore(converted), True, ''
+
+
+def convert_one_criteria(text, var):
+    """Convert the query built on one named criteria variable."""
     V = r'\$' + re.escape(var)
 
     find = re.search(r"(\w+)::model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*" + V + r"\s*\)", text)
@@ -569,6 +619,8 @@ def convert_criteria(text):
         bits = split_args_php(args)
         if name == 'addInCondition' and len(bits) >= 2:
             return '$query->andWhere([%s => %s]);' % (bits[0].strip(), bits[1].strip())
+        if name == 'addNotInCondition' and len(bits) >= 2:
+            return "$query->andWhere(['not in', %s, %s]);" % (bits[0].strip(), bits[1].strip())
         if name == 'addBetweenCondition' and len(bits) >= 3:
             return "$query->andWhere(['between', %s, %s, %s]);" % tuple(b.strip() for b in bits[:3])
         if name == 'addSearchCondition' and len(bits) >= 2:
@@ -578,8 +630,9 @@ def convert_criteria(text):
             return 'Criteria::compare($query, %s, %s%s);' % (bits[0].strip(), bits[1].strip(), partial)
         return m.group(0)
 
-    out = re.sub(V + r"\s*->\s*(addCondition|addInCondition|addBetweenCondition|"
-                 r"addSearchCondition|compare)\s*\((.*?)\)\s*;", helper, out, flags=re.S)
+    out = re.sub(V + r"\s*->\s*(addCondition|addInCondition|addNotInCondition|"
+                 r"addBetweenCondition|addSearchCondition|compare)\s*\((.*?)\)\s*;",
+                 helper, out, flags=re.S)
 
     tail = {'findAll': '$query->all()', 'find': '$query->one()', 'count': '$query->count()'}[kind]
     out = re.sub(r"\w+::model\s*\(\s*\)\s*->\s*(?:findAll|find|count)\s*\(\s*" + V + r"\s*\)",
@@ -587,9 +640,9 @@ def convert_criteria(text):
 
     if re.search(V + r'\b', out):
         left = sorted(set(re.findall(V + r'\s*->\s*(\w+)', out))) or ['a bare reference']
-        return original, False, 'CDbCriteria uses ' + ', '.join(left)
+        return text, False, 'CDbCriteria uses ' + ', '.join(left)
 
-    return restore(out), True, ''
+    return out, True, ''
 
 
 def split_two(args):
@@ -671,6 +724,9 @@ def yii1_idioms(text):
     to the logging rules - the rules were only ever applied to the other half
     of the file.
     """
+    # Yii::import() has no Yii 2 equivalent; classes are autoloaded.
+    text = re.sub(r"Yii::import\s*\([^;]*\);", '', text)
+
     text = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', text)
     text = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', text)
 
@@ -853,6 +909,7 @@ def generate(model, table_alias):
     exact, partial = port_search(search_body, warn)
     eager = port_with(search_body)
     search_sort = port_search_sort(search_body)
+    page_size = port_page_size(search_body)
 
     has_before_validate = 'function beforeValidate' in base
     default_order = port_default_scope(base, warn, concrete)
@@ -1132,7 +1189,12 @@ def generate(model, table_alias):
     A('            // rejects as a key unless it is declared as a sortable')
     A('            // attribute. orderBy takes it as written.')
     A("            'sort' => ['defaultOrder' => []],")
-    A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
+    if page_size:
+        A("            // The page size Yii 1's search() asks its provider for, which")
+        A('            // is not always the framework default.')
+        A("            'pagination' => ['pageSize' => %s]," % page_size)
+    else:
+        A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
     A('        ]);')
     A('')
     A('        if (self::listingOrder()) {')
@@ -1252,6 +1314,14 @@ def merge(existing, generated, model, warn):
     #     of it loaded defaults in the search scenario too, which filtered the
     #     grid by every column that has one.
     replace = ['attributeLabels', 'defaultOrder', 'listingOrder', 'init']
+
+    #   search() - but only on a full port, never on a presentation-only merge
+    #     into a model this pipeline is not porting. search() backs the admin
+    #     grid and nothing else: the API does not call it. Keeping an older
+    #     generated one meant Item's grid kept a page size of 10 where Yii 1
+    #     asks its provider for 100, so the port showed a tenth of the rows.
+    if 'presentation-only' not in ' '.join(warn):
+        replace.append('search')
     replace += [n for n, _ in method_blocks(generated) if re.match(r'get\w*Options$', n)]
     for name in replace:
         if name not in have:
