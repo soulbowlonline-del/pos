@@ -60,4 +60,119 @@ class PurchaseOrder extends ActiveRecord
     {
         return ['id' => SORT_DESC];
     }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = ["UnApproved","Approved","Rejected"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = ["TYPE1","TYPE2","TYPE3"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public function getPurchaseBills()
+    {
+        return $this->hasMany(PurchaseBill::class, ['purchase_order_id' => 'id']);
+    }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getMrn()
+    {
+        return $this->hasOne(Mrn::class, ['id' => 'mrn_id']);
+    }
+
+    public function getOrganization()
+    {
+        return $this->hasOne(Organization::class, ['id' => 'organization_id']);
+    }
+
+    public function getOutlet()
+    {
+        return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getVendor()
+    {
+        return $this->hasOne(Vendor::class, ['id' => 'vendor_id']);
+    }
+
+    public function getPurchaseOrderDetails()
+    {
+        return $this->hasMany(PurchaseOrderDetail::class, ['purchase_order_id' => 'id']);
+    }
 }

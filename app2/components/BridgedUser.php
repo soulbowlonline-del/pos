@@ -62,4 +62,24 @@ class BridgedUser extends User
             ? $_SESSION[self::BRIDGE_KEY]
             : null;
     }
+
+    /**
+     * Yii 1 put flash messages on the user component; Yii 2 keeps them on the
+     * session. The views say Yii::$app->user->hasFlash(...), so the three
+     * accessors forward.
+     */
+    public function hasFlash($key)
+    {
+        return Yii::$app->session->hasFlash($key);
+    }
+
+    public function getFlash($key, $defaultValue = null, $delete = true)
+    {
+        return Yii::$app->session->getFlash($key, $defaultValue, $delete);
+    }
+
+    public function setFlash($key, $value = true)
+    {
+        Yii::$app->session->setFlash($key, $value);
+    }
 }

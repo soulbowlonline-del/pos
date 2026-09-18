@@ -11,6 +11,8 @@ use yii\helpers\ArrayHelper;
  */
 class DetailView extends \yii\widgets\DetailView
 {
+    use IgnoresLegacyOptions;
+
     /** @var object alias for TbDetailView's `data` */
     public $data;
 

@@ -106,6 +106,16 @@ Each was found by the comparison suite, not by reading the code.
   relation - and Yii 1 rendered an empty cell where Yii 2 returns a 500. The
   same trait restores the null. This hides genuine typos, which is why it is
   written down here.
+- **Eager loading is part of the result.** Yii 1's `$criteria->with` loads a
+  BELONGS_TO relation by JOIN in the same query. Where the listing has no
+  `ORDER BY`, that join is what decides which rows the first page shows, so
+  dropping it - or using Yii 2's `with()`, which runs a second query - gives a
+  page of entirely different rows. The generator emits `joinWith()`.
+- **A model needs a search scenario before its grid has filters.** Yii 2 will
+  not build a filter input for an attribute that is not safe in the current
+  scenario. Models the API port wrote have their own `rules()` with no search
+  scenario, so merging the UI into them produced grids with no filters at all
+  and no error anywhere.
 - **Validation in `search()`.** Yii 1's generated `search()` compares whatever
   is set and never validates. Porting it with Yii 2's usual
   `load(); validate();` shape broke every filter: the `required` rule on
@@ -140,25 +150,30 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page: `paymentMode`,
-`userRole`, `advanceLogs`, `empShift`, `question`, `shift`, `advancePayment`,
-`itemExpireItem`. That is 8 of the 59 controllers and 48 comparison cases.
+Served by Yii 2 and matching Yii 1 on every compared page - 19 of the 59
+controllers, 112 comparison cases:
 
-Five more were generated and **rejected by the comparison**, so they are still
-served by Yii 1 and their generated code is not in the tree - it would be dead
-code nobody checked, and `batch_port.py` reproduces it in seconds. What each
-one still differs on:
+`paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
+`advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
+`bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
+`state`, `city`, `stockLog`.
 
-| controller | what differs |
+Two were generated and **rejected by the comparison**, and are still served by
+Yii 1. Their generated code is not in the tree - it would be dead code nobody
+checked, and `batch_port.py` reproduces it in seconds.
+
+| controller | why it was rejected |
 |---|---|
-| `itemCompanyCategory` | `view` returns 500 where Yii 1 returns 200. Its relation panel renders `item/_list.php`, which needs the item views ported - and `app2/views/item/` already holds the hand-ported `_pdf.php` that the punchorder API renders, so that directory has to be merged rather than generated. |
-| `bill` | `update` returns 500 where Yii 1 returns 200. |
-| `itemTax` | the admin grid does not render; `index` and `create` differ. |
-| `paymentReport` | the admin grid does not render. Its model's `setAllPayment()` still contains a `CDbCriteria` the concrete-method translator does not recognise, and says so. |
-| `itemExpire` | the admin grid does not render; `index` reads `$data->item`, a relation the model does not declare. |
+| `itemTax` | The admin listing has no `ORDER BY` over 25,483 rows, so which ten appear on page one is decided by the query plan. Yii 1 and Yii 2 build equivalent but different SQL and select different rows. |
+| `itemExpire` | The same, and its grid footer sums the ids of the rows the page selected, so the total differs too. |
 
-Nothing here is mysterious; each needs a translator rule or a hand-written
-method, and the suite will say when it is right.
+Neither is a defect in the port, and neither is unstable *within* a stack -
+Yii 1's footer total does match the ten rows Yii 1 displays. But two SQL
+builders cannot be made to agree on an unordered `LIMIT` without giving the
+query an order, and adding one changes what an operator sees. That is the
+owner's call. Both pages would become deterministic - and portable - with an
+`ORDER BY id DESC`, which is what every other listing in the application
+already has by way of `defaultScope()`.
 
 ## What is not carried across
 

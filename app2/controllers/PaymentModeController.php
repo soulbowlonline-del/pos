@@ -31,10 +31,10 @@ class PaymentModeController extends BaseUiController
         return $this->render('index', [
             'dataProvider' => new ActiveDataProvider([
                 'query' => PaymentMode::find(),
-                // GxActiveRecord::defaultScope() orders every model by
-                // id DESC, so Yii 1's list is newest first even though this
-                // provider names no sort.
-                'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
+                // The model's own defaultScope() decides the order. Most
+                // inherit `id DESC`; 22 of the 72 override it to none, so the
+                // provider asks rather than assuming.
+                'sort' => ['defaultOrder' => PaymentMode::defaultOrder() ?: []],
                 'pagination' => ['pageSize' => Ui::PAGE_SIZE],
             ]),
         ]);

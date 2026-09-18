@@ -28,6 +28,17 @@ class Ui
         'shift',
         'advancePayment',
         'itemExpireItem',
+        'paymentReport',
+        'itemCompanyCategory',
+        'bill',
+        'session',
+        'itemVendor',
+        'notification',
+        'creditNote',
+        'state',
+        'city',
+        'stockLog',
+        'permission',
     ];
 
     /**
@@ -36,6 +47,15 @@ class Ui
      */
     public static function to($route, $params = [])
     {
+        // Some call sites put the query in the route itself -
+        // createUrl('itemTax/admin?exportCSV=1') - which Yii 1 accepted.
+        // Split it off, or the whole string is taken for a route name.
+        if (($q = strpos($route, '?')) !== false) {
+            parse_str(substr($route, $q + 1), $inline);
+            $params = array_merge($inline, $params);
+            $route = substr($route, 0, $q);
+        }
+
         $controller = strtok($route, '/');
 
         if (in_array($controller, self::PORTED, true)) {

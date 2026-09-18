@@ -240,4 +240,216 @@ class User extends ActiveRecord
     {
         return ['id' => SORT_DESC];
     }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    public static function getAllRoleOptions($id = null)
+    {
+		$list = [];
+		$alreadyroles = [6,7];
+		$criteria = new CDbCriteria();
+		$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
+		$criteria->addNotInCondition('id', $alreadyroles);
+		$criteria->order = 'title asc';
+		$roles = UserRole::model()->findAll($criteria);
+	
+		if($roles){
+			foreach($roles as $role){
+				$list[$role->id] = $role->title;
+			}
+		}
+		return $list;
+    }
+
+    public static function getAllUserOptions($id = null)
+    {
+		$list = [];
+		$alreadyroles = [6,7];
+		$criteria = new CDbCriteria();
+		$criteria->addCondition('state_id = 1');
+		$criteria->order = 'full_name asc';
+		$users = User::model()->findAll($criteria);
+	
+		if($users){
+			foreach($users as $user){
+				$list[$user->id] = $user->full_name;
+			}
+		}
+		return $list;
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = [
+				self::STATUS_INACTIVE => 'Inactive',
+				self::STATUS_ACTIVE =>  'Active',
+				self::STATUS_BANNED =>  'Banned',
+				self::STATUS_REMOVED =>  'Removed' ];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = ["Type1","Type2"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public static function getMerchantOptions(){
+            $userlist = [];
+            $users = User::findAll(['role_id'=>User::ROLE_MERCHANT]);
+            if($users)
+            {
+                foreach($users as $user)
+                {
+                    $userlist[$user->id] = $user->full_name;
+                }
+            }
+            return $userlist;
+        }
+
+    public function getStoreOptions(){
+            $store_arr = [];
+            $string = '';
+            $stores = MerchantStore::findAll(['merchant_id'=>$this->id]);
+            if($stores)
+            {
+                foreach($stores as $store)
+                {
+                    $storedata = Store::findOne($store->store_id);
+                    $store_arr[] = $storedata->title;
+                }
+                if(!empty($store_arr))
+                {
+                    $string = implode(',',$store_arr);
+                }
+
+            }
+            return $string;
+        }
+
+    public function getAuthSessions()
+    {
+        return $this->hasMany(AuthSession::class, ['create_user_id' => 'id']);
+    }
+
+    public function getCallcenters()
+    {
+        return $this->hasMany(Callcenter::class, ['user_id' => 'id']);
+    }
+
+    public function getCardDetails()
+    {
+        return $this->hasMany(CardDetails::class, ['user_id' => 'id']);
+    }
+
+    public function getDispatchers()
+    {
+        return $this->hasMany(Dispatcher::class, ['user_id' => 'id']);
+    }
+
+    public function getDrivers()
+    {
+        return $this->hasMany(Driver::class, ['user_id' => 'id']);
+    }
+
+    public function getGroups()
+    {
+        return $this->hasMany(Group::class, ['create_user_id' => 'id']);
+    }
+
+    public function getJourneys()
+    {
+        return $this->hasMany(Journey::class, ['create_user_id' => 'id']);
+    }
+
+    public function getNotifications()
+    {
+        return $this->hasMany(Notification::class, ['create_user_id' => 'id']);
+    }
+
+    public function getUserGroups()
+    {
+        return $this->hasMany(UserGroup::class, ['user_id' => 'id']);
+    }
+
+    public function getBar()
+    {
+        return $this->hasOne(Bar::class, ['create_user_id' => 'id']);
+    }
+
+    public function getTrans()
+    {
+        return $this->hasOne(Transaction::class, ['user_id' => 'id']);
+    }
+
+    public function getRole()
+    {
+        return $this->hasOne(UserRole::class, ['id' => 'role_id']);
+    }
+
+    public function getStores()
+    {
+        return $this->hasMany(MerchantStore::class, ['merchant_id' => 'id']);
+    }
 }

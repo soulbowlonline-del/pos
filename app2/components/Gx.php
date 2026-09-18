@@ -31,6 +31,17 @@ class Gx
     {
         $out = [];
 
+        // The call sites pass either a class - listDataEx(X::model()->find...)
+        // rewritten by the porter - or an already-loaded array of models,
+        // listDataEx(State::findAll([...])). Yii 1's helper only ever saw the
+        // second; this answers both.
+        if (is_array($class)) {
+            foreach ($class as $row) {
+                $out[$row->primaryKey] = (string) $row;
+            }
+            return $out;
+        }
+
         // findAllAttributes(null, true) selects the primary key and the
         // representing column and nothing else, under whatever
         // defaultScope() the model declares. Both details matter: the model
@@ -54,6 +65,34 @@ class Gx
         foreach ($query->all() as $row) {
             $out[$row->primaryKey] = (string) $row;
         }
+        return $out;
+    }
+
+    /**
+     * GxHtml::encodeEx(): encode() that walks into arrays.
+     *
+     * Only values are encoded by default, and only strings, exactly as the
+     * Yii 1 version does - the call sites pass option lists whose keys are
+     * ids.
+     */
+    public static function encodeEx($data, $encodeKeys = false, $encodeValues = false,
+                                    $recursive = true)
+    {
+        if (!is_array($data)) {
+            return is_string($data) ? \yii\helpers\Html::encode($data) : $data;
+        }
+
+        $out = [];
+        foreach ($data as $key => $value) {
+            $k = ($encodeKeys && is_string($key)) ? \yii\helpers\Html::encode($key) : $key;
+            if (is_array($value)) {
+                $v = $recursive ? self::encodeEx($value, $encodeKeys, $encodeValues, $recursive) : $value;
+            } else {
+                $v = ($encodeValues && is_string($value)) ? \yii\helpers\Html::encode($value) : $value;
+            }
+            $out[$k] = $v;
+        }
+
         return $out;
     }
 

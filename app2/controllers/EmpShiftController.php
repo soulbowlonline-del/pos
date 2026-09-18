@@ -5,6 +5,7 @@ use app\components\Ui;
 use app\models\EmpShift;
 use Yii;
 use yii\data\ActiveDataProvider;
+use yii\helpers\Html;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
@@ -97,9 +98,10 @@ class EmpShiftController extends BaseUiController {
 	{
 		$this->updateMenuItems();
 		$dataProvider = new ActiveDataProvider(['query' => EmpShift::find(),
-            // GxActiveRecord::defaultScope() orders every model by
-            // id DESC, and Yii 1 paginates 10 rows at a time.
-            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
+            // The model's own defaultScope() decides the order - most
+            // inherit `id DESC`, but 22 of them override it to none.
+            // Hardcoding id DESC here listed rows Yii 1 never showed.
+            'sort' => ['defaultOrder' => EmpShift::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render('index', [
 			'dataProvider' => $dataProvider,

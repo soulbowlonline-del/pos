@@ -77,6 +77,8 @@ BOOSTER = {
     # ported under the same name
     'CommentPortlet': 'CommentPortlet',
     'CGridView': 'GridView',
+    'CJuiRadioButtonList': 'CJuiRadioButtonList',
+    'CJuiDatePicker': 'CJuiDatePicker',
 }
 
 
@@ -87,18 +89,25 @@ def widgets(src, unknown):
         if name not in BOOSTER:
             unknown.append(name)
             return m.group(0)
+
         # Yii 1's $this->widget() writes to the output buffer; Yii 2's
         # X::widget() returns a string. Without the echo the widget renders
-        # nothing at all - a page that is missing its grid but raises no error.
-        prefix = already_echoed or 'echo '
+        # nothing at all - a page missing its grid but raising no error.
+        #
+        # Only when the call is a statement, though. The views also use it as
+        # an expression - 'filter' => $this->widget('...CJuiDatePicker', ...) -
+        # where Yii 1 returned the widget object and an echo is a parse error.
+        before = src[:m.start()].rstrip()
+        expression = before.endswith(('=>', '=', '(', ',', '.', 'return'))
+        prefix = already_echoed or ('' if expression else 'echo ')
         return prefix + BOOSTER[name] + '::widget('
 
-    src = re.sub(r"(echo\s+)?\$this->widget\(\s*'(?:bootstrap\.widgets\.|zii\.widgets\.\w+\.)?([A-Za-z]+)'\s*,\s*",
+    src = re.sub(r"(echo\s+)?\$this\s*->\s*widget\s*\(\s*'(?:[\w.]*\.)?([A-Za-z]+)'\s*,\s*",
                  repl, src)
     # the begin/end pair used by forms
-    src = re.sub(r"\$form\s*=\s*\$this->beginWidget\(\s*'bootstrap\.widgets\.TbActiveForm'\s*,\s*",
+    src = re.sub(r"\$form\s*=\s*\$this\s*->\s*beginWidget\s*\(\s*'bootstrap\.widgets\.TbActiveForm'\s*,\s*",
                  '$form = ActiveForm::begin(', src)
-    src = re.sub(r"\$this->endWidget\(\s*\)", 'ActiveForm::end()', src)
+    src = re.sub(r"\$this\s*->\s*endWidget\s*\(\s*\)", 'ActiveForm::end()', src)
     return src
 
 
@@ -164,30 +173,50 @@ def rewrite(src, ctrl, unknown):
     src = widgets(src, unknown)
 
     # $form->widget() cannot keep its name in Yii 2 - see ActiveForm.
-    src = re.sub(r'\$form->widget\(', '$form->renderWidget(', src)
+    src = re.sub(r'\$form\s*->\s*widget\s*\(', '$form->renderWidget(', src)
 
     # Yii::t('app', 'X') -> 'X'   (no translations are configured; Yii 1
     # returns the message unchanged)
     src = re.sub(r"Yii::t\(\s*'[^']*'\s*,\s*('(?:[^'\\]|\\.)*')\s*\)", r'\1', src)
 
     # URLs
-    src = re.sub(r"Yii::app\(\)->createUrl\(", 'Ui::to(', src)
-    src = re.sub(r"Yii::app\(\)->controller->createUrl\(", 'Ui::to(', src)
-    src = re.sub(r"\$this->createUrl\(", 'Ui::to(', src)
+    # These files are written both `Yii::app()->createUrl(` and
+    # `Yii::app ()->createUrl (`. Every pattern here has to allow the space, or
+    # the call survives the transform and the page dies on first request.
+    src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*createUrl\s*\(", 'Ui::to(', src)
+    src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*controller\s*->\s*createUrl\s*\(", 'Ui::to(', src)
+    src = re.sub(r"\$this\s*->\s*createUrl\s*\(", 'Ui::to(', src)
 
     # html helpers
-    src = re.sub(r"\bGxHtml::encode\(", 'Html::encode(', src)
-    src = re.sub(r"\bCHtml::encode\(", 'Html::encode(', src)
-    src = re.sub(r"\bGxHtml::link\(", 'Html::a(', src)
-    src = re.sub(r"\bCHtml::link\(", 'Html::a(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::encode\s*\(", 'Html::encode(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::link\s*\(", 'Html::a(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::image\s*\(", 'Html::img(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeTextField\s*\(", 'Html::activeTextInput(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeTextArea\s*\(", 'Html::activeTextarea(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeDropDownList\s*\(", 'Html::activeDropDownList(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::activeHiddenField\s*\(", 'Html::activeHiddenInput(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::dropDownList\s*\(", 'Html::dropDownList(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::submitButton\s*\(", 'Html::submitButton(', src)
+    src = re.sub(r"\b(?:Gx|C)Html::textField\s*\(", 'Html::textInput(', src)
+    src = re.sub(r"\bGxHtml::encodeEx\s*\(", 'Gx::encodeEx(', src)
+    # listDataEx over an already-loaded array of models. The rename runs
+    # before the argument is rewritten below, so both forms end up as
+    # Gx::listData(...) - a class name or a list of models, either of which it
+    # accepts.
+    src = re.sub(r"\bGxHtml::listDataEx\s*\(", 'Gx::listData(', src)
+
+    # X::model()->findAllAttributes(...) is Yii 1's "every row, two columns".
+    # Reduced to the class, because Gx::listData() does that selection itself -
+    # and it has to work whether or not the call is wrapped in listData.
+    src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*findAllAttributes\s*\([^)]*\)",
+                 lambda m: m.group(1) + '::class', src)
 
     # GxHtml::valueEx($model) is the model's __toString
-    src = re.sub(r"GxHtml::valueEx\(\s*(\$[A-Za-z_][\w>()\-\$\[\]']*)\s*\)", r'Gx::str(\1)', src)
+    src = re.sub(r"GxHtml::valueEx\s*\(\s*(\$[A-Za-z_][\w>()\-\$\[\]']*)\s*\)", r'Gx::str(\1)', src)
     # GxHtml::listDataEx(Model::model()->findAllAttributes(null, true))
-    src = re.sub(r"GxHtml::listDataEx\(\s*([A-Za-z_]\w*)::model\(\)->findAllAttributes\([^)]*\)\s*\)",
-                 lambda m: "Gx::listData(" + m.group(1) + "::class)", src)
 
-    src = re.sub(r"GxActiveRecord::extractPkValue\(\s*(\$[\w>\-()\$\[\]']*)\s*,[^)]*\)",
+
+    src = re.sub(r"GxActiveRecord::extractPkValue\s*\(\s*(\$[\w>\-()\$\[\]']*)\s*,[^)]*\)",
                  lambda m: 'Gx::pk(' + m.group(1) + ')', src)
 
     # A Yii 1 url is a route string or ['route', 'k' => v]; Gx::url() sends it
@@ -199,10 +228,18 @@ def rewrite(src, ctrl, unknown):
     # View, and the controller is $this->context.
     for meth in ('StartPanel', 'AddPanel', 'AddNewPanel', 'EndPanel',
                  'EndPanelLeft', 'EndPanelRight', 'updateMenuItems',
-                 'loadModel', 'isAllowed'):
-        src = re.sub(r'\$this->' + meth + r'\s*\(', '$this->context->' + meth + '(', src)
+                 'loadModel', 'isAllowed', 'richTextEditor', 'isExportRequest',
+                 'exportCSV'):
+        src = re.sub(r'\$this\s*->\s*' + meth + r'\s*\(', '$this->context->' + meth + '(', src)
     src = re.sub(r'\$this->pageCaption\b', '$this->context->pageCaption', src)
     src = re.sub(r'\$this->pageTitle\b', '$this->title', src)
+
+    # `X::model()->find*` in a view, which a few of them do directly.
+    M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
+    src = re.sub(M + r"findByPk\s*\(", lambda m: m.group(1) + '::findOne(', src)
+    src = re.sub(M + r"findByAttributes\s*\(", lambda m: m.group(1) + '::findOne(', src)
+    src = re.sub(M + r"findAllByAttributes\s*\(", lambda m: m.group(1) + '::findAll(', src)
+    src = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', src)
 
     # controller state the views set or read
     src = re.sub(r"\$this->breadcrumbs\s*=", "$this->params['breadcrumbs'] =", src)
@@ -210,19 +247,19 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"\$this->actions\b", '$this->context->actions', src)
 
     # inline script
-    src = re.sub(r"Yii::app\(\)->clientScript->registerScript\(\s*'[^']*'\s*,\s*",
+    src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*clientScript\s*->\s*registerScript\s*\(\s*'[^']*'\s*,\s*",
                  '$this->registerJs(', src)
 
     # Whatever Yii::app() calls are left after the specific rewrites above -
     # user, session, params, request. The accessor differs; the shape does not.
-    src = re.sub(r'Yii::app\(\)->', 'Yii::$app->', src)
-    src = re.sub(r'Yii::app\(\)', 'Yii::$app', src)
+    src = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', src)
+    src = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', src)
 
     # Partials. Yii 1's renderPartial() writes to the output buffer; Yii 2's
     # render() returns the string. Without the echo the partial is rendered and
     # thrown away - the page comes back 200 with its grid or its form simply
     # absent, which no status check would catch.
-    src = re.sub(r"(=\s*|echo\s+|return\s+)?\$this->renderPartial\(",
+    src = re.sub(r"(=\s*|echo\s+|return\s+)?\$this\s*->\s*renderPartial\s*\(",
                  lambda m: (m.group(1) or 'echo ') + '$this->render(', src)
 
     # grid/detail column keys
@@ -277,16 +314,30 @@ def imports(src, ctrl):
         need.append('use app\\widgets\\ActionColumn;')
     if 'ActiveForm::' in src:
         need.append('use app\\widgets\\ActiveForm;')
-    # Model classes referenced statically. A short name already imported from
-    # somewhere else - a widget, a helper - must not be imported again from
-    # app\models: two use statements for the same alias is a fatal error.
+    # Model classes the file names, in any form: a static call, a constant,
+    # ::class. An earlier version matched only get*/label/model/class and left
+    # `State::findAll(...)` and `State::STATUS_ACTIVE` unimported, which is a
+    # fatal error at the point the page is rendered rather than parsed.
+    #
+    # A short name already imported from somewhere else - a widget, a helper -
+    # must not be imported again: two use statements for one alias is fatal.
     taken = {u.rsplit('\\', 1)[-1].rstrip(';') for u in need}
-    for cls in set(re.findall(r'\b([A-Z]\w+)::(?:get\w+|label|model|class)\b', src)):
-        if cls in taken or cls in ('Html', 'Ui', 'Access', 'Gx', 'Yii'):
+    for cls in set(re.findall(r'\b([A-Z]\w+)::', src)):
+        if cls in taken or cls in ('Html', 'Ui', 'Access', 'Gx', 'Yii', 'self',
+                                   'static', 'parent'):
+            continue
+        if not is_model(cls):
             continue
         need.append('use app\\models\\' + cls + ';')
         taken.add(cls)
     return sorted(set(need))
+
+
+def is_model(cls):
+    """Whether this name is one of the application's models."""
+    return (os.path.exists('/root/pos/pos83/protected/models/_base/Base%s.php' % cls)
+            or os.path.exists('/root/pos/pos83/protected/models/%s.php' % cls)
+            or os.path.exists('/root/pos/pos83/app2/models/%s.php' % cls))
 
 
 def port_file(path, ctrl):

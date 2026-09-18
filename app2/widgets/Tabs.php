@@ -12,6 +12,8 @@ use yii\helpers\Html;
  */
 class Tabs extends Widget
 {
+    use IgnoresLegacyOptions;
+
     public $type = 'tabs';
     public $tabs = [];
     public $htmlOptions = [];

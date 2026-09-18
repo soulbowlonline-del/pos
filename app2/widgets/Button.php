@@ -8,6 +8,8 @@ use yii\helpers\Html;
 /** Stand-in for bootstrap.widgets.TbButton. */
 class Button extends Widget
 {
+    use IgnoresLegacyOptions;
+
     public $buttonType = 'button';
     public $type = '';
     public $label = '';

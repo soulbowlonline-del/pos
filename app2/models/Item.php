@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use Yii;
+
 use yii\db\ActiveRecord;
 
 /** Ported from protected/models/Item.php (Yii 1). */
@@ -180,5 +182,181 @@ class Item extends ActiveRecord
     public static function defaultOrder()
     {
         return null;
+    }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = [
+				"Active",
+				"Inactive" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = [
+				"Finished",
+				"Kot",
+				"combo",
+				'Semi finished',
+				'Material' 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getTypeKeyOptions($id = null)
+    {
+		$list = [
+				"Finished",
+				"Kot",
+				"combo",
+				'Semi finished',
+				'Material' 
+		];
+		
+		foreach ( $list as $key => $val ) {
+			if ($val == $value) {
+				return $key;
+			}
+		}
+		
+		return '0';
+    }
+
+    public static function getStatusKeyOptions($id = null)
+    {
+		$list = [
+				"Active",
+				"Inactive" 
+		];
+		
+		foreach ( $list as $key => $val ) {
+			if ($val == $value) {
+				return $key;
+			}
+		}
+		
+		return '0';
+    }
+
+    public static function getStockOptions($id = null)
+    {
+		$list = [
+				"Stockable",
+				"Non Stockable" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getMovementTypeOptions($id = null)
+    {
+		$list = [
+				"Both",
+				"Sale Only",
+				"Purchase Only" 
+		]
+		;
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getSubCompany()
+    {
+        return $this->hasOne(ItemCompanyCategory::class, ['id' => 'sub_company_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getItemDetails()
+    {
+        return $this->hasMany(ItemDetail::class, ['item_id' => 'id']);
+    }
+
+    public function getItemStocks()
+    {
+        return $this->hasMany(ItemStock::class, ['item_id' => 'id']);
     }
 }

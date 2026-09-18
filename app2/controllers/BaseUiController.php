@@ -213,6 +213,19 @@ abstract class BaseUiController extends Controller
         }
     }
 
+    /**
+     * Port of GxController::richTextEditor(): which editor the forms pick.
+     *
+     * The value is a constant 3 in Yii 1, which selects CKEditor. This port
+     * renders the plain textarea underneath either editor, so the number only
+     * decides which branch of the view runs; it is kept the same so the same
+     * branch runs.
+     */
+    public function richTextEditor()
+    {
+        return 3;
+    }
+
     /** Link helper, so views do not have to know which stack serves a route. */
     public function uiUrl($route, $params = [])
     {

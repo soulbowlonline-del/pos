@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use Yii;
+
 use yii\data\ActiveDataProvider;
 
 use app\components\Ui;
@@ -122,18 +124,18 @@ class City extends ActiveRecord
             'id' => 'ID',
             'title' => 'Title',
             'type_id' => 'Type',
-            'state_id' => 'State Id',
+            'state_id' => 'State',
             'status' => 'Status',
             'create_time' => 'Create Time',
             'update_time' => 'Update Time',
-            'create_user_id' => 'Create User Id',
-            'updated_by' => 'Updated By',
-            'createUser' => 'Create User',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'createUser' => 'User',
             'state' => 'State',
-            'updatedBy' => 'Updated By',
+            'updatedBy' => 'User',
             'orders' => 'Orders',
-            'orderHolds' => 'Order Holds',
-            'orderRefunds' => 'Order Refunds',
+            'orderHolds' => 'OrderHolds',
+            'orderRefunds' => 'OrderRefunds',
             'organizations' => 'Organizations',
             'outlets' => 'Outlets',
             'vendors' => 'Vendors',
@@ -234,5 +236,78 @@ class City extends ActiveRecord
     public function getRelationLabel($name, $n = null)
     {
         return $this->getAttributeLabel($name);
+    }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
     }
 }

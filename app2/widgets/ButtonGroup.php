@@ -19,6 +19,8 @@ use yii\helpers\Html;
  */
 class ButtonGroup extends Widget
 {
+    use IgnoresLegacyOptions;
+
     /** @var array menu items: label, url, optional icon and linkOptions */
     public $buttons = [];
 

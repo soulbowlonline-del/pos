@@ -18,6 +18,8 @@ use yii\base\Widget;
  */
 class CommentPortlet extends Widget
 {
+    use IgnoresLegacyOptions;
+
     /** @var \yii\db\ActiveRecord the row the comments would belong to. */
     public $model;
 

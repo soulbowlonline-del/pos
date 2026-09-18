@@ -149,6 +149,16 @@ def port_labels(body, relations_body):
     return out
 
 
+def relations_of(model):
+    """The relation names and kinds declared by the giix base class."""
+    p = f'{ROOT}/protected/models/_base/Base{model}.php'
+    if not os.path.exists(p):
+        return []
+    body = parse_block(read(p), 'relations') or ''
+    return [(m.group(1), m.group(2)) for m in
+            re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*self::(\w+)", body, re.S)]
+
+
 def port_default_scope(base, warn):
     """
     The ordering Yii 1 applies to every query on this model.
@@ -180,15 +190,95 @@ def port_default_scope(base, warn):
     return '[' + ', '.join(cols) + ']'
 
 
+def port_with(body):
+    """
+    The relations Yii 1's search() eager-loads.
+
+    `$criteria->with` is not a convenience here. For a BELONGS_TO relation
+    Yii 1 loads it by JOIN in the same query, so it changes the plan - and
+    where the listing has no ORDER BY, the plan is what decides which ten of
+    25,000 rows the first page shows. Dropping it gave a page of entirely
+    different rows.
+
+    Yii 2's with() runs a second query and would not reproduce that; joinWith()
+    does. Nested `'a' => ['with' => ['b']]` becomes the path 'a.b'.
+    """
+    m = re.search(r"\$criteria->with\s*=\s*array\s*\(", body)
+    if not m:
+        return []
+
+    i = m.end()
+    depth = 1
+    while i < len(body) and depth:
+        if body[i] == '(':
+            depth += 1
+        elif body[i] == ')':
+            depth -= 1
+        i += 1
+    block = body[m.end():i - 1]
+
+    paths = []
+
+    def walk(text, prefix):
+        # 'name' => array('with' => array(...))   - a nested eager load
+        for nm in re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*'with'\s*=>\s*array\s*\(([^)]*)\)",
+                              text, re.S):
+            base = prefix + nm.group(1)
+            inner = re.findall(r"'(\w+)'", nm.group(2))
+            if inner:
+                for x in inner:
+                    paths.append(base + '.' + x)
+            else:
+                paths.append(base)
+        # Bare 'name' entries. Skip the keys handled above, and skip anything
+        # that is already the tail of a nested path - the 'item' inside
+        # 'itemDetail' => ['with' => ['item']] is that relation, not a second
+        # one on the root model.
+        consumed = set(re.findall(r"'(\w+)'\s*=>", text))
+        for nested in re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*'with'\s*=>\s*array\s*\(([^)]*)\)",
+                                  text, re.S):
+            consumed.update(re.findall(r"'(\w+)'", nested.group(2)))
+        for nm in re.findall(r"'(\w+)'", text):
+            if nm in consumed or nm == 'with':
+                continue
+            if prefix + nm in paths:
+                continue
+            if any(pp.startswith(prefix + nm + '.') for pp in paths):
+                continue
+            paths.append(prefix + nm)
+
+    walk(block, '')
+    return paths
+
+
 def port_search(body, warn):
     """The compare() calls that back the admin grid."""
     exact, partial = [], []
     for m in re.finditer(r"\$criteria->compare\s*\(\s*'([^']+)'\s*,\s*\$this->(\w+)\s*(,\s*true)?\s*\)", body):
         col, _, is_partial = m.groups()
         (partial if is_partial else exact).append(col)
-    if 'addCondition' in body or 'with' in body:
+    if 'addCondition' in body:
         warn.append('search() has conditions beyond compare(); check it by hand')
     return exact, partial
+
+
+# Names Yii 2's ActiveRecord/Model already define with an incompatible
+# signature, so a Yii 1 method of the same name cannot simply be carried over.
+CLASHES_WITH_YII2 = {
+    'toArray', 'fields', 'extraFields', 'attributes', 'load', 'validate',
+    'save', 'delete', 'refresh', 'init', 'behaviors', 'scenarios',
+    'formName', 'primaryKey', 'find', 'findOne', 'findAll', 'updateAll',
+    'deleteAll', 'instantiate', 'populateRecord',
+    # Yii 1 constructs with no Yii 2 counterpart. defaultScope() is read by
+    # the generator to build defaultOrder(); carrying the method itself across
+    # would leave dead code that looks like it still governs ordering.
+    'defaultScope', 'relations', 'pivotModels', 'attributeNames', 'behaviors',
+}
+
+YII1_CLASSES = (r'\b(CDbCriteria|CActiveDataProvider|CArrayDataProvider|CDbExpression|'
+                r'CHtml|CException|CHttpException|CJSON|CVarDumper|CLogger|CUploadedFile|'
+                r'CDataProviderIterator|CActiveRecord|CModel|CSort|CPagination|CMap|'
+                r'CTypeValidator|CWidget|CController)\b')
 
 
 def port_concrete(src, model):
@@ -213,6 +303,13 @@ def port_concrete(src, model):
         name = m.group(2)
         if name == 'model':
             continue        # Yii 1's static model() has no Yii 2 equivalent
+        if name in CLASHES_WITH_YII2:
+            # Yii 2's ActiveRecord already declares these, with signatures the
+            # Yii 1 versions do not match - City::toArray() against
+            # Model::toArray(array $fields = [], ...) is a fatal error. The API
+            # port renamed the ones it needed (toArray became toApiArray).
+            notes.append('%s(): not ported - the name is a Yii 2 base method' % name)
+            continue
         # walk the parameter list to its closing paren
         i = m.end(1)
         depth = 1
@@ -274,12 +371,19 @@ def port_concrete(src, model):
         text = re.sub(r'\b(?:Gx|C)Html::image\(', 'Html::img(', text)
         text = re.sub(r'\bGxHtml::valueEx\(', 'Gx::str(', text)
 
-        text = re.sub(r"(\w+)::model\(\)->findByPk\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(r"(\w+)::model\(\)->findByAttributes\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(r"(\w+)::model\(\)->findAllByAttributes\(", lambda mm: mm.group(1) + '::findAll(', text)
-        text = re.sub(r"(\w+)::model\(\)->findAll\(\s*\)", lambda mm: mm.group(1) + '::find()->all()', text)
+        # Written with spaces in places - `ItemDetail::model ()->findByPk (` -
+        # so none of these can require the tight spelling.
+        M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
+        text = re.sub(M + r"findByPk\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
+        text = re.sub(M + r"findByAttributes\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
+        text = re.sub(M + r"findAllByAttributes\s*\(", lambda mm: mm.group(1) + '::findAll(', text)
+        text = re.sub(M + r"findAll\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->all()', text)
+        text = re.sub(M + r"count\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->count()', text)
 
-        leftover = set(re.findall(r'\b(C[A-Z]\w+)\b', text)) | set(re.findall(r'Yii::app\(\)', text))
+        # Named explicitly: "C followed by a capital" also matches this
+        # application's own constants - CGST, CESS - and reported them as
+        # unconverted framework classes on every model with a tax column.
+        leftover = set(re.findall(YII1_CLASSES, text)) | set(re.findall(r'Yii::app\s*\(', text))
         leftover |= set(re.findall(r'(\w+)::model\(\)', text))
         if leftover:
             notes.append('%s(): still contains Yii 1 code - %s'
@@ -319,7 +423,9 @@ def generate(model, table_alias):
     rels = port_relations(parse_block(base, 'relations') or '', warn)
     labels = port_labels(parse_block(base, 'attributeLabels') or '',
                          parse_block(base, 'relations') or '')
-    exact, partial = port_search(parse_block(base, 'search') or '', warn)
+    search_body = parse_block(base, 'search') or ''
+    exact, partial = port_search(search_body, warn)
+    eager = port_with(search_body)
 
     has_before_validate = 'function beforeValidate' in base
     default_order = port_default_scope(base, warn)
@@ -393,6 +499,36 @@ def generate(model, table_alias):
     A('        return %s;' % default_order)
     A('    }')
     A('')
+    A('    /**')
+    A("     * GxActiveRecord::isAllowCreate(): whether the session the operator")
+    A('     * has selected is the current financial year.')
+    A('     *')
+    A("     * The year runs April to March, so a month past April belongs to")
+    A("     * year..year+1 and anything earlier to year-1..year. Session names")
+    A("     * are '<from>-<to>'. False when no session is selected, which is what")
+    A('     * stops the create button appearing.')
+    A('     */')
+    A('    public function isAllowCreate()')
+    A('    {')
+    A("        $month = (int) date('m');")
+    A("        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;")
+    A('        $yearadd = $year + 1;')
+    A('')
+    A("        $selected = Yii::$app->session['select_session_id'];")
+    A("        if ($selected === null || $selected === '') {")
+    A('            return false;')
+    A('        }')
+    A('')
+    A('        $session = Session::findOne($selected);')
+    A('        if ($session === null) {')
+    A('            return false;')
+    A('        }')
+    A("        $parts = explode('-', $session->name);")
+    A('')
+    A('        return isset($parts[0], $parts[1])')
+    A('            && $parts[0] == $year && $parts[1] == $yearadd;')
+    A('    }')
+    A('')
     A('    /** Views ask the model whether the current role may reach a route. */')
     A('    public function checkPermission($url)')
     A('    {')
@@ -409,6 +545,35 @@ def generate(model, table_alias):
     A('        return $this->getAttributeLabel($name);')
     A('    }')
     A('')
+    A('    /**')
+    A('     * GxActiveRecord::getTotals(): the SUM of one column over a set of')
+    A('     * ids, which the grids use for a footer row.')
+    A('     *')
+    A('     * The column and table names are interpolated, as in Yii 1 - the')
+    A('     * call sites pass literals. The ids are bound, which Yii 1 did not:')
+    A('     * they come from the data provider rather than the request, so this')
+    A('     * is not a fix for anything, only a refusal to build the same hole')
+    A('     * again.')
+    A('     */')
+    A('    public function getTotals($ids, $columnname, $tablename)')
+    A('    {')
+    A('        if (empty($ids)) {')
+    A('            return null;')
+    A('        }')
+    A('')
+    A('        $placeholders = [];')
+    A('        $params = [];')
+    A('        foreach (array_values($ids) as $i => $id) {')
+    A("            $placeholders[] = ':id' . $i;")
+    A("            $params[':id' . $i] = $id;")
+    A('        }')
+    A('')
+    A('        return Yii::$app->db->createCommand(')
+    A("            'SELECT SUM(' . $columnname . ') FROM ' . $tablename")
+    A("            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)")
+    A('            ->queryScalar();')
+    A('    }')
+    A('')
     A('    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */')
     A('    public function getRelatedDataProvider($relation, $config = [])')
     A('    {')
@@ -423,6 +588,14 @@ def generate(model, table_alias):
     A('            $config));')
     A('    }')
     for name, body in options:
+        # Yii 1 writes `if ($id == null) return $list;`, which is correct only
+        # because its PDO hands out strings: '0' == null is false. Yii 2 casts
+        # the column to int 0, which *is* == null, and the helper then returns
+        # the whole options array - rendered as the word "Array", or as an
+        # "Array to string conversion" error. Making the test explicit gives
+        # Yii 1's answer for a string, an int and a real null alike.
+        body = re.sub(r'\$id\s*==\s*null', "$id === null || $id === ''", body)
+        body = re.sub(r'\$id\s*!=\s*null', "$id !== null && $id !== ''", body)
         A('')
         A('    public static function %s($id = null)' % name)
         A('    {' + body.rstrip() + '\n    }')
@@ -479,6 +652,12 @@ def generate(model, table_alias):
     A('    public function search($params = [])')
     A('    {')
     A('        $query = self::find();')
+    if eager:
+        A('        // Yii 1 eager-loads these, by JOIN, in the same query. That is')
+        A('        // part of the result and not just an optimisation: where the')
+        A('        // listing has no ORDER BY, the join decides which rows the')
+        A('        // first page shows.')
+        A("        $query->joinWith([%s]);" % ', '.join("'%s'" % x for x in eager))
     A('        $provider = new ActiveDataProvider([')
     A("            'query' => $query,")
     A("            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],")
@@ -533,6 +712,40 @@ def method_blocks(src):
     return out
 
 
+def replace_method(src, name, new_text):
+    """
+    Swap one method out of a file.
+
+    Uses method_blocks() rather than its own pattern. A first version matched
+    the method with a regex whose optional leading doc-comment could start the
+    match above the class declaration, and replacing from there deleted the
+    class line and every method before it - a file that no longer parsed.
+    """
+    for mname, text in method_blocks(src):
+        if mname != name:
+            continue
+        i = src.find(text)
+        if i < 0:
+            return src
+        return src[:i] + new_text.strip('\n') + src[i + len(text):]
+
+    return src
+
+
+def search_rule_of(generated):
+    """The `safe` rule for the search scenario, which backs the grid filters."""
+    body = None
+    for name, text in method_blocks(generated):
+        if name == 'rules':
+            body = text
+            break
+    if body is None:
+        return None
+    m = re.search(r"(\[\[[^\]]*\],\s*'safe',\s*'on'\s*=>\s*'search'\])", body, re.S)
+
+    return m.group(1) if m else None
+
+
 def merge(existing, generated, model, warn):
     """
     Add what the UI needs to a model the API port already wrote.
@@ -546,6 +759,26 @@ def merge(existing, generated, model, warn):
     """
     have = methods_of(existing)
     added = []
+
+    # Two methods are replaced rather than kept. Both are derived wholly from
+    # the Yii 1 source and neither affects how the model validates or saves:
+    #
+    #   attributeLabels() - an earlier run of this generator wrote these with a
+    #     naive fallback, so a relation showed as "Create User" where Yii 1
+    #     shows "User". Keeping that would preserve the bug.
+    #   defaultOrder() - likewise derived from defaultScope().
+    for name in ('attributeLabels', 'defaultOrder'):
+        if name not in have:
+            continue
+        for gname, gtext in method_blocks(generated):
+            if gname != name:
+                continue
+            existing = replace_method(existing, name, gtext)
+            # `have` deliberately keeps the name: the method is now the
+            # generated one, and the append loop below must not add a second
+            # copy of it.
+            added.append(name + ' (replaced)')
+            break
     body = existing.rstrip()
     assert body.endswith('}'), 'model does not end in a class brace'
     body = body[:-1].rstrip()
@@ -565,6 +798,23 @@ def merge(existing, generated, model, warn):
                           body, count=1)
             added.append('const ' + m.group(1))
 
+    # A model the API port wrote has its own rules(), which governs saving and
+    # is left alone. But without the search-scenario `safe` rule the grid
+    # renders no filters at all - Yii 2 will not build a filter input for an
+    # attribute that is not safe in the current scenario. That one entry is
+    # additive: it applies only in the search scenario, which nothing but the
+    # grid uses.
+    if 'rules' in have and "'on' => 'search'" not in body:
+        rule = search_rule_of(generated)
+        if rule:
+            m = re.search(r"(function\s+rules\s*\([^)]*\)\s*\{\s*return\s*\[)", body)
+            if m:
+                body = body[:m.end()] + '\n            ' + rule + ',' + body[m.end():]
+                added.append('the search-scenario safe rule')
+            else:
+                warn.append('rules() is not a plain return [ ... ]; the search '
+                            'rule was not added, so the grid will have no filters')
+
     if 'LegacyColumnTypes' not in existing and 'presentation' not in ' '.join(warn):
         body = re.sub(r'(class\s+\w+\s+extends\s+\w+\s*\{)',
                       lambda mm: mm.group(1) +
@@ -574,12 +824,25 @@ def merge(existing, generated, model, warn):
                       body, count=1)
         added.append('use LegacyColumnTypes')
 
-    # use statements the added code needs
-    for u in ('use app\\components\\Criteria;', 'use app\\components\\Ui;',
-              'use Yii;', 'use yii\\data\\ActiveDataProvider;'):
-        if u not in body and u.split('\\')[-1].rstrip(';') in body:
-            body = re.sub(r'(namespace app\\models;\n)', lambda mm: mm.group(1) + '\n' + u + '\n',
-                          body, count=1)
+    # The use statements the added methods need. The test is on what the file
+    # now references, not on a substring of the import itself - an earlier
+    # version compared against the last segment of the namespace and so never
+    # added `use Yii;`, which made every merged model that calls Yii::$app look
+    # for app\models\Yii.
+    needed = [
+        ('use Yii;', r'\bYii::'),
+        ('use yii\\data\\ActiveDataProvider;', r'\bActiveDataProvider\b'),
+        ('use app\\components\\Criteria;', r'\bCriteria::'),
+        ('use app\\components\\Ui;', r'\bUi::'),
+        ('use app\\components\\Gx;', r'\bGx::'),
+        ('use yii\\helpers\\Html;', r'\bHtml::'),
+    ]
+    for stmt, pattern in needed:
+        if stmt in body or not re.search(pattern, body):
+            continue
+        body = re.sub(r'(namespace app\\models;\n)',
+                      lambda mm: mm.group(1) + '\n' + stmt + '\n', body, count=1)
+
     return body + '\n}\n', added
 
 
@@ -588,7 +851,7 @@ def merge(existing, generated, model, warn):
 # rules(), search() or beforeValidate() - those change how the model validates
 # and saves, and these models are already in use by the ported API.
 PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermission',
-                     'getRelationLabel', 'defaultOrder'}
+                     'getRelationLabel', 'defaultOrder', 'getTotals', 'isAllowCreate'}
 
 
 if __name__ == '__main__':
@@ -598,6 +861,7 @@ if __name__ == '__main__':
     src, warn = generate(model, model.lower())
 
     if deps_only:
+        rels = relations_of(model)
         keep = []
         # Constants come across too. They declare no behaviour - another
         # model's query that says Vendor::STATUS_ACTIVE needs the constant to
@@ -605,8 +869,16 @@ if __name__ == '__main__':
         # saves.
         for m in re.finditer(r'    public const \w+ = [^;]+;', src):
             keep.append(m.group(0))
+        relation_getters = {'get' + n[0].upper() + n[1:] for n, _ in rels}
         for name, text in method_blocks(src):
-            if name in PRESENTATION_ONLY:
+            # Three things come across. The get*Options() helpers are static
+            # label lists that other models' grids call. The relation getters
+            # are navigation - a page that lists role permissions reads
+            # $data->role. Neither reads nor changes how this model validates
+            # or saves, so both are as safe to add as a constant.
+            if (name in PRESENTATION_ONLY
+                    or re.match(r'get\w*Options$', name)
+                    or name in relation_getters):
                 keep.append(text)
         header = src.split('class ')[0]
         src = (header + 'class %s extends ActiveRecord\n{\n' % model

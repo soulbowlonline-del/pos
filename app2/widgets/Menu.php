@@ -9,6 +9,8 @@ use yii\helpers\Html;
 /** Stand-in for bootstrap.widgets.TbMenu. */
 class Menu extends Widget
 {
+    use IgnoresLegacyOptions;
+
     /** 'tabs' or 'pills' */
     public $type = 'pills';
     public $stacked = false;

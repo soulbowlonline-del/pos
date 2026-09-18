@@ -35,7 +35,7 @@ def status(path):
     return out.stdout.strip()
 
 
-def check_pair(name, y1, y2, reduce_fn):
+def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     """
     Compare two pages, allowing for ones that legitimately refuse.
 
@@ -52,7 +52,7 @@ def check_pair(name, y1, y2, reduce_fn):
             FAIL.append(name)
             print(f'  FAIL  {name}: yii1 answered {s1}, yii2 answered {s2}')
         return
-    check(name, reduce_fn(fetch(y1)), reduce_fn(fetch(y2)))
+    check(name, reduce_fn(fetch(y1)), reduce_fn(fetch(y2)), require)
 
 
 def strip(html):
@@ -111,16 +111,29 @@ def form_fields(html):
 FAIL = []
 
 
-def check(name, a, b, require=True):
+def check(name, a, b, require='nonempty'):
     """
     Compare, and refuse to call an empty comparison a pass.
 
     Two pages that both failed to render, or a session that quietly expired,
-    produce equal and empty reductions. That is the failure mode that makes a
-    suite look green while testing nothing, so emptiness is a failure unless
-    the case is explicitly allowed to be empty.
+    produce equal and empty reductions - the failure mode that makes a suite
+    look green while testing nothing. But an empty result is not always that:
+    a listing with no rows is a real observation, and both stacks should agree
+    on it. So the two are distinguished.
+
+      'notnone'  - the thing had to be *found* (grid_rows returns None when
+                   the grid is not on the page at all, [] when it is there
+                   with no data rows).
+      'nonempty' - the reduction also had to have content, for pages like a
+                   detail view where emptiness means it did not render.
+      None       - no requirement; the case may legitimately be empty.
     """
-    if require and not a:
+    if require == 'notnone' and a is None:
+        FAIL.append(name + ' (nothing compared)')
+        print(f'  FAIL  {name}: yii1 has no such grid on the page - '
+              f'nothing was compared')
+        return
+    if require == 'nonempty' and not a:
         FAIL.append(name + ' (nothing compared)')
         print(f'  FAIL  {name}: yii1 produced nothing to compare - the page did '
               f'not render, or the session is not logged in')
@@ -158,34 +171,37 @@ def main():
     y1, y2 = f'/{ctrl}', f'/v2/{ctrl}'
 
     print(f'{ctrl}/admin  - grid rows')
-    check('admin rows',
-          grid_rows(fetch(y1 + '/admin'), grid),
-          grid_rows(fetch(y2 + '/admin'), grid))
+    check_pair('admin rows', y1 + '/admin', y2 + '/admin',
+               lambda h: grid_rows(h, grid), 'notnone')
 
     # Page 2 is where an ordering difference shows that page 1 hides: with no
     # ORDER BY the two stacks can agree on the first ten rows and still
     # disagree on which rows are left over.
     print(f'{ctrl}/admin  - page 2')
-    check('admin page 2',
-          grid_rows(fetch(f'{y1}/admin/{model}_page/2'), grid),
-          grid_rows(fetch(f'{y2}/admin?page=2'), grid),
-          # a table with ten rows or fewer has no second page, and that is not
-          # a broken test - but page 1 above must have produced rows
-          require=False)
+    check_pair('admin page 2', f'{y1}/admin/{model}_page/2', f'{y2}/admin?page=2',
+               lambda h: grid_rows(h, grid),
+               # a table of ten rows or fewer has no second page, and that is
+               # not a broken test - but page 1 above must have had a grid
+               None)
 
     for f in filters:
         k, v = f.split('=', 1)
         print(f'{ctrl}/admin  - filtered {k}={v}')
         q = f'?{model}%5B{k}%5D={v}'
-        check(f'admin filter {k}',
-              grid_rows(fetch(y1 + '/admin' + q), grid),
-              grid_rows(fetch(y2 + '/admin' + q), grid),
-              require=False)
+        check_pair(f'admin filter {k}', y1 + '/admin' + q, y2 + '/admin' + q,
+                   lambda h: grid_rows(h, grid), None)
 
     print(f'{ctrl}/index  - list rows')
-    check('index rows',
-          grid_rows(fetch(y1 + '/index'), grid),
-          grid_rows(fetch(y2 + '/index'), grid))
+    # index renders the _list partial, whose grid may carry a different id
+    # from the admin one; find whichever id the Yii 1 page actually used.
+    index_grid = grid
+    y1_index = fetch(y1 + '/index')
+    if grid_rows(y1_index, grid) is None:
+        m = re.search(r'id="([a-z0-9-]*grid[a-z0-9-]*)"', y1_index)
+        if m:
+            index_grid = m.group(1)
+    check_pair('index rows', y1 + '/index', y2 + '/index',
+               lambda h: grid_rows(h, index_grid), 'notnone')
 
     print(f'{ctrl}/create - form fields')
     check_pair('create form', y1 + '/create', y2 + '/create',

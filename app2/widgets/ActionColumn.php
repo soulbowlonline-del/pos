@@ -16,6 +16,8 @@ use yii\helpers\Html;
  */
 class ActionColumn extends \yii\grid\ActionColumn
 {
+    use IgnoresLegacyOptions;
+
     /** @var array Yii 1's per-button configuration. */
     public $buttons = [];
 

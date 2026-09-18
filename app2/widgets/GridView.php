@@ -13,6 +13,8 @@ use yii\helpers\ArrayHelper;
  */
 class GridView extends \yii\grid\GridView
 {
+    use IgnoresLegacyOptions;
+
     /** @var string space-separated TbGridView table flavours */
     public $type = '';
 
@@ -41,12 +43,29 @@ class GridView extends \yii\grid\GridView
             $this->tableOptions
         );
 
+        // CGridView takes `'pager' => true` to mean "the default pager";
+        // Yii 2 expects a configuration array and fails on a scalar.
+        if (!is_array($this->pager)) {
+            $this->pager = $this->pager ? [] : ['class' => \yii\widgets\LinkPager::class, 'options' => ['style' => 'display:none']];
+        }
+
+        // A column carrying a 'footer' means the grid has a totals row. Yii 1
+        // renders it whenever any column defines one; Yii 2 needs to be told,
+        // and without it the table is one row shorter than the original.
+        foreach ($this->columns as $column) {
+            if (is_array($column) && isset($column['footer'])) {
+                $this->showFooter = true;
+                break;
+            }
+        }
+
         if ($this->summary === null) {
             $this->summary = '';
         }
-        // Yii 1 renders an empty table body; Yii 2 would print a message row.
+        // CGridView's own default, which the views do not override. An earlier
+        // guess that Yii 1 rendered nothing here was wrong: it prints this.
         if ($this->emptyText === null) {
-            $this->emptyText = '';
+            $this->emptyText = 'No results found.';
         }
 
         parent::init();

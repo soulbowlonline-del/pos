@@ -24,6 +24,8 @@ use yii\helpers\Html;
  */
 class ActiveForm extends \yii\widgets\ActiveForm
 {
+    use IgnoresLegacyOptions;
+
     /** @var string TbActiveForm's 'horizontal', 'vertical' or 'inline' */
     public $type = 'vertical';
 
@@ -78,16 +80,60 @@ class ActiveForm extends \yii\widgets\ActiveForm
 
     public function checkBoxListRow($model, $attribute, $data, $htmlOptions = [])
     {
+        $htmlOptions = $this->scalarSelection($model, $attribute, $htmlOptions);
+
         return (string) $this->field($model, $attribute)->checkboxList($data, $htmlOptions);
+    }
+
+    /**
+     * Drops anything from the checked-values list that is not a scalar.
+     *
+     * Some models use the same name for a column list and for a getter that
+     * builds grid column definitions - ItemExpire::getColumns() answers
+     * $model->columns with an array of arrays. Yii 1 compared each option
+     * loosely against that and matched none of them, so it rendered the boxes
+     * unchecked. Yii 2 runs array_map('strval', ...) over the selection first
+     * and raises "Array to string conversion" instead.
+     *
+     * Reducing the selection to its scalars renders the same unchecked boxes.
+     */
+    private function scalarSelection($model, $attribute, $htmlOptions)
+    {
+        if (isset($htmlOptions['value'])) {
+            return $htmlOptions;
+        }
+
+        $value = $model->$attribute;
+        if (is_array($value)) {
+            $scalars = array_filter($value, 'is_scalar');
+            if (count($scalars) !== count($value)) {
+                // Passed as an option rather than written back: several of
+                // these attributes are read-only getters - ItemExpire::columns
+                // is answered by getColumns() - and assigning to one throws.
+                $htmlOptions['value'] = array_values($scalars);
+            }
+        }
+
+        return $htmlOptions;
     }
 
     public function radioButtonListRow($model, $attribute, $data, $htmlOptions = [])
     {
+        $htmlOptions = $this->scalarSelection($model, $attribute, $htmlOptions);
+
         return (string) $this->field($model, $attribute)->radioList($data, $htmlOptions);
     }
 
     public function fileFieldRow($model, $attribute, $htmlOptions = [])
     {
+        // Yii 2 puts the attribute's current value on the file input; Yii 1
+        // does not, and a browser ignores it either way. It still shows up as
+        // a difference on every update form for a model that stores a
+        // filename, so it is cleared here rather than excused there.
+        // '' and not null: Yii 2 resolves the input's value with ??, so null
+        // falls straight back to the attribute.
+        $htmlOptions['value'] = '';
+
         return (string) $this->field($model, $attribute)->fileInput($htmlOptions);
     }
 

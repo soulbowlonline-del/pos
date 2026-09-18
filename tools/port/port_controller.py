@@ -40,28 +40,38 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r"\$this->loadModel\s*\(\s*([^,]+?)\s*,\s*'\w+'\s*\)", r'$this->loadModel(\1)', body)
 
     # request
-    body = body.replace("Yii::app()->getRequest()->getIsPostRequest()", 'Yii::$app->request->isPost')
-    body = body.replace("Yii::app()->getRequest()->getIsAjaxRequest()", 'Yii::$app->request->isAjax')
-    body = body.replace("Yii::app()->request->isAjaxRequest", 'Yii::$app->request->isAjax')
-    body = body.replace("Yii::app()->user->id", 'Yii::$app->user->id')
-    body = body.replace("Yii::app()->end()", 'Yii::$app->end()')
+    # These files are written both `Yii::app()->x` and `Yii::app ()->x`, so
+    # none of these can be a plain string replace.
+    A = r'Yii::app\s*\(\s*\)\s*->\s*'
+    body = re.sub(A + r'getRequest\s*\(\s*\)\s*->\s*getIsPostRequest\s*\(\s*\)',
+                  'Yii::$app->request->isPost', body)
+    body = re.sub(A + r'getRequest\s*\(\s*\)\s*->\s*getIsAjaxRequest\s*\(\s*\)',
+                  'Yii::$app->request->isAjax', body)
+    body = re.sub(A + r'request\s*->\s*isAjaxRequest', 'Yii::$app->request->isAjax', body)
+    body = re.sub(A + r'request\s*->\s*isPostRequest', 'Yii::$app->request->isPost', body)
+    body = re.sub(A + r'end\s*\(\s*\)', 'Yii::$app->end()', body)
+    body = re.sub(A + r'createUrl\s*\(', 'Ui::to(', body)
+    # whatever else is left has the same shape in Yii 2
+    body = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', body)
+    body = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', body)
 
     # form input
-    body = re.sub(r"isset\(\s*\$_POST\['" + model + r"'\]\s*\)",
+    body = re.sub(r"isset\s*\(\s*\$_POST\s*\[\s*'" + model + r"'\s*\]\s*\)",
                   "Yii::$app->request->post('" + model + "') !== null", body)
-    body = re.sub(r"isset\(\s*\$_GET\['" + model + r"'\]\s*\)",
+    body = re.sub(r"isset\s*\(\s*\$_GET\s*\[\s*'" + model + r"'\s*\]\s*\)",
                   "Yii::$app->request->get('" + model + "') !== null", body)
-    body = re.sub(r"\$model->setAttributes\(\s*\$_POST\['" + model + r"'\]\s*\)",
+    body = re.sub(r"\$model\s*->\s*setAttributes\s*\(\s*\$_POST\s*\[\s*'" + model + r"'\s*\]\s*\)",
                   "$model->load(Yii::$app->request->post())", body)
-    body = re.sub(r"\$model->setAttributes\(\s*\$_GET\['" + model + r"'\]\s*\)",
+    body = re.sub(r"\$model\s*->\s*setAttributes\s*\(\s*\$_GET\s*\[\s*'" + model + r"'\s*\]\s*\)",
                   "$model->load(Yii::$app->request->queryParams)", body)
 
     # data provider
     body = re.sub(r"new\s+CActiveDataProvider\s*\(\s*'" + model + r"'\s*\)",
                   ("new ActiveDataProvider(['query' => " + model + "::find(),\n"
-                   "            // GxActiveRecord::defaultScope() orders every model by\n"
-                   "            // id DESC, and Yii 1 paginates 10 rows at a time.\n"
-                   "            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],\n"
+                   "            // The model's own defaultScope() decides the order - most\n"
+                   "            // inherit `id DESC`, but 22 of them override it to none.\n"
+                   "            // Hardcoding id DESC here listed rows Yii 1 never showed.\n"
+                   "            'sort' => ['defaultOrder' => " + model + "::defaultOrder() ?: []],\n"
                    "            'pagination' => ['pageSize' => Ui::PAGE_SIZE]])"), body)
 
     # the search scenario
@@ -72,20 +82,28 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r"\s*\$model->unsetAttributes\s*\(\s*\)\s*;", '', body)
 
     # exceptions
-    body = re.sub(r"throw\s+new\s+CHttpException\(\s*400\s*,\s*([^)]+)\)",
+    body = re.sub(r"throw\s+new\s+CHttpException\s*\(\s*400\s*,\s*([^)]+)\)",
                   r'throw new BadRequestHttpException(\1)', body)
-    body = re.sub(r"throw\s+new\s+CHttpException\(\s*404\s*,\s*([^)]+)\)",
+    body = re.sub(r"throw\s+new\s+CHttpException\s*\(\s*404\s*,\s*([^)]+)\)",
                   r'throw new NotFoundHttpException(\1)', body)
-    body = re.sub(r"throw\s+new\s+CHttpException\(\s*403\s*,\s*([^)]+)\)",
+    body = re.sub(r"throw\s+new\s+CHttpException\s*\(\s*403\s*,\s*([^)]+)\)",
                   r'throw new ForbiddenHttpException(\1)', body)
 
     # Yii::t with no translations configured returns the message unchanged
     body = re.sub(r"Yii::t\(\s*'[^']*'\s*,\s*('(?:[^'\\]|\\.)*')\s*\)", r'\1', body)
 
     # render/redirect return a response in Yii 2
-    body = re.sub(r'(?m)^(\s*)\$this->render\(', r'\1return $this->render(', body)
-    body = re.sub(r'(?m)^(\s*)\$this->renderPartial\(', r'\1return $this->renderPartial(', body)
-    body = re.sub(r'(?m)^(\s*)\$this->redirect\(', r'\1return $this->redirect(', body)
+    body = re.sub(r'(?m)^(\s*)\$this\s*->\s*render\s*\(', r'\1return $this->render(', body)
+    body = re.sub(r'(?m)^(\s*)\$this\s*->\s*renderPartial\s*\(', r'\1return $this->renderPartial(', body)
+    body = re.sub(r'(?m)^(\s*)\$this\s*->\s*redirect\s*\(', r'\1return $this->redirect(', body)
+
+    # `X::model()->find*` - the Yii 1 way of reaching a finder, written both
+    # tightly and with spaces.
+    M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
+    body = re.sub(M + r"findByPk\s*\(", lambda m: m.group(1) + '::findOne(', body)
+    body = re.sub(M + r"findByAttributes\s*\(", lambda m: m.group(1) + '::findOne(', body)
+    body = re.sub(M + r"findAllByAttributes\s*\(", lambda m: m.group(1) + '::findAll(', body)
+    body = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', body)
 
     # menu urls: array('view', 'id' => $x) -> Ui::to('ctrl/view', ['id' => $x])
     def menu_url(m):
@@ -103,13 +121,17 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r"\$this->isExportRequest\s*\(", '$this->isExportRequest(', body)
     body = re.sub(r"\$this->exportCSV\s*\(", '$this->exportCSV(', body)
 
-    for leftover in re.findall(r'Yii::app\(\)[->\w]*', body):
+    for leftover in re.findall(r'Yii::app\s*\([^)]*\)[->\w]*', body):
         warn.append('unconverted: ' + leftover)
     # strip comments before scanning, or the translator's own explanatory
     # comments get reported as unconverted Yii 1 code
     scan = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
     scan = re.sub(r'//[^\n]*', '', scan)
-    for leftover in set(re.findall(r'\b(C[A-Z]\w+)\b', scan)):
+    yii1_classes = (r'\b(CDbCriteria|CActiveDataProvider|CArrayDataProvider|CDbExpression|'
+                    r'CHtml|CException|CHttpException|CJSON|CVarDumper|CLogger|CUploadedFile|'
+                    r'CDataProviderIterator|CActiveRecord|CModel|CSort|CPagination|CMap|'
+                    r'CTypeValidator|CWidget|CController)\b')
+    for leftover in set(re.findall(yii1_classes, scan)):
         warn.append('unconverted Yii 1 class: ' + leftover)
 
     return body
@@ -146,6 +168,7 @@ use app\\components\\Ui;
 use app\\models\\{model};
 use Yii;
 use yii\\data\\ActiveDataProvider;
+use yii\\helpers\\Html;
 use yii\\web\\BadRequestHttpException;
 use yii\\web\\ForbiddenHttpException;
 use yii\\web\\NotFoundHttpException;
