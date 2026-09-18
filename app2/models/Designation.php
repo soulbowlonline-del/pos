@@ -1,49 +1,35 @@
 <?php
 namespace app\models;
 
-use app\components\Ui;
-
 use app\components\Criteria;
-
-use yii\data\ActiveDataProvider;
-
+use app\components\Gx;
+use app\components\Ui;
 use Yii;
-
+use yii\data\ActiveDataProvider;
 use yii\db\ActiveRecord;
+use yii\helpers\Html;
 
-/** Ported from protected/models/Country.php (Yii 1). */
-class Country extends ActiveRecord
+/**
+ * Ported from protected/models/Designation.php and its giix base class.
+ */
+class Designation extends ActiveRecord
 {
-    // Yii 1 hands out column values as strings; the option helpers
-    // compare them loosely and answer wrongly for an integer 0.
+    // Yii 1 hands out column values as strings; the option helpers below
+    // compare them loosely and give the wrong answer for an integer 0.
     use LegacyColumnTypes;
 
-    public const STATUS_INACTIVE = 1;
     public const STATUS_ACTIVE = 0;
+    public const STATUS_INACTIVE = 1;
+
     public static function tableName()
     {
-        return '{{%country}}';
-    }
-
-    /**
-     * Payload from Country::toArray(). Named toApiArray() because yii\base\Model
-     * declares toArray() as part of Arrayable.
-     *
-     * id is cast to string: Yii 1 served every column as a string and Yii 2's
-     * ActiveRecord type-casts from the schema.
-     */
-    public function toApiArray()
-    {
-        return [
-            'id' => (string)$this->id,
-            'title' => isset($this->title) ? $this->title : '',
-        ];
+        return '{{%designation}}';
     }
 
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
-        return $n == 1 ? 'Country' : 'Countries';
+        return $n == 1 ? 'Designation' : 'Designations';
     }
 
     /** The column that stands for the whole row in a link or a breadcrumb. */
@@ -145,6 +131,20 @@ class Country extends ActiveRecord
             ->queryScalar();
     }
 
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
     public static function getStatusOptions($id = null)
     {
 		$list = ["Active","InActive"];
@@ -159,65 +159,6 @@ class Country extends ActiveRecord
 		if ($id === null || $id === '' )	return $list;
 		if ( is_numeric( $id )) return $list [ $id ];
 		return $id;
-    }
-
-    public function getCreateUser()
-    {
-        return $this->hasOne(User::class, ['id' => 'create_user_id']);
-    }
-
-    public function getUpdatedBy()
-    {
-        return $this->hasOne(User::class, ['id' => 'updated_by']);
-    }
-
-    public function getOrders()
-    {
-        return $this->hasMany(Order::class, ['country_id' => 'id']);
-    }
-
-    public function getOrderHolds()
-    {
-        return $this->hasMany(OrderHold::class, ['country_id' => 'id']);
-    }
-
-    public function getOrderRefunds()
-    {
-        return $this->hasMany(OrderRefund::class, ['country_id' => 'id']);
-    }
-
-    public function getOrganizations()
-    {
-        return $this->hasMany(Organization::class, ['country_id' => 'id']);
-    }
-
-    public function getOutlets()
-    {
-        return $this->hasMany(Outlet::class, ['country_id' => 'id']);
-    }
-
-    public function getStates()
-    {
-        return $this->hasMany(State::class, ['country_id' => 'id']);
-    }
-
-    public function getVendors()
-    {
-        return $this->hasMany(Vendor::class, ['country_id' => 'id']);
-    }
-
-    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
-    public function getRelatedDataProvider($relation, $config = [])
-    {
-        $getter = 'get' . ucfirst($relation);
-        if (!method_exists($this, $getter)) {
-            throw new \yii\base\InvalidArgumentException(
-                get_class($this) . ' does not have relation "' . $relation . '".');
-        }
-
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
     }
 
     /**
@@ -247,12 +188,11 @@ class Country extends ActiveRecord
     public function rules()
     {
         return [
-            [['title', 'create_user_id'], 'required'],
+            [['title', 'create_time', 'create_user_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['title'], 'string', 'max' => 255],
-            [['create_time', 'update_time'], 'safe'],
-            [['status', 'type_id', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
-            [['id', 'title', 'status', 'type_id', 'create_time', 'update_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+            [['status', 'type_id', 'updated_by'], 'default', 'value' => null],
+            [['id', 'title', 'status', 'type_id', 'create_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
         ];
     }
 
@@ -264,18 +204,11 @@ class Country extends ActiveRecord
             'status' => 'Status',
             'type_id' => 'Type',
             'create_time' => 'Create Time',
-            'update_time' => 'Update Time',
             'create_user_id' => 'User',
             'updated_by' => 'User',
-            'createUser' => 'User',
-            'updatedBy' => 'User',
-            'orders' => 'Orders',
-            'orderHolds' => 'OrderHolds',
-            'orderRefunds' => 'OrderRefunds',
-            'organizations' => 'Organizations',
-            'outlets' => 'Outlets',
-            'states' => 'States',
-            'vendors' => 'Vendors',
+            'createUser' => 'Create User',
+            'updatedBy' => 'Updated By',
+            'emps' => 'Emps',
         ];
     }
 
@@ -301,10 +234,78 @@ class Country extends ActiveRecord
         foreach (['id', 'status', 'type_id', 'create_user_id', 'updated_by'] as $attr) {
             Criteria::compare($query, $attr, $this->$attr);
         }
-        foreach (['title', 'create_time', 'update_time'] as $attr) {
+        foreach (['title', 'create_time'] as $attr) {
             Criteria::compare($query, $attr, $this->$attr, true);
         }
 
         return $provider;
+    }
+
+    public function setAllValues($rows) {
+
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    for ($i = 1; $i < $count; $i++) {
+                        $designation_values = explode(',', $rows[$i]);
+
+
+                        $designation = new Designation();
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+
+                            if (isset($arrays['Title'])) {
+                                $designation->title = $designation_values[$arrays['Title']];
+
+                            } else if(isset($arrays['﻿"Title"'])) {
+                                $designation->title = $designation_values[$arrays['﻿"Title"']];
+                            }else{
+                                $designation->title = $designation_values[$arrays['���"Title"']];
+                            }
+                        }
+
+
+
+                        if ($designation->save()) {
+
+
+                        } else {
+                            print_R($designation->getErrors());
+                            exit;
+                            $set = false;
+                        }
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getEmps()
+    {
+        return $this->hasMany(Emp::class, ['designation_id' => 'id']);
     }
 }

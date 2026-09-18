@@ -1,9 +1,11 @@
 <?php
 /**
- * Ported from protected/views/orderRefund/_search.php.
+ * Ported from protected/views/country/_search.php.
  */
 
+use app\components\Gx;
 use app\components\Ui;
+use app\models\User;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 use app\widgets\CJuiRadioButtonList;
@@ -13,7 +15,7 @@ use app\widgets\CJuiRadioButtonList;
 <?php 	$form = ActiveForm::begin([
 	'action' => Ui::to($this->route),
 	'method' => 'get',
-	'id' => 'order-refund-form',
+	'id' => 'country-form',
 	'type'=>'horizontal',		
 ]); ; 
 ?>
@@ -24,28 +26,8 @@ use app\widgets\CJuiRadioButtonList;
 	</div>
 
 	<div class="row">
-		<?php echo $form->label($model, 'qty'); ?>
-		<?php echo $form->textField($model, 'qty'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'discount'); ?>
-		<?php echo $form->textField($model, 'discount'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'discount_amt'); ?>
-		<?php echo $form->textField($model, 'discount_amt'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'total_amt'); ?>
-		<?php echo $form->textField($model, 'total_amt'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'paid_amt'); ?>
-		<?php echo $form->textField($model, 'paid_amt'); ?>
+		<?php echo $form->label($model, 'title'); ?>
+		<?php echo $form->textField($model, 'title', ['maxlength' => 255]); ?>
 	</div>
 
 	<div class="row">
@@ -66,36 +48,6 @@ use app\widgets\CJuiRadioButtonList;
 			'attribute'=>'type_id',
 			'data'=>$model->getTypeOptions(),
 			]); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'city_id'); ?>
-		<?php echo $form->textField($model, 'city_id'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'state_id'); ?>
-		<?php 
-			echo CJuiRadioButtonList::widget([
-			'model'=>$model,
-			'attribute'=>'state_id',
-			'data'=>$model->getStatusOptions(),
-			]); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'country_id'); ?>
-		<?php echo $form->textField($model, 'country_id'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'address'); ?>
-		<?php $this->context->richTextEditor($model,'address'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'note'); ?>
-		<?php $this->context->richTextEditor($model,'note'); ?>
 	</div>
 
 	<div class="row">
@@ -129,18 +81,13 @@ use app\widgets\CJuiRadioButtonList;
 	</div>
 
 	<div class="row">
-		<?php echo $form->label($model, 'order_id'); ?>
-		<?php echo $form->textField($model, 'order_id'); ?>
-	</div>
-
-	<div class="row">
-		<?php echo $form->label($model, 'customer_id'); ?>
-		<?php echo $form->textField($model, 'customer_id'); ?>
+		<?php echo $form->label($model, 'create_user_id'); ?>
+		<?php echo $form->dropDownList($model, 'create_user_id', Gx::listData(User::class), ['prompt' => 'All']); ?>
 	</div>
 
 	<div class="row">
 		<?php echo $form->label($model, 'updated_by'); ?>
-		<?php echo $form->textField($model, 'updated_by'); ?>
+		<?php echo $form->dropDownList($model, 'updated_by', Gx::listData(User::class), ['prompt' => 'All']); ?>
 	</div>
 
 

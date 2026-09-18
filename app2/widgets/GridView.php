@@ -26,6 +26,12 @@ class GridView extends \yii\grid\GridView
 
     public function init()
     {
+        // Plain columns go through the shim too, so a column written with
+        // Yii 1's htmlOptions does not fail to construct.
+        if ($this->dataColumnClass === null) {
+            $this->dataColumnClass = DataColumn::class;
+        }
+
         if ($this->filter !== null && $this->filterModel === null) {
             $this->filterModel = $this->filter;
         }

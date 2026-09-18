@@ -39,6 +39,9 @@ class Ui
         'city',
         'stockLog',
         'permission',
+        'country',
+        'designation',
+        'outlet',
     ];
 
     /**

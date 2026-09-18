@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/orderRefund/update.php.
+ * Ported from protected/views/country/update.php.
  */
 
 use app\components\Gx;
@@ -13,7 +13,7 @@ $this->params['breadcrumbs'] = [
 	'Update',
 ];
 ?>
-
+<section class="content">
 <div class="page-header">
 <h1><?php echo 'Update' . ' ' . Html::encode($model->label()) . ' : ' . Html::encode(Gx::str($model)); ?></h1>
 </div>
@@ -22,3 +22,4 @@ $this->params['breadcrumbs'] = [
 echo $this->render('_form', [
 		'model' => $model]);
 ?>
+</section>

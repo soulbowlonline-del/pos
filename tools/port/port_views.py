@@ -102,6 +102,21 @@ def widgets(src, unknown):
         prefix = already_echoed or ('' if expression else 'echo ')
         return prefix + BOOSTER[name] + '::widget('
 
+    # `$grid = $this->widget(...)` - Yii 1's widget() writes to the output
+    # buffer *and* returns the widget, so the assignment form still renders.
+    # Yii 2 only returns, so without the echo the page is silently missing its
+    # grid; the assignment is kept because the view passes it on to
+    # renderExportGridButton().
+    def assigned(m):
+        var, name = m.group(1), m.group(2)
+        if name not in BOOSTER:
+            unknown.append(name)
+            return m.group(0)
+        return 'echo ' + var + ' = ' + BOOSTER[name] + '::widget('
+
+    src = re.sub(r"(\$\w+)\s*=\s*\$this\s*->\s*widget\s*\(\s*'(?:[\w.]*\.)?([A-Za-z]+)'\s*,\s*",
+                 assigned, src)
+
     src = re.sub(r"(echo\s+)?\$this\s*->\s*widget\s*\(\s*'(?:[\w.]*\.)?([A-Za-z]+)'\s*,\s*",
                  repl, src)
     # the begin/end pair used by forms
@@ -186,6 +201,9 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*createUrl\s*\(", 'Ui::to(', src)
     src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*controller\s*->\s*createUrl\s*\(", 'Ui::to(', src)
     src = re.sub(r"\$this\s*->\s*createUrl\s*\(", 'Ui::to(', src)
+    # CController::createUrl() - a static call on the framework base class,
+    # which Yii 1 allowed because createUrl is not static there either.
+    src = re.sub(r"\bCController::createUrl\s*\(", 'Ui::to(', src)
 
     # html helpers
     src = re.sub(r"\b(?:Gx|C)Html::encode\s*\(", 'Html::encode(', src)
@@ -206,10 +224,16 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"\bGxHtml::listDataEx\s*\(", 'Gx::listData(', src)
 
     # X::model()->findAllAttributes(...) is Yii 1's "every row, two columns".
-    # Reduced to the class, because Gx::listData() does that selection itself -
-    # and it has to work whether or not the call is wrapped in listData.
+    #
+    # Inside Gx::listData() it reduces to the class name, because listData does
+    # that selection itself and needs to know the model's ordering. Anywhere
+    # else the expression really is a list of rows - `count(...) > 0` is the
+    # common one - and reducing it to a class name turns a row count into
+    # count() of a string.
+    src = re.sub(r"Gx::listData\s*\(\s*(\w+)::model\s*\(\s*\)\s*->\s*findAllAttributes\s*\([^)]*\)\s*\)",
+                 lambda m: 'Gx::listData(' + m.group(1) + '::class)', src)
     src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*findAllAttributes\s*\([^)]*\)",
-                 lambda m: m.group(1) + '::class', src)
+                 lambda m: m.group(1) + '::find()->all()', src)
 
     # GxHtml::valueEx($model) is the model's __toString
     src = re.sub(r"GxHtml::valueEx\s*\(\s*(\$[A-Za-z_][\w>()\-\$\[\]']*)\s*\)", r'Gx::str(\1)', src)
@@ -229,16 +253,16 @@ def rewrite(src, ctrl, unknown):
     for meth in ('StartPanel', 'AddPanel', 'AddNewPanel', 'EndPanel',
                  'EndPanelLeft', 'EndPanelRight', 'updateMenuItems',
                  'loadModel', 'isAllowed', 'richTextEditor', 'isExportRequest',
-                 'exportCSV'):
+                 'exportCSV', 'renderExportGridButton'):
         src = re.sub(r'\$this\s*->\s*' + meth + r'\s*\(', '$this->context->' + meth + '(', src)
     src = re.sub(r'\$this->pageCaption\b', '$this->context->pageCaption', src)
     src = re.sub(r'\$this->pageTitle\b', '$this->title', src)
 
     # `X::model()->find*` in a view, which a few of them do directly.
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
-    src = re.sub(M + r"findByPk\s*\(", lambda m: m.group(1) + '::findOne(', src)
-    src = re.sub(M + r"findByAttributes\s*\(", lambda m: m.group(1) + '::findOne(', src)
-    src = re.sub(M + r"findAllByAttributes\s*\(", lambda m: m.group(1) + '::findAll(', src)
+    src = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', src)
+    src = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', src)
+    src = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', src)
     src = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', src)
 
     # controller state the views set or read
@@ -262,8 +286,13 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"(=\s*|echo\s+|return\s+)?\$this\s*->\s*renderPartial\s*\(",
                  lambda m: (m.group(1) or 'echo ') + '$this->render(', src)
 
-    # grid/detail column keys
+    # grid/detail column keys. filterHtmlOptions is the filter input's tag
+    # attributes, which Yii 2 spells filterInputOptions; htmlOptions on a
+    # column is the data cell's, which Yii 2 spells contentOptions.
     src = re.sub(r"'name'\s*=>", "'attribute' =>", src)
+    src = re.sub(r"'filterHtmlOptions'\s*=>", "'filterInputOptions' =>", src)
+    src = re.sub(r"'headerHtmlOptions'\s*=>", "'headerOptions' =>", src)
+    src = re.sub(r"'footerHtmlOptions'\s*=>", "'footerOptions' =>", src)
     src = re.sub(r"'type'\s*=>\s*'raw'", "'format' => 'raw'", src)
 
     # 'value' => '$data->foo' - a string expression evaluated per row in Yii 1

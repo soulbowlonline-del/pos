@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/orderRefundItem/view.php.
+ * Ported from protected/views/designation/view.php.
  */
 
 use app\components\Gx;
@@ -17,55 +17,34 @@ $this->params['breadcrumbs'] = [
 
 
 ?>
-
+<section class="content">
 <div class="page-header">
-<h1><?php echo Html::encode(Gx::str($model)); ?></h1>
-</div>
+<h1 class="pull-left"><?php echo Html::encode(Gx::str($model)); ?></h1>
+
 
 <?php   echo ButtonGroup::widget([
-	'buttons'=>$this->context->actions,
+	'buttons'=>$this->context->menu,
 	'type'=>'success',
 	'htmlOptions'=>['class'=> 'pull-right'],
 	]);
-?>
 
+	?>
+<div class="clearfix"></div>
+
+
+</div>
 <?php echo DetailView::widget([
 	'data' => $model,
 	'attributes' => [
 'id',
-[
-			'attribute' => 'orderRefund',
-			'format' => 'raw',
-			'value' => $model->orderRefund !== null ? Html::a(Html::encode(Gx::str($model->orderRefund)), Gx::url(['orderRefund/view', 'id' => Gx::pk($model->orderRefund)])) : null,
-			],
-[
-			'attribute' => 'itemDetail',
-			'format' => 'raw',
-			'value' => $model->itemDetail !== null ? Html::a(Html::encode(Gx::str($model->itemDetail)), Gx::url(['itemDetail/view', 'id' => Gx::pk($model->itemDetail)])) : null,
-			],
-'qty',
-'price',
-[
-			'attribute' => 'discount',
-			'format' => 'raw',
-			'value' => $model->discount !== null ? Html::a(Html::encode(Gx::str($model->discount)), Gx::url(['discount/view', 'id' => Gx::pk($model->discount)])) : null,
-			],
-'discount_amt',
-'tax_id',
-'tax_amt',
-'order_discount',
+'title',
 [
 				'attribute' => 'status',
 				'format' => 'raw',
 				'value'=>$model->getStatusOptions($model->status),
 				],
-[
-				'attribute' => 'type_id',
-				'format' => 'raw',
-				'value'=>$model->getTypeOptions($model->type_id),
-				],
+
 'create_time',
-'update_time',
 [
 			'attribute' => 'createUser',
 			'format' => 'raw',
@@ -79,8 +58,13 @@ $this->params['breadcrumbs'] = [
 	],
 ]); ?>
 
+<?php
+ $this->context->StartPanel(); ?>
+<?php  //$this->context->AddPanel($model->getRelationLabel('emps'), $model->getRelatedDataProvider('emps'),	'emps','emp');?>
+<?php  $this->context->EndPanel(); ?>
 
 <?php   echo CommentPortlet::widget([
 	'model' => $model,
 ]);
 ?>
+</section>

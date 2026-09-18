@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/orderRefundItem/create.php.
+ * Ported from protected/views/designation/create.php.
  */
 
 use yii\helpers\Html;
@@ -11,9 +11,11 @@ $this->params['breadcrumbs'] = [
 	'Create',
 ];
 ?>
-<div class="page-header">
+<section class="content-header">
+
 <h1><?php echo 'Create' . ' ' . Html::encode($model->label()); ?></h1>
-</div>
+
+</section>
 <?php
 echo $this->render('_form', [
 		'model' => $model,

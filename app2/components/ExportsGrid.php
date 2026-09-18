@@ -78,6 +78,25 @@ trait ExportsGrid
         }
     }
 
+    /**
+     * The "Export" link above a grid.
+     *
+     * Yii 1's version echoed the link and registered a script that read the
+     * grid's current URL out of its yiiGridView plugin state and reopened it
+     * with the export parameter. There is no such plugin here, so the link
+     * carries the current query plus that parameter, which is the same request
+     * the script would have made.
+     */
+    public function renderExportGridButton($grid, $label = 'Export', $htmlOptions = [])
+    {
+        $params = Yii::$app->request->queryParams;
+        $params[$this->exportParam] = 1;
+        $params[0] = Yii::$app->controller->getRoute();
+
+        echo \yii\helpers\Html::a(\yii\helpers\Html::encode($label),
+            \yii\helpers\Url::to($params), $htmlOptions);
+    }
+
     private function csvHeaders($fh, $attributes, $model)
     {
         $row = [];

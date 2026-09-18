@@ -159,7 +159,7 @@ def relations_of(model):
             re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*self::(\w+)", body, re.S)]
 
 
-def port_default_scope(base, warn):
+def port_default_scope(base, warn, concrete=''):
     """
     The ordering Yii 1 applies to every query on this model.
 
@@ -171,7 +171,13 @@ def port_default_scope(base, warn):
 
     Returns a PHP expression for the sort, or 'null' for no ordering.
     """
-    body = parse_block(base, 'defaultScope')
+    # The concrete model can override the base class's override. OrderRefund
+    # does exactly that - an empty defaultScope() on protected/models, nothing
+    # in _base - and reading only the base gave every listing an `id DESC` that
+    # Yii 1 does not apply.
+    body = parse_block(concrete, 'defaultScope')
+    if body is None:
+        body = parse_block(base, 'defaultScope')
     if body is None:
         return "['id' => SORT_DESC]"          # the inherited default
 
@@ -275,6 +281,10 @@ CLASHES_WITH_YII2 = {
     'defaultScope', 'relations', 'pivotModels', 'attributeNames', 'behaviors',
 }
 
+# init() appears in the list above because a Yii 1 model's own init() cannot be
+# carried over unchanged. The generator writes its own, which calls parent.
+
+
 YII1_CLASSES = (r'\b(CDbCriteria|CActiveDataProvider|CArrayDataProvider|CDbExpression|'
                 r'CHtml|CException|CHttpException|CJSON|CVarDumper|CLogger|CUploadedFile|'
                 r'CDataProviderIterator|CActiveRecord|CModel|CSort|CPagination|CMap|'
@@ -366,17 +376,22 @@ def port_concrete(src, model):
                 text = re.sub(r"\w+::model\(\)->(?:findAll|find)\s*\(\s*\$criteria\s*\)",
                               lambda mm: q, text)
 
+        text = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', text)
+        text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
+                      lambda mm: 'Yii::error(' + mm.group(1) + ', ' + mm.group(2) + ')', text)
+        text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
+                      lambda mm: 'Yii::warning(' + mm.group(1) + ', ' + mm.group(2) + ')', text)
         text = re.sub(r'\b(?:Gx|C)Html::encode\(', 'Html::encode(', text)
         text = re.sub(r'\b(?:Gx|C)Html::link\(', 'Html::a(', text)
         text = re.sub(r'\b(?:Gx|C)Html::image\(', 'Html::img(', text)
         text = re.sub(r'\bGxHtml::valueEx\(', 'Gx::str(', text)
 
         # Written with spaces in places - `ItemDetail::model ()->findByPk (` -
-        # so none of these can require the tight spelling.
+        # and with either capitalisation, findByPk and findByPK.
         M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
-        text = re.sub(M + r"findByPk\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(M + r"findByAttributes\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(M + r"findAllByAttributes\s*\(", lambda mm: mm.group(1) + '::findAll(', text)
+        text = re.sub(M + r"(?i:findByPk)\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
+        text = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
+        text = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda mm: mm.group(1) + '::findAll(', text)
         text = re.sub(M + r"findAll\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->all()', text)
         text = re.sub(M + r"count\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->count()', text)
 
@@ -428,7 +443,7 @@ def generate(model, table_alias):
     eager = port_with(search_body)
 
     has_before_validate = 'function beforeValidate' in base
-    default_order = port_default_scope(base, warn)
+    default_order = port_default_scope(base, warn, concrete)
 
     # The concrete model's own methods. These are hand-written - option lists
     # built from another table, computed columns for a report - and the views
@@ -497,6 +512,20 @@ def generate(model, table_alias):
     A('    public static function defaultOrder()')
     A('    {')
     A('        return %s;' % default_order)
+    A('    }')
+    A('')
+    A('    /**')
+    A("     * Yii 1's CActiveRecord fills a new record with the column defaults")
+    A('     * declared by the table; Yii 2 leaves them null until asked. Without')
+    A("     * this a create form shows an empty box where Yii 1 shows 0.00, and")
+    A('     * an insert writes NULL where Yii 1 writes the default.')
+    A('     */')
+    A('    public function init()')
+    A('    {')
+    A('        parent::init();')
+    A('        if ($this->isNewRecord) {')
+    A('            $this->loadDefaultValues();')
+    A('        }')
     A('    }')
     A('')
     A('    /**')

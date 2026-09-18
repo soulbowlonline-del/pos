@@ -100,10 +100,22 @@ def translate(src, model, ctrl, warn):
     # `X::model()->find*` - the Yii 1 way of reaching a finder, written both
     # tightly and with spaces.
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
-    body = re.sub(M + r"findByPk\s*\(", lambda m: m.group(1) + '::findOne(', body)
-    body = re.sub(M + r"findByAttributes\s*\(", lambda m: m.group(1) + '::findOne(', body)
-    body = re.sub(M + r"findAllByAttributes\s*\(", lambda m: m.group(1) + '::findAll(', body)
+    body = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', body)
+    body = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', body)
+    body = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', body)
     body = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', body)
+
+    # Yii 1's logger. Yii 2 splits the level into the method name, and
+    # CVarDumper::dumpAsString is var_export.
+    body = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', body)
+    body = re.sub(r"(var_export\([^;]*?)\)(\s*),(\s*)CLogger::LEVEL_\w+",
+                  lambda m: m.group(1) + ', true)' + m.group(2) + ',' + m.group(3) + 'LEVEL', body)
+    body = re.sub(r"Yii::log\s*\(([^;]*?),\s*LEVEL\s*,\s*('[^']*')\s*\)",
+                  lambda m: 'Yii::warning(' + m.group(1) + ', ' + m.group(2) + ')', body)
+    body = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
+                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', body)
+    body = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
+                  lambda m: 'Yii::warning(' + m.group(1) + ', ' + m.group(2) + ')', body)
 
     # menu urls: array('view', 'id' => $x) -> Ui::to('ctrl/view', ['id' => $x])
     def menu_url(m):

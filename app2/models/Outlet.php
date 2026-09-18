@@ -1,6 +1,12 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use app\components\Criteria;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -8,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Outlet.php (Yii 1). */
 class Outlet extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     public const STATUS_INACTIVE = 1;
     public const STATUS_ACTIVE = 0;
     public static function tableName()
@@ -209,5 +219,123 @@ class Outlet extends ActiveRecord
     public function getVendors()
     {
         return $this->hasMany(Vendor::class, ['outlet_id' => 'id']);
+    }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['title', 'email', 'contact_no', 'address', 'create_time', 'city_id', 'state_id', 'country_id', 'organization_id', 'create_user_id'], 'required'],
+            [['contact_no', 'secondary_contact_no', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'organization_id', 'create_user_id', 'updated_by'], 'integer'],
+            [['title', 'email'], 'string', 'max' => 255],
+            [['email'], 'email'],
+            [['email'], 'unique'],
+            [['tax_no', 'bill_prefix', 'po_prefix', 'grn_prefix'], 'safe'],
+            [['secondary_contact_no', 'tax_no', 'status', 'type_id', 'updated_by'], 'default', 'value' => null],
+            [['id', 'title', 'email', 'contact_no', 'secondary_contact_no', 'address', 'tax_no', 'bill_prefix', 'po_prefix', 'grn_prefix status', 'type_id', 'create_time', 'city_id', 'state_id', 'country_id', 'organization_id', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'title' => 'Title',
+            'email' => 'Email',
+            'contact_no' => 'Contact No',
+            'secondary_contact_no' => 'Secondary Contact No',
+            'address' => 'Address',
+            'tax_no' => 'Tax No',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'create_time' => 'Create Time',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'organization_id' => 'Organization',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'mrns' => 'Mrns',
+            'mrnDetails' => 'MrnDetails',
+            'mrs' => 'Mrs',
+            'mrsDetails' => 'MrsDetails',
+            'city' => 'City',
+            'country' => 'Country',
+            'createUser' => 'User',
+            'organization' => 'Organization',
+            'state' => 'State',
+            'updatedBy' => 'User',
+            'purchaseBills' => 'PurchaseBills',
+            'purchaseBillDetails' => 'PurchaseBillDetails',
+            'purchaseOrders' => 'PurchaseOrders',
+            'purchaseOrderDetails' => 'PurchaseOrderDetails',
+            'vendors' => 'Vendors',
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        $this->load($params, $this->formName());
+
+        foreach (['id', 'contact_no', 'secondary_contact_no', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'organization_id', 'create_user_id', 'updated_by'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr);
+        }
+        foreach (['title', 'email', 'address', 'tax_no', 'create_time'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr, true);
+        }
+
+        return $provider;
     }
 }

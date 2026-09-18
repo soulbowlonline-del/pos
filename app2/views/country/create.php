@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/stockAdjustLog/create.php.
+ * Ported from protected/views/country/create.php.
  */
 
 use yii\helpers\Html;
@@ -11,6 +11,7 @@ $this->params['breadcrumbs'] = [
 	'Create',
 ];
 ?>
+<section class="content">
 <div class="page-header">
 <h1><?php echo 'Create' . ' ' . Html::encode($model->label()); ?></h1>
 </div>
@@ -19,3 +20,4 @@ echo $this->render('_form', [
 		'model' => $model,
 		'buttons' => 'create']);
 ?>
+</section>

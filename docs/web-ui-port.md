@@ -106,6 +106,15 @@ Each was found by the comparison suite, not by reading the code.
   relation - and Yii 1 rendered an empty cell where Yii 2 returns a 500. The
   same trait restores the null. This hides genuine typos, which is why it is
   written down here.
+- **New records carry the column defaults.** Yii 1's `CActiveRecord` fills a
+  new record from the table's declared defaults; Yii 2 leaves them null until
+  `loadDefaultValues()` is called. Without it a create form shows an empty box
+  where Yii 1 shows `0.00`, and an insert writes NULL where Yii 1 writes the
+  default.
+- **`$this->widget()` echoes even when its result is assigned.** Yii 1's
+  widget() writes to the output buffer *and* returns the widget, so
+  `$grid = $this->widget(...)` still renders. Yii 2's `::widget()` only
+  returns. The page came back 200 with its grid simply absent.
 - **Eager loading is part of the result.** Yii 1's `$criteria->with` loads a
   BELONGS_TO relation by JOIN in the same query. Where the listing has no
   `ORDER BY`, that join is what decides which rows the first page shows, so
@@ -150,30 +159,42 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page - 19 of the 59
-controllers, 112 comparison cases:
+Served by Yii 2 and matching Yii 1 on every compared page - 22 of the 59
+controllers, 130 comparison cases:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
-`state`, `city`, `stockLog`.
+`state`, `city`, `stockLog`, `country`, `designation`, `outlet`.
 
-Two were generated and **rejected by the comparison**, and are still served by
-Yii 1. Their generated code is not in the tree - it would be dead code nobody
-checked, and `batch_port.py` reproduces it in seconds.
+## The listings that cannot be compared - a decision for the owner
 
-| controller | why it was rejected |
-|---|---|
-| `itemTax` | The admin listing has no `ORDER BY` over 25,483 rows, so which ten appear on page one is decided by the query plan. Yii 1 and Yii 2 build equivalent but different SQL and select different rows. |
-| `itemExpire` | The same, and its grid footer sums the ids of the rows the page selected, so the total differs too. |
+Eighteen of the 56 model-backed controllers have a listing with **no
+`ORDER BY`**. Their model overrides `GxActiveRecord::defaultScope()` with an
+empty array, which removes the inherited `id DESC`:
 
-Neither is a defect in the port, and neither is unstable *within* a stack -
-Yii 1's footer total does match the ten rows Yii 1 displays. But two SQL
-builders cannot be made to agree on an unordered `LIMIT` without giving the
-query an order, and adding one changes what an operator sees. That is the
-owner's call. Both pages would become deterministic - and portable - with an
-`ORDER BY id DESC`, which is what every other listing in the application
-already has by way of `defaultScope()`.
+`b2bPurchaseBill`, `customer`, `item`, `itemDetail`, `itemExpire`,
+`itemReturn`, `itemReturnItem`, `itemTax`, `mrnDetail`, `mrsDetail`, `order`,
+`orderItem`, `orderRefund`, `orderRefundItem`, `purchaseBillDetail`,
+`purchaseOrderDetail`, `stockAdjustLog`, `tax`.
+
+For those pages, which ten of the rows appear on page one is decided by the
+query plan rather than by the data. That is not a defect in the port and it is
+not instability *within* a stack - Yii 1's grid footer does sum the ten rows
+Yii 1 displays, and repeated requests return the same ten. But Yii 1 and Yii 2
+build different, equivalent SQL, and two SQL builders cannot be made to agree
+on an unordered `LIMIT`.
+
+Every controller rejected by the comparison so far has been one of these
+eighteen, and every other failure turned out to be a bug in the generators.
+That is the evidence that ordering is the whole of the problem here.
+
+**The decision:** giving those eighteen listings `ORDER BY id DESC` would make
+them deterministic, and portable. It is the order every other listing in the
+application already has, inherited from `defaultScope()`, so it makes them
+consistent rather than novel - but it does change which rows an operator sees
+first on eighteen pages that work today. Until that is decided they stay on
+Yii 1, and no generated code for them is committed.
 
 ## What is not carried across
 

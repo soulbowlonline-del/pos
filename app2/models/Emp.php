@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use Yii;
+
 use yii\db\ActiveRecord;
 
 /** Ported from protected/models/Emp.php (Yii 1). Only outlet_id is read here. */
@@ -62,5 +64,192 @@ class Emp extends ActiveRecord
     public function getRelationLabel($name, $n = null)
     {
         return $this->getAttributeLabel($name);
+    }
+
+    /**
+     * GxActiveRecord::isAllowCreate(): whether the session the operator
+     * has selected is the current financial year.
+     *
+     * The year runs April to March, so a month past April belongs to
+     * year..year+1 and anything earlier to year-1..year. Session names
+     * are '<from>-<to>'. False when no session is selected, which is what
+     * stops the create button appearing.
+     */
+    public function isAllowCreate()
+    {
+        $month = (int) date('m');
+        $year = $month > 4 ? (int) date('Y') : (int) date('Y') - 1;
+        $yearadd = $year + 1;
+
+        $selected = Yii::$app->session['select_session_id'];
+        if ($selected === null || $selected === '') {
+            return false;
+        }
+
+        $session = Session::findOne($selected);
+        if ($session === null) {
+            return false;
+        }
+        $parts = explode('-', $session->name);
+
+        return isset($parts[0], $parts[1])
+            && $parts[0] == $year && $parts[1] == $yearadd;
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = [
+				"Active",
+				"InActive" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = [
+				"TYPE1",
+				"TYPE2",
+				"TYPE3" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getGenderOptions($id = null)
+    {
+		$list = [
+				self::GENDER_MALE => 'Male',
+				self::GENDER_FEMALE => 'Female',
+			//	self::GENDER_BOTH => 'Both' 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
+    }
+
+    public static function getRoleOptions($id = null)
+    {
+		$list = [
+				self::ROLE_BILLING => 'Billing',
+				self::ROLE_GRN => 'GRN Receiving',
+				//	self::GENDER_BOTH => 'Both'
+		];
+		if ($id === null || $id === '')
+			return $list;
+			if (is_numeric ( $id ))
+				return $list [$id];
+				return $id;
+    }
+
+    public function getShiftOptions(){
+            $list = [];
+            $shifts = Shift::find()
+                ->andWhere('status ='.Shift::STATUS_ACTIVE)
+                ->all();
+            if($shifts){
+                foreach($shifts as $shift){
+                    $list[$shift->id] = $shift->title;
+                }
+            }
+            return $list;
+        }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getDesignation()
+    {
+        return $this->hasOne(Designation::class, ['id' => 'designation_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getEmpShifts()
+    {
+        return $this->hasMany(EmpShift::class, ['emp_id' => 'id']);
+    }
+
+    public function getUsers()
+    {
+        return $this->hasMany(User::class, ['emp_id' => 'id']);
+    }
+
+    public function getCity()
+    {
+        return $this->hasOne(City::class, ['id' => 'city_id']);
+    }
+
+    public function getState()
+    {
+        return $this->hasOne(State::class, ['id' => 'state_id']);
+    }
+
+    public function getCountry()
+    {
+        return $this->hasOne(Country::class, ['id' => 'country_id']);
+    }
+
+    public function getTempcity()
+    {
+        return $this->hasOne(City::class, ['id' => 'temp_city_id']);
+    }
+
+    public function getTempstate()
+    {
+        return $this->hasOne(State::class, ['id' => 'temp_state_id']);
+    }
+
+    public function getTempcountry()
+    {
+        return $this->hasOne(Country::class, ['id' => 'temp_country_id']);
+    }
+
+    public function getOutlet()
+    {
+        return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
     }
 }

@@ -4,6 +4,7 @@
  */
 
 use app\components\Gx;
+use app\components\Ui;
 use app\models\City;
 use app\models\Country;
 use app\models\Organization;
@@ -115,7 +116,7 @@ $('#Outlet_country_id').change(function(){
 function checkStates(country){
 	 jQuery.ajax({
 	       'type': 'POST',
-	       'url': '<?php echo CController::createUrl('country/getStates') ?>',
+	       'url': '<?php echo Ui::to('country/getStates') ?>',
 	       'data': {'country': country},
 	       'success': function (data) {
 	    	   $("#Outlet_state_id").empty();
@@ -146,7 +147,7 @@ $('#Outlet_state_id').change(function(){
 function checkCities(state){
 	 jQuery.ajax({
 	       'type': 'POST',
-	       'url': '<?php echo CController::createUrl('country/getCities') ?>',
+	       'url': '<?php echo Ui::to('country/getCities') ?>',
 	       'data': {'state': state},
 	       'success': function (data) {
 	    	   $("#Outlet_city_id").empty();

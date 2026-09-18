@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/stockAdjustLog/update.php.
+ * Ported from protected/views/designation/update.php.
  */
 
 use app\components\Gx;
@@ -13,10 +13,11 @@ $this->params['breadcrumbs'] = [
 	'Update',
 ];
 ?>
+<section class="content-header">
 
-<div class="page-header">
 <h1><?php echo 'Update' . ' ' . Html::encode($model->label()) . ' : ' . Html::encode(Gx::str($model)); ?></h1>
-</div>
+</section>
+
 
 <?php
 echo $this->render('_form', [
