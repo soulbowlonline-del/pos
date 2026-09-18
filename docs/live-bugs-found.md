@@ -163,18 +163,16 @@ stacks.
 Still unauthenticated — that was not part of the change, and anyone who can
 reach the API can still set a bill back to unapproved.
 
-### order/online was not authenticated — **fixed**
+### order/online and order/getOnlineOrder were not authenticated — **fixed**
 
-It read the caller id from a request header and then overwrote it with the
-literal `'1'`, so the check below could never fail. Every online order in the
-date window was readable by anyone who could reach the endpoint, with customer
-names, addresses and phone numbers.
+Both read the caller id from a request header and then overwrote it with the
+literal `'1'`, so the check below could never fail. Between them that exposed
+every online order in the date window, and any single order by id, to anyone
+who could reach the endpoint — customer names, addresses and phone numbers
+included.
 
-The overwrite is gone from both stacks; the header decides now, and a request
-without one gets "Please login".
-
-**`order/getOnlineOrder` still has the identical line.** It was not part of this
-change. Removing it is the same one-line edit.
+The overwrite is gone from both actions on both stacks. The header decides now,
+and a request without one gets "Please login".
 
 ---
 

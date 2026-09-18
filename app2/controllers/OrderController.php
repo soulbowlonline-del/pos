@@ -473,17 +473,20 @@ class OrderController extends Controller
     /**
      * POST /v2/api/order/get-online-order
      *
-     * One online order, with its line items. Same hardcoded caller id as
-     * online(). With no id at all Yii 1 falls through every branch and returns
-     * the bare envelope - no message key - which is reproduced here.
+     * One online order, with its line items.
+     *
+     * This had the same overwrite online() did - the caller id replaced with
+     * the literal '1' right after being read - so any caller could read any
+     * online order by id. Gone from both stacks; the header decides now.
+     *
+     * With a login but no id, Yii 1 falls through every branch and returns the
+     * bare envelope with no message key, which is reproduced.
      */
     public function actionGetOnlineOrder($id = null)
     {
         $out = $this->envelope('getOnlineOrder');
 
-        $this->headerUserId();
-        $loginId = '1';   // as in Yii 1
-
+        $loginId = $this->headerUserId();
         if (!$loginId) {
             $out['message'] = 'Please login';
             return $out;

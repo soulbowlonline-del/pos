@@ -70,7 +70,15 @@ o1=$(curl -sS --max-time 60 -X POST "$BASE/api/order/online")
 o2=$(curl -sS --max-time 60 -X POST "$BASE/v2/api/order/online")
 if [ "$o1" = "$o2" ]; then echo "OK  (${#o1} bytes)"; PASS=$((PASS+1)); else echo "MISMATCH"; echo "      yii1: $o1"; echo "      yii2: $o2"; FAIL=$((FAIL+1)); fi
 
-# no login header at all - the only one of the three that still checks
+# getOnlineOrder had the same overwrite online() did; it honours the header
+# now too, on both stacks.
+echo -n "  getOnlineOrder, no login header              "
+g1=$(curl -sS --max-time 60 -X POST "$BASE/api/order/getOnlineOrder?id=1")
+g2=$(curl -sS --max-time 60 -X POST "$BASE/v2/api/order/get-online-order?id=1")
+if [ "$g1" = "$g2" ]; then echo "OK  (${#g1} bytes)"; PASS=$((PASS+1)); else echo "MISMATCH"; echo "      yii1: $g1"; echo "      yii2: $g2"; FAIL=$((FAIL+1)); fi
+
+# no login header at all
+
 echo -n "  getAssignList, no login header               "
 r1=$(curl -sS --max-time 60 -X POST "$BASE/api/order/getAssignList")
 r2=$(curl -sS --max-time 60 -X POST "$BASE/v2/api/order/get-assign-list")

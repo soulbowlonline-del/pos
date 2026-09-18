@@ -464,7 +464,11 @@ class OrderController extends GxController {
 		if ($loginid == '') {
 			$loginid = isset ( $headers ['login_id'] ) ? $headers ['login_id'] : null;
 		}
-		$loginid = '1';
+		// The line that used to sit here overwrote $loginid with the literal
+		// '1' immediately after reading it from the request header, so the
+		// check below could never fail and any caller could read any online
+		// order by id - name, address and phone number included. Removed, as
+		// it was in actionOnline.
 		if ($loginid) {
 			if ($id != null) {
 				$order = OnlineOrder::model ()->findByPk ( $id );
