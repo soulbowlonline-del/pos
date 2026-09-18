@@ -147,9 +147,9 @@ class PurchaseOrderDetail extends ActiveRecord
 
     public function getPOVendorOptions(){
             $list = [];
-            $mrss = PurchaseOrder::find()
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->all();
+            $query = PurchaseOrder::find();
+            $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
+            $mrss = $query->all();
             if($mrss){
                 foreach($mrss as $mrs){
                    $create_time = date('d-m-Y',strtotime($mrs->create_time));
@@ -175,17 +175,15 @@ class PurchaseOrderDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                    $polist = PurchaseOrder::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->all();
+                    $query = PurchaseOrder::find();
+                    $query->andWhere('vendor_id ='.$id);
+                    $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
+                    $polist = $query->all();
                 }else{
-                    $polist = PurchaseOrder::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->all();
+                    $query = PurchaseOrder::find();
+
+                    $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
+                    $polist = $query->all();
                 }
                 if($polist){
                     foreach($polist as $po){
@@ -206,17 +204,15 @@ class PurchaseOrderDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                $polist = PurchaseOrder::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->all();
+                $query = PurchaseOrder::find();
+                $query->andWhere('vendor_id ='.$id);
+                $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
+                $polist = $query->all();
                 }else{
-                    $polist = PurchaseOrder::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED)
-                ->all();
+                    $query = PurchaseOrder::find();
+
+                    $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
+                    $polist = $query->all();
                 }
                 if($polist){
                     foreach($polist as $po){
@@ -262,4 +258,65 @@ class PurchaseOrderDetail extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'req_qty' => 'Max Qty',
+            'bal_qty' => 'Bal Qty',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'charge_amount' => 'Charge Amount',
+            'extra_charges' => 'Extra Charges',
+            'remarks' => 'Remarks',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'item_detail_id' => 'ItemDetail',
+            'discount' => 'Discount(%)',
+            'discount_amt' => 'Discount Amount',
+            'item_id' => 'Item',
+            'vendor_id' => 'Vendor',
+            'purchase_order_id' => 'PurchaseOrder',
+            'outlet_id' => 'Outlet',
+            'createUser' => 'User',
+            'itemDetail' => 'ItemDetail',
+            'outlet' => 'Outlet',
+            'purchaseOrder' => 'PurchaseOrder',
+            'updatedBy' => 'User',
+        ];
+    }
+
+    public function getGstTrue($poid){
+            $gst = true;
+            if($poid){
+                $mrs = PurchaseOrder::findOne(['id'=>$poid]);
+                if($mrs){
+                    $outlet = Outlet::findOne($mrs->outlet_id);
+                    if($outlet){
+                        $vendor = Vendor::findOne($mrs->vendor_id);
+                        if($vendor->state_id != $outlet->state_id){
+                            $gst = false;
+                        }
+                    }
+                }
+            }
+            return $gst;
+        }
 }

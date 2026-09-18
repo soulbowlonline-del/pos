@@ -69,7 +69,7 @@ class City extends ActiveRecord
     public static function getStatusOptions($id = null)
     {
 		$list = ["Active","InActive"];
-		if ($id == null )	return $list;
+		if ($id === null || $id === '' )	return $list;
 		if ( is_numeric( $id )) return $list [ $id ];
 		return $id;
     }
@@ -77,7 +77,7 @@ class City extends ActiveRecord
     public static function getTypeOptions($id = null)
     {
 		$list = ["TYPE1","TYPE2","TYPE3"];
-		if ($id == null )	return $list;
+		if ($id === null || $id === '' )	return $list;
 		if ( is_numeric( $id )) return $list [ $id ];
 		return $id;
     }
@@ -309,5 +309,24 @@ class City extends ActiveRecord
         return new ActiveDataProvider(array_merge(
             ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
             $config));
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
     }
 }

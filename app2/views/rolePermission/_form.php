@@ -3,6 +3,7 @@
  * Ported from protected/views/rolePermission/_form.php.
  */
 
+use app\components\Ui;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 ?>
@@ -80,7 +81,7 @@ function checkPermissions()
     var role_id = $('#RolePermission_role_id').val();
     jQuery.ajax({
        'type': 'POST',
-       'url': '<?php echo CController::createUrl('rolePermission/ajaxUpdate') ?>',
+       'url': '<?php echo Ui::to('rolePermission/ajaxUpdate') ?>',
        'data': {'role_id': role_id},
        'success': function (data) {
     	   $("#globalCheckbox").prop("checked", false);

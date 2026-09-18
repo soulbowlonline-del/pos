@@ -9,6 +9,7 @@ use app\models\User;
 use app\models\Vendor;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
+use app\widgets\CJuiRadioButtonList;
 ?>
 <div class="wide form">
 
@@ -48,7 +49,7 @@ use app\widgets\Button;
 	<div class="row">
 		<?php echo $form->label($model, 'type_id'); ?>
 		<?php 
-			$this->widget('ext.widgets.CJuiRadioButtonList', [
+			echo CJuiRadioButtonList::widget([
 			'model'=>$model,
 			'attribute'=>'type_id',
 			'data'=>$model->getTypeOptions(),
@@ -58,7 +59,7 @@ use app\widgets\Button;
 	<div class="row">
 		<?php echo $form->label($model, 'status'); ?>
 		<?php 
-			$this->widget('ext.widgets.CJuiRadioButtonList', [
+			echo CJuiRadioButtonList::widget([
 			'model'=>$model,
 			'attribute'=>'status',
 			'data'=>$model->getStatusOptions(),

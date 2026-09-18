@@ -79,6 +79,7 @@ BOOSTER = {
     'CGridView': 'GridView',
     'CJuiRadioButtonList': 'CJuiRadioButtonList',
     'CJuiDatePicker': 'CJuiDatePicker',
+    'TbTypeAhead': 'TbTypeAhead',
 }
 
 
@@ -258,6 +259,14 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r'\$this->pageCaption\b', '$this->context->pageCaption', src)
     src = re.sub(r'\$this->pageTitle\b', '$this->title', src)
 
+    # CJavaScriptExpression marks a string that must reach the page as raw
+    # JavaScript rather than as a quoted value. Yii 2 calls it JsExpression.
+    # A lambda, not a replacement string: backslashes in a re.sub template are
+    # escape sequences, and \y is not one.
+    # written CJavaScriptExpression and CJavascriptExpression in different views
+    src = re.sub(r"\bnew\s+(?i:CJavaScriptExpression)\s*\(",
+                 lambda m: 'new \\yii\\web\\JsExpression(', src)
+
     # `X::model()->find*` in a view, which a few of them do directly.
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
     src = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', src)
@@ -276,6 +285,11 @@ def rewrite(src, ctrl, unknown):
 
     # Whatever Yii::app() calls are left after the specific rewrites above -
     # user, session, params, request. The accessor differs; the shape does not.
+    # The theme component does not exist in Yii 2; its assets are served from
+    # the same directory as before, beside the Yii 1 application.
+    src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*theme\s*->\s*baseUrl", "'/themes/bar'", src)
+    src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*theme\s*->\s*basePath", "'/themes/bar'", src)
+
     src = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', src)
     src = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', src)
 
@@ -316,6 +330,8 @@ def rewrite(src, ctrl, unknown):
                  visible_expr, src)
 
     # the button columns
+    src = re.sub(r"'class'\s*=>\s*'(?:bootstrap\.widgets\.)?(?:CCheckBoxColumn|CheckBoxColumn)'",
+                 lambda m: "'class' => CheckboxColumn::class", src)
     src = re.sub(r"'class'\s*=>\s*'(?:bootstrap\.widgets\.)?(?:TbButtonColumn|CxButtonColumn|FaButtonColumn|CButtonColumn)'",
                  lambda m: "'class' => ActionColumn::class", src)
 
@@ -341,6 +357,8 @@ def imports(src, ctrl):
             need.append('use app\\widgets\\' + w + ';')
     if 'ActionColumn::' in src:
         need.append('use app\\widgets\\ActionColumn;')
+    if 'CheckboxColumn::' in src:
+        need.append('use app\\widgets\\CheckboxColumn;')
     if 'ActiveForm::' in src:
         need.append('use app\\widgets\\ActiveForm;')
     # Model classes the file names, in any form: a static call, a constant,

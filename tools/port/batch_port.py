@@ -6,7 +6,7 @@ Each one goes through the same three generators and is then compared page by
 page. A controller that does not compare clean is reported and left out of
 Ui::PORTED, so it stays on Yii 1 rather than shipping a page nobody checked.
 """
-import subprocess, sys, os, re, json
+import subprocess, sys, os, re, json, glob
 
 ROOT = '/root/pos/pos83'
 
@@ -66,6 +66,15 @@ def current_ported():
 GENERATED_MARKER = 'and its giix base class'
 
 
+VIEW_MARKER = 'Ported from protected/views/'
+
+
+def view_generated_by_us(path):
+    """Whether this view file is this pipeline's own output."""
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return VIEW_MARKER in fh.read(500)
+
+
 def generated_by_us(path):
     """
     Whether this model file is this pipeline's own output.
@@ -77,6 +86,26 @@ def generated_by_us(path):
     """
     with open(path, encoding='utf-8', errors='replace') as fh:
         return GENERATED_MARKER in fh.read(2000)
+
+
+def ensure_logged_in():
+    """
+    Re-establish the session if it has lapsed.
+
+    A batch of thirty controllers runs longer than PHP's default session
+    lifetime of 24 minutes, so the later ones were being compared with an
+    expired cookie: Yii 1 redirects to the login form, the reduction comes back
+    empty, and the controller is reported as DIFFERS. Three controllers that
+    had been green for hours "regressed" that way in a single run, which is how
+    it was noticed.
+    """
+    # The status, not a string in the body: Yii 1's error page for a guest
+    # contains the grid's id in its source excerpt.
+    probe = run('curl -sS -o /dev/null -w "%{http_code}" -b /tmp/uic.txt '
+                '--max-time 60 "http://127.0.0.1:8084/paymentMode/admin"')
+    if probe.stdout.strip() == '200':
+        return
+    run('/root/pos/uilogin.sh')
 
 
 def panel_views(ctrl):
@@ -190,12 +219,18 @@ def main():
             # the invoice template the punchorder API renders - and blowing the
             # directory away replaced it with a mechanical translation that
             # broke a suite which had been green for weeks.
-            tracked = run(f'cd {ROOT} && git ls-files app2/views/{ctrl}').stdout.split()
+            # Provenance, not git status. A partial this pipeline generated for
+            # another controller's relation panel gets committed with that
+            # controller, and "tracked" would then freeze it at whatever the
+            # transformer produced that day - which is how a CController call
+            # survived a later fix and a commit. A view written by hand, like
+            # app2/views/item/_pdf.php, carries no such header and is left
+            # alone.
             if os.path.isdir(f'{ROOT}/app2/views/{ctrl}'):
                 for f in os.listdir(f'{ROOT}/app2/views/{ctrl}'):
-                    rel = f'app2/views/{ctrl}/{f}'
-                    if rel not in tracked:
-                        os.remove(f'{ROOT}/{rel}')
+                    path = f'{ROOT}/app2/views/{ctrl}/{f}'
+                    if view_generated_by_us(path):
+                        os.remove(path)
             r = run(f'cd /root/pos && python3 port_views.py {ctrl} --keep-existing')
             notes += [l.strip() for l in r.stdout.splitlines() if 'UNCONVERTED' in l]
 
@@ -213,19 +248,35 @@ def main():
                     # to that controller's own port.
                     if not f.startswith('_') or not f.endswith('.php'):
                         continue
-                    if os.path.exists(f'{ROOT}/app2/views/{other}/{f}'):
-                        continue
+                    dst = f'{ROOT}/app2/views/{other}/{f}'
+                    if os.path.exists(dst):
+                        if not view_generated_by_us(dst):
+                            continue        # hand-written; leave it
+                        os.remove(dst)
                     run(f'cd /root/pos && python3 port_views.py {other} --only {f}')
                     notes.append('also ported %s/%s for a relation panel' % (other, f))
 
             # syntax first - a parse error is not a comparison failure
-            bad = run(f'for f in {ROOT}/app2/models/{model}.php '
-                      f'{ROOT}/app2/controllers/{model}Controller.php '
-                      f'{ROOT}/app2/views/{ctrl}/*.php; do '
-                      f'docker exec pos-php-83 php -l "/var/www/html/${{f#{ROOT}/}}" '
-                      f'>/dev/null 2>&1 || echo "$f"; done').stdout.strip()
+            # The view directory has to exist and have files in it. An earlier
+            # version globbed it in the shell, so a directory the generator had
+            # failed to write came back as "PARSE ERROR *.php" - pointing at
+            # syntax when the real story was that port_views.py had crashed.
+            view_dir = f'{ROOT}/app2/views/{ctrl}'
+            views = sorted(glob.glob(view_dir + '/*.php'))
+            if not views:
+                results.append((model, 'NO VIEWS',
+                                'port_views.py wrote nothing to app2/views/%s' % ctrl))
+                continue
+
+            files = [f'{ROOT}/app2/models/{model}.php',
+                     f'{ROOT}/app2/controllers/{model}Controller.php'] + views
+            bad = []
+            for f in files:
+                rel = f[len(ROOT) + 1:]
+                if run(f'docker exec pos-php-83 php -l "/var/www/html/{rel}" >/dev/null 2>&1').returncode:
+                    bad.append(rel)
             if bad:
-                results.append((model, 'PARSE ERROR', bad.replace(ROOT + '/', '')))
+                results.append((model, 'PARSE ERROR', ', '.join(bad)))
                 continue
 
             gid = grid_id(model)
@@ -236,6 +287,7 @@ def main():
                 continue
 
             set_ported(base + [ctrl])
+            ensure_logged_in()
             cmp = run(f'cd {ROOT} && COOKIE_FILE=/tmp/uic.txt python3 tests/port/ui-difftest.py '
                       f'{ctrl} {model} {gid} {rid or ""}')
             if cmp.returncode == 0:

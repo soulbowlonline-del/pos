@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -105,17 +109,17 @@ class ItemDetail extends ActiveRecord
         return $tax->tax_val1 + $tax->tax_val2 + $tax->tax_val3 + $tax->tax_val4;
     }
 
-    /** Status labels, from BaseItemDetail::getStatusOptions(). */
     public static function getStatusOptions($id = null)
     {
-        $list = ['Active', 'InActive'];
-        if ($id === null) {
-            return $list;
-        }
-        if (is_numeric($id)) {
-            return isset($list[$id]) ? $list[$id] : null;
-        }
-        return $id;
+		$list = [
+				"Active",
+				"InActive" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
     }
 
     /** Id of the tax row that applies, or 0. From getItemTax(). */
@@ -777,4 +781,161 @@ class ItemDetail extends ActiveRecord
     {
         return $this->hasMany(PurchaseOrderDetail::class, ['item_detail_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'item_id' => 'Item',
+            'company_id' => 'Company',
+            'bar_code' => 'Bar Code',
+            'open_stock_qty' => 'Opening Stock',
+            'reorder_qty' => 'Reorder Qty',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'mrp' => 'MRP',
+            'create_time' => 'Create Time',
+            'expiry_date' => 'Expiry Date',
+            'packing_date' => 'Packing Date',
+            'item_print_id' => 'Item',
+            'item_qty' => 'Quantity',
+            'tax_id' => 'Tax',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'createUser' => 'User',
+            'item' => 'Item',
+            'tax' => 'Tax',
+            'updatedBy' => 'User',
+            'itemDiscounts' => 'ItemDiscounts',
+            'itemStocks' => 'ItemStocks',
+            'itemTaxes' => 'ItemTaxes',
+            'itemVendors' => 'ItemVendors',
+            'mrnDetails' => 'MrnDetails',
+            'mrsDetails' => 'MrsDetails',
+            'orderHoldItems' => 'OrderHoldItems',
+            'orderItems' => 'OrderItems',
+            'orderRefundItems' => 'OrderRefundItems',
+            'purchaseBillDetails' => 'PurchaseBillDetails',
+            'purchaseOrderDetails' => 'PurchaseOrderDetails',
+            'stockAdjustLogs' => 'StockAdjustLogs',
+        ];
+    }
+
+    public function toonlineArray() {
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+
+                $batch_no =  [];
+                $default_img = 'default.png';
+                $json_entry = [];
+                $json_entry ['Code'] = isset($model->item)?$model->item->item_code:"";
+                $json_entry ['Name'] = isset($model->item)?$model->item->title:"";
+                $json_entry ['Short_x0020_Name'] = isset($model->item)?$model->item->short_name:"";
+                $json_entry ['Barcode'] = $model->bar_code;
+                $tax_id = $model->getItemTax();
+                $tax = Tax::findOne($tax_id);
+                if($tax){
+                $json_entry ['Tax'] = $tax->title;
+                }
+                if($model->mrp != '0.00'){
+                    $json_entry ['MRP'] = isset($model->mrp)?$model->mrp:"";
+                }else{
+                $json_entry ['MRP'] = isset($model->item)?$model->item->mrp:"";
+                }
+                $json_entry ['PRICE'] = isset($model->item)?$model->item->sale_price:"";
+                $json_entry ['OPStock'] = $model->getStockQty();
+                $json_entry ['Pur_x0020_Price'] = isset($model->item)?$model->item->purchase_price:"";
+                $json_entry ['Pur_x0020_Value'] = isset($model->item)?$model->item->purchase_price:"";
+                $json_entry ['Weight'] = isset($model->item)?$model->item->weight:"";
+                $json_entry ['Department'] = isset($model->item)?$model->getCategory():"";
+                $json_entry ['Company'] = isset($model->item)?$model->getCompany():"";
+                $json_entry ['Sub_x0020_Category'] = isset($model->item)?$model->getSubcategory():"";
+                $json_entry ['ProdEx1'] = '';
+                $json_entry ['ProdEx2'] = '';
+                $json_entry ['ProdEx3'] = '';
+                $json_entry ['ProdEx4'] = '';
+                $json_entry ['Active'] = $model->getStatusOptions($model->status);
+
+            }
+            return $json_entry;
+        }
+
+    public function getCategory(){
+            $title = '';
+            $item = Item::findOne($this->item_id);
+            if($item){
+                if($item->category){
+                    $title = $item->category->title;
+                }
+            }
+            return $title;
+        }
+
+    public function getCompany(){
+            $title = '';
+            $item = Item::findOne($this->item_id);
+            if($item){
+                if($item->company){
+                    $title = $item->company->title;
+                }
+            }
+            return $title;
+        }
+
+    public function getSubcategory(){
+            $title = '';
+            $item = Item::findOne($this->item_id);
+            if($item){
+                if($item->subcategory){
+                    $title = $item->subcategory->title;
+                }
+            }
+            return $title;
+        }
+
+    public function getParentCompanys(){
+            $list = [];
+            $query = ItemCompany::find();
+            $query->andWhere('parent_id IS  NULL');
+            $query->orderBy(['title' => SORT_ASC]);
+            $query->andWhere('status ='.ItemCompany::STATUS_ACTIVE);
+            $cats = $query->all();
+            if($cats){
+                foreach($cats as $cat){
+                    $list[$cat->id] = $cat->title;
+                }
+            }
+            return $list;
+        }
+
+    public function getItemPrintDetails() {
+            $bill_detail_ids = [];
+            $list = [];
+            if (isset ( Yii::$app->session ['idList'] ) && (Yii::$app->session ['idList'] != '')) {
+                $query = ItemDetail::find();
+                $query->andWhere(['id' => Yii::$app->session ['idList']]);
+                $itemdetails= $query->all();
+                if ($itemdetails) {
+                    foreach ( $itemdetails as $itemdetail ) {
+                        $list [$itemdetail->id] = isset ( $itemdetail->item ) ? $itemdetail->bar_code.'('.$itemdetail->item.')' : "";
+                    }
+                }
+            }
+            return $list;
+        }
 }

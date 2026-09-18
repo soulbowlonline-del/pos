@@ -42,6 +42,10 @@ class Ui
         'country',
         'designation',
         'outlet',
+        'freeItem',
+        'mrs',
+        'organization',
+        'rolePermission',
     ];
 
     /**

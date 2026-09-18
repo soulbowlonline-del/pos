@@ -17,7 +17,7 @@ $this->params['breadcrumbs'] = [
 <section class="content">
 <div class="page-header">
 <h1><?php echo 'Import' . ' ' . Html::encode($model->label()); ?>
-  <a href="<?php echo Yii::$app->theme->baseUrl;?>/img/designation.csv" class="btn btn-info">Sample</a></h1>
+  <a href="<?php echo '/themes/bar';?>/img/designation.csv" class="btn btn-info">Sample</a></h1>
 
 </div>
 <!--  form code start here -->

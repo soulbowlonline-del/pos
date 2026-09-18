@@ -64,6 +64,15 @@ class BridgedUser extends User
     }
 
     /**
+     * Yii 1's Yii::app()->user->model - the User row for the signed-in user.
+     * Yii 2 calls it the identity, and the views say `model`.
+     */
+    public function getModel()
+    {
+        return $this->getIdentity();
+    }
+
+    /**
      * Yii 1 put flash messages on the user component; Yii 2 keeps them on the
      * session. The views say Yii::$app->user->hasFlash(...), so the three
      * accessors forward.

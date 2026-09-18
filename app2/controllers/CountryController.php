@@ -2,7 +2,9 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\models\City;
 use app\models\Country;
+use app\models\State;
 use Yii;
 use yii\data\ActiveDataProvider;
 use yii\helpers\Html;

@@ -147,9 +147,9 @@ class MrnDetail extends ActiveRecord
 
     public function getMrnVendorOptions(){
             $list = [];
-            $mrss = Mrn::find()
-                ->andWhere('status ='.Mrn::STATUS_UNAPPROVED)
-                ->all();
+            $query = Mrn::find();
+            $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
+            $mrss = $query->all();
             if($mrss){
                 foreach($mrss as $mrs){
                     $vendor = Vendor::findOne($mrs->vendor_id);
@@ -187,15 +187,15 @@ class MrnDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('vendor_id ='.$id);
-                        $criteria->addCondition('status ='.Mrn::STATUS_UNAPPROVED);
-                        $mrslist = Mrn::model ()->findAll($criteria);
+                        $query = Mrn::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
+                        $mrslist = $query->all();
 
                     } else {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('status ='.Mrn::STATUS_UNAPPROVED);
-                        $mrslist = Mrn::model ()->findAll ($criteria);
+                        $query = Mrn::find();
+                        $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
+                        $mrslist = $query->all();
                     }
                     if ($mrslist) {
                         foreach ( $mrslist as $mrs ) {
@@ -216,14 +216,14 @@ class MrnDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('vendor_id ='.$id);
-                        $criteria->addCondition('status ='.Mrn::STATUS_UNAPPROVED);
-                        $mrslist = Mrn::model ()->findAll($criteria);
+                        $query = Mrn::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
+                        $mrslist = $query->all();
                     }else {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('status ='.Mrn::STATUS_UNAPPROVED);
-                        $mrslist = Mrn::model ()->findAll ($criteria);
+                        $query = Mrn::find();
+                        $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
+                        $mrslist = $query->all();
                     }
                 if ($mrslist) {
                     foreach ( $mrslist as $mrs ) {
@@ -269,4 +269,87 @@ class MrnDetail extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'req_qty' => 'Max Qty',
+            'approved_qty' => 'Approved Qty',
+            'bal_qty' => 'Bal Qty',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'remarks' => 'Remarks',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'item_id' => 'Item',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'item_detail_id' => 'Bar Code',
+            'mrn_id' => 'Mrn',
+            'outlet_id' => 'Outlet',
+            'createUser' => 'User',
+            'itemDetail' => 'Bar Code',
+            'vendor_id' => 'Vendor',
+            'mrn' => 'Mrn',
+            'outlet' => 'Outlet',
+            'updatedBy' => 'User',
+        ];
+    }
+
+    public function getGstTrue($mrnid){
+            $gst = true;
+            if($mrnid){
+                $mrs = Mrn::findOne(['id'=>$mrnid]);
+                if($mrs){
+                    $outlet = Outlet::findOne($mrs->outlet_id);
+                    if($outlet){
+                        $vendor = Vendor::findOne($mrs->vendor_id);
+                        if($vendor->state_id != $outlet->state_id){
+                            $gst = false;
+                        }
+                    }
+                }
+            }
+            return $gst;
+        }
+
+    public function getCssClass()
+        {
+            // Was a bare `$cssClass;` - a statement that reads an undefined
+            // variable and discards it, which is a PHP 8 warning and therefore a
+            // 500 from Yii 1's error handler on every call. Initialised instead.
+            $cssClass = '';
+            $purchase_amount = $this->getPurchaseAmount();
+            $sale_amount = $this->getSaleAmount();
+            $purchase_qty = $this->getPurchaseQty();
+            $per_purchase_qty = (($this->getPurchaseQty()) - (10/100) * ($this->getPurchaseQty()));
+            $sale_qty = $this->getSaleQty();
+            if($purchase_amount > $sale_amount){
+                $cssClass='mrsred';
+            }else if($sale_qty > $per_purchase_qty){
+                $cssClass='mrsgreen';
+            }else if($this->margin < 10){
+                $cssClass='mrsorange';
+            }else{
+                $cssClass='';
+            }
+            Yii::warning( var_export( $cssClass ), '$cssClass');
+
+            return $cssClass;
+        }
 }

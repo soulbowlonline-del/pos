@@ -175,4 +175,58 @@ class PurchaseOrder extends ActiveRecord
     {
         return $this->hasMany(PurchaseOrderDetail::class, ['purchase_order_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'code' => 'Code',
+            'start_date' => 'Start Date',
+            'end_date' => 'End Date',
+            'receiving_date' => 'Receiving Date',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'is_open_po' => 'Is Open Po',
+            'is_po_received' => 'Is Po Received',
+            'remarks' => 'Remarks',
+            'payment_terms' => 'Payment Terms',
+            'transport_mode' => 'Transport Mode',
+            'purchase_order_amount' => 'Purchase Order Amount',
+            'charges_total_amount' => 'Charges Total Amount',
+            'discount_amount' => 'Discount Amount',
+            'frieght_charges' => 'Frieght Charges',
+            'extra_charges' => 'Extra Charges',
+            'total_amount' => 'Total Amount',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'outlet_id' => 'Outlet',
+            'vendor_id' => 'Vendor',
+            'mrn_id' => 'Mrn',
+            'organization_id' => 'Organization',
+            'purchaseBills' => 'PurchaseBills',
+            'createUser' => 'User',
+            'mrn' => 'Mrn',
+            'organization' => 'Organization',
+            'outlet' => 'Outlet',
+            'updatedBy' => 'User',
+            'vendor' => 'Vendor',
+            'purchaseOrderDetails' => 'PurchaseOrderDetails',
+        ];
+    }
 }

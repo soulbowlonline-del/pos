@@ -1,0 +1,78 @@
+<?php
+/**
+ * Ported from protected/views/vendor/_view.php.
+ */
+
+use app\components\Gx;
+use yii\helpers\Html;
+?>
+<div class="view">
+
+	<b><?php echo Html::encode($data->getAttributeLabel('id')); ?>:</b>
+	<?php echo Html::a(Html::encode($data->id), Gx::url(['view','id'=>$data->id])); ?>
+	<br />
+
+	<?php echo Html::encode($data->getAttributeLabel('id')); ?>:
+	<?php echo Html::encode($data->id); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('name')); ?>:
+	<?php echo Html::encode($data->name); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('description')); ?>:
+	<?php echo Html::encode($data->description); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('contact_person')); ?>:
+	<?php echo Html::encode($data->contact_person); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('person_designation')); ?>:
+	<?php echo Html::encode($data->person_designation); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('contact_no')); ?>:
+	<?php echo Html::encode($data->contact_no); ?>
+	<br />
+	<?php /*
+	<?php echo Html::encode($data->getAttributeLabel('secondary_contact_no')); ?>:
+	<?php echo Html::encode($data->secondary_contact_no); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('primary_address')); ?>:
+	<?php echo Html::encode($data->primary_address); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('secondary_address')); ?>:
+	<?php echo Html::encode($data->secondary_address); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('tax_no')); ?>:
+	<?php echo Html::encode($data->tax_no); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('is_local_vendor')); ?>:
+	<?php echo Html::encode($data->is_local_vendor); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('status')); ?>:
+	<?php echo Html::encode($data->status); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('type_id')); ?>:
+	<?php echo Html::encode($data->type_id); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('create_time')); ?>:
+	<?php echo Html::encode($data->create_time); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('city_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->city)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('state_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->state)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('country_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->country)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('outlet_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->outlet)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('create_user_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->createUser)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('updated_by')); ?>:
+		<?php echo Html::encode(Gx::str($data->updatedBy)); ?>
+	<br />
+	*/ ?>
+
+</div>

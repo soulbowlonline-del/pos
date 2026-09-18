@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -627,4 +631,432 @@ class Order extends ActiveRecord
     {
         return $this->hasMany(OrderRefund::class, ['order_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'qty' => 'Qty',
+            'discount_amt' => 'Discount Amt',
+            'total_amt' => 'Total Amt',
+            'min_amt' => 'Minimum Total Amount',
+            'max_amt' => 'Maximum Total Amount',
+            'paid_amt' => 'Paid Amt',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'address' => 'Address',
+            'note' => 'Note',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'customer_id' => 'Customer',
+            'updated_by' => 'User',
+            'city' => 'City',
+            'country' => 'Country',
+            'customer' => 'Customer',
+            'state' => 'State',
+            'updatedBy' => 'User',
+            'orderItems' => 'OrderItems',
+            'orderRefunds' => 'OrderRefunds',
+        ];
+    }
+
+    public function processLoyaltyEarning() {
+        // Process loyalty points after order is completed
+                if ($this->status == 0 && $this->customer_id) {
+                        return LoyaltyService::processOrderEarn($this);
+                }
+                return false;
+        }
+
+    public function getLoyaltyEarnedPoints() {
+                if ($this->customer_id) {
+                        return LoyaltyService::calculateEarnedPoints($this->total_amt);
+                }
+                return 0;
+        }
+
+    public function getCustomerLoyaltyInfo() {
+                if ($this->customer_id) {
+                        return LoyaltyService::getCustomerLoyaltyInfo($this->customer_id);
+                }
+                return null;
+        }
+
+    public static function getOrderRecord(){
+            // One grouped scan instead of 12 separate full-table COUNTs over tbl_order
+            // (~1.3M rows). Returns the same 12 comma-separated monthly counts (Jan..Dec).
+            $list = array_fill(1, 12, 0);
+            // Cache this historical monthly aggregate for 1h (opt-in, this query only).
+            // A dashboard chart of monthly order counts tolerates up-to-1h staleness.
+            $rows = Yii::$app->db->cache(3600)->createCommand()
+                ->select('MONTH(create_time) AS m, COUNT(*) AS c')
+                ->from(Order::model()->tableName())
+                ->group('MONTH(create_time)')
+                ->queryAll();
+            foreach($rows as $row){
+                $m = (int)$row['m'];
+                if($m >= 1 && $m <= 12){
+                    $list[$m] = (int)$row['c'];
+                }
+            }
+            return implode(',', $list);
+        }
+
+    public function toArray1() {
+            $model = $this;
+            $json_entry = null;
+            $bill_prefix = 'B';
+            if ($model) {
+                $outlet = Outlet::findOne($model->outlet_id);
+                if($outlet){
+                    if($outlet->bill_prefix != ''){
+                        $bill_prefix = $outlet->bill_prefix;
+                    }else{
+                    $bill_prefix = 'B';
+                    }
+
+                }
+                $json_list = [];
+                $json_entry = [];
+                $json_entry ['id'] = $model->id;
+                $json_entry ['bill_no'] = $model->getOrderBillNo();
+                $json_entry ['bill_date'] = $model->bill_date;
+                $json_entry ['create_time'] = $model->create_time;
+                $json_entry ['customer_name'] = isset($model->customer)?$model->customer->name:'';
+                $json_entry ['total_amt'] = $model->getOrderAfterRefundAmount();
+                $json_entry ['qty'] = $model->getOrderAfterRefundQty();
+
+                $json_entry ['customer_id'] = isset($model->customer_id)?$model->customer_id:'';
+                $json_entry ['is_enable_wa'] = isset($model->customer->is_enable_wa)?$model->customer->is_enable_wa:'0';
+
+            }
+            return $json_entry;
+        }
+
+    public function getColumns($selectcolumns = []){
+            if(!empty($selectcolumns)){
+                $selected = $selectcolumns;
+            }else{
+                $selected = [
+                        'bill_no',
+                                'bill_date',
+                                'customer_id',
+                                'mode_of_payment',
+                                'employee_id',
+                                'total_amt',
+                                'discount_amt',
+                                'refund_amt',
+                                'refund_by',
+                                'tax_amt',
+                                'outlet'
+
+                ];
+
+            }
+
+            if($selected){
+                foreach($selected as $select){
+                    if($select == 'bill_no'){
+                        $columns[] = [
+                                'label' => 'Bill No',
+                                'value' => function ($data) {
+                                return $data->getOrderBillNo();
+                                }
+                                ];
+                    }
+                    if($select == 'customer_id'){
+                        $columns[] = [
+                                'label' => 'Customer',
+                                'value' => function ($data) {
+                                    return isset ( $data->customer ) ? $data->customer : "";
+                                }
+                        ];
+                    }
+                    if($select == 'mode_of_payment'){
+                        $columns[] = [
+                                'label' => 'Mode Of Payment',
+                                'value' => function ($data) {
+                                    return isset ( $data->modePayment ) ? $data->modePayment : "";
+                                }
+                        ];
+                    }
+                    else if($select == 'employee_id'){
+                        $columns[] = [
+                                'label' => 'Employee',
+                                'value' => function ($data) {
+                                return isset ( $data->createUser ) ? $data->createUser : "";
+                                }
+                                ];
+                    }
+
+                    else if($select == 'outlet'){
+                        $columns[] = [
+                                'label' => 'Outlet',
+                                'value' => function ($data) {
+                                return isset ( $data->outlet ) ? $data->outlet : "";
+                                }
+                                ];
+                    }
+                    else if($select == 'tax_amt'){
+                        $columns[] = [
+                                'label' => 'Tax Amount',
+                                'value' => function ($data) {
+                                return $data->getOrderTaxAmount();
+                                }
+                                ];
+                    }
+                    else if($select == 'refund_amt'){
+                        $columns[] = [
+                                'label' => 'Refund Amount',
+                                'value' => function ($data) {
+                                return $data->getOrderRefundAmount();
+                                }
+                                ];
+                    }
+                    else if($select == 'refund_by'){
+                        $columns[] = [
+                                'label' => 'Refund By',
+                                'value' => function ($data) {
+                                return $data->getOrderRefundBy();
+                                }
+                                ];
+                    }
+
+                    else if($select == 'total_amt'){
+                        $columns[] = [
+                                'label' => 'Total Amount',
+                                'value' => function ($data) {
+                                return $data->getOrderTotalAmount();
+                                }
+                                ];
+                    }else if($select == 'discount_amt'){
+                        $columns[] = [
+                                'label' => 'Total Discount',
+                                'value' => function ($data) {
+                                return $data->getOrderTotaldiscountAmount();
+                                }
+                                ];
+                    }
+                    else{
+                        $columns[] = $select;
+                    }
+                }
+            }
+
+            /*     $columns[] =
+
+            array (
+
+                        'bill_no',
+                        'bill_date',
+                        array (
+                                'label' => 'Customer',
+                                'value' => function ($data) {
+                                    return isset ( $data->customer ) ? $data->customer : "";
+                                }
+                        ),
+
+                        'total_amt',
+                        'discount_amt',
+                        'paid_amt',
+                        array (
+                                'label' => 'Mode Of Payment',
+                                'value' => function ($data) {
+                                    return Order::getPaymentTypeOptions ( $data->mode_of_payment );
+                                }
+                        ),
+                        array (
+                                'label' => 'Mode Of Delivery',
+                                'value' => function ($data) {
+                                    return Order::getDeliveryTypeOptions ( $data->mode_of_delivery );
+                                }
+                        ),
+                        array (
+                                'label' => 'Order Type',
+                                'value' => function ($data) {
+                                    return Order::getTypeOptions ( $data->type_id );
+                                }
+                        ),
+
+
+                        array (
+                                'label' => 'Outlet',
+                                'value' => function ($data) {
+                                return isset ( $data->outlet ) ? $data->outlet : "";
+                                }
+                                )
+                )*/
+
+
+            return $columns;
+        }
+
+    public function getOrderTaxAmount(){
+            $tax = 0;
+            if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+                if(($this->bill_date >= Yii::$app->session ['order_start_date']  ) && ($this->bill_date <= Yii::$app->session ['order_end_date'])){
+                    $orderitems = OrderItem::findAll(['order_id'=>$this->id]);
+                }else{
+                    Yii::warning( var_export( $this->id ), '$this->id');
+                    return $tax;
+                }
+            }else{
+            $orderitems = OrderItem::findAll(['order_id'=>$this->id]);
+            }
+
+            if($orderitems){
+                foreach($orderitems as $orderitem){
+                    $tax = $tax + $orderitem['tax_amount'];
+                }
+            }
+            return $tax;
+        }
+
+    public function getOrderTotalAmount(){
+            $total_amt = 0;
+
+            if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+                if(($this->bill_date >= Yii::$app->session ['order_start_date']  ) && ($this->bill_date <= Yii::$app->session ['order_end_date'])){
+                    return $this->total_amt ;
+                }else{
+
+                    return $total_amt;
+                }
+            }else{
+                $total_amt = $this->total_amt;
+            }
+
+
+            return $total_amt;
+        }
+
+    public function getOrderTotaldiscountAmount(){
+            $total_amt = 0;
+
+            if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+                if(($this->bill_date >= Yii::$app->session ['order_start_date']  ) && ($this->bill_date <= Yii::$app->session ['order_end_date'])){
+                    return $this->discount_amt ;
+                }else{
+
+                    return $total_amt;
+                }
+            }else{
+                $total_amt = $this->discount_amt;
+            }
+
+
+            return $total_amt;
+        }
+
+    public function getOrderRefundAmount(){
+            $total_amt = 0;
+            if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+                $orderrefund = OrderRefund::findOne(['order_id'=>$this->id]);
+                if($orderrefund){
+                    $refunddate = date('Y-m-d', strtotime($orderrefund->create_time));
+                    if(($refunddate >= Yii::$app->session ['order_start_date']  ) && ($refunddate <= Yii::$app->session ['order_end_date'])){
+                        $total_amt = $orderrefund->total_amt;
+                    }
+                }
+            }else{
+                $orderrefund = OrderRefund::findOne(['order_id'=>$this->id]);
+                if($orderrefund){
+                    $refunddate = date('Y-m-d', strtotime($orderrefund->create_time));
+
+                        $total_amt = $orderrefund->total_amt;
+
+                }
+            }
+
+
+            return $total_amt;
+        }
+
+    public function getOrderRefundBy(){
+
+            $username = '';
+            if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+                $orderrefund = OrderRefund::findOne(['order_id'=>$this->id]);
+                if($orderrefund){
+                    $refunddate = date('Y-m-d', strtotime($orderrefund->create_time));
+                    if(($refunddate >= Yii::$app->session ['order_start_date']  ) && ($refunddate <= Yii::$app->session ['order_end_date'])){
+                        $orderRefundItem = OrderRefundItem::findOne(['order_refund_id'=>$orderrefund->id]);
+                        if($orderRefundItem){
+                            $username = isset($orderRefundItem->createUser)?$orderRefundItem->createUser:"";
+                        }
+                    }
+                }
+            }else{
+                $orderrefund = OrderRefund::findOne(['order_id'=>$this->id]);
+                if($orderrefund){
+                    $orderRefundItem = OrderRefundItem::findOne(['order_refund_id'=>$orderrefund->id]);
+                    if($orderRefundItem){
+                        $username = isset($orderRefundItem->createUser)?$orderRefundItem->createUser:"";
+                    }
+                }
+            }
+
+            return $username;
+        }
+
+    public function getUserwiseColumns($selectcolumns = []){
+            if(!empty($selectcolumns)){
+                $selected = $selectcolumns;
+            }else{
+                $selected = [
+                        'username' ,
+                        'amount',
+
+
+                ];
+
+            }
+
+            if($selected){
+                foreach($selected as $select){
+                    if($select == 'username'){
+                        $columns[] = [
+                                'label' => 'Username',
+                                'value' => function ($data) {
+                                return isset ( $data->createUser ) ? $data->createUser : "";
+                                }
+                                ];
+                    }
+                    else if($select == 'amount'){
+                        $columns[] =[
+                                'label' => 'Net Amount',
+                                'value' => function ($data) {
+                                return $data->getTotalNetAmount ();
+                                }
+                                ];
+                    }
+
+                    else{
+                        $columns[] = $select;
+                    }
+                }
+            }
+
+
+
+
+            return $columns;
+        }
 }

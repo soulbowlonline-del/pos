@@ -159,13 +159,28 @@ found, not fixed.
 
 ## Where the port has got to
 
-Served by Yii 2 and matching Yii 1 on every compared page - 22 of the 59
-controllers, 130 comparison cases:
+Served by Yii 2 and matching Yii 1 on every compared page - 26 of the 59
+controllers, 152 comparison cases:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
-`state`, `city`, `stockLog`, `country`, `designation`, `outlet`.
+`state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
+`mrs`, `organization`, `rolePermission`.
+
+## Names that exist twice
+
+`Emp`, `Customer`, `Item` and `Order` are each an API controller in
+`app2/controllers` *and* a CRUD controller in the web UI. The generator writes
+`app2/controllers/<Model>Controller.php`, so porting the UI one overwrites the
+API one - which is what happened to `EmpController`: every `/v2/api/emp/*`
+route answered 404 and `emp_difftest` went from 14 green to 0, with every UI
+page still green, because nothing in the UI touches those routes.
+
+The generator now refuses to overwrite a controller it did not write. Those
+four need either a distinct class name for the UI controller or the API
+controller absorbing the UI actions; until that is decided they cannot be
+ported.
 
 ## The listings that cannot be compared - a decision for the owner
 

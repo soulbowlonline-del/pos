@@ -1,6 +1,12 @@
 <?php
 namespace app\models;
 
+use app\components\Criteria;
+
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -8,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Organization.php (Yii 1). */
 class Organization extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     public const STATUS_INACTIVE = 1;
     public const STATUS_ACTIVE = 0;
     public static function tableName()
@@ -185,4 +195,231 @@ class Organization extends ActiveRecord
     {
         return $this->hasMany(PurchaseOrder::class, ['organization_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'title' => 'Title',
+            'link' => 'Link',
+            'email' => 'Email',
+            'contact_no' => 'Contact No',
+            'secondary_contact_no' => 'Secondary Contact No',
+            'address' => 'Address',
+            'tax_no' => 'Tax No',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'create_time' => 'Create Time',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'mrns' => 'Mrns',
+            'mrs' => 'Mrs',
+            'city' => 'City',
+            'country' => 'Country',
+            'createUser' => 'User',
+            'state' => 'State',
+            'updatedBy' => 'User',
+            'outlets' => 'Outlets',
+            'purchaseBills' => 'PurchaseBills',
+            'purchaseOrders' => 'PurchaseOrders',
+        ];
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['title', 'email', 'contact_no', 'address', 'create_time', 'city_id', 'state_id', 'country_id', 'create_user_id'], 'required'],
+            [['contact_no', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'create_user_id', 'updated_by'], 'integer'],
+            [['title', 'link', 'email'], 'string', 'max' => 255],
+            [['secondary_contact_no', 'tax_no'], 'safe'],
+            [['status', 'type_id', 'updated_by'], 'default', 'value' => null],
+            [['id', 'title', 'link', 'email', 'contact_no', 'secondary_contact_no', 'address', 'tax_no', 'status', 'type_id', 'create_time', 'city_id', 'state_id', 'country_id', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        $this->load($params, $this->formName());
+
+        foreach (['id', 'contact_no', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'create_user_id', 'updated_by'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr);
+        }
+        foreach (['title', 'link', 'email', 'address', 'create_time'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr, true);
+        }
+
+        return $provider;
+    }
+
+    public function setAllValues($rows) {
+
+            $output = 0;
+            $count = count($rows);
+
+
+            if ($count > 1) {
+
+                $o = explode(',', $rows[0]);
+                $arrays = array_flip($o);
+                $set = true;
+                $transaction = Yii::$app->db->beginTransaction();
+                try {
+                    for ($i = 1; $i < $count; $i++) {
+                        $organization_values = explode(',', $rows[$i]);
+
+
+                        $organization = new Organization();
+
+                        if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
+
+                            if (isset($arrays['Title'])) {
+                                $organization->title = $organization_values[$arrays['Title']];
+
+                            } else if(isset($arrays['﻿"Title"'])) {
+                                $organization->title = $organization_values[$arrays['﻿"Title"']];
+                            }else{
+                                $organization->title = $organization_values[$arrays['���"Title"']];
+                            }
+                        }
+
+
+                        if (isset($arrays['Link'])) {
+
+                            $organization->link =$organization_values[$arrays['Link']];
+                        }
+                        if (isset($arrays['Email'])) {
+
+                            $organization->email =$organization_values[$arrays['Email']];
+                        }
+
+                        if (isset($arrays['Contact No'])) {
+
+                            $organization->contact_no =$organization_values[$arrays['Contact No']];
+                        }
+
+                        if (isset($arrays['Address'])) {
+
+                            $organization->address =$organization_values[$arrays['Address']];
+                        }
+                        if (isset($arrays['City'])) {
+                            $query = City::find();
+                            Criteria::compare($query, 'title', $organization_values[$arrays['City']]);
+                            $city = $query->one();
+                            if($city){
+                                $organization->city_id =$city->id;
+                            }
+
+                        }
+                        if (isset($arrays['State'])) {
+                            $query = City::find();
+                            Criteria::compare($query, 'title', $organization_values[$arrays['State']]);
+                            $state = $query->one();
+                            if($state){
+                                $organization->state_id =$state->id;
+                            }
+
+                        }
+                        if (isset($arrays['Country'])) {
+                            $query = City::find();
+                            Criteria::compare($query, 'title', $organization_values[$arrays['Country']]);
+                            $country = $query->one();
+                            if($country){
+                                $organization->country_id =$country->id;
+                            }
+
+                        }
+                        if ($organization->save()) {
+
+
+                        } else {
+                            print_R($organization->getErrors());
+                            exit;
+                            $set = false;
+                        }
+                    }
+                    if ($set == true) {
+                        $transaction->commit();
+                        return 1;
+                    }
+                } catch (Exception $e) {
+                    $transaction->rollback();
+                }
+            }
+            return $output;
+        }
 }

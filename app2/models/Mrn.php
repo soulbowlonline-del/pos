@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -175,5 +179,48 @@ class Mrn extends ActiveRecord
     public function getPurchaseOrders()
     {
         return $this->hasMany(PurchaseOrder::class, ['mrn_id' => 'id']);
+    }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'code' => 'Code',
+            'mrs_date' => 'Mrs Date',
+            'mrs_update_date' => 'Mrs Update Date',
+            'mrs_req_date' => 'Mrs Req Date',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'remarks' => 'Remarks',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'createUser' => 'Create User',
+            'vendor_id' => 'Vendor',
+            'updated_by' => 'User',
+            'outlet_id' => 'Outlet',
+            'mrs_id' => 'Mrs',
+            'organization_id' => 'Organization',
+            'createUser' => 'User',
+            'mrs' => 'Mrs',
+            'organization' => 'Organization',
+            'outlet' => 'Outlet',
+            'updatedBy' => 'Updated By',
+            'mrnDetails' => 'MrnDetails',
+            'purchaseOrders' => 'PurchaseOrders',
+        ];
     }
 }

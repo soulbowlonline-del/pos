@@ -2,6 +2,7 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\models\ItemExpire;
 use app\models\ItemExpireItem;
 use Yii;
 use yii\data\ActiveDataProvider;
@@ -46,7 +47,7 @@ class ItemExpireItemController extends BaseUiController {
 
 		if (Yii::$app->request->post('ItemExpireItem') !== null&&(isset($_POST['ItemExpireItem']['outlet_id']))&& (isset($_POST['ItemExpireItem']['vendor_id']))
 				&& (isset($_POST['ItemExpireItem']['total_amt']))) {
-			$itemExpire = ItemExpire::model()->findByAttributes(['vendor_id'=>$_POST['ItemExpireItem']['vendor_id'],
+			$itemExpire = ItemExpire::findOne(['vendor_id'=>$_POST['ItemExpireItem']['vendor_id'],
 					'outlet_id'=>$_POST['ItemExpireItem']['outlet_id'],'status'=>ItemExpire::STATUS_PENDING
 			]);
 			if($itemExpire == null){
@@ -100,7 +101,7 @@ class ItemExpireItemController extends BaseUiController {
 		$vendor_id = '';
 		$outlet_id = '';
 		$model = $this->loadModel($id);
-		$itemExpire = ItemExpire::model()->findByPk($model->item_expire_id);
+		$itemExpire = ItemExpire::findOne($model->item_expire_id);
 		if($itemExpire){
 			$vendor_id = $itemExpire->vendor_id;
 			$outlet_id = $itemExpire->outlet_id;

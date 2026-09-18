@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -40,7 +44,7 @@ class OrderRefund extends ActiveRecord
      */
     public static function defaultOrder()
     {
-        return ['id' => SORT_DESC];
+        return null;
     }
 
     /**
@@ -138,4 +142,54 @@ class OrderRefund extends ActiveRecord
     {
         return $this->hasMany(OrderRefundItem::class, ['order_refund_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'qty' => 'Qty',
+            'discount' => 'Discount',
+            'discount_amt' => 'Discount Amt',
+            'total_amt' => 'Total Amt',
+            'paid_amt' => 'Paid Amt',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'address' => 'Address',
+            'note' => 'Note',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'order_id' => 'Order',
+            'customer_id' => 'Customer',
+            'updated_by' => 'Updated By',
+            'orderRefundItems' => 'OrderRefundItems',
+        ];
+    }
+
+    public function getRefundTotalAmount(){
+            $total_amt = 0;
+            $orderRefundItems = OrderRefundItem::findAll(['order_refund_id'=>$this->id]);
+            if($orderRefundItems){
+                foreach($orderRefundItems as $orderRefundItem){
+                    $total_amt = $total_amt + (((($orderRefundItem->qty)*($orderRefundItem->price)) -  (($orderRefundItem->qty)*($orderRefundItem->discount_amt))) + (($orderRefundItem->qty)*($orderRefundItem->tax_amt)));
+                }
+            }
+            return $total_amt;
+        }
 }

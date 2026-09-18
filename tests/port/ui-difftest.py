@@ -160,9 +160,30 @@ def check(name, a, b, require='nonempty'):
         print(f'        yii2: {json.dumps(b)[:400]}')
 
 
+def signed_in():
+    """
+    Whether the cookie jar still has a session.
+
+    PHP's session lifetime here is 24 minutes and a long batch runs past it.
+    An expired session makes Yii 1 answer the login form, whose reduction is
+    empty - so every page looks like a mismatch and the controller looks like
+    a regression. Checking once, up front, turns that into one clear message.
+    """
+    # The status, not a string in the body: Yii 1's error page for a guest
+    # renders a source excerpt that happens to contain the grid's id, so
+    # searching the body reports a guest as signed in.
+    return status('/paymentMode/admin') == '200'
+
+
 def main():
     if len(sys.argv) < 4:
         print(__doc__)
+        sys.exit(2)
+
+    if not signed_in():
+        print('  NOT LOGGED IN: the session in %s has expired or was never '
+              'established.\n  Nothing was compared. Run uilogin.sh and retry.'
+              % COOKIE)
         sys.exit(2)
     ctrl, model, grid = sys.argv[1], sys.argv[2], sys.argv[3]
     row_id = sys.argv[4] if len(sys.argv) > 4 else None

@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -143,13 +147,13 @@ class ItemCompany extends ActiveRecord
 
     public function getCompanyOptions(){
             $list = [];
+            $query = ItemCompany::find();
+            $query->andWhere('status ='.ItemCompany::STATUS_ACTIVE);
+            $query->orderBy(['title' => SORT_ASC]);
             if($this->id != ''){
+                $query->andWhere('id !='.$this->id);
             }
-            $categories = ItemCompany::find()
-                ->andWhere('status ='.ItemCompany::STATUS_ACTIVE)
-                ->andWhere('id !='.$this->id)
-                ->orderBy(['title' => SORT_ASC])
-                ->all();
+            $categories = $query->all();
             if($categories){
                 foreach($categories as $category){
                     $list[$category->id] = $category->title;
@@ -177,4 +181,114 @@ class ItemCompany extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'title' => 'Company',
+            'parent_id' => 'Parent Company',
+            'type_id' => 'Type',
+            'status' => 'Status',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'items' => 'Items',
+            'updatedBy' => 'Updated By',
+            'createUser' => 'Created By',
+        ];
+    }
+
+    public function getParentValue($parent_id){
+            $name = 'Not set';
+            $category = ItemCompany::findOne($parent_id);
+            if($category){
+                $name =  $category->title;
+            }
+            return $name;
+        }
+
+    public static function getParentItemCompany($parent_id){
+            $name = 'Not set';
+            $category = ItemCompany::findOne($parent_id);
+            if($category){
+                $name =  $category->title;
+            }
+            return $name;
+        }
+
+    public function getCompWiseColumns($selectcolumns = []){
+
+            if(!empty($selectcolumns)){
+                $selected = $selectcolumns;
+            }else{
+                $selected = [
+                        'company' ,
+                        'amount',
+
+
+                ];
+
+            }
+
+            if($selected){
+                foreach($selected as $select){
+                    if($select == 'company'){
+                        $columns[] = [
+                                'label' => 'Company',
+                                'value' => function ($data) {
+                                return isset ( $data->title ) ? $data->title : "";
+                                }
+                                ];
+                    }
+                    else if($select == 'amount'){
+                        $columns[] =[
+                                'label' => 'Net Amount',
+                                'value' => function ($data) {
+                                return $data->getCompanyTotalAmount ();
+                                }
+                                ];
+                    }
+
+                    else{
+                        $columns[] = $select;
+                    }
+                }
+            }
+
+
+
+
+            return $columns;
+        }
+
+    public function getCompanyItem_ids(){
+            $item_ids = [];
+            $query = Item::find();
+            $query->andWhere('company_id ='.$this->id);
+            $query->andWhere('status ='.Item::STATUS_ACTIVE);
+            $items = $query->all();
+            if($items){
+                foreach($items as $item){
+                    $item_ids[] = $item->id;
+                }
+            }
+
+            return $item_ids;
+        }
 }

@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -173,10 +177,10 @@ class MrsDetail extends ActiveRecord
 
     public function getMrsVendorOptions(){
             $list = [];
-            $mrss = Mrs::find()
-                ->andWhere('status ='.Mrs::STATUS_PENDING)
-                ->andWhere('Date(create_time) >= DATE_SUB(CURDATE(), INTERVAL 50 DAY)')
-                ->all();
+            $query = Mrs::find();
+            $query->andWhere('status ='.Mrs::STATUS_PENDING);
+            $query->andWhere('Date(create_time) >= DATE_SUB(CURDATE(), INTERVAL 50 DAY)');
+            $mrss = $query->all();
             if($mrss){
                 foreach($mrss as $mrs){
                     $count = count($mrs->mrsDetails);
@@ -192,9 +196,9 @@ class MrsDetail extends ActiveRecord
                     }
                 }
             }
-            //Yii::log ( CVarDumper::dumpAsString ( $list ), CLogger::LEVEL_WARNING, '$list1' );
+            //Yii::warning( var_export( $list ), '$list1');
             asort($list);
-            //Yii::log ( CVarDumper::dumpAsString ( $list ), CLogger::LEVEL_WARNING, '$list2' );
+            //Yii::warning( var_export( $list ), '$list2');
             return $list;
         }
 
@@ -222,15 +226,15 @@ class MrsDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('vendor_id ='.$id);
-                        $criteria->addCondition('status !='.Mrs::STATUS_DONE);
-                        $mrslist = Mrs::model ()->findAll($criteria);
+                        $query = Mrs::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status !='.Mrs::STATUS_DONE);
+                        $mrslist = $query->all();
                     } else {
-                        $criteria = new CDbCriteria();
+                        $query = Mrs::find();
 
-                        $criteria->addCondition('status !='.Mrs::STATUS_DONE);
-                        $mrslist = Mrs::model ()->findAll ($criteria);
+                        $query->andWhere('status !='.Mrs::STATUS_DONE);
+                        $mrslist = $query->all();
                     }
                     if ($mrslist) {
                         foreach ( $mrslist as $mrs ) {
@@ -251,15 +255,15 @@ class MrsDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $criteria = new CDbCriteria();
-                        $criteria->addCondition('vendor_id ='.$id);
-                        $criteria->addCondition('status !='.Mrs::STATUS_DONE);
-                        $mrslist = Mrs::model ()->findAll($criteria);
+                        $query = Mrs::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status !='.Mrs::STATUS_DONE);
+                        $mrslist = $query->all();
                     }else {
-                        $criteria = new CDbCriteria();
+                        $query = Mrs::find();
 
-                        $criteria->addCondition('status !='.Mrs::STATUS_DONE);
-                        $mrslist = Mrs::model ()->findAll ($criteria);
+                        $query->andWhere('status !='.Mrs::STATUS_DONE);
+                        $mrslist = $query->all();
                     }
                     if ($mrslist) {
                         foreach ( $mrslist as $mrs ) {
@@ -305,4 +309,346 @@ class MrsDetail extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'req_qty' => 'Max Qty',
+            'ai_qty' => 'AI Qty',
+            'approved_qty' => 'Approved Qty',
+            'bal_qty' => 'Bal Qty',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'remarks' => 'Remarks',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'item_id' => 'Item',
+            'tax_id' => 'Tax',
+            'discount' => 'Discount(%)',
+            'discount_amt' => 'Discount Amount',
+            'discount1' => 'Other Discount(%)',
+            'discount_amt1' => 'Other Discount Amount',
+            'vendor_id' => 'Vendor',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'item_detail_id' => 'Bar Code',
+            'mrs_id' => 'Mrs No',
+            'outlet_id' => 'Outlet',
+            'createUser' => 'User',
+            'itemDetail' => 'Bar Code',
+            'mrs' => 'Mrs',
+            'outlet' => 'Outlet',
+            'updatedBy' => 'User',
+        ];
+    }
+
+    private function getLatestVelocity($itemId)
+      {
+                $sql = "
+                        SELECT
+                                item_id,
+                                velocity_change_percent
+                        FROM
+                                tbl_item_velocity
+                        WHERE
+                                item_id = :itemId
+                        ORDER BY
+                                id DESC
+                        LIMIT 1
+                ";
+
+                $connection = Yii::$app->db;
+                $command = $connection->createCommand($sql);
+                $command->bindParam(':itemId', $itemId, PDO::PARAM_INT);
+                return $command->queryRow();
+        }
+
+    private function calculateAIQty($itemId) {
+            // Calculate AI-based reorder quantity using velocity and lead time analysis
+            $sql = "
+            SELECT
+                v.item_id,
+                lt.title,
+                lt.vendor_name,
+                v.daily_velocity,
+                lt.avg_lead_time,
+                lt.receiving_date,
+                lt.mrs_date,
+                lt.start_date,
+                lt.current_reorder_qty,
+
+                ROUND(v.daily_velocity * lt.avg_lead_time, 2) AS reorder_point,
+
+                ROUND(v.daily_velocity * lt.avg_lead_time * 1.5, 2) AS calculated_reorder_qty,
+
+                ROUND(v.daily_velocity * SQRT(lt.avg_lead_time) * 1.65, 2) AS safety_stock
+
+            FROM
+            (
+                SELECT
+                    sl.item_id,
+                    ROUND(SUM(sl.qty) / (DATEDIFF(CURDATE(), DATE_SUB(CURDATE(), INTERVAL 30 DAY)) + 1), 2) AS daily_velocity,
+                    COUNT(*) AS transaction_count
+                FROM tbl_stock_log sl
+                WHERE sl.type_id IN (4,7)  -- Sales and consumption types
+                  AND sl.create_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                  AND sl.item_id = :item_id
+                GROUP BY sl.item_id
+                HAVING COUNT(*) >= 2  -- Minimum transactions for reliable calculation
+            ) v
+
+            LEFT JOIN
+            (
+                SELECT
+                    md.item_id,
+                    AVG(DATEDIFF(pb.start_date, m.mrs_date)) AS avg_lead_time,
+                    po.receiving_date,
+                    m.mrs_date,
+                    i.title,
+                    i.reorder_qty AS current_reorder_qty,
+                    vv.name AS vendor_name,
+                    pb.start_date,
+                    COUNT(*) AS procurement_cycles
+                FROM tbl_mrs_detail md
+                INNER JOIN tbl_mrs m ON m.id = md.mrs_id
+                INNER JOIN tbl_mrn n ON n.mrs_id = m.id
+                INNER JOIN tbl_purchase_order po ON po.mrn_id = n.id
+                INNER JOIN tbl_purchase_bill pb ON po.id = pb.purchase_order_id
+                INNER JOIN tbl_item i ON i.id = md.item_id
+                INNER JOIN tbl_item_vendor iv ON i.id = iv.item_detail_id
+                INNER JOIN tbl_vendor vv ON iv.vendor_id = vv.id
+                WHERE pb.start_date IS NOT NULL
+                  AND pb.start_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                  AND md.item_id = :item_id
+                  AND DATEDIFF(pb.start_date, m.mrs_date) > 0
+                GROUP BY md.item_id, i.title, i.reorder_qty, vv.name
+                HAVING COUNT(*) >= 1
+            ) lt ON v.item_id = lt.item_id
+
+            WHERE v.item_id = :item_id
+              AND v.daily_velocity > 0
+              AND lt.avg_lead_time > 0
+              AND lt.mrs_date != lt.start_date
+            LIMIT 1
+            ";
+
+            $connection = Yii::$app->db;
+            $command = $connection->createCommand($sql);
+            $command->bindParam(':item_id', $itemId, PDO::PARAM_INT);
+            $result = $command->queryRow();
+
+            if ($result) {
+                // Use calculated reorder quantity with buffer
+                $calculatedQty = $result['calculated_reorder_qty'];
+                $safetyStock = $result['safety_stock'];
+                $currentReorderQty = $result['current_reorder_qty'];
+
+                // Apply business rules
+                $finalQty = max($calculatedQty, $safetyStock);
+
+                // Don't drastically change from current reorder qty - max 50% increase/decrease
+                if ($currentReorderQty > 0) {
+                    $maxChange = $currentReorderQty * 0.5;
+                    $maxQty = $currentReorderQty + $maxChange;
+                    $minQty = $currentReorderQty - $maxChange;
+                    $finalQty = min(max($finalQty, $minQty), $maxQty);
+                }
+
+                // Minimum quantity should be at least 1
+                $finalQty = max(1, ceil($finalQty));
+
+                // Log the calculation for debugging
+                Yii::log("AI Qty calculation for item $itemId: velocity={$result['daily_velocity']}, lead_time={$result['avg_lead_time']}, calculated=$calculatedQty, safety=$safetyStock, final=$finalQty", 'info', 'mrs.ai_qty');
+
+                return $finalQty;
+            } else {
+                // Fallback: Use historical average or minimum quantity
+                return $this->getFallbackQty($itemId);
+            }
+        }
+
+    private function getFallbackQty($itemId) {
+            // Get average MRS quantity for this item in last 6 months
+            $sql = "
+            SELECT
+                AVG(md.req_qty) as avg_req_qty,
+                COUNT(*) as mrs_count
+            FROM tbl_mrs_detail md
+            INNER JOIN tbl_mrs m ON m.id = md.mrs_id
+            WHERE md.item_id = :item_id
+              AND m.create_time >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+              AND md.req_qty > 0
+            ";
+
+            $connection = Yii::$app->db;
+            $command = $connection->createCommand($sql);
+            $command->bindParam(':item_id', $itemId, PDO::PARAM_INT);
+            $result = $command->queryRow();
+
+            if ($result && $result['mrs_count'] >= 2) {
+                $avgQty = ceil($result['avg_req_qty']);
+                Yii::log("Fallback qty for item $itemId: avg_req_qty=$avgQty from {$result['mrs_count']} MRS records", 'info', 'mrs.fallback_qty');
+                return max(1, $avgQty);
+            }
+
+            // Final fallback - return minimum quantity of 1
+            return 1;
+        }
+
+    public static function getReorderAnalysisData($limit = 50, $startDate = null, $endDate = null) {
+            if (!$startDate) $startDate = date('Y-m-01', strtotime('-1 month'));
+            if (!$endDate) $endDate = date('Y-m-t');
+
+            $sql = "
+            SELECT
+                v.item_id,
+                lt.title,
+                lt.vendor_name,
+                v.daily_velocity,
+                v.transaction_count,
+                lt.avg_lead_time,
+                lt.procurement_cycles,
+                lt.receiving_date,
+                lt.mrs_date,
+                lt.start_date,
+                lt.current_reorder_qty,
+
+                -- Reorder Point = Daily Velocity × Lead Time
+                ROUND(v.daily_velocity * lt.avg_lead_time, 2) AS reorder_point,
+
+                -- Reorder Quantity = ROP × 1.5 buffer
+                ROUND(v.daily_velocity * lt.avg_lead_time * 1.5, 2) AS calculated_reorder_qty,
+
+                -- Current stock status
+                COALESCE(stock.current_stock, 0) AS current_stock,
+
+                -- Status indicators
+                CASE
+                    WHEN COALESCE(stock.current_stock, 0) <= (v.daily_velocity * lt.avg_lead_time) THEN 'REORDER_NOW'
+                    WHEN COALESCE(stock.current_stock, 0) <= (v.daily_velocity * lt.avg_lead_time * 1.2) THEN 'REORDER_SOON'
+                    ELSE 'SUFFICIENT'
+                END AS stock_status,
+
+                -- Days of stock remaining
+                CASE
+                    WHEN v.daily_velocity > 0 THEN ROUND(COALESCE(stock.current_stock, 0) / v.daily_velocity, 1)
+                    ELSE 999
+                END AS days_remaining
+
+            FROM
+            (
+                -- Velocity Subquery
+                SELECT
+                    sl.item_id,
+                    ROUND(SUM(sl.qty) / (DATEDIFF(:end_date, :start_date) + 1), 2) AS daily_velocity,
+                    COUNT(*) AS transaction_count
+                FROM tbl_stock_log sl
+                WHERE sl.type_id IN (4,7)
+                  AND DATE(sl.create_time) BETWEEN :start_date AND :end_date
+                  AND sl.qty > 0
+                GROUP BY sl.item_id
+                HAVING COUNT(*) >= 2
+            ) v
+
+            LEFT JOIN
+            (
+                -- Lead Time Subquery
+                SELECT
+                    md.item_id,
+                    AVG(DATEDIFF(pb.start_date, m.mrs_date)) AS avg_lead_time,
+                    po.receiving_date,
+                    m.mrs_date,
+                    i.title,
+                    i.reorder_qty AS current_reorder_qty,
+                    vv.name AS vendor_name,
+                    pb.start_date,
+                    COUNT(*) AS procurement_cycles
+                FROM tbl_mrs_detail md
+                INNER JOIN tbl_mrs m ON m.id = md.mrs_id
+                INNER JOIN tbl_mrn n ON n.mrs_id = m.id
+                INNER JOIN tbl_purchase_order po ON po.mrn_id = n.id
+                INNER JOIN tbl_purchase_bill pb ON po.id = pb.purchase_order_id
+                INNER JOIN tbl_item i ON i.id = md.item_id
+                INNER JOIN tbl_item_vendor iv ON i.id = iv.item_detail_id
+                INNER JOIN tbl_vendor vv ON iv.vendor_id = vv.id
+                WHERE pb.start_date IS NOT NULL
+                  AND DATE(pb.start_date) BETWEEN DATE_SUB(:end_date, INTERVAL 90 DAY) AND :end_date
+                  AND DATEDIFF(pb.start_date, m.mrs_date) > 0
+                GROUP BY md.item_id, i.title, i.reorder_qty, vv.name
+                HAVING COUNT(*) >= 1
+            ) lt ON v.item_id = lt.item_id
+
+            LEFT JOIN (
+                -- Current Stock Subquery
+                SELECT
+                    i.id as item_id,
+                    SUM(ist.qty) as current_stock
+                FROM tbl_item i
+                LEFT JOIN tbl_item_detail id ON i.id = id.item_id
+                LEFT JOIN tbl_item_stock ist ON id.id = ist.item_detail_id
+                WHERE i.status = 0
+                GROUP BY i.id
+            ) stock ON v.item_id = stock.item_id
+
+            WHERE lt.item_id IS NOT NULL
+              AND v.daily_velocity > 0
+              AND lt.avg_lead_time > 0
+              AND lt.mrs_date != lt.start_date
+
+            ORDER BY
+                CASE stock_status
+                    WHEN 'REORDER_NOW' THEN 1
+                    WHEN 'REORDER_SOON' THEN 2
+                    ELSE 3
+                END,
+                days_remaining ASC,
+                v.daily_velocity DESC
+            LIMIT :limit
+            ";
+
+            $connection = Yii::$app->db;
+            $command = $connection->createCommand($sql);
+            $command->bindParam(':start_date', $startDate, PDO::PARAM_STR);
+            $command->bindParam(':end_date', $endDate, PDO::PARAM_STR);
+            $command->bindParam(':limit', $limit, PDO::PARAM_INT);
+
+            return $command->queryAll();
+        }
+
+    public function getCssClass()
+        {
+            $cssClass = '';
+            $purchase_amount = $this->getPurchaseAmount();
+            $sale_amount = $this->getSaleAmount();
+            $purchase_qty = $this->getPurchaseQty();
+            $per_purchase_qty = (($this->getPurchaseQty()) - (10/100) * ($this->getPurchaseQty()));
+            $sale_qty = $this->getSaleQty();
+            Yii::warning( var_export( $this ), '$mrs');
+            if($purchase_amount > $sale_amount){
+                $cssClass='mrsred';
+            }else if($sale_qty > $per_purchase_qty){
+            $cssClass='mrsgreen';
+           }else if($this->margin < 10){
+            $cssClass='mrsorange';
+           }else{
+               $cssClass='';
+           }
+           Yii::warning( var_export( $cssClass ), '$cssClass');
+            return $cssClass;
+        }
 }

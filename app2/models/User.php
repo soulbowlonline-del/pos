@@ -1,6 +1,12 @@
 <?php
 namespace app\models;
 
+use yii\helpers\Html;
+
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 use DateTime;
 use yii\db\ActiveRecord;
@@ -66,19 +72,14 @@ class User extends ActiveRecord
 
     public static function getGenderOptions($id = null)
     {
-        $list = [
-            self::GENDER_MALE => 'Male',
-            self::GENDER_FEMALE => 'Female',
-        ];
-        if ($id === null) {
-            return $list;
-        }
-        if (is_numeric($id)) {
-            // Yii 1 indexed straight into the array; an out-of-range value
-            // produced null (plus a notice). Match the value, drop the notice.
-            return isset($list[$id]) ? $list[$id] : null;
-        }
-        return $id;
+		$list = [
+				self::GENDER_MALE => 'Male',
+				self::GENDER_FEMALE =>  'Female',
+			//	self::GENDER_BOTH =>  'Both',
+				 ];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
     }
 
     /** Whole years between date_of_birth and today, as GetAge() computed it. */
@@ -452,4 +453,350 @@ class User extends ActiveRecord
     {
         return $this->hasMany(MerchantStore::class, ['merchant_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'full_name' => 'Full Name',
+            'username' => 'Username',
+            'email' => 'Email',
+            'password' => 'Password',
+            'password_2' => 'Confirm Password',
+            'lat' => 'Lat',
+            'long' => 'Long',
+            'contact_no' => 'Contact No',
+            'date_of_birth' => 'Date Of Birth',
+            'store_id' => 'Store',
+            'gender' => 'Gender',
+            'about_me' => 'About Me',
+            'address' => 'Address',
+            'postal_code' => 'Postal Code',
+            'country' => 'Country',
+            'city' => 'City',
+            'state' => 'State',
+            'session_id' => 'Session',
+            'lang' => 'Lang',
+            'image_file' => 'Image File',
+            'is_passenger' => 'Is Passenger',
+            'is_dispatcher' => 'Is Dispatcher',
+            'is_driver' => 'Is Driver',
+            'role_id' => 'Role',
+            'state_id' => 'State',
+            'type_id' => 'Type',
+            'last_visit_time' => 'Last Visit Time',
+            'last_action_time' => 'Last Action Time',
+            'last_password_change' => 'Last Password Change',
+            'activation_key' => 'Activation Key',
+            'is_active' => 'Is Active',
+            'login_error_count' => 'Login Error Count',
+            'create_time' => 'Create Time',
+            'authSessions' => 'AuthSessions',
+            'callcenters' => 'Callcenters',
+            'cardDetails' => 'CardDetailss',
+            'dispatchers' => 'Dispatchers',
+            'drivers' => 'Drivers',
+            'groups' => 'Groups',
+            'journeys' => 'Journeys',
+            'notifications' => 'Notifications',
+            'userGroups' => 'UserGroups',
+        ];
+    }
+
+    public function checkPasswordStrength($attribute, $params)
+        {
+            $password = $this->$attribute;
+            $valid = true;
+            $valid = $valid && preg_match('/[0-9]/', $password); // digit
+            $valid = $valid && preg_match('/\W/', $password); // non-alphanum
+            // ... other rules ...
+            $valid = $valid && (strlen($password) > 7); // min size
+            if ($valid) {
+                return true;
+            } else {
+                $this->addError($attribute, "Not secure enough");
+                return false;
+            }
+        }
+
+    public function GetAge()
+        {
+            // GetAge(): guarded for PHP 8. date_of_birth is nullable, and passing null
+            // to DateTime::__construct() is deprecated from PHP 8.1. Yii 1's error
+            // handler escalates any reported error, so on a user with no date of birth
+            // this turned /api/emp/deliveryboy into a 500. Casting to string keeps the
+            // previous behaviour - null and '' both mean 'now', giving an age of 0 -
+            // without emitting the deprecation.
+            try {
+                $start = new DateTime(date('Y-m-d'));
+                $end = new DateTime((string)$this->date_of_birth);
+            } catch (Exception $e) {
+                return 0;
+            }
+            $form = $start->diff($end);
+
+            return $form->y;
+
+        }
+
+    public function isActive()
+        {
+            return ($this->state_id == User::STATUS_ACTIVE);
+        }
+
+    public function isOnline()
+        {
+            return strtotime($this->last_action_time) > time() - $this->offline_indication_time;
+        }
+
+    public function isPasswordExpired()
+        {
+            $distance = self::$password_expiration_day * 24 * 60 * 60;
+             $next_change = strtotime($this->last_password_change) + $distance;
+             return ($next_change < time());
+            return false;
+        }
+
+    public static function getUsers()
+        {
+            $users = User::model()->active()->findAll();
+            return $users;
+        }
+
+    public static function getUserByEmail($name)
+        {
+            $user = User::findOne(['email'=>$name]);
+            return $user;
+        }
+
+    public static function getUserByName($name)
+        {
+            $user = User::model()->active()->findByAttributes([ 'username'=>$name]);
+            return $user;
+        }
+
+    public static function getUserById($id)
+        {
+            $user = User::model()->active()->findByAttributes([ 'id'=>$id]);
+            return $user;
+        }
+
+    public function register()
+        {
+            $to      = $this->email;
+
+            $subject = 'Confirm Your Account at: ' . Yii::$app->params['company'];
+
+            $body     = 'Thank you for registering with us. Please click on below given link to activate. ' ."\r\n";
+            $body     .= Html::a( 'Activate', $this->getActivationUrl());
+            $body     .= $this->getActivationUrl();
+            $body     .= ' ' ."\r\n";
+            $body     .= 'Thanks' ."\r\n";
+            $body     .= 'Admin' ."\r\n";
+
+            $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
+                    'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+            //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+
+            (class_exists('PosOutbound') && PosOutbound::isStubbed())
+                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                    : @mail($to, $subject, $body, $headers);
+
+            if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
+        }
+
+    public function sendReceiptEmail($journey_model)
+        {
+
+            $user_id = $journey_model->passenger_id;
+
+            //$user_model = $this->loadModel($user_id, 'User');
+            $user_model = User::findOne($user_id);
+
+            $to      = $user_model->email;
+            $subject = 'Smarttaxi - Cash Payment Receipt : ';
+
+            $body     = 'Dear '. $user_model->full_name ."\r\n";
+            $body     .=' ' ."\r\n";
+
+            /*
+             $latit = $journey_model->from_latitude; //latitude
+             $longit = $journey_model->from_longitude; //longitude
+
+             $get_address = $journey_model->getAddress($latit,$longit);
+             if($get_address)
+             {
+             $user_address = $address;
+             }
+             else
+             {
+             $user_address =  "Not Known";
+             }
+             */
+            $origin_address = $journey_model->origin_address;
+            $destination_address = $journey_model->destination_address;
+            $start_time = $journey_model->start_time;
+            $amount_paid = $journey_model->amountpaid;
+
+            $body     .= 'This is your receipt of payment  of journey, from '.$origin_address.' to '.$destination_address.' of dated '.$start_time.".\r\n";
+            $body     .= ' ' ."\r\n";
+            $body     .= 'Paid Amount : ' . $amount_paid . "\r\n";
+            $body     .= 'Journey Receipt  No : ' . $journey_model->id . "\r\n";
+            $body     .= ' ' ."\r\n";
+            $body     .= 'Thanks' ."\r\n";
+            $body     .= 'Admin' ."\r\n";
+
+            $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
+                    'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+            //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+
+            (class_exists('PosOutbound') && PosOutbound::isStubbed())
+                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                    : @mail($to, $subject, $body, $headers);
+
+            if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
+
+        }
+
+    public static function randomPassword($count = 8) {
+            $alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
+            $alphabet = "abcdefghijklmnopqrstuwxyz0123456789";
+            $pass = []; //remember to declare $pass as an array
+            $alphaLength = strlen($alphabet) - 1; //put the length -1 in cache
+            for ($i = 0; $i < $count; $i++) {
+                $n = rand(0, $alphaLength);
+                $pass[] = $alphabet[$n];
+            }
+            return implode($pass);; //turn the array into a string
+        }
+
+    public function getActivationUrl($mode = 'login')
+        {
+            $this->generateActivationKey();
+            return Yii::$app->createAbsoluteUrl('user/activate', [ 'id' => $this->id, 'key' => $this->activation_key, 'mode'=>$mode]);
+        }
+
+    public function isUser()
+        {
+            if($this->role_id == self::ROLE_USER)
+            return true;
+            return false;
+        }
+
+    public function isTribe($id)
+        {
+            $tribe = Tribe::findOne(['create_user_id'=>$id]);
+            if($tribe)
+            return true;
+            else
+            {
+                $usertribe = UserTribe::findOne(['user_id'=>$id]);
+                if($usertribe)
+                return true;
+                else
+                return false;
+            }
+
+
+        }
+
+    public static function encrypt2($string = "")
+        {
+            //    include ("pbkdf.php");
+            $out = md5($string);
+            return $out;
+        }
+
+    public static function validate_password($password_under_test, $password_real)
+        {
+
+            if(md5($password_under_test)  == $password_real)
+            {
+
+                return true;
+            }
+            return false;
+
+        }
+
+    public function scopes()
+        {
+            return [
+                    'active' => ['condition' => 'state_id=' . self::STATUS_ACTIVE,],
+                    'inactive' => ['condition' => 'state_id=' . self::STATUS_INACTIVE,],
+                    'banned' => ['condition' => 'state_id=' . self::STATUS_BANNED,],
+            ];
+        }
+
+    public static function is_favorite($id)
+        {
+            $favorite = FavoriteUser::findOne(['user_id'=>$id,'create_user_id'=>Yii::$app->user->id]);
+            if($favorite)
+            return true;
+            else
+            return false;
+
+        }
+
+    public function getStoreName(){
+            $name = '';
+            $merchantstore = MerchantStore::findOne(['merchant_id'=>$this->id]);
+            if($merchantstore != null )
+            {
+                $store = Store::findOne($merchantstore->store_id);
+                if($store)
+                {
+                    $name =  $store->title;
+                }
+            }
+            return $name;
+
+        }
+
+    public static function RemoveStore($id)
+        {
+            MerchantStore::model()->deleteAllByAttributes(['merchant_id'=>$id]);
+        }
+
+    public function getSelectedStores(){
+            $cat_ids = [];
+            $cats = MerchantStore::findAll(['merchant_id'=>$this->id]);
+            if($cats != null)
+            {
+                foreach($cats as $cat)
+                {
+                    $cat_ids[] = $cat->store_id;
+                }
+            }
+
+            return $cat_ids;
+        }
+
+    public function checkSelectedSession(){
+
+            $query = Session::find();
+            $query->orderBy(['id' => SORT_DESC]);
+            $query->limit(1);
+            $latestSession = $query->one();
+            if((Yii::$app->session['select_session_id'] != '') && (Yii::$app->session['select_session_id'] != $latestSession->id))
+            {
+                return false;
+            }
+
+            return true;
+        }
 }

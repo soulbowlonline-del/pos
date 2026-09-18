@@ -7,7 +7,7 @@ this safe: every one declares its rules, relations, labels and search() the
 same way. Anything irregular - a hand-written method on the concrete model, a
 rule validator with no Yii 2 equivalent - is reported rather than guessed at.
 """
-import re, sys, os
+import re, sys, os, subprocess
 
 ROOT = '/root/pos/pos83'
 
@@ -147,6 +147,28 @@ def port_labels(body, relations_body):
         else:
             out.append((name, attr_label(name)))
     return out
+
+
+WRITES = re.compile(r'->\s*(?:save|delete|insert|update|updateAll|deleteAll|'
+                    r'updateCounters|saveAttributes)\s*\(|\$this->\w+\s*=[^=]|'
+                    r'->\s*execute\s*\(')
+
+
+def read_only(text):
+    """
+    Whether a method only reads.
+
+    A read-only helper can be added to a model the API port wrote without any
+    risk to how that model validates or saves - which is the whole reason
+    presentation-only exists. Item::getAllActiveVendors() is one: a page that
+    lists vendor schemes calls it, and leaving it out gives a 500 on a method
+    that could not have changed anything.
+
+    The test is deliberately crude and errs towards keeping the method out:
+    any assignment to $this, any save/delete/update/insert, any ->execute()
+    disqualifies it.
+    """
+    return not WRITES.search(text)
 
 
 def relations_of(model):
@@ -291,6 +313,229 @@ YII1_CLASSES = (r'\b(CDbCriteria|CActiveDataProvider|CArrayDataProvider|CDbExpre
                 r'CTypeValidator|CWidget|CController)\b')
 
 
+# The only $criteria members the translator knows how to rewrite. A method
+# using anything else is left exactly as it is.
+CRITERIA_HANDLED = re.compile(r'\$criteria->(\w+)')
+CRITERIA_KNOWN = {'order', 'limit', 'addCondition'}
+
+
+def criteria_is_simple(text):
+    """
+    Whether every use of $criteria in this method is one the translator
+    rewrites.
+
+    This has to be all or nothing. A first version stripped the constructs it
+    knew - order, limit, addCondition - along with the `new CDbCriteria()` line
+    and left the rest, so a method using addBetweenCondition() came out
+    referring to a variable that no longer existed. Broken code that looks
+    converted is worse than code that still says CDbCriteria: the second is
+    reported and kept out of shared models, the first fails at runtime with no
+    clue where it came from.
+    """
+    return all(m in CRITERIA_KNOWN for m in CRITERIA_HANDLED.findall(text))
+
+
+def mask_comments(text):
+    """
+    Hide whole-line comments from the rewriters.
+
+    Commented-out code is still code to a regex. A fetch inside a `//` line was
+    rewritten into a multi-line expression whose continuation escaped the
+    comment, and the resulting file did not parse - in a model the API
+    depends on. The rewriters have no business changing text that does not run.
+
+    Returns (masked text, restore function).
+    """
+    lines = text.split('\n')
+    saved = {}
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('//') or stripped.startswith('#') or stripped.startswith('*'):
+            token = '/*__MASKED_%d__*/' % i
+            saved[token] = line
+            lines[i] = token
+
+    def restore(s2):
+        for token, line in saved.items():
+            s2 = s2.replace(token, line)
+        return s2
+
+    return '\n'.join(lines), restore
+
+
+def convert_criteria(text):
+    """
+    Rewrites a CDbCriteria query as a Yii 2 query, statement by statement.
+
+    In place, not hoisted. A first version collected the conditions and
+    appended them to one ->find() chain, which is wrong twice over: the
+    application applies some of them conditionally, so hoisting changes what
+    the query asks, and a condition built inside an `if` refers to variables
+    that only exist there - the generated method referred to an
+    $itemvendor_ids declared in a block it had been lifted out of.
+
+    Converting each statement where it stands preserves both.
+
+    All or nothing: every use of $criteria is rewritten or the method is
+    returned untouched for the caller to report. Code that looks converted and
+    is not is worse than code that still says CDbCriteria.
+
+    Returns (text, converted, reason).
+    """
+    original = text
+    text, restore = mask_comments(text)
+
+    if not re.search(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;', text):
+        return original, False, 'no CDbCriteria'
+
+    find = re.search(r"(\w+)::model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*\$criteria\s*\)", text)
+    if not find:
+        return original, False, 'the $criteria is not passed to a finder this knows'
+    cls, kind = find.group(1), find.group(2)
+
+    out = text
+
+    # the declaration becomes the query
+    out = re.sub(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;',
+                 lambda m: '$query = ' + cls + '::find();', out)
+
+    # assignments
+    def order_by(m):
+        cols = []
+        for part in m.group(1).split(','):
+            bits = part.strip().split()
+            if not bits:
+                continue
+            col = bits[0].split('.')[-1]
+            desc = len(bits) > 1 and bits[1].lower().startswith('desc')
+            cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+        return '$query->orderBy([%s]);' % ', '.join(cols)
+
+    out = re.sub(r"\$criteria\s*->\s*order\s*=\s*'([^']+)'\s*;", order_by, out)
+    out = re.sub(r"\$criteria\s*->\s*select\s*=\s*([^;]+);",
+                 lambda m: '$query->select(%s);' % m.group(1).strip(), out)
+    out = re.sub(r"\$criteria\s*->\s*group\s*=\s*([^;]+);",
+                 lambda m: '$query->groupBy(%s);' % m.group(1).strip(), out)
+    out = re.sub(r"\$criteria\s*->\s*limit\s*=\s*'?(\d+)'?\s*;",
+                 lambda m: '$query->limit(%s);' % m.group(1), out)
+
+    # condition/params travel together
+    cond = re.search(r"\$criteria\s*->\s*condition\s*=\s*([^;]+);", out)
+    if cond:
+        params = re.search(r"\$criteria\s*->\s*params\s*=\s*([^;]+);", out)
+        out = out.replace(cond.group(0), '$query->andWhere(%s%s);' % (
+            cond.group(1).strip(), ', ' + params.group(1).strip() if params else ''))
+        if params:
+            out = out.replace(params.group(0), '')
+
+    # the condition helpers
+    def helper(m):
+        name, args = m.group(1), m.group(2).strip()
+        if name == 'addCondition':
+            return '$query->andWhere(%s);' % args
+        bits = split_args_php(args)
+        if name == 'addInCondition' and len(bits) >= 2:
+            return '$query->andWhere([%s => %s]);' % (bits[0].strip(), bits[1].strip())
+        if name == 'addBetweenCondition' and len(bits) >= 3:
+            return "$query->andWhere(['between', %s, %s, %s]);" % tuple(b.strip() for b in bits[:3])
+        if name == 'addSearchCondition' and len(bits) >= 2:
+            return "$query->andWhere(['like', %s, %s]);" % (bits[0].strip(), bits[1].strip())
+        if name == 'compare' and len(bits) >= 2:
+            partial = ', true' if len(bits) > 2 and 'true' in bits[2] else ''
+            return 'Criteria::compare($query, %s, %s%s);' % (bits[0].strip(), bits[1].strip(), partial)
+        return m.group(0)
+
+    out = re.sub(r"\$criteria\s*->\s*(addCondition|addInCondition|addBetweenCondition|"
+                 r"addSearchCondition|compare)\s*\((.*?)\)\s*;", helper, out, flags=re.S)
+
+    # and the fetch
+    tail = {'findAll': '$query->all()', 'find': '$query->one()', 'count': '$query->count()'}[kind]
+    out = re.sub(r"\w+::model\s*\(\s*\)\s*->\s*(?:findAll|find|count)\s*\(\s*\$criteria\s*\)",
+                 lambda m: tail, out)
+
+    if '$criteria' in out:
+        left = sorted(set(re.findall(r'\$criteria\s*->\s*(\w+)', out))) or ['a bare reference']
+        return original, False, 'CDbCriteria uses ' + ', '.join(left)
+
+    return restore(out), True, ''
+
+
+def split_two(args):
+    bits = split_args_php(args)
+    return (bits[0].strip(), bits[1].strip()) if len(bits) >= 2 else (args, "''")
+
+
+def split_args_php(args):
+    """Split a PHP argument list on top-level commas."""
+    out, depth, cur = [], 0, ''
+    i = 0
+    while i < len(args):
+        c = args[i]
+        if c in ('"', "'"):
+            q = c
+            cur += c
+            i += 1
+            while i < len(args):
+                cur += args[i]
+                if args[i] == '\\':
+                    i += 2
+                    if i <= len(args):
+                        cur += args[i - 1]
+                    continue
+                if args[i] == q:
+                    break
+                i += 1
+            i += 1
+            continue
+        if c in '([{':
+            depth += 1
+        elif c in ')]}':
+            depth -= 1
+        if c == ',' and depth == 0:
+            out.append(cur)
+            cur = ''
+        else:
+            cur += c
+        i += 1
+    if cur.strip():
+        out.append(cur)
+    return out
+
+
+def yii1_idioms(text):
+    """
+    The Yii 1 -> Yii 2 conversions any carried-over snippet needs.
+
+    Used for the concrete model's methods and for the generated option helpers
+    alike. The helpers used to be copied with only their array syntax updated,
+    which is why a `Yii::log` inside getMrsVendorOptions() survived every fix
+    to the logging rules - the rules were only ever applied to the other half
+    of the file.
+    """
+    text = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', text)
+    text = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', text)
+
+    text = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', text)
+    text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
+                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', text)
+    text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
+                  lambda m: 'Yii::warning(' + m.group(1) + ', ' + m.group(2) + ')', text)
+
+    text = re.sub(r'\b(?:Gx|C)Html::encode\s*\(', 'Html::encode(', text)
+    text = re.sub(r'\b(?:Gx|C)Html::link\s*\(', 'Html::a(', text)
+    text = re.sub(r'\b(?:Gx|C)Html::image\s*\(', 'Html::img(', text)
+    text = re.sub(r'\bGxHtml::valueEx\s*\(', 'Gx::str(', text)
+
+    M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
+    text = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', text)
+    text = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', text)
+    text = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', text)
+    text = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', text)
+    text = re.sub(M + r"count\s*\(\s*\)", lambda m: m.group(1) + '::find()->count()', text)
+
+    return text
+
+
 def port_concrete(src, model):
     """
     Translates the hand-written methods on protected/models/<Model>.php.
@@ -347,53 +592,15 @@ def port_concrete(src, model):
         text = re.sub(r'Yii::app\(\)', 'Yii::$app', text)
 
         # CDbCriteria -> a query built the Yii 2 way
-        crit = re.search(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;', text)
-        if crit:
-            order = re.search(r"\$criteria->order\s*=\s*'([^']+)'\s*;", text)
-            limit = re.search(r"\$criteria->limit\s*=\s*'?(\d+)'?\s*;", text)
-            conds = re.findall(r"\$criteria->addCondition\(\s*(.+?)\s*\)\s*;", text)
-            find = re.search(r"(\w+)::model\(\)->(findAll|find)\s*\(\s*\$criteria\s*\)", text)
-            if find:
-                cls, kind = find.group(1), find.group(2)
-                q = cls + '::find()'
-                for c in conds:
-                    q += "\n            ->andWhere(" + c + ")"
-                if order:
-                    cols = []
-                    for part in order.group(1).split(','):
-                        bits = part.strip().split()
-                        col = bits[0]
-                        desc = len(bits) > 1 and bits[1].lower().startswith('desc')
-                        cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
-                    q += "\n            ->orderBy([" + ', '.join(cols) + "])"
-                if limit:
-                    q += "\n            ->limit(" + limit.group(1) + ")"
-                q += "\n            ->" + ('all()' if kind == 'findAll' else 'one()')
-                # drop the criteria plumbing and replace the fetch
-                text = re.sub(r"\s*\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;", '', text)
-                text = re.sub(r"\s*\$criteria->(order|limit)\s*=[^;]+;", '', text)
-                text = re.sub(r"\s*\$criteria->addCondition\([^;]+\);", '', text)
-                text = re.sub(r"\w+::model\(\)->(?:findAll|find)\s*\(\s*\$criteria\s*\)",
-                              lambda mm: q, text)
+        text, converted, why = convert_criteria(text)
+        if not converted and '$criteria' in text:
+            notes.append('%s(): %s, left as it was' % (name, why))
 
-        text = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', text)
-        text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
-                      lambda mm: 'Yii::error(' + mm.group(1) + ', ' + mm.group(2) + ')', text)
-        text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
-                      lambda mm: 'Yii::warning(' + mm.group(1) + ', ' + mm.group(2) + ')', text)
-        text = re.sub(r'\b(?:Gx|C)Html::encode\(', 'Html::encode(', text)
-        text = re.sub(r'\b(?:Gx|C)Html::link\(', 'Html::a(', text)
-        text = re.sub(r'\b(?:Gx|C)Html::image\(', 'Html::img(', text)
-        text = re.sub(r'\bGxHtml::valueEx\(', 'Gx::str(', text)
-
-        # Written with spaces in places - `ItemDetail::model ()->findByPk (` -
-        # and with either capitalisation, findByPk and findByPK.
-        M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
-        text = re.sub(M + r"(?i:findByPk)\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda mm: mm.group(1) + '::findOne(', text)
-        text = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda mm: mm.group(1) + '::findAll(', text)
-        text = re.sub(M + r"findAll\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->all()', text)
-        text = re.sub(M + r"count\s*\(\s*\)", lambda mm: mm.group(1) + '::find()->count()', text)
+        # The shared conversions - logging, the Html helpers, the finders.
+        # These used to be repeated here; they are one function now, because a
+        # copy of them in the other half of the file is how a Yii::log survived
+        # every fix to the logging rules.
+        text = yii1_idioms(text)
 
         # Named explicitly: "C followed by a capital" also matches this
         # application's own constants - CGST, CESS - and reported them as
@@ -523,7 +730,12 @@ def generate(model, table_alias):
     A('    public function init()')
     A('    {')
     A('        parent::init();')
-    A('        if ($this->isNewRecord) {')
+    A('')
+    A("        // Not in the search scenario. Yii 1 loaded the defaults and then")
+    A("        // the admin action called unsetAttributes() to clear them; a")
+    A('        // search model that keeps them filters the grid by every column')
+    A('        // that has a default, which showed 4 rows where Yii 1 shows 11.')
+    A("        if ($this->isNewRecord && $this->scenario !== 'search') {")
     A('            $this->loadDefaultValues();')
     A('        }')
     A('    }')
@@ -623,6 +835,7 @@ def generate(model, table_alias):
         # the whole options array - rendered as the word "Array", or as an
         # "Array to string conversion" error. Making the test explicit gives
         # Yii 1's answer for a string, an int and a real null alike.
+        body = yii1_idioms(body)
         body = re.sub(r'\$id\s*==\s*null', "$id === null || $id === ''", body)
         body = re.sub(r'\$id\s*!=\s*null', "$id !== null && $id !== ''", body)
         A('')
@@ -796,7 +1009,18 @@ def merge(existing, generated, model, warn):
     #     naive fallback, so a relation showed as "Create User" where Yii 1
     #     shows "User". Keeping that would preserve the bug.
     #   defaultOrder() - likewise derived from defaultScope().
-    for name in ('attributeLabels', 'defaultOrder'):
+    #   get*Options() - label lists read straight out of the Yii 1 model. An
+    #     earlier merge appended one of these into a hand-written model, and it
+    #     then kept the Yii 1 logging calls inside it through every later fix,
+    #     because a file-level provenance check cannot see that one method in a
+    #     hand-written file came from here.
+    #   init() - the generator's own, which loads the column defaults. It is
+    #     derived entirely from this pipeline's rules, and an earlier version
+    #     of it loaded defaults in the search scenario too, which filtered the
+    #     grid by every column that has one.
+    replace = ['attributeLabels', 'defaultOrder', 'init']
+    replace += [n for n, _ in method_blocks(generated) if re.match(r'get\w*Options$', n)]
+    for name in replace:
         if name not in have:
             continue
         for gname, gtext in method_blocks(generated):
@@ -882,6 +1106,53 @@ def merge(existing, generated, model, warn):
 PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermission',
                      'getRelationLabel', 'defaultOrder', 'getTotals', 'isAllowCreate'}
 
+# Never added to a model the API port wrote, whatever else says otherwise.
+# These decide how the model validates, what it saves and what a listing
+# returns, and the whole premise of presentation-only is that it cannot change
+# any of that. The read-only test is not enough on its own: rules() and
+# search() read nothing and write nothing, and adding them to Order anyway
+# would change what the order API validates on every save.
+NEVER_SHARED = {'rules', 'search', 'beforeValidate', 'init', 'scenarios',
+                'behaviors', 'transactions', 'primaryKey', 'tableName',
+                'optimisticLock', 'attributeHints'}
+
+
+def write_model(path, content, what):
+    """
+    Write a model only if the result parses.
+
+    The generators rewrite code they do not fully understand, and a rewrite
+    that produces a syntax error takes the whole application down rather than
+    one page. It happened: a fetch inside a commented-out line was rewritten
+    into a multi-line expression, whose continuation escaped the `//` and broke
+    app2/models/Order.php - a model the *API* depends on. Nothing in the
+    pipeline noticed, because the batch only linted the model belonging to the
+    controller it was porting.
+
+    So every write is checked, and a bad one is refused rather than saved.
+    """
+    previous = None
+    if os.path.exists(path):
+        previous = read(path)
+
+    open(path, 'w', encoding='utf-8').write(content)
+
+    check = subprocess.run(
+        ['docker', 'exec', 'pos-php-83', 'php', '-l',
+         '/var/www/html/' + os.path.relpath(path, ROOT)],
+        capture_output=True, text=True)
+    if check.returncode == 0:
+        return True
+
+    if previous is None:
+        os.remove(path)
+    else:
+        open(path, 'w', encoding='utf-8').write(previous)
+    print('  REFUSED to write %s: the generated code does not parse' % what)
+    for line in (check.stdout or check.stderr).splitlines()[:2]:
+        print('    ' + line.strip())
+    return False
+
 
 if __name__ == '__main__':
     deps_only = '--presentation-only' in sys.argv
@@ -891,7 +1162,12 @@ if __name__ == '__main__':
 
     if deps_only:
         rels = relations_of(model)
+        # Computed before the rebuild below, which removes them - otherwise the
+        # note reports that nothing was skipped, which is the opposite of what
+        # happened.
+        denied = sorted({n for n, _ in method_blocks(src)} & NEVER_SHARED)
         keep = []
+        warn = list(warn)
         # Constants come across too. They declare no behaviour - another
         # model's query that says Vendor::STATUS_ACTIVE needs the constant to
         # exist, and adding it cannot change how Vendor itself validates or
@@ -905,26 +1181,46 @@ if __name__ == '__main__':
             # are navigation - a page that lists role permissions reads
             # $data->role. Neither reads nor changes how this model validates
             # or saves, so both are as safe to add as a constant.
+            if name in NEVER_SHARED:
+                continue
+            if re.match(r'(?:before|after)[A-Z]', name):
+                # A lifecycle hook is behaviour, not display: copying
+                # beforeDelete() into a model the API port wrote would change
+                # what deleting one does. (Yii 2 also requires them public,
+                # which Yii 1 does not, so they cannot be copied verbatim.)
+                continue
+            if re.search(YII1_CLASSES, text):
+                # Still contains Yii 1 code the translator did not recognise.
+                # Adding it gives a page that fails at the point it calls the
+                # method; leaving it out gives the same failure, one call
+                # earlier and with a name attached.
+                warn.append('%s(): not shared - still contains Yii 1 code' % name)
+                continue
             if (name in PRESENTATION_ONLY
                     or re.match(r'get\w*Options$', name)
-                    or name in relation_getters):
+                    or name in relation_getters
+                    or read_only(text)):
                 keep.append(text)
         header = src.split('class ')[0]
         src = (header + 'class %s extends ActiveRecord\n{\n' % model
                + '\n\n'.join(t.strip('\n') for t in keep) + '\n}\n')
-        warn = ['presentation-only merge: rules(), search() and beforeValidate() '
-                'were not added, because this model is used elsewhere']
+        warn = ['presentation-only merge into a model used elsewhere; not added: '
+                + (', '.join(denied) if denied else 'nothing in the deny list was present')]
     out = f'{ROOT}/app2/models/{model}.php'
 
     if os.path.exists(out):
         existing = read(out)
         merged, added = merge(existing, src, model, warn)
-        open(out, 'w', encoding='utf-8').write(merged)
-        print('merged into app2/models/%s.php: %s'
-              % (model, ', '.join(added) if added else 'nothing to add'))
+        if write_model(out, merged, 'app2/models/%s.php' % model):
+            print('merged into app2/models/%s.php: %s'
+                  % (model, ', '.join(added) if added else 'nothing to add'))
+        else:
+            sys.exit(3)
     else:
-        open(out, 'w', encoding='utf-8').write(src)
-        print('wrote app2/models/%s.php' % model)
+        if write_model(out, src, 'app2/models/%s.php' % model):
+            print('wrote app2/models/%s.php' % model)
+        else:
+            sys.exit(3)
 
     for x in warn:
         print('  NOTE: ' + x)

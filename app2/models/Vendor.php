@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -196,4 +200,238 @@ class Vendor extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'name' => 'Name',
+            'description' => 'Remarks',
+            'contact_person' => 'Contact Person',
+            'person_designation' => 'Person Designation',
+            'contact_no' => 'Contact No',
+            'secondary_contact_no' => 'Office Contact No',
+            'whatsapp_no' => 'WhatsApp No',
+            'primary_address' => 'Primary Address',
+            'secondary_address' => 'Secondary Address',
+            'tax_no' => 'Tax No',
+            'is_local_vendor' => 'Is Local Vendor',
+            'is_cash' => 'Is Cash',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'create_time' => 'Create Time',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'parent_id' => 'Parent Vendor',
+            'acc_no' => 'Account Number',
+            'country_id' => 'Country',
+            'outlet_id' => 'Outlet',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'itemVendors' => 'ItemVendors',
+            'purchaseBills' => 'PurchaseBills',
+            'purchaseOrders' => 'PurchaseOrders',
+            'city' => 'City',
+            'country' => 'Country',
+            'createUser' => 'User',
+            'outlet' => 'Outlet',
+            'state' => 'State',
+            'updatedBy' => 'User',
+        ];
+    }
+
+    public static function getOutletName($outlet_id) {
+            $outlet = Outlet::findOne( $outlet_id );
+            if ($outlet) {
+                return $outlet->title;
+            }
+            return '';
+        }
+
+    public static function getVendorEmail($id) {
+            $vendor = Vendor::findOne( $id );
+            if ($vendor) {
+                $user = User::findOne( $vendor->create_user_id );
+                if ($user)
+                    return $user->email;
+            }
+            return '';
+        }
+
+    public static function getVendorUsername($id) {
+            $vendor = Vendor::findOne( $id );
+            if ($vendor) {
+                $user = User::findOne( $vendor->create_user_id );
+                if ($user)
+                    return $user->username;
+            }
+            return '';
+        }
+
+    public static function getStateName($id) {
+            $state = State::findOne( $id );
+            if ($state) {
+
+                if ($state)
+                    return $state->title;
+            }
+            return '';
+        }
+
+    public static function getCityName($id) {
+            $state = City::findOne( $id );
+            if ($state) {
+
+                if ($state)
+                    return $state->title;
+            }
+            return '';
+        }
+
+    public static function getCountryName($id) {
+            $state = Country::findOne( $id );
+            if ($state) {
+
+                if ($state)
+                    return $state->title;
+            }
+            return '';
+        }
+
+    public static function getDesignationName($id) {
+            $designation = Designation::findOne( $id );
+            if ($designation) {
+
+                if ($designation)
+                    return $designation->title;
+            }
+            return '';
+        }
+
+    public static function getShiftName($id) {
+            $empshift = EmpShift::findOne( [
+                    'emp_id' => $id
+            ] );
+            if ($empshift) {
+                $shift = Shift::findOne( [
+                        'id' => $empshift->shift_id
+                ] );
+                if ($shift)
+                    return $shift->title;
+            }
+            return '';
+        }
+
+    public function getVendorWiseColumns($selectcolumns = []){
+            if(!empty($selectcolumns)){
+                $selected = $selectcolumns;
+            }else{
+                $selected = [
+                        'vendor' ,
+                        'amount',
+        'purchase_amount'
+
+                ];
+
+            }
+
+            if($selected){
+                foreach($selected as $select){
+                    if($select == 'vendor'){
+                        $columns[] = [
+                                'label' => 'Vendor',
+                                'value' => function ($data) {
+                                return isset ( $data->name ) ? $data->name : "";
+                                }
+                                ];
+                    }
+                    else if($select == 'amount'){
+                        $columns[] =[
+                                'label' => 'Sale Amount',
+                                'value' => function ($data) {
+                                return $data->getVendorSaleTotalAmount ();
+                                }
+                                ];
+                    }
+                    else if($select == 'purchase_amount'){
+                        $columns[] =[
+                                'label' => 'Purchase Amount',
+                                'value' => function ($data) {
+                                return $data->getVendorPurchaseTotalAmount ();
+                                }
+                                ];
+                    }
+                    else{
+                        $columns[] = $select;
+                    }
+                }
+            }
+
+
+
+
+            return $columns;
+        }
+
+    public function getVendorItem_ids(){
+            $item_ids = [];
+            $query = ItemVendor::find();
+            $query->andWhere('vendor_id ='.$this->id);
+            $itemvendors = $query->all();
+            if($itemvendors){
+                foreach($itemvendors as $itemvendor){
+                    $query = ItemVendor::find();
+                    $query->orderBy(['id' => SORT_DESC]);
+                    $query->limit(1);
+                    $query->andWhere('item_detail_id =' . $itemvendor->item_detail_id);
+                    $selectvendor = $query->all();
+                    if($selectvendor->vendor_id == $itemvendor->vendor_id){
+                    $item_ids[] = $itemvendor->item_detail_id;
+                    }
+                }
+            }
+            Yii::warning( var_export( $this->id ), '$item_category_id');
+            Yii::warning( var_export( $item_ids ), '$item_ids');
+            return $item_ids;
+        }
+
+    public function getVendorPurchaseMargin()
+        {
+            $margin ='';
+            $purchase_amt = $this->getVendorPurchaseTotalAmount();
+            $sale_amt = $this->getVendorSaleTotalAmount();
+            if($purchase_amt != 0){
+            $margin = (($sale_amt - $purchase_amt)/$purchase_amt)*100;
+            }
+            return round($margin,2);
+
+        }
+
+    public function getCssClass()
+        {
+            $cssClass='';
+
+            $purchase_amt = $this->getVendorPurchaseTotalAmount();
+            $per_purchase_amt = (($this->getVendorPurchaseTotalAmount()) - (10/100) * ($this->getVendorPurchaseTotalAmount()));
+            $sale_amt = $this->getVendorSaleTotalAmount();
+            Yii::warning( var_export( $this ), '$mrs');
+            if($sale_amt < $per_purchase_amt){
+                $cssClass='mrsred';
+            }
+            return $cssClass;
+        }
 }

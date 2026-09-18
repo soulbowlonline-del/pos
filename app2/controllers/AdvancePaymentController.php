@@ -49,7 +49,7 @@ class AdvancePaymentController extends BaseUiController {
 
 		if (Yii::$app->request->post('AdvancePayment') !== null) {
 			if (isset($_POST['AdvancePayment']['vendor_id'])) {
-			$model = AdvancePayment::model()->findByAttributes(['vendor_id'=>$_POST['AdvancePayment']['vendor_id'],
+			$model = AdvancePayment::findOne(['vendor_id'=>$_POST['AdvancePayment']['vendor_id'],
 					'create_user_id'=>Yii::$app->user->id
 			]);
 			if($model == null){

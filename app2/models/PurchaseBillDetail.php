@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -437,10 +441,10 @@ class PurchaseBillDetail extends ActiveRecord
 
     public function getPBillVendorOptions(){
             $list = [];
-            $mrss = PurchaseBill::find()
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->all();
-            Yii::log ( CVarDumper::dumpAsString ( $mrss ), CLogger::LEVEL_WARNING, '$mrss' );
+            $query = PurchaseBill::find();
+            $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+            $mrss = $query->all();
+            Yii::warning( var_export( $mrss ), '$mrss');
             if($mrss){
                 foreach($mrss as $mrs){
                     $create_time = date('d-m-Y',strtotime($mrs->create_time));
@@ -489,17 +493,15 @@ class PurchaseBillDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $polist = PurchaseBill::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->all();
+                        $query = PurchaseBill::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+                        $polist = $query->all();
                     }else{
-                        $polist = PurchaseBill::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->all();
+                        $query = PurchaseBill::find();
+
+                        $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+                        $polist = $query->all();
                     }
                     if($polist){
                         foreach($polist as $po){
@@ -521,18 +523,16 @@ class PurchaseBillDetail extends ActiveRecord
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
-                        $polist = PurchaseBill::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->all();
+                        $query = PurchaseBill::find();
+                        $query->andWhere('vendor_id ='.$id);
+                        $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+                        $polist = $query->all();
 
                     }else{
-                        $polist = PurchaseBill::find()
-                ->andWhere('vendor_id ='.$id)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->andWhere('status !='.PurchaseBill::STATUS_APPROVED)
-                ->all();
+                        $query = PurchaseBill::find();
+
+                        $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+                        $polist = $query->all();
                     }
                     if($polist){
                         foreach($polist as $po){
@@ -558,4 +558,327 @@ class PurchaseBillDetail extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'req_qty' => 'Max Qty',
+            'bal_qty' => 'Bal Qty',
+            'approved_qty' => 'Approved Qty',
+            'mrp' => 'Mrp',
+            'price' => 'Price',
+            'discount' => 'Discount',
+            'discount_amt' => 'Discount Amt',
+            'discount1' => 'Other Discount',
+            'discount_amt1' => 'Other Discount Amt',
+            'tax_id' => 'tax_id',
+            'other_charge' => 'Other Charge',
+            'amount' => 'Amount',
+            'sale_rate' => 'Sale Rate',
+            'tally_start_date' => 'Start Date',
+            'tally_end_date' => 'End Date',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'tax_id' => 'Tax',
+            'cgst_per' => 'CGST(%age)',
+            'sgst_per' => 'SGST(%age)',
+            'cess_per' => 'CESS(%age)',
+            'cgst_amt' => 'CGST Amount',
+            'sgst_amt' => 'SGST Amount',
+            'cess_amt' => 'CESS Amount',
+            'charge_amount' => 'Charge Amount',
+            'extra_charges' => 'Extra Charges',
+            'remarks' => 'Remarks',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'item_detail_id' => 'ItemDetail',
+            'purchase_bill_id' => 'PurchaseBill',
+            'outlet_id' => 'Outlet',
+            'vendor_id' => 'Vendor',
+            'createUser' => 'User',
+            'itemDetail' => 'ItemDetail',
+            'item_id' => 'Item Name',
+            'outlet' => 'Outlet',
+            'purchaseBill' => 'PurchaseBill',
+            'updatedBy' => 'User',
+        ];
+    }
+
+    public function getColumns($selectcolumns = []) {
+            if (! empty ( $selectcolumns )) {
+                $selected = $selectcolumns;
+            } else {
+
+            $selected = [
+                        'date',
+                        'vendor',
+                        'hsn_code' ,
+                        'bill_no',
+                        'tax_no' ,
+                        'gst_per',
+                        'cgst_per',
+                        'sgst_per',
+                        'igst_per',
+                        'cess_per',
+                        'net_amount',
+                        'basic_value',
+                        'discount',
+                        'gst_amt' ,
+                        'cgst_amt',
+                        'sgst_amt',
+                        'igst_amt',
+                        'cess_amt',
+                        'grn_no' ,
+                        'scheme' ,
+                ];
+            }
+
+            if ($selected) {
+                foreach ( $selected as $select ) {
+                    if ($select == 'date') {
+                        $columns [] = [
+                                'label' => 'Date',
+                                'value' => function ($data) {
+                                return isset($data->purchaseBill)?$data->purchaseBill->end_date:"";
+                                }
+                                ];
+                    } else if ($select == 'vendor') {
+                        $columns [] = [
+                                'label' => 'Vendor',
+                                'value' => function ($data) {
+                                return isset ( $data->purchaseBill ) ? $data->purchaseBill->vendor: "";
+                                }
+                                ];
+                    } else if ($select == 'hsn_code') {
+                        $columns [] = [
+                                'label' => 'HSN Code',
+                                'value' => function ($data) {
+                                return isset($data->tax)?$data->tax->hrn_code:"";
+                                }
+                                ];
+                    }else if ($select == 'bill_no') {
+                        $columns [] = [
+                                'label' => 'Bill No',
+                                'value' => function ($data) {
+                                return isset ( $data->purchaseBill ) ? '"'.$data->purchaseBill->bill_no.'"': "";
+                                }
+                                ];
+                    }  else if ($select == 'tax_no') {
+                        $columns [] = [
+                                'label' => 'GST NO',
+                                'value' => function ($data) {
+                                return $data->getVendorTAXNO();
+                                }
+                                ];
+                    }else if ($select == 'gst_per') {
+                        $columns [] = [
+                                'label' => 'GST%',
+                                'value' => function ($data) {
+                                return $data->getTotalGstPer();
+                                }
+                                ];
+                    }else if ($select == 'cgst_per') {
+                        $columns [] = [
+                                'label' => 'CGST%',
+                                'value' => function ($data) {
+                                return $data->getTaxPercentage("cgst_per");
+                                }
+                                ];
+                    } else if ($select == 'sgst_per') {
+                        $columns [] = [
+                                'label' => 'SGST%',
+                                'value' => function ($data) {
+                                return $data->getTaxPercentage("sgst_per");
+                                }
+                                ];
+                    } else if ($select == 'igst_per') {
+                        $columns [] = [
+                                'label' => 'IGST%',
+                                'value' => function ($data) {
+                                return $data->getTaxIgstPercentage();
+                                }
+                                ];
+                    } else if ($select == 'cess_per') {
+                        $columns [] = [
+                                'label' => 'CESS%',
+                                'value' => function ($data) {
+                                return $data->getTaxPercentage("cess_per");
+                                }
+                                ];
+                    } else if ($select == 'net_amount') {
+                        $columns [] = [
+                                'label' => 'Net Amount',
+                                'value' => function ($data) {
+                                return isset ( $data->purchaseBill ) ? $data->purchaseBill->net_bill_amount: "";
+
+                                }
+                                ];
+
+                    }else if ($select == 'basic_value') {
+                        $columns [] = [
+                                'label' => 'Basic Value',
+                                'value' => function ($data) {
+                                return $data->getBasicAmount();
+                                }
+                                ];
+
+                    }else if ($select == 'discount') {
+                        $columns [] = [
+                                'label' => 'Discount',
+                                'value' => function ($data) {
+                                return $data->getMainDiscount();
+                                }
+                                ];
+                    }else if ($select == 'gst_amt') {
+                        $columns [] = [
+                                'label' => 'GST',
+                                'value' => function ($data) {
+                                return $data->getTotalGstAmt();
+                                }
+                                ];
+                    }else if ($select == 'cgst_amt') {
+                        $columns [] = [
+                                'label' => 'CGST',
+                                'value' => function ($data) {
+                                return $data->getCgstAmount();
+                                }
+                                ];
+                    }else if ($select == 'sgst_amt') {
+                        $columns [] = [
+                                'label' => 'SGST',
+                                'value' => function ($data) {
+                                return $data->getSgstAmount();
+                                }
+                                ];
+                    }else if ($select == 'igst_amt') {
+                        $columns [] = [
+                                'label' => 'IGST',
+                                'value' => function ($data) {
+                                return $data->getIgstAmount();
+                                }
+                                ];
+                    }  else if ($select == 'cess_amt') {
+                        $columns [] = [
+                                'label' => 'CESS Amount',
+                                'value' => function ($data) {
+                                return  $data->getCessAmount();
+                                }
+                                ];
+                    }else if ($select == 'grn_no') {
+                        $columns [] = [
+                                'label' => 'GRN NUMBER',
+                                'value' => function ($data) {
+                                return isset ( $data->purchaseBill ) ? 'Gr-'.$data->purchaseBill->grn_refrence_no: "";
+                                //return 'Gr-'.$data->purchase_bill_id;
+                                }
+                                ];
+                    }else if ($select == 'scheme') {
+                        $columns [] = [
+                                'label' => 'SCHEME AND DISCOUNT',
+                                'value' => function ($data) {
+                                return $data->getSchemeDiscount();
+                                }
+                                ];
+                    }
+                    else {
+                        $columns [] = $select;
+                    }
+                }
+            }
+
+            return $columns;
+        }
+
+    public  function getDetailGstTrue(){
+            $gst = false;
+
+            Yii::warning( var_export( $gst ), '$$gst');
+
+            return $gst;
+        }
+
+    public function getNetAmount(){
+            $amount = 0;
+            $purchase_bill_id = $this->purchase_bill_id;
+            $details = PurchaseBillDetail::findAll(['purchase_bill_id'=>$purchase_bill_id,
+                    'tax_id'=>$this->tax_id
+            ]);
+            if($details){
+                foreach($details as $detail){
+                    $amount= $amount + $detail->amount;
+                }
+            }
+            return $amount;
+        }
+
+    public function toArray1($saleTax = false) {
+            $model = $this;
+            $bill = $this;
+            $json_entry = null;
+            if ($model) {
+                $default_img = 'default.png';
+                $json_entry = [];
+                $json_entry ['id'] = $model->id;
+                $json_entry ['Date'] = isset($model->purchaseBill)?$model->purchaseBill->end_date:"";
+        $json_entry ['Vendor'] = isset ( $model->purchaseBill ) ? $model->purchaseBill->vendor->name: "";
+        $json_entry ['HSN Code'] = isset($model->tax)?$model->tax->hrn_code:"";
+        $json_entry ['Bill No'] = isset ( $model->purchaseBill ) ? $model->purchaseBill->bill_no: "";
+        $json_entry ['GST NO'] = $model->getVendorTAXNO();
+        $json_entry ['GST Rate'] = $model->getTotalGstPer();
+        $json_entry ['CGST Rate'] =  $model->getTaxPercentage("cgst_per");
+        $json_entry ['SGST Rate'] = $model->getTaxPercentage("sgst_per");
+
+        $json_entry ['CESS Rate'] =   $model->getTaxPercentage("cess_per");
+        $json_entry ['IGST Rate'] = $model->getTaxPercentage("igst_per");
+        $json_entry ['Net Amount'] = isset ( $model->purchaseBill ) ? $model->purchaseBill->net_bill_amount: "";
+        $json_entry ['Basic Value'] = $model->getBasicAmount();
+        $json_entry ['Discount'] =  $model->getMainDiscount();
+        $json_entry ['GST'] = $model->getTotalGstAmt();
+            $json_entry ['CGST'] = $model->getCgstAmount();
+        $json_entry ['SGST'] =   $model->getSgstAmount();
+        $json_entry ['IGST'] = $model->getIgstAmount();
+        $json_entry ['CESS'] = $model->getCessAmount();
+        $json_entry ['GRN NUMBER'] =  isset ( $model->purchaseBill ) ? 'Gr-'.$model->purchaseBill->grn_refrence_no: "";
+        $json_entry ['SCHEME AND DISCOUNT'] = isset ( $model->purchaseBill ) ? $model->getSchemeDiscount(): "";
+                 // not needed for tally reports
+                // if ($saleTax && $model->sale_tax_id > 0 && $model->tax_id != $model->sale_tax_id) {
+                //     $json_entry ['GST Rate'] = $model->sale_cgst_per + $model->sale_sgst_per;
+                //     $json_entry ['CGST Rate'] =  $model->sale_cgst_per;
+                //     $json_entry ['SGST Rate'] = $model->sale_sgst_per;
+                //     $json_entry ['CESS Rate'] =   $model->sale_cess_per;
+                //     $json_entry ['IGST Rate'] = $model->sale_igst_per;
+                //     $json_entry ['GST'] = $model->sale_cgst_amt + $model->sale_sgst_amt;
+                //     $json_entry ['CGST'] = $model->sale_cgst_amt;
+                //     $json_entry ['SGST'] =   $model->sale_sgst_amt;
+                //     $json_entry ['IGST'] = $model->sale_igst_amt;
+                //     $json_entry ['CESS'] = $model->sale_cess_amt;
+                // }
+        }
+            return $json_entry;
+        }
+
+    public function gethsncode(){
+            if($this->hsn_code != null ){
+                return $this->hsn_code;
+            }else{
+                return $this->item->hsn_code;
+            }
+        }
 }

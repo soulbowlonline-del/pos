@@ -3,6 +3,7 @@ namespace app\controllers;
 
 use app\components\Ui;
 use app\models\ItemCompanyCategory;
+use app\models\UserRole;
 use Yii;
 use yii\data\ActiveDataProvider;
 use yii\helpers\Html;

@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -232,4 +236,57 @@ class OrderHold extends ActiveRecord
     {
         return $this->hasMany(OrderRefund::class, ['order_id' => 'id']);
     }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'bill_no' => 'Bill No',
+            'bill_date' => 'Bill Date',
+            'mode_of_payment' => 'Mode Of Payment',
+            'mode_of_delivery' => 'Mode Of Delivery',
+            'qty' => 'Qty',
+            'discount_amt' => 'Discount Amt',
+            'total_amt' => 'Total Amt',
+            'paid_amt' => 'Paid Amt',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'city_id' => 'City',
+            'state_id' => 'State',
+            'country_id' => 'Country',
+            'address' => 'Address',
+            'note' => 'Note',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'customer_id' => 'Customer',
+            'updated_by' => 'Updated By',
+        ];
+    }
+
+    public function toArray1() {
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+                $json_list = [];
+                $json_entry = [];
+                $json_entry ['id'] = $model->id;
+                $json_entry ['create_time'] = $model->create_time;
+
+            }
+            return $json_entry;
+        }
 }

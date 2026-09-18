@@ -6,10 +6,12 @@
 use Yii;
 use app\components\Ui;
 use app\models\Item;
+use app\models\User;
 use app\models\UserRole;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 use app\widgets\ButtonGroup;
+use app\widgets\TbTypeAhead;
 use yii\helpers\Html;
 ?>
 <!--  form code start here -->
@@ -71,7 +73,7 @@ HSN Code
 
    <?php 
    
-   $this->widget('ext.typeahead.TbTypeAhead',[
+   echo TbTypeAhead::widget([
               'model' => $model,
               'attribute' => 'hsn_code',
               'enableHogan' => true,
@@ -86,12 +88,12 @@ HSN Code
                                          ],
                            		'template' => '<p>{{name}}</p>',
                                   //     'template' => '<p>{{name}}<strong> [ {{username}} ] </strong> - {{user_id}}</p>',
-                                         'engine' => new CJavaScriptExpression('Hogan'),
+                                         'engine' => new \yii\web\JsExpression('Hogan'),
                            ]
               ],
               
                /* 'events' => array(
-                           'selected' => new CJavascriptExpression("function(obj, datum, name) {
+                           'selected' => new \yii\web\JsExpression("function(obj, datum, name) {
                     var    uid = datum.user_id;
                            $('#item_vendor_id').val(uid);
           
@@ -142,7 +144,7 @@ HSN Code
 	<?php echo $form->fileFieldRow($model, 'image_file'); ?>
 	<?php
 	
-/* $role = UserRole::model ()->findByAttributes ( array (
+/* $role = UserRole::findOne( array (
 			'title' => 'Admin' 
 	) );
 	$user = Yii::$app->user->model;
@@ -300,7 +302,7 @@ function checkSubCompany()
     var company_id = $('#Item_company_id').val();
     jQuery.ajax({
        'type': 'POST',
-       'url': '<?php echo CController::createUrl('item/ajaxcompany') ?>',
+       'url': '<?php echo Ui::to('item/ajaxcompany') ?>',
        'data': {'company_id': company_id},
        'success': function (data) {
           $('#subcompanydisplay').html('');
@@ -328,7 +330,7 @@ function checkSubCategory()
     var category_id = $('#Item_category_id').val();
     jQuery.ajax({
        'type': 'POST',
-       'url': '<?php echo CController::createUrl('item/ajaxcategory') ?>',
+       'url': '<?php echo Ui::to('item/ajaxcategory') ?>',
        'data': {'category_id': category_id},
        'success': function (data) {
           $('#subcategorydisplay').html('');
