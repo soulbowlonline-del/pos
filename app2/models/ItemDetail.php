@@ -564,4 +564,23 @@ class ItemDetail extends ActiveRecord
     {
         return $this->activeDiscount();
     }
+
+    /**
+     * Yii 1's calculateLockedStockQty(): the balance across rows already locked
+     * by the caller's SELECT ... FOR UPDATE, so the figure cannot move between
+     * reading it and writing the log line.
+     */
+    public function calculateLockedStockQty($rows)
+    {
+        $add = 0;
+        $sub = 0;
+        foreach ($rows as $row) {
+            if ($row[0] > 0) {
+                $add += $row[0];
+            } else {
+                $sub += abs($row[0]);
+            }
+        }
+        return bcsub((string)$add, (string)$sub, 3);
+    }
 }

@@ -1211,8 +1211,8 @@ class Order extends BaseOrder
 					//$packed_by = $this->createUser->full_name;
 					$packed_by = 'In and Out';
 					$templateid = "2422";
-					//$url = "https://www.uengage.in/ueapi/send?apiToken=12fd9a2a68131a9359d6686020d5319e&mobileNo=$contact&senderId=SOLBOL&smsText=$msg";
-				//	$url = "https://www.uengage.in/ueapi/sendTemplate?longSms=1&apiToken=12fd9a2a68131a9359d6686020d5319e&mobileNo=8847474661&senderId=SOLBOL&templateId=$templateid&amp;param=$customername::$order_no::packedby::$bill_no::$url";
+					//$url = "https://www.uengage.in/ueapi/send?apiToken='.getenv('POS_UENGAGE_TOKEN').'&mobileNo=$contact&senderId=SOLBOL&smsText=$msg";
+				//	$url = "https://www.uengage.in/ueapi/sendTemplate?longSms=1&apiToken='.getenv('POS_UENGAGE_TOKEN').'&mobileNo=8847474661&senderId=SOLBOL&templateId=$templateid&amp;param=$customername::$order_no::packedby::$bill_no::$url";
 			
 					try {
    /* $ch = curl_init ();
@@ -1227,11 +1227,19 @@ curl_close ( $ch );*/
 
 $ch = curl_init ();
 	
+		// POS_UENGAGE_STUB_HOOK
+		$__smsFields = array (
+				'longSms' => '1','apiToken'=>getenv('POS_UENGAGE_TOKEN'),'mobileNo'=>$contact,'senderId'=>'SOLBOL','templateId'=>$templateid,'param'=>"$customername::$order_no::$packed_by::$bill_no::$pdfurl"
+		);
+		if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+			PosOutbound::intercept(PosOutbound::CHANNEL_HTTP, 'POST https://www.uengage.in/ueapi/sendTemplate', $__smsFields);
+			return;
+		}
 		curl_setopt ( $ch, CURLOPT_URL, "https://www.uengage.in/ueapi/sendTemplate" );
 		curl_setopt ( $ch, CURLOPT_POST, 1 );
 	
 		curl_setopt ( $ch, CURLOPT_POSTFIELDS, http_build_query ( array (
-				'longSms' => '1','apiToken'=>'12fd9a2a68131a9359d6686020d5319e','mobileNo'=>$contact,'senderId'=>'SOLBOL','templateId'=>$templateid,'param'=>"$customername::$order_no::$packed_by::$bill_no::$pdfurl"
+				'longSms' => '1','apiToken'=>getenv('POS_UENGAGE_TOKEN'),'mobileNo'=>$contact,'senderId'=>'SOLBOL','templateId'=>$templateid,'param'=>"$customername::$order_no::$packed_by::$bill_no::$pdfurl"
 		) ) );
 	
 		curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );

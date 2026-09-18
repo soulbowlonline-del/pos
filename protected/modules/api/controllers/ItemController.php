@@ -139,7 +139,7 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
@@ -167,6 +167,8 @@ class ItemController extends GxController {
 	 												}
 	 												$criteria1 = new CDbCriteria ();
 	 												$criteria1->compare ( "bar_code ", $item_array->bar_code);
+	 												// no ORDER BY in the original; MySQL 8 does not sort implicitly
+	 												$criteria1->order = 'id asc';
 	 												$itemdetail = ItemDetail::model ()->find ( $criteria1 );
 	 													
 	 												if($itemdetail){
@@ -271,7 +273,7 @@ class ItemController extends GxController {
 												$data = array();
 												
 												$item_list = array();
-												$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id));
+												$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id), array('order'=>'id asc'));
 												if($itemorderitems){
 												foreach($itemorderitems as $orderitem){
 												$get_item = Item::model()->findByPk($orderitem->item_id);
@@ -1065,7 +1067,7 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
@@ -1093,6 +1095,8 @@ class ItemController extends GxController {
 	 												}
 	 												$criteria1 = new CDbCriteria ();
 	 												$criteria1->compare ( "bar_code ", $item_array->bar_code);
+	 												// no ORDER BY in the original; MySQL 8 does not sort implicitly
+	 												$criteria1->order = 'id asc';
 	 												$itemdetail = ItemDetail::model ()->find ( $criteria1 );
 	 													
 	 												if($itemdetail){
@@ -1199,7 +1203,7 @@ class ItemController extends GxController {
 												$data = array();
 												
 												$item_list = array();
-												$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id));
+												$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id), array('order'=>'id asc'));
 												if($itemorderitems){
 												foreach($itemorderitems as $orderitem){
 												$get_item = Item::model()->findByPk($orderitem->item_id);
@@ -2122,7 +2126,7 @@ class ItemController extends GxController {
 					if ($status == '1') {
 						if(isset($_POST['credit_note_id'])){
 
-							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
+							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
 							if($creditnot){
 								$remain_amt = $creditnot->amt - $creditnot->amt_used;
 								if(($remain_amt) >= ($order->total_amt)){
@@ -2229,7 +2233,7 @@ class ItemController extends GxController {
 						$data = array();
 						
 						$item_list = array();
-						$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id));
+						$itemorderitems = OrderItem::model()->findAllByAttributes(array('order_id'=>$order->id), array('order'=>'id asc'));
 						if($itemorderitems){
 						foreach($itemorderitems as $orderitem){
 						$get_item = Item::model()->findByPk($orderitem->item_id);

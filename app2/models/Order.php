@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use Yii;
+
 use yii\db\ActiveRecord;
 
 /**
@@ -245,5 +247,217 @@ class Order extends ActiveRecord
         $json['order_items'] = $items;
 
         return $json;
+    }
+
+    /**
+     * Yii 1's UpdateStock(): takes $qty off this order's outlet stock for one
+     * item detail, writes a StockLog line, and raises a requisition if the
+     * result falls to or below the item's minimum.
+     *
+     * Three branches, and they are not symmetric:
+     *
+     *   - enough in the first positive-balance row: deduct, log the quantity.
+     *   - not enough: zero that row, log what was actually there, then recurse
+     *     with the remainder - so a sale spanning three batches writes three
+     *     log lines. The recursion is on the same item detail, so it picks up
+     *     the next positive row each time.
+     *   - no positive row at all: the balance is driven negative. This branch
+     *     reads getStockQty() *after* saving, so previous_qty is computed from
+     *     the new figure rather than the old one, unlike the other two, which
+     *     use the locked read. Reproduced.
+     *
+     * The first two lock the stock rows with SELECT ... FOR UPDATE before
+     * computing the figure they log, so a concurrent sale cannot move it
+     * between the read and the write. The third does not.
+     */
+    public function UpdateStock($qty, $itemDetailId)
+    {
+        $itemDetail = ItemDetail::findOne($itemDetailId);
+        // touched before the null check below, as in Yii 1
+        $itemDetail->update_time = date('Y-m-d H:i:s');
+        $itemDetail->save(false, ['update_time']);
+
+        if (!$itemDetail) {
+            return;
+        }
+
+        $item = Item::findOne($itemDetail->item_id);
+        $remainQty = $qty;
+        $quantity = $qty;
+
+        $vendorId = 0;
+        if ($item !== null) {
+            $item->update_time = date('Y-m-d H:i:s');
+            $item->save(false, ['update_time']);
+            // item_detail_id matched against the ITEM id - the same mismatch
+            // noted on Item::getItemVendors()
+            $vendor = ItemVendor::find()
+                ->where('item_detail_id = :i', [':i' => $item->id])
+                ->orderBy(['id' => SORT_DESC])
+                ->one();
+            if ($vendor) {
+                $vendorId = $vendor->vendor_id;
+            }
+        }
+
+        $itemStock = ItemStock::find()
+            ->where([
+                'item_id' => $itemDetail->item_id,
+                'item_detail_id' => $itemDetail->id,
+                'outlet_id' => $this->outlet_id,
+            ])
+            ->andWhere('balance_qty > 0')
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        if ($itemStock) {
+            if ($itemStock->balance_qty >= $quantity) {
+                $itemStock->balance_qty = $itemStock->balance_qty - $quantity;
+                $itemStock->tax_id = $itemDetail->tax_id;
+                if ($itemStock->save()) {
+                    $currentQty = $this->lockedStockQty($itemDetail);
+                    $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
+                        $currentQty, $currentQty + $quantity, $quantity);
+                    if ($itemStock->isnetLessMin()) {
+                        $itemStock->createMrs();
+                    }
+                }
+                return true;
+            }
+
+            $balance = $itemStock->balance_qty;
+            $itemStock->balance_qty = 0;
+            $itemStock->tax_id = $itemDetail->tax_id;
+            if ($itemStock->save()) {
+                $currentQty = $this->lockedStockQty($itemDetail);
+                $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
+                    $currentQty, $currentQty + $balance, abs($balance));
+                if ($itemStock->isnetLessMin()) {
+                    $itemStock->createMrs();
+                }
+            }
+
+            $remainQty = $remainQty - $balance;
+            if ($remainQty > 0) {
+                $this->UpdateStock($remainQty, $itemDetailId);
+            }
+            return;
+        }
+
+        // nothing positive to take from: drive the balance negative
+        $itemStock = ItemStock::find()
+            ->where([
+                'item_id' => $itemDetail->item_id,
+                'item_detail_id' => $itemDetail->id,
+                'outlet_id' => $this->outlet_id,
+            ])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        if (!$itemStock) {
+            return;
+        }
+
+        $balance = $itemStock->balance_qty;
+        if ($balance == 0) {
+            $itemStock->balance_qty = bcsub((string)$itemStock->balance_qty, (string)$quantity, 3);
+        }
+        if ($balance < 0) {
+            $itemStock->balance_qty = '-' . bcadd((string)abs($itemStock->balance_qty), (string)$quantity, 3);
+        }
+        $itemStock->tax_id = $itemDetail->tax_id;
+
+        if ($itemStock->save()) {
+            // getStockQty() after the save, so this reads the new figure
+            $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
+                $itemDetail->getStockQty(), $itemDetail->getStockQty() + $quantity, $quantity);
+            if ($itemStock->isnetLessMin()) {
+                $itemStock->createMrs();
+            }
+        }
+    }
+
+    /** The balance across rows locked for this transaction. */
+    private function lockedStockQty($itemDetail)
+    {
+        $rows = Yii::$app->db->createCommand(
+            'SELECT balance_qty FROM tbl_item_stock
+              WHERE item_id = :item_id AND item_detail_id IS NOT NULL
+              ORDER BY id ASC FOR UPDATE',
+            [':item_id' => (int)$itemDetail->item_id]
+        )->queryAll(\PDO::FETCH_NUM);
+
+        return $itemDetail->calculateLockedStockQty($rows);
+    }
+
+    private function writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId, $current, $previous, $qty)
+    {
+        $log = new StockLog();
+        $log->item_detail_id = $itemDetail->id;
+        $log->item_id = $item->id;
+        $log->batch_no = $itemStock->batch_number;
+        $log->current_qty = $current;
+        $log->previous_qty = $previous;
+        $log->Qty = $qty;
+        $log->outlet_id = $this->outlet_id;
+        if ($vendorId != null) {
+            $log->vendor_id = $vendorId;
+        }
+        $log->type_id = StockLog::TYPE_ORDER;
+        $log->save();
+    }
+
+    /**
+     * Yii 1's SendSms(): a templated order confirmation through uengage.
+     *
+     * The API token was a literal in protected/models/Order.php and is read
+     * from the environment now - it is in this repository's history and needs
+     * rotating. Goes through the outbound stub when one is configured, like
+     * every other outward call.
+     *
+     * Yii 1 wraps the cURL in a try/catch that cannot fire (curl_exec does not
+     * throw), and sends nothing at all when the customer has no phone number.
+     */
+    public function SendSms()
+    {
+        $customer = Customer::findOne($this->customer_id);
+        if (!$customer) {
+            return;
+        }
+        $contact = $customer->contact_no;
+        if ($contact == '') {
+            return;
+        }
+
+        if ($this->online_order_id === null) {
+            $orderNo = $this->bill_no;
+        } else {
+            $onlineOrder = OnlineOrder::findOne($this->online_order_id);
+            $orderNo = $onlineOrder ? $onlineOrder->order_id : $this->bill_no;
+        }
+
+        $url = 'https://www.uengage.in/ueapi/sendTemplate';
+        $fields = [
+            'longSms' => '1',
+            'apiToken' => getenv('POS_UENGAGE_TOKEN'),
+            'mobileNo' => $contact,
+            'senderId' => 'SOLBOL',
+            'templateId' => '2422',
+            'param' => $customer->name . '::' . $orderNo . '::In and Out::' . $this->bill_no
+                . '::http://61.2.241.71/pos/order/pdf?id=' . $this->id,
+        ];
+
+        if (class_exists('PosOutbound') && \PosOutbound::isStubbed()) {
+            \PosOutbound::intercept(\PosOutbound::CHANNEL_HTTP, 'POST ' . $url, $fields);
+            return;
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_exec($ch);
+        curl_close($ch);
     }
 }

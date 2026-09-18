@@ -651,8 +651,13 @@ class OrderController extends Controller
         $out['is_mobile'] = $order->is_mobile === null ? null : (string)$order->is_mobile;
 
         $items = OrderItem::find()
-            ->select('SUM(qty) AS qty, SUM(tax_amount) AS tax_amount, SUM(cgst_amt) AS cgst_amt,'
-                   . ' SUM(sgst_amt) AS sgst_amt, SUM(cess_amt) AS cess_amt, SUM(igst_amt) AS igst_amt, t.*')
+            // t.* first, then the aggregates - see the note on item/order. The
+            // select names six columns twice and the last one wins, so with
+            // t.* trailing a group of more than one line reported a single
+            // line's figures. Not visible here while every group holds one
+            // line, which is why it took a two-line order to surface.
+            ->select('t.*, SUM(qty) AS qty, SUM(tax_amount) AS tax_amount, SUM(cgst_amt) AS cgst_amt,'
+                   . ' SUM(sgst_amt) AS sgst_amt, SUM(cess_amt) AS cess_amt, SUM(igst_amt) AS igst_amt')
             ->alias('t')
             ->joinWith('item item')
             ->where(['t.order_id' => $order->id])

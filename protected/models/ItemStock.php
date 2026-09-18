@@ -48,7 +48,7 @@ class ItemStock extends BaseItemStock
 		$criteria1->addInCondition('purchase_bill_id',$purchasebill_ids);
 		$purchasebills = PurchaseBillDetail::model()->findAll($criteria1);
 		
-		$itemstocks= ItemStock::model()->findAllByAttributes(array('item_detail_id'=>$this->item_detail_id,'item_id'=>$this->item_id,'outlet_id'=>$this->outlet_id));
+		$itemstocks= ItemStock::model()->findAllByAttributes(array('item_detail_id'=>$this->item_detail_id,'item_id'=>$this->item_id,'outlet_id'=>$this->outlet_id), array('order'=>'id asc'));
 		
 		foreach($itemstocks as $itemstock)
 		{
@@ -68,8 +68,8 @@ class ItemStock extends BaseItemStock
 		} */
 	}
 	public function createB2bMrs(){
-		$organization = Organization::model()->find();
-		$outlet =  Outlet::model()->find();
+		$organization = Organization::model()->find(array('order'=>'id asc'));
+		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -107,7 +107,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		));
+		), array('order'=>'id asc'));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);
@@ -174,7 +174,7 @@ class ItemStock extends BaseItemStock
 			$itemdetail = ItemDetail::model ()->findByPk ( $this->item_detail_id );
 			$mrsdetail = MrsDetail::model()->findByAttributes(array('item_detail_id'=>$this->item_detail_id,
 					'mrs_id'=>$mrs->id
-			));
+			), array('order'=>'id asc'));
 			if($mrsdetail == null){
 				$mrsdetail = new MrsDetail();
 			}
@@ -233,8 +233,8 @@ class ItemStock extends BaseItemStock
 	
 	
 	public function createMrs(){
-		$organization = Organization::model()->find();
-		$outlet =  Outlet::model()->find();
+		$organization = Organization::model()->find(array('order'=>'id asc'));
+		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -272,7 +272,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		));
+		), array('order'=>'id asc'));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);
@@ -339,7 +339,7 @@ class ItemStock extends BaseItemStock
 			$itemdetail = ItemDetail::model ()->findByPk ( $this->item_detail_id );
 			$mrsdetail = MrsDetail::model()->findByAttributes(array('item_detail_id'=>$this->item_detail_id,
 					'mrs_id'=>$mrs->id
-			));
+			), array('order'=>'id asc'));
 			if($mrsdetail == null){
 				$mrsdetail = new MrsDetail();
 			}

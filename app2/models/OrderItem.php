@@ -204,4 +204,42 @@ class OrderItem extends ActiveRecord
 
         return $out;
     }
+
+    /**
+     * GxActiveRecord::remove_format() in Yii 1 - every model inherits it.
+     * Strips thousands separators from a posted number.
+     */
+    public function remove_format($text)
+    {
+        return str_replace(',', '', $text);
+    }
+
+    /**
+     * Yii 1's getTaxValueID(): an IGST tax maps to the GST tax whose two halves
+     * add up to the same rate; anything else maps to itself.
+     *
+     * The final else reads $tax->id when $tax is null, so an unknown tax id is
+     * a fatal. Reproduced.
+     */
+    public function getTaxValueID($taxId)
+    {
+        $tax = Tax::findOne($taxId);
+        if ($tax) {
+            if ($tax->type_id == Tax::TYPE_IGST) {
+                $half = $tax->tax_val4 / 2;
+                $gst = Tax::find()
+                    ->where('tax_val1 = :a', [':a' => $half])
+                    ->andWhere('tax_val2 = :b', [':b' => $half])
+                    ->andWhere('type_id = :t', [':t' => Tax::TYPE_GST])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+                if ($gst) {
+                    return $gst->id;
+                }
+            } else {
+                return $tax->id;
+            }
+        }
+        return $tax->id;   // null here in Yii 1 too
+    }
 }

@@ -81,4 +81,15 @@ class OrderHoldItem extends ActiveRecord
 
         return $json;
     }
+
+    /**
+     * GxActiveRecord::remove_format() in Yii 1, which every model inherits -
+     * including this one, which item/order calls it on for a held order.
+     * app2's models extend yii\db\ActiveRecord directly, so the ones that need
+     * it carry their own copy.
+     */
+    public function remove_format($text)
+    {
+        return str_replace(',', '', $text);
+    }
 }
