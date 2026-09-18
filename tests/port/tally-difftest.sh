@@ -37,6 +37,24 @@ for d in $B2BDATES 1990-01-01; do
   if [ "$r1" = "$r2" ]; then printf "  b2btaxwise %-13s OK  (%s bytes)\n" "$d" "${#r1}"; PASS=$((PASS+1))
   else printf "  b2btaxwise %-13s MISMATCH (yii1=%s yii2=%s)\n" "$d" "${#r1}" "${#r2}"; FAIL=$((FAIL+1)); fi
 done
+# b2bsales. The dates are picked from the bills themselves so the busiest day
+# and a quiet one are both covered, plus a day with none and the empty date
+# that used to reach MySQL as date(start_date) = "".
+B2BSALESDATES=$(docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD -N $MYSQL_DATABASE -e "
+  SELECT DATE(start_date) FROM tbl_b2bpurchase_bill
+   GROUP BY DATE(start_date) ORDER BY COUNT(*) DESC LIMIT 3;"' 2>/dev/null | tr '\n' ' ')
+for d in $B2BSALESDATES 1990-01-01; do
+  r1=$(curl -sS --max-time 400 -X POST "$BASE/api/tally/b2bsales?date=$d")
+  r2=$(curl -sS --max-time 400 -X POST "$BASE/v2/api/tally/b2bsales?date=$d")
+  if [ "$r1" = "$r2" ]; then printf "  b2bsales %-13s OK  (%s bytes)\n" "$d" "${#r1}"; PASS=$((PASS+1))
+  else printf "  b2bsales %-13s MISMATCH (yii1=%s yii2=%s)\n" "$d" "${#r1}" "${#r2}"; FAIL=$((FAIL+1))
+       echo "      yii1: $(echo "$r1" | head -c 200)"; echo "      yii2: $(echo "$r2" | head -c 200)"; fi
+done
+r1=$(curl -sS --max-time 120 -X POST "$BASE/api/tally/b2bsales")
+r2=$(curl -sS --max-time 120 -X POST "$BASE/v2/api/tally/b2bsales")
+if [ "$r1" = "$r2" ]; then printf "  b2bsales %-13s OK  (%s bytes)\n" "(no date)" "${#r1}"; PASS=$((PASS+1))
+else printf "  b2bsales %-13s MISMATCH\n" "(no date)"; echo "      yii1: $r1"; echo "      yii2: $r2"; FAIL=$((FAIL+1)); fi
+
 # An empty date is not compared: it is broken on both stacks in different ways
 # (Yii 1 throws CDbException, Yii 2 would run to the execution limit), and the
 # port deliberately short-circuits it. See the commit message.

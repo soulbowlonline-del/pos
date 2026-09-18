@@ -485,7 +485,18 @@ $detail = B2bPurchaseBillDetail::model()->findByPk($item['id']);
    
 $criteria = new CDbCriteria ();
 			$criteria1 = new CDbCriteria();
-$criteria1->addCondition('date(start_date) = "'.$date.'"');
+// Bound, not concatenated: $date arrives from the URL. And with no date
+// at all this built date(start_date) = "", which MySQL 5.7 warned about
+// and MySQL 8 rejects outright (error 1525) - the same fault that took
+// tally/cashsale down. An empty date can match nothing, so say so.
+if ($date === null || $date === '') {
+	$arr['message'] = 'data not available';
+	$this->sendJSONResponse($arr);
+	return;
+}
+$criteria1->addCondition('date(start_date) = :d');
+$criteria1->params[':d'] = $date;
+$criteria1->order = 'id asc';
 $orders = B2bPurchaseBill::model()->findAll($criteria1);
 $purchase_bill_ids = array();
             if ($orders) {
@@ -496,6 +507,8 @@ $purchase_bill_ids = array();
             }
 				$criteria->addInCondition('purchase_bill_id', $purchase_bill_ids);
 			
+			// no ORDER BY in the original; MySQL 8 does not sort implicitly
+			$criteria->order = 'id asc';
 			$B2bPurchaseBillDetail = B2bPurchaseBillDetail::model()->findAll($criteria);
 			
 			

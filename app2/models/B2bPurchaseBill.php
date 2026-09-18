@@ -10,4 +10,10 @@ class B2bPurchaseBill extends ActiveRecord
     {
         return '{{%b2bpurchase_bill}}';
     }
+
+    /** tally/b2bsales reaches the vendor's state through this. */
+    public function getVendor()
+    {
+        return $this->hasOne(Vendor::class, ['id' => 'vendor_id']);
+    }
 }

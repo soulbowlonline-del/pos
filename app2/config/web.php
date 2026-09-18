@@ -50,6 +50,9 @@ return [
             'showScriptName' => false,
             'baseUrl' => '/v2',
             'rules' => [
+                // the bare /v2 root: a directory of what is served here, so a
+                // visitor does not land on an unexplained 404
+                '' => 'site/index',
                 'GET health' => 'site/health',
                 // Ported from the Yii 1 api module. Yii 1 still serves
                 // /api/<controller>/* for everything not yet moved across.

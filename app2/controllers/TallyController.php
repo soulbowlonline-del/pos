@@ -8,6 +8,7 @@ use app\models\PurchaseBillDetail;
 use app\models\B2bPurchaseBill;
 use app\models\Outlet;
 use app\models\Vendor;
+use app\models\B2bPurchaseBillDetail;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -45,6 +46,16 @@ class TallyController extends Controller
      * The Yii 1 version concatenates $date straight into three queries. All
      * parameters are bound here.
      */
+    /** The response envelope every action in this controller starts from. */
+    private function envelope($action)
+    {
+        return [
+            'controller' => 'tally',
+            'action' => $action,
+            'status' => 'NOK',
+        ];
+    }
+
     public function actionCashsale($date = null)
     {
         $out = [
@@ -368,6 +379,86 @@ class TallyController extends Controller
 
         $out['status'] = 'OK';
         $out['grouptax'] = $list;
+        return $out;
+    }
+    /**
+     * POST /v2/api/tally/b2bsales?date=YYYY-MM-DD
+     *
+     * Every B2B purchase-bill line on bills whose start_date falls on the given
+     * day, flattened for the accounts export.
+     *
+     * The date goes straight into the SQL in Yii 1 - date(start_date) = "$date"
+     * - which is both an injection point and, with no date at all, an empty
+     * string that MySQL 8 rejects outright (error 1525, the same fault that
+     * took tally/cashsale down). Bound as a parameter on both stacks now, and
+     * a missing date is answered before the query rather than by the database.
+     *
+     * Nothing else is corrected. In particular getOrderBillNo() uses the
+     * outlet's prefix only when that prefix is *empty*, so every bill reads
+     * B2B.../B-... whatever the outlet is called - the same inversion already
+     * recorded against Order::getOrderBillNo().
+     */
+    public function actionB2bsales($date = null)
+    {
+        $out = $this->envelope('b2bsales');
+
+        // Yii 1 builds this condition by concatenation; with no date it becomes
+        // date(start_date) = "" and MySQL 8 refuses it. Both stacks bind it,
+        // and an empty date can match nothing, so answer directly.
+        if ($date === null || $date === '') {
+            $out['message'] = 'data not available';
+            return $out;
+        }
+
+        $billIds = B2bPurchaseBill::find()
+            ->select('id')
+            ->where('date(start_date) = :d', [':d' => $date])
+            ->orderBy(['id' => SORT_ASC])
+            ->column();
+
+        $details = B2bPurchaseBillDetail::find()
+            ->where(['purchase_bill_id' => $billIds])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        $list = [];
+        foreach ($details as $detail) {
+            $list[] = [
+                // Yii 1 emits the stringified columns; Yii 2's AR casts to int
+                'id' => (string)$detail->id,
+                'billdate' => $detail->getOrderBillDate(),
+                'billno' => $detail->getOrderBillNo(),
+                'customer' => $detail->getVendorName(),
+                'state' => $detail->getStateName(),
+                'statecode' => (string)$detail->purchaseBill->vendor->state_id,
+                'itemname' => $detail->getItemName(),
+                'hsn_code' => $detail->hsn_code,
+                'qty' => $detail->approved_qty,
+                'barcode' => $detail->itemDetail->bar_code,
+                'employee' => $detail->createduser(),
+                'mrp' => $detail->mrp,
+                'taxable' => $detail->getsaleTaxableAmount()
+                    - ($detail->discount_amt1 + $detail->discount_amt),
+                'tax_per' => $detail->getTotalGstPer(),
+                'cgst_per' => $detail->getTaxPercentage('cgst_per'),
+                'sgst_per' => $detail->getTaxPercentage('sgst_per'),
+                'igst_per' => $detail->getTaxPercentage('igst_per'),
+                'cess_per' => $detail->getTaxPercentage('cess_per'),
+                'cgst_amt' => $detail->cgst_amt,
+                'sgst_amt' => $detail->sgst_amt,
+                'igst_amt' => $detail->igst_amt,
+                'cess_amt' => $detail->cess_amt,
+                'totalamount' => $detail->amount,
+            ];
+        }
+
+        if (!empty($list)) {
+            $out['status'] = 'OK';
+            $out['sales'] = $list;
+        } else {
+            $out['message'] = 'data not available';
+        }
+
         return $out;
     }
 }
