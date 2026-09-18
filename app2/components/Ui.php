@@ -21,6 +21,13 @@ class Ui
     /** Controller ids the Yii 2 UI serves. Everything else stays with Yii 1. */
     public const PORTED = [
         'paymentMode',
+        'userRole',
+        'advanceLogs',
+        'empShift',
+        'question',
+        'shift',
+        'advancePayment',
+        'itemExpireItem',
     ];
 
     /**

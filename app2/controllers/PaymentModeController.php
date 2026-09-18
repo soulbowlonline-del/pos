@@ -6,7 +6,6 @@ use app\models\PaymentMode;
 use Yii;
 use yii\data\ActiveDataProvider;
 use yii\web\BadRequestHttpException;
-use yii\web\NotFoundHttpException;
 
 /**
  * Yii 2 port of protected/controllers/PaymentModeController.php.
@@ -125,15 +124,6 @@ class PaymentModeController extends BaseUiController
             return $this->redirect(['admin']);
         }
         return '';
-    }
-
-    protected function loadModel($id)
-    {
-        $model = PaymentMode::findOne($id);
-        if ($model === null) {
-            throw new NotFoundHttpException('The requested page does not exist.');
-        }
-        return $model;
     }
 
     /**

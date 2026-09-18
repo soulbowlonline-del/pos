@@ -15,6 +15,7 @@ use yii\helpers\Url;
  */
 class User extends ActiveRecord
 {
+    public const GENDER_BOTH = 2;
     /** BaseUser's representing column, used by __toString(). */
     public static function representingColumn()
     {
@@ -206,5 +207,37 @@ class User extends ActiveRecord
             $digits .= (string)rand(0, 9);
         }
         return $digits;
+    }
+
+    /** Yii 1's label(): the model's name, singular or plural. */
+    public static function label($n = 1)
+    {
+        return $n == 1 ? 'User' : 'Users';
+    }
+
+    /** Views ask the model whether the current role may reach a route. */
+    public function checkPermission($url)
+    {
+        return \app\components\Access::check($url);
+    }
+
+    /**
+     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()
+     * above already resolves a relation or foreign key to the related
+     * model's label, so this is the attribute label.
+     */
+    public function getRelationLabel($name, $n = null)
+    {
+        return $this->getAttributeLabel($name);
+    }
+
+    /**
+     * The ordering Yii 1's defaultScope() put on every query for this
+     * model. Null means Yii 1 applied none, and neither should this:
+     * an order Yii 1 never applied is an order the user never saw.
+     */
+    public static function defaultOrder()
+    {
+        return ['id' => SORT_DESC];
     }
 }

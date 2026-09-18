@@ -1,11 +1,23 @@
 <?php
 namespace app\models;
 
+use yii\data\ActiveDataProvider;
+
+use app\components\Ui;
+
+use app\components\Criteria;
+
 use yii\db\ActiveRecord;
 
 /** Ported from protected/models/City.php (Yii 1). */
 class City extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
+    public const STATUS_INACTIVE = 1;
+    public const STATUS_ACTIVE = 0;
     public static function tableName()
     {
         return '{{%city}}';
@@ -24,5 +36,203 @@ class City extends ActiveRecord
             'id' => (string)$this->id,
             'title' => isset($this->title) ? $this->title : '',
         ];
+    }
+
+    /** Yii 1's label(): the model's name, singular or plural. */
+    public static function label($n = 1)
+    {
+        return $n == 1 ? 'City' : 'Cities';
+    }
+
+    /** The column that stands for the whole row in a link or a breadcrumb. */
+    public static function representingColumn()
+    {
+        return 'title';
+    }
+
+    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    public function __toString()
+    {
+        $value = $this->hasAttribute('title') ? $this->title : null;
+
+        return (string) ($value === null || $value === '' ? $this->id : $value);
+    }
+
+    /** Views ask the model whether the current role may reach a route. */
+    public function checkPermission($url)
+    {
+        return \app\components\Access::check($url);
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = ["Active","InActive"];
+		if ($id == null )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = ["TYPE1","TYPE2","TYPE3"];
+		if ($id == null )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['title', 'create_user_id'], 'required'],
+            [['type_id', 'state_id', 'status', 'create_user_id', 'updated_by'], 'integer'],
+            [['title'], 'string', 'max' => 255],
+            [['create_time', 'update_time'], 'safe'],
+            [['type_id', 'state_id', 'status', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
+            [['id', 'title', 'type_id', 'state_id', 'status', 'create_time', 'update_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'title' => 'Title',
+            'type_id' => 'Type',
+            'state_id' => 'State Id',
+            'status' => 'Status',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'Create User Id',
+            'updated_by' => 'Updated By',
+            'createUser' => 'Create User',
+            'state' => 'State',
+            'updatedBy' => 'Updated By',
+            'orders' => 'Orders',
+            'orderHolds' => 'Order Holds',
+            'orderRefunds' => 'Order Refunds',
+            'organizations' => 'Organizations',
+            'outlets' => 'Outlets',
+            'vendors' => 'Vendors',
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // GxActiveRecord::defaultScope() orders every model with an id
+            // by id DESC, so Yii 1 lists newest first.
+            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        $this->load($params, $this->formName());
+
+        foreach (['id', 'type_id', 'state_id', 'status', 'create_user_id', 'updated_by'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr);
+        }
+        foreach (['title', 'create_time', 'update_time'] as $attr) {
+            Criteria::compare($query, $attr, $this->$attr, true);
+        }
+
+        return $provider;
+    }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getState()
+    {
+        return $this->hasOne(State::class, ['id' => 'state_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getOrders()
+    {
+        return $this->hasMany(Order::class, ['city_id' => 'id']);
+    }
+
+    public function getOrderHolds()
+    {
+        return $this->hasMany(OrderHold::class, ['city_id' => 'id']);
+    }
+
+    public function getOrderRefunds()
+    {
+        return $this->hasMany(OrderRefund::class, ['city_id' => 'id']);
+    }
+
+    public function getOrganizations()
+    {
+        return $this->hasMany(Organization::class, ['city_id' => 'id']);
+    }
+
+    public function getOutlets()
+    {
+        return $this->hasMany(Outlet::class, ['city_id' => 'id']);
+    }
+
+    public function getVendors()
+    {
+        return $this->hasMany(Vendor::class, ['city_id' => 'id']);
+    }
+
+    /**
+     * The ordering Yii 1's defaultScope() put on every query for this
+     * model. Null means Yii 1 applied none, and neither should this:
+     * an order Yii 1 never applied is an order the user never saw.
+     */
+    public static function defaultOrder()
+    {
+        return ['id' => SORT_DESC];
+    }
+
+    /**
+     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()
+     * above already resolves a relation or foreign key to the related
+     * model's label, so this is the attribute label.
+     */
+    public function getRelationLabel($name, $n = null)
+    {
+        return $this->getAttributeLabel($name);
     }
 }

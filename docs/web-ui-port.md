@@ -57,6 +57,22 @@ Views keep their Yii 1 directory names - `views/paymentMode`, not
 `views/payment-mode` - so each ported view sits beside its original in a diff.
 `BaseUiController::getViewPath()` does that mapping.
 
+## How a controller is ported
+
+Three generators, then a comparison. None of them guess: anything a generator
+does not recognise is left as it was and reported, so it fails loudly on the
+first request rather than rendering a page that is quietly wrong.
+
+| | |
+|---|---|
+| `port_model.py <Model>` | the model, from the giix `_base` class plus the hand-written methods on the concrete one. Against a model the API port already wrote, `--presentation-only` adds just the display contract - `label()`, `__toString()`, `defaultOrder()`, the option helpers - and never `rules()`, `search()` or `beforeValidate()`, which would change how that model validates and saves. |
+| `port_controller.py <Model>` | the controller, translated from the Yii 1 one so its hand edits survive. |
+| `port_views.py <controller>` | the views, likewise. |
+| `batch_port.py <Model>...` | runs all three for each controller, brings its dependencies up to the display contract, compares every page against Yii 1, and adds it to `Ui::PORTED` **only if it matches**. One that differs stays on Yii 1. |
+
+`tests/port/pmui-difftest.sh` then covers whatever is in `Ui::PORTED`, so a
+controller that lands is checked by the regression without a second edit.
+
 ## Framework defaults that silently change behaviour
 
 These are the differences that produce a working page showing the wrong thing.
@@ -73,6 +89,23 @@ Each was found by the comparison suite, not by reading the code.
 - **Nulls.** `CGridView` prints an empty cell for a null; `CDetailView` prints
   `Not set`. Yii 2 prints `(not set)` in both. The application formatter is set
   to `''` for the grid and `DetailView` carries `Not set` of its own.
+- **Row order, again.** `GxActiveRecord::defaultScope()` is overridden by 22
+  of the 72 models, mostly to an empty array - meaning no `ORDER BY` at all,
+  and rows in whatever order the storage engine produces. `Item` is one of
+  them. Applying the inherited `id DESC` to those anyway put every grid and
+  every filter dropdown on those tables in an order Yii 1 never showed. Each
+  model now carries a `defaultOrder()` read from its own `defaultScope()`.
+- **Column types.** Yii 1 runs PDO with `ATTR_STRINGIFY_FETCHES`, so an
+  integer 0 arrives as `'0'`. Yii 2 casts it to `0`. The generated option
+  helpers all open with `if ($id == null) return $list;` - false for `'0'`,
+  true for `0` - so under Yii 2 a status of 0 returned the whole options array
+  instead of its label, and the grid raised "Array to string conversion". The
+  `LegacyColumnTypes` trait skips the typecast.
+- **Unknown properties.** Yii 1 answers null; Yii 2 throws. Views read
+  attributes that do not exist - `$data->item` on a model with no `item`
+  relation - and Yii 1 rendered an empty cell where Yii 2 returns a 500. The
+  same trait restores the null. This hides genuine typos, which is why it is
+  written down here.
 - **Validation in `search()`.** Yii 1's generated `search()` compares whatever
   is set and never validates. Porting it with Yii 2's usual
   `load(); validate();` shape broke every filter: the `required` rule on
@@ -84,23 +117,75 @@ Each was found by the comparison suite, not by reading the code.
 
 Worth stating plainly, because the first version of this port got it wrong.
 
-Yii 1 gates these pages with `accessRules()`, and for 58 of the 60 controllers
-that rule is exactly "must be signed in". `checkPermission()` - the
-`tbl_permission` lookup - decides which sidebar links and row buttons are
-*drawn*. It is not a gate on the URL: Yii 1 hides the Update button and still
-answers `/paymentMode/update/id/1`.
+`accessRules()` is the same on 58 of the 60 controllers: signed in, nothing
+further. What differs is whether the controller *also* calls
+`checkPermission()` inside its actions, and that splits the application almost
+in half:
 
-The port reproduces that, including the hole. Enforcing the permission on the
-action instead would be a tightening, and a tightening is a behaviour change
-that belongs to the owner, not the porter. It is recorded in
-`docs/live-bugs-found.md` as found, not fixed.
+| | controllers | actions |
+|---|---|---|
+| at least one action gated by `checkPermission()` | 31 | 115 |
+| no gate in any action | 29 | 559 |
+
+So the permission table is enforced on the URL in some controllers and only
+drawn from in others. `userRole` throws if the role lacks `userRole/update`;
+`paymentMode` hides the Update button and still answers
+`/paymentMode/update/id/1`.
+
+The port reproduces each controller's own behaviour rather than picking one and
+applying it everywhere - including the 559 actions that are reachable by any
+signed-in account. Making those consistent is a behaviour change that belongs
+to the owner, not the porter; it is recorded in `docs/live-bugs-found.md` as
+found, not fixed.
+
+## Where the port has got to
+
+Served by Yii 2 and matching Yii 1 on every compared page: `paymentMode`,
+`userRole`, `advanceLogs`, `empShift`, `question`, `shift`, `advancePayment`,
+`itemExpireItem`. That is 8 of the 59 controllers and 48 comparison cases.
+
+Five more were generated and **rejected by the comparison**, so they are still
+served by Yii 1 and their generated code is not in the tree - it would be dead
+code nobody checked, and `batch_port.py` reproduces it in seconds. What each
+one still differs on:
+
+| controller | what differs |
+|---|---|
+| `itemCompanyCategory` | `view` returns 500 where Yii 1 returns 200. Its relation panel renders `item/_list.php`, which needs the item views ported - and `app2/views/item/` already holds the hand-ported `_pdf.php` that the punchorder API renders, so that directory has to be merged rather than generated. |
+| `bill` | `update` returns 500 where Yii 1 returns 200. |
+| `itemTax` | the admin grid does not render; `index` and `create` differ. |
+| `paymentReport` | the admin grid does not render. Its model's `setAllPayment()` still contains a `CDbCriteria` the concrete-method translator does not recognise, and says so. |
+| `itemExpire` | the admin grid does not render; `index` reads `$data->item`, a relation the model does not declare. |
+
+Nothing here is mysterious; each needs a translator rule or a hand-written
+method, and the suite will say when it is right.
+
+## What is not carried across
+
+Three Yii 1 widgets drive JavaScript that is not part of this port: the
+bootstrap date picker, the time picker, and the two rich-text editors
+(CKEditor and Redactor). The fields render as the plain input underneath -
+a text box, a textarea - so the value posted and stored is the same and the
+editing experience is not. 107 views use `datepickerRow`, 17 `ckEditorRow`,
+16 `redactorRow`.
+
+`CommentPortlet`, which 41 views call, renders nothing - because the Yii 1
+class renders nothing either: its `renderContent()` is commented out, and the
+running Yii 1 pages emit no portlet markup. Reinstating the comment form it
+contains would be a new feature, not a port.
 
 ## Testing
 
-`tests/port/paymentmode-ui-difftest.py` reduces each page to the data it
-carries - grid rows as text, detail-view label/value pairs, form field names
-and current values - and compares those between stacks. `pmui_difftest.sh`
-wraps it for `run_all.sh`.
+`tests/port/ui-difftest.py` reduces each page to the data it carries - grid
+rows as text, detail-view label/value pairs, form field names and current
+values - and compares those between stacks. `pmui-difftest.sh` runs it for
+every controller in `Ui::PORTED` and reports to `run_all.sh`.
+
+An empty comparison is a failure, not a pass. Two pages that both failed to
+render, or a session that quietly expired, produce reductions that are equal
+and empty; the suite says so rather than reporting a match. Where a page
+legitimately refuses - `bill/create` is declared `actionCreate($id)` and
+answers 400 without one - the two stacks' status codes are compared instead.
 
 The suite is self-contained: it creates its own administrator, logs in as that
 account, and deletes it again, so no real credential is used and the database

@@ -16,6 +16,10 @@ use yii\db\ActiveRecord;
  */
 class PaymentMode extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers below
+    // compare them loosely and give the wrong answer for an integer 0.
+    use LegacyColumnTypes;
+
     public static function tableName()
     {
         return '{{%payment_mode}}';
@@ -48,6 +52,15 @@ class PaymentMode extends ActiveRecord
         return (string) ($value === null || $value === '' ? $this->id : $value);
     }
 
+    /**
+     * The ordering Yii 1's defaultScope() put on every query for this model.
+     * BasePaymentMode does not override it, so it is the inherited id DESC.
+     */
+    public static function defaultOrder()
+    {
+        return ['id' => SORT_DESC];
+    }
+
     /** Views ask the model whether the current role may reach a route. */
     public function checkPermission($url)
     {
@@ -57,7 +70,9 @@ class PaymentMode extends ActiveRecord
     public static function getTypeOptions($id = null)
     {
         $list = ['Payment Mode', 'Mode Of Delivery'];
-        if ($id === null) {
+        // Yii 1's test is loose, and with string column values it is also
+        // correct: '0' == null is false, so status 0 resolves to its label.
+        if ($id == null) {
             return $list;
         }
         return is_numeric($id) ? ($list[$id] ?? $id) : $id;
@@ -66,7 +81,7 @@ class PaymentMode extends ActiveRecord
     public static function getStatusOptions($id = null)
     {
         $list = ['Draft', 'Published', 'Archive'];
-        if ($id === null) {
+        if ($id == null) {
             return $list;
         }
         return is_numeric($id) ? ($list[$id] ?? $id) : $id;
@@ -153,5 +168,15 @@ class PaymentMode extends ActiveRecord
     public function getUpdatedBy()
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    /**
+     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()
+     * above already resolves a relation or foreign key to the related
+     * model's label, so this is the attribute label.
+     */
+    public function getRelationLabel($name, $n = null)
+    {
+        return $this->getAttributeLabel($name);
     }
 }

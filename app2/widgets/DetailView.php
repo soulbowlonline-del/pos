@@ -14,6 +14,9 @@ class DetailView extends \yii\widgets\DetailView
     /** @var object alias for TbDetailView's `data` */
     public $data;
 
+    /** @var array TbDetailView's name for the table's tag attributes. */
+    public $htmlOptions = [];
+
     public function init()
     {
         if ($this->data !== null && $this->model === null) {
@@ -27,6 +30,7 @@ class DetailView extends \yii\widgets\DetailView
         }
         $this->options = ArrayHelper::merge(
             ['class' => 'table table-striped table-bordered detail-view'],
+            $this->htmlOptions,
             $this->options
         );
         parent::init();

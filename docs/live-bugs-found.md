@@ -174,24 +174,30 @@ included.
 The overwrite is gone from both actions on both stacks. The header decides now,
 and a request without one gets "Please login".
 
-### The web UI's permission table is not enforced on URLs — **found, not fixed**
+### The web UI enforces its permission table on some URLs and not others — **found, not fixed**
 
-`tbl_permission` decides which sidebar links and which row buttons a role is
-shown. It does not decide what that role can reach.
+`accessRules()` on 58 of the 60 controllers requires only that the caller is
+signed in. Whether `tbl_permission` is actually enforced then depends on
+whether the individual action calls `checkPermission()` itself, and that is
+inconsistent:
 
-Every CRUD controller's `accessRules()` is the same: signed in, no further
-condition. `checkPermission()` is called only from the views. So a user whose
-role has no `paymentMode/update` permission sees no Update button and can still
-open `/paymentMode/update/id/1` by typing it, and the action runs.
+  - **31 controllers, 115 actions** call it and throw a 403 when the role
+    lacks the permission. `userRole/update` is one of these.
+  - **29 controllers, 559 actions** never call it. There the permission table
+    only decides which links and row buttons are *drawn*. A user whose role
+    lacks `paymentMode/update` sees no Update button and can still open
+    `/paymentMode/update/id/1` by typing it, and the action runs.
 
-That is 58 controllers and roughly 670 actions, all of them reachable by any
-authenticated account regardless of role.
+The ungated set is not a fringe: it includes `order` (37 actions),
+`b2bPurchaseBill` (19), `purchaseBill` (17), `itemReturnItem` (17),
+`mrsDetail` (15) and `purchaseOrderDetail` (15).
 
-The Yii 2 port reproduces this rather than closing it. Enforcing the permission
-on the action is a one-line change in `BaseUiController` — it was written that
-way first — but it would deny URLs that work today, and which of those denials
-are wanted is the owner's call, not the porter's. Say the word and it is a
-small change on both stacks.
+The Yii 2 port reproduces each controller as it stands rather than picking one
+behaviour and applying it everywhere. Enforcing it uniformly is a few lines in
+`BaseUiController` — the first draft of the port did exactly that — but it
+would start refusing 559 URLs that work today, and which of those refusals are
+wanted is the owner's call, not the porter's. Say the word and it is a small
+change on both stacks.
 
 ---
 
