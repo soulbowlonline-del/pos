@@ -191,6 +191,9 @@ def wrap_urls(src):
 
 # --- everything else ----------------------------------------------------------
 
+from port_model import split_args_php
+
+
 def rewrite(src, ctrl, unknown):
     src = arrays_to_brackets(src)
     src = widgets(src, unknown)
@@ -275,6 +278,38 @@ def rewrite(src, ctrl, unknown):
                  lambda m: 'new \\yii\\web\\JsExpression(', src)
 
     # `X::model()->find*` in a view, which a few of them do directly.
+    # findAllByAttributes/findByAttributes take a *second* argument in Yii 1 -
+    # an options array that usually carries 'order'. Mapping them onto Yii 2's
+    # findAll()/findOne(), which take a single condition, silently dropped the
+    # order and, where the attributes array was empty, returned nothing at all:
+    # a grid filter with no options in it.
+    def by_attributes(m):
+        cls, kind, args = m.group(1), m.group(2), m.group(3)
+        bits = split_args_php(args)
+        cond = bits[0].strip() if bits else '[]'
+        query = cls + '::find()'
+        if cond not in ('[]', 'array()', ''):
+            query += '->where(' + cond + ')'
+        if len(bits) > 1:
+            om = re.search(r"'order'\s*=>\s*'([^']+)'", bits[1])
+            if om:
+                cols = []
+                for part in om.group(1).split(','):
+                    p2 = part.strip().split()
+                    if not p2:
+                        continue
+                    col = p2[0]
+                    if col.startswith('t.'):
+                        col = col[2:]
+                    desc = len(p2) > 1 and p2[1].lower().startswith('desc')
+                    cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+                if cols:
+                    query += '->orderBy([' + ', '.join(cols) + '])'
+        return query + ('->all()' if kind.startswith('findAll') else '->one()')
+
+    src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
+                 r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes, src, flags=re.S)
+
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
     src = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', src)
     src = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', src)

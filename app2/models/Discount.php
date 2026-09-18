@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use app\components\Ui;
+
+use yii\data\ActiveDataProvider;
+
 use Yii;
 
 use yii\db\ActiveRecord;
@@ -23,26 +27,18 @@ class Discount extends ActiveRecord
 
     public static function getTypeOptions($id = null)
     {
-        $list = ['amount', '%age'];
-        if ($id === null) {
-            return $list;
-        }
-        if (is_numeric($id)) {
-            return isset($list[$id]) ? $list[$id] : null;
-        }
-        return $id;
+		$list = ["amount","%age"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
     }
 
     public static function getDiscountTypeOptions($id = null)
     {
-        $list = ['Order', 'Item'];
-        if ($id === null) {
-            return $list;
-        }
-        if (is_numeric($id)) {
-            return isset($list[$id]) ? $list[$id] : null;
-        }
-        return $id;
+		$list = ["Order","Item"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
     }
 
     /** Payload from Discount::toArray(), key for key. */
@@ -179,13 +175,14 @@ class Discount extends ActiveRecord
 
     public function getItemOptions($vendor_id=null){
             $item_ids = [];
-            $role = UserRole::findOne(['title'=>'Admin']);
+            $role = UserRole::find()->where(['title'=>'Admin'])->one();
             $user = Yii::$app->user->model;
+            $query = ItemDetail::find();
             if($user->role_id != $role->id){
                 $itemvendor_ids = [];
-                $vendor = Vendor::findOne(['create_user_id'=>$user->id]);
+                $vendor = Vendor::find()->where(['create_user_id'=>$user->id])->one();
                 if($vendor){
-                    $itemvendors = ItemVendor::findAll(['vendor_id'=>$vendor->id]);
+                    $itemvendors = ItemVendor::find()->where(['vendor_id'=>$vendor->id])->all();
                     if($itemvendors){
 
                         foreach($itemvendors as $itemvendor){
@@ -193,10 +190,9 @@ class Discount extends ActiveRecord
                         }
                     }
                 }
-                $criteria->addInCondition('item_id', $itemvendor_ids);
+                $query->andWhere(['item_id' => $itemvendor_ids]);
             }
-            $itemdetails = ItemDetail::find()
-                ->all();
+            $itemdetails = $query->all();
             if($itemdetails != null)
             {
                 foreach($itemdetails as $itemdetail)
@@ -238,4 +234,76 @@ class Discount extends ActiveRecord
     {
         return $this->hasMany(OrderRefundItem::class, ['discount_id' => 'id']);
     }
+
+    /**
+     * The order this model's listings use.
+     *
+     * The grid's own sort when search() names one, otherwise whatever
+     * defaultScope() applies. Both the admin grid and the index listing
+     * read this, so the two cannot drift apart.
+     */
+    public static function listingOrder()
+    {
+        return self::defaultOrder();
+    }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'title' => 'Title',
+            'amount' => 'Value',
+            'start_date' => 'Start Date',
+            'end_date' => 'End Date',
+            'item_detail_id' => 'Item',
+            'applicable_amt' => 'Discount Applicable On(Amount)',
+            'discount_type' => 'Discount Type',
+            'start_time' => 'Start Time',
+            'end_time' => 'End Time',
+            'status' => 'Status',
+            'type_id' => 'Amount or %age',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updatedBy' => 'Updated By',
+            'createUser' => 'Created By',
+            'is_time_dependent' => 'Is time Dependent',
+            'itemDiscounts' => 'ItemDiscounts',
+            'orderHoldItems' => 'OrderHoldItems',
+            'orderItems' => 'OrderItems',
+            'orderRefundItems' => 'OrderRefundItems',
+        ];
+    }
+
+    public function getItemDetailIds(){
+            $list = [];
+            $itemDiscounts = ItemDiscount::findAll(['discount_id'=>$this->id]);
+            if($itemDiscounts){
+                foreach($itemDiscounts as $itemDiscount){
+                    $list[] = $itemDiscount->item_detail_id;
+                }
+            }
+
+            return $list;
+        }
+
+    public function removeItemDetailIds(){
+
+            $itemDiscounts = ItemDiscount::model()->deleteAllByAttributes(['discount_id'=>$this->id]);
+            return true;
+        }
 }

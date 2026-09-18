@@ -1,0 +1,16 @@
+# Pages that already fail on the untouched PHP 5.6 baseline.
+#
+# One line per page, as "<controller>/<case>  <reason>". A case listed here is
+# not counted as a mismatch when *Yii 1* is the side that fails - the port
+# cannot match a page that crashes, and reproducing the crash would be absurd.
+#
+# Nothing is added here on the strength of Yii 1 failing on :8084 alone. That
+# only shows the page is broken in the PHP 8.3 tree, which could be this work's
+# doing. It goes in this file only after the same page is confirmed to fail on
+# :8082, the untouched 5.6 reference, using tools/port/baseline_check.sh.
+#
+# Each entry is a live bug in the application, recorded in
+# docs/live-bugs-found.md.
+
+itemExpire/index rows      itemExpire/index returns 500 on the 5.6 baseline
+orderRefund/update form    orderRefund/update returns 500 on the 5.6 baseline

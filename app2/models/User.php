@@ -358,7 +358,7 @@ class User extends ActiveRecord
 
     public static function getMerchantOptions(){
             $userlist = [];
-            $users = User::findAll(['role_id'=>User::ROLE_MERCHANT]);
+            $users = User::find()->where(['role_id'=>User::ROLE_MERCHANT])->all();
             if($users)
             {
                 foreach($users as $user)
@@ -372,7 +372,7 @@ class User extends ActiveRecord
     public function getStoreOptions(){
             $store_arr = [];
             $string = '';
-            $stores = MerchantStore::findAll(['merchant_id'=>$this->id]);
+            $stores = MerchantStore::find()->where(['merchant_id'=>$this->id])->all();
             if($stores)
             {
                 foreach($stores as $store)

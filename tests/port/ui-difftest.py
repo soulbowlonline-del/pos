@@ -35,6 +35,34 @@ def status(path):
     return out.stdout.strip()
 
 
+def known_yii1_failures():
+    """
+    Pages confirmed to fail on the untouched 5.6 baseline.
+
+    Keyed by "<controller>/<case name>". A page here is not counted as a
+    mismatch when Yii 1 is the side that fails, because the port cannot match a
+    page that crashes. Confirmed with tools/port/baseline_check.sh before being
+    listed - Yii 1 failing on :8084 alone would not be evidence, since this
+    work could have caused that.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'known-yii1-failures.txt')
+    known = {}
+    if not os.path.exists(path):
+        return known
+    for line in open(path, encoding='utf-8'):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        parts = line.split(None, 2)
+        if len(parts) >= 2:
+            known[parts[0] + ' ' + parts[1]] = parts[2] if len(parts) > 2 else ''
+    return known
+
+
+KNOWN = known_yii1_failures()
+
+
 def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     """
     Compare two pages, allowing for ones that legitimately refuse.
@@ -48,9 +76,13 @@ def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     if s1 != '200' or s2 != '200':
         if s1 == s2:
             print(f'  ok    {name} (both {s1})')
-        else:
-            FAIL.append(name)
-            print(f'  FAIL  {name}: yii1 answered {s1}, yii2 answered {s2}')
+            return
+        key = CTRL + '/' + name
+        if s1 == '500' and key in KNOWN:
+            print(f'  ok    {name}: known - {KNOWN[key]}')
+            return
+        FAIL.append(name)
+        print(f'  FAIL  {name}: yii1 answered {s1}, yii2 answered {s2}')
         return
     check(name, reduce_fn(fetch(y1)), reduce_fn(fetch(y2)), require)
 
@@ -109,6 +141,7 @@ def form_fields(html):
 
 
 FAIL = []
+CTRL = ''
 
 
 def check(name, a, b, require='nonempty'):
@@ -185,7 +218,9 @@ def main():
               'established.\n  Nothing was compared. Run uilogin.sh and retry.'
               % COOKIE)
         sys.exit(2)
+    global CTRL
     ctrl, model, grid = sys.argv[1], sys.argv[2], sys.argv[3]
+    CTRL = ctrl
     row_id = sys.argv[4] if len(sys.argv) > 4 else None
     filters = [a for a in sys.argv[5:] if '=' in a]
 

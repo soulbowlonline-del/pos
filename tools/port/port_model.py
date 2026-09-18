@@ -634,6 +634,33 @@ def split_args_php(args):
     return out
 
 
+def by_attributes_php(m):
+    """X::model()->findAllByAttributes(attrs, options) as a Yii 2 query."""
+    cls, kind, args = m.group(1), m.group(2), m.group(3)
+    bits = split_args_php(args)
+    cond = bits[0].strip() if bits else '[]'
+    query = cls + '::find()'
+    if cond not in ('[]', 'array()', ''):
+        query += '->where(' + cond + ')'
+    if len(bits) > 1:
+        om = re.search(r"'order'\s*=>\s*'([^']+)'", bits[1])
+        if om:
+            cols = []
+            for part in om.group(1).split(','):
+                p2 = part.strip().split()
+                if not p2:
+                    continue
+                col = p2[0]
+                if col.startswith('t.'):
+                    col = col[2:]
+                desc = len(p2) > 1 and p2[1].lower().startswith('desc')
+                cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+            if cols:
+                query += '->orderBy([' + ', '.join(cols) + '])'
+
+    return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
+
+
 def yii1_idioms(text):
     """
     The Yii 1 -> Yii 2 conversions any carried-over snippet needs.
@@ -660,8 +687,11 @@ def yii1_idioms(text):
 
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
     text = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', text)
-    text = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', text)
-    text = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', text)
+    # See port_views.py: these take an options array Yii 2's findAll/findOne
+    # do not, and an empty attributes array means "everything" in Yii 1 and
+    # "nothing useful" through findAll().
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
+                  r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes_php, text, flags=re.S)
     text = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', text)
     text = re.sub(M + r"count\s*\(\s*\)", lambda m: m.group(1) + '::find()->count()', text)
 

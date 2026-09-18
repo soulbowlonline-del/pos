@@ -235,7 +235,13 @@ use yii\\web\\NotFoundHttpException;
     # Models the controller names besides its own - VendorSchemesController
     # reads Item::find(). Without the import PHP looks for them in
     # app\controllers and the action dies at the point it runs.
-    others = sorted({c for c in re.findall(r'\b([A-Z]\w+)::', body)
+    # Every way a controller can name a model: a static call, `new X`, a type
+    # hint, instanceof. Matching only `X::` missed `new ItemExpireItem` and the
+    # action died looking for it in app\controllers.
+    named = set(re.findall(r'\b([A-Z]\w+)::', body))
+    named |= set(re.findall(r'\bnew\s+([A-Z]\w+)\s*[(;]', body))
+    named |= set(re.findall(r'\binstanceof\s+([A-Z]\w+)', body))
+    others = sorted({c for c in named
                      if c != model
                      and c not in ('Yii', 'Ui', 'Html', 'ActiveDataProvider', 'SORT_DESC')
                      and os.path.exists(f'{ROOT}/protected/models/_base/Base{c}.php')})

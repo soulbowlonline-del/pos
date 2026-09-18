@@ -50,8 +50,8 @@ class Ui
         'tax',
         'customer',
         'emp',
-        'outlet',
-        'emp',
+        'orderRefund',
+        'stockAdjustLog',
     ];
 
     /**
