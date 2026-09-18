@@ -27,6 +27,8 @@ use app\models\OrderHoldItem;
 use app\models\Customer;
 use app\models\CreditNote;
 use app\models\OnlineOrder;
+use app\models\Discount;
+use app\components\InteraktApi;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -1357,7 +1359,7 @@ class ItemController extends Controller
      * lines as a JSON blob. Shipping is hardcoded to '0.00' - the branch that
      * charged 50 below 2,000 is commented out in Yii 1.
      */
-    private function notifyOnlineOrderPacked($order, $post)
+    private function notifyOnlineOrderPacked($order, $post, $url = 'http://sect4.soulbowl.in/deliveryoption/index/sendemailnotification')
     {
         if (!isset($post['online_order_id'])) {
             return;
@@ -1397,7 +1399,6 @@ class ItemController extends Controller
         $onlineOrder->order_status = OnlineOrder::ORDERSTATUS_PACKED;
         $onlineOrder->save(false, ['order_status']);
 
-        $url = 'http://sect4.soulbowl.in/deliveryoption/index/sendemailnotification';
         $fields = [
             'sKeY' => getenv('POS_SOULBOWL_KEY'),
             'order_id' => (string)$onlineOrder->order_id,
@@ -1419,5 +1420,631 @@ class ItemController extends Controller
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_exec($ch);
         curl_close($ch);
+    }
+    /**
+     * POST /v2/api/item/ordertest
+     *
+     * An older copy of item/order that is still routed. Diffed against it line
+     * for line, the two are the same 330 lines apart from five things, all of
+     * which this reproduces:
+     *
+     *   - it does not set gross_total_amt on the order;
+     *   - it does not set status on the order line;
+     *   - it does not return order_id;
+     *   - its webshop callback goes to http://soulbowl.in/rest/api rather than
+     *     the sect4 dispatch endpoint;
+     *   - its tax summary groups by tax_id alone, with no SUM() columns - so
+     *     each row carries one line's figures rather than the group's, and two
+     *     lines sharing a tax collapse to whichever the database returns.
+     *
+     * Ported because it is reachable, not because it should be. Whether it
+     * should still exist is a question for the owner; see
+     * docs/live-bugs-found.md.
+     */
+    public function actionOrdertest()
+    {
+        $out = $this->envelope('ordertest');
+
+        $loginId = $this->headerUserId();
+        if (!$loginId) {
+            return $out;
+        }
+
+        $post = Yii::$app->request->post();
+        foreach (['item_details', 'mode_of_payment', 'mode_of_delivery', 'status_id'] as $k) {
+            if (!isset($post[$k])) {
+                return $out;
+            }
+        }
+
+        $status = $post['status_id'];
+        if ($status == '1') {
+            $order = new Order();   // no gross_total_amt here, unlike item/order
+        } elseif ($status == '2') {
+            $order = new OrderHold();
+        } else {
+            $out['message'] = 'Order status wrong';
+            return $out;
+        }
+
+        $ok = true;
+        $transaction = Yii::$app->db->beginTransaction();
+
+        try {
+            $customer = null;
+            if (isset($post['customer_id'])) {
+                $customer = Customer::findOne($post['customer_id']);
+            }
+
+            $month = date('m');
+            if ($month > 3) {
+                $startDate = date('Y') . '-04-01';
+                $endDate = (date('Y') + 1) . '-03-31';
+            } else {
+                $startDate = (date('Y') - 1) . '-04-01';
+                $endDate = date('Y') . '-03-31';
+            }
+
+            $order->bill_date = date('Y-m-d');
+            $order->mode_of_payment = $post['mode_of_payment'];
+            $order->mode_of_delivery = $post['mode_of_delivery'];
+            $order->total_amt = $post['total_amt'];
+            $order->discount_amt = $post['discount_amt'];
+            $order->outlet_id = $post['outlet_id'];
+            if (isset($post['customer_id'])) {
+                $order->city_id = $customer->city_id;
+                $order->state_id = $customer->state_id;
+                $order->country_id = $customer->country_id;
+                $order->customer_id = $customer->id;
+            }
+            if (isset($post['online_order_id'])) {
+                $order->online_order_id = $post['online_order_id'];
+            }
+            if (isset($post['is_mobile'])) {
+                $order->is_mobile = $post['is_mobile'];
+            }
+            $order->create_user_id = $loginId;
+
+            if (!$order->save()) {
+                $transaction->rollBack();
+                return $out;
+            }
+
+            if ($status == '1' && isset($post['credit_note_id'])) {
+                $creditNote = CreditNote::find()
+                    ->where(['credit_number' => $post['credit_note_id']])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+                if ($creditNote) {
+                    if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
+                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        $creditNote->save();
+                    } else {
+                        $ok = false;
+                        $out['message'] = 'Credit note amount is less than total amount';
+                    }
+                } else {
+                    $ok = false;
+                    $out['message'] = 'Credit note is not found';
+                }
+            }
+
+            $itemArrays = json_decode($post['item_details']);
+            if ($itemArrays) {
+                foreach ($itemArrays as $itemArray) {
+                    $orderItem = ($status == '1') ? new OrderItem() : new OrderHoldItem();
+
+                    $q = ItemDetail::find()->orderBy(['id' => SORT_ASC]);
+                    if ($itemArray->bar_code !== null && $itemArray->bar_code !== '') {
+                        $q->andWhere(['bar_code' => $itemArray->bar_code]);
+                    }
+                    $itemDetail = $q->one();
+
+                    if (!$itemDetail) {
+                        $ok = false;
+                        continue;
+                    }
+
+                    $orderItem->item_detail_id = $itemDetail->id;
+                    $orderItem->item_id = $itemDetail->item_id;
+                    $orderItem->qty = $itemArray->qty;
+                    $orderItem->price = $orderItem->remove_format($itemArray->base_price);
+                    if ($itemArray->discount_id != 0) {
+                        $orderItem->discount_id = $itemArray->discount_id;
+                        $orderItem->discount_amt = $itemArray->discount_amt;
+                    }
+                    if ($itemArray->tax_id != 0) {
+                        $orderItem->tax_id = $orderItem->getTaxValueID($itemArray->tax_id);
+                        if ($status == '1') {
+                            $orderItem->original_tax = $itemArray->tax_id;
+                        }
+                        $orderItem->tax_amount = $itemArray->tax_amt;
+                    }
+                    $orderItem->sale_rate = $itemArray->sale_rate;
+                    $orderItem->mrp = $itemArray->mrp;
+                    $orderItem->total_amt = $itemArray->total_amount;
+                    $orderItem->cgst_per = $itemArray->cgst_per;
+                    $orderItem->sgst_per = $itemArray->sgst_per;
+                    $orderItem->cess_per = $itemArray->cess_per;
+                    $orderItem->igst_per = $itemArray->igst_per;
+                    $orderItem->cgst_amt = $itemArray->cgst_amt;
+                    $orderItem->sgst_amt = $itemArray->sgst_amt;
+                    $orderItem->cess_amt = $itemArray->cess_amount;
+                    $orderItem->igst_amt = $itemArray->igst_amount;
+                    $orderItem->create_user_id = $loginId;
+                    if ($status == '1') {
+                        $orderItem->order_id = $order->id;
+                        // no ->status here, unlike item/order
+                    } else {
+                        $orderItem->order_hold_id = $order->id;
+                    }
+
+                    if ($orderItem->save()) {
+                        if ($status == '1') {
+                            $order->UpdateStock($itemArray->qty, $itemDetail->id);
+                        }
+                    } else {
+                        $ok = false;
+                    }
+                }
+            }
+
+            if (!$ok) {
+                $transaction->rollBack();
+                $out['message'] = 'Try again';
+                return $out;
+            }
+
+            $transaction->commit();
+
+            $latest = Order::find()
+                ->where(['between', 'date(create_time)', $startDate, $endDate])
+                ->orderBy(['bill_no' => SORT_DESC])
+                ->one();
+            $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
+            $order->save(false, ['bill_no']);
+
+            if ($status == '1') {
+                $this->notifyOnlineOrderPacked($order, $post, 'http://soulbowl.in/rest/api');
+                $order->SendSms();
+            }
+
+            $out['status'] = 'OK';
+            // no order_id here, unlike item/order
+
+            if ($status == '1') {
+                $out['bill_no'] = $order->getOrderBillNo();
+
+                // grouped by tax_id alone and with no SUM(), so each row is one
+                // line's figures - not the group's. As in Yii 1.
+                $items = OrderItem::find()
+                    ->alias('t')
+                    ->where(['t.order_id' => $order->id])
+                    ->groupBy(['t.tax_id'])
+                    ->orderBy('t.tax_id')
+                    ->all();
+
+                $taxes = [];
+                foreach ($items as $item) {
+                    $taxes[] = $item->getTaxApiArray();
+                }
+                $out['taxes'] = $taxes;
+            } else {
+                $out['bill_no'] = '0';
+            }
+
+            $out['message'] = 'Order is saved Successfully';
+        } catch (\yii\base\ErrorException $e) {
+            $transaction->rollBack();
+            throw $e;
+        } catch (\Exception $e) {
+            Yii::error('item/ordertest rolled back: ' . $e->getMessage()
+                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
+            $transaction->rollBack();
+        }
+
+        return $out;
+    }
+    /**
+     * POST /v2/api/item/punchorder
+     *
+     * A till checkout that prices the basket itself rather than trusting the
+     * client: for each bar code it reads the item detail, applies an
+     * order-level discount if one was asked for, and derives the base price,
+     * tax and totals from the sale rate. Then it raises the order through
+     * processOrder() and sends the customer a PDF bill over WhatsApp.
+     *
+     * Unlike item/order it returns the computed basket in item_details, along
+     * with totalSaleValue (at MRP), netAmount (at sale rate) and the saving
+     * between them.
+     *
+     * $_POST['customer_id'] is read without a check in generateBillAndSend, so
+     * a request without one is a PHP 8 warning; reproduced.
+     */
+    public function actionPunchorder()
+    {
+        $out = $this->envelope('punchorder');
+
+        try {
+            $loginId = $this->headerUserId();
+            if (!$loginId) {
+                return $out;
+            }
+
+            $post = Yii::$app->request->post();
+            if (!isset($post['item_details'])) {
+                return $out;
+            }
+
+            $itemArrays = json_decode($post['item_details']);
+            if (!is_array($itemArrays) || count($itemArrays) === 0) {
+                $out['message'] = 'No item details provided';
+                return $out;
+            }
+
+            $basket = [];
+            $totalSaleValue = 0;
+            $netAmount = 0;
+
+            foreach ($itemArrays as $item) {
+                $detail = ItemDetail::find()
+                    ->where(['bar_code' => $item->bar_code])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+                if (!$detail) {
+                    continue;
+                }
+
+                $d = $detail->toApiArray();
+                $line = [];
+                $line['item_id'] = $d['item_id'];
+                $line['bar_code'] = $d['bar_code'];
+                $line['qty'] = $item->qty;
+                $line['sale_rate'] = $d['sale_rate'];
+                $line['base_price'] = $d['base_price'];
+                $line['mrp'] = $d['mrp'];
+                $line['tax_id'] = $d['tax_id'];
+                $line['cgst_per'] = $d['cgst_per'];
+                $line['sgst_per'] = $d['sgst_per'];
+                $line['cess_per'] = $d['cess_per'];
+                $line['igst_per'] = $d['igst_per'];
+                $line['discount_id'] = $d['discount_id'];
+                $line['discount_val'] = $d['discount_val'];
+                $line['discount_amt'] = $d['discount_amt'];
+                $line['discount_type'] = $d['discount_type'];
+                $line['stock_qty'] = $d['stock_qty'];
+                $line['product_name'] = $d['item_desc'];
+                $line['hsn_code'] = $d['hsn_code'];
+                $line['unit_name'] = $d['unit_name'];
+
+                if (isset($post['apply_discount']) && $post['apply_discount']
+                    && isset($post['discount_id']) && $post['discount_id'] > 0) {
+                    $discount = Discount::findOne($post['discount_id']);
+                    if ($discount) {
+                        $line['discount_id'] = $post['discount_id'];
+                        // Yii 1 emits the stringified column; Yii 2's AR casts to int
+                        $line['discount_type'] = (string)$discount->type_id;
+                        if ($discount->type_id == Discount::TYPE_PERCENTAGE) {
+                            // the discount amount is computed from the rate
+                            // *after* it has already been reduced, as in Yii 1
+                            $line['sale_rate'] = $line['sale_rate'] - ($line['sale_rate'] * floatval($discount->amount) / 100);
+                            $line['discount_amt'] = ($line['sale_rate'] * floatval($discount->amount) / 100);
+                        } elseif ($discount->type_id == Discount::TYPE_AMOUNT) {
+                            $line['sale_rate'] = $line['sale_rate'] - floatval($discount->applicable_amt);
+                            $line['discount_amt'] = $discount->applicable_amt;
+                        }
+                    }
+                }
+
+                $line['base_price'] = $this->punchBasePrice($line['sale_rate'], $d['tax_percent']);
+                $line['total_amount'] = round($line['sale_rate'] * $item->qty, 2);
+                $line['tax_amt'] = round($this->punchTaxAmount($line['base_price'], $d['tax_percent']) * $item->qty, 2);
+                $line['tax_percent'] = $d['tax_percent'];
+                $line['taxable_amount'] = round($line['base_price'] * $item->qty, 2);
+                $line['sgst_amt'] = round($this->punchTaxAmount($line['base_price'], $line['sgst_per']) * $item->qty, 2);
+                $line['cgst_amt'] = round($this->punchTaxAmount($line['base_price'], $line['cgst_per']) * $item->qty, 2);
+                $line['cess_amount'] = round($this->punchTaxAmount($line['base_price'], $line['cess_per']) * $item->qty, 2);
+                $line['igst_amount'] = round($this->punchTaxAmount($line['base_price'], $line['igst_per']) * $item->qty, 2);
+
+                $totalSaleValue += round($line['mrp'] * $item->qty);
+                $netAmount += $line['total_amount'];
+
+                $basket[] = $line;
+            }
+
+            $out['item_details'] = $basket;
+            $out['totalSaleValue'] = round($totalSaleValue);
+            $out['netAmount'] = round($netAmount);
+            $out['saving'] = round($totalSaleValue - $netAmount);
+
+            // processOrder builds its own response array and sends it through
+            // sendJSONResponse(), which calls Yii::app()->end() - so a bad
+            // status_id answers with just {"message":"Order status wrong"} and
+            // nothing else. $halt carries that back.
+            $halt = null;
+            $billNo = $this->punchProcessOrder($loginId, $basket, $out, $halt);
+            if ($halt !== null) {
+                return $halt;
+            }
+
+            if ($billNo) {
+                $this->punchGenerateBillAndSend($out, $billNo, $loginId);
+                $out['status'] = 'OK';
+                $out['bill_no'] = $billNo;
+            }
+        } catch (\yii\base\ErrorException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $out['message'] = 'Error processing order: ' . $e->getMessage();
+            $out['error_details'] = $e->getTraceAsString();
+        }
+
+        return $out;
+    }
+
+    /** Yii 1's getBasePrice(): the sale rate less the tax it already includes. */
+    private function punchBasePrice($saleRate, $taxPercent)
+    {
+        if ($taxPercent > 0) {
+            return round($saleRate / (1 + ($taxPercent / 100)), 2);
+        }
+        return round($saleRate, 2);
+    }
+
+    /** Yii 1's getTaxAmount(). */
+    private function punchTaxAmount($basePrice, $taxPercent)
+    {
+        return $basePrice * ($taxPercent / 100);
+    }
+
+    /**
+     * Yii 1's processOrder(): the same body as item/order with four
+     * differences - the totals come from the computed basket rather than the
+     * request, is_mobile is forced to 1, and the order line takes its
+     * sale_rate from mrp rather than the sale rate.
+     *
+     * It builds a full response array internally and then returns only the
+     * bill number, so everything it puts in that array is discarded. Kept out
+     * of $out here for the same reason: the caller does not see it either.
+     */
+    private function punchProcessOrder($loginId, $basket, &$outer, &$halt = null)
+    {
+        $post = Yii::$app->request->post();
+        foreach (['mode_of_payment', 'mode_of_delivery', 'status_id'] as $k) {
+            if (!isset($post[$k])) {
+                return null;
+            }
+        }
+
+        $status = $post['status_id'];
+        if ($status == '1') {
+            $order = new Order();
+        } elseif ($status == '2') {
+            $order = new OrderHold();
+        } else {
+            // Yii 1 sends this and ends the request here, with none of the
+            // envelope the action had built.
+            $halt = ['message' => 'Order status wrong'];
+            return null;
+        }
+
+        $ok = true;
+        $billNo = null;
+        $transaction = Yii::$app->db->beginTransaction();
+
+        try {
+            $customer = null;
+            if (isset($post['customer_id'])) {
+                $customer = Customer::findOne($post['customer_id']);
+            }
+
+            $month = date('m');
+            if ($month > 3) {
+                $startDate = date('Y') . '-04-01';
+                $endDate = (date('Y') + 1) . '-03-31';
+            } else {
+                $startDate = (date('Y') - 1) . '-04-01';
+                $endDate = date('Y') . '-03-31';
+            }
+
+            $order->bill_date = date('Y-m-d');
+            $order->mode_of_payment = $post['mode_of_payment'];
+            $order->mode_of_delivery = $post['mode_of_delivery'];
+            $order->total_amt = $outer['netAmount'];
+            $order->discount_amt = $outer['saving'];
+            $order->outlet_id = $post['outlet_id'];
+            if (isset($post['customer_id'])) {
+                $order->city_id = $customer->city_id;
+                $order->state_id = $customer->state_id;
+                $order->country_id = $customer->country_id;
+                $order->customer_id = $customer->id;
+            }
+            if (isset($post['online_order_id'])) {
+                $order->online_order_id = $post['online_order_id'];
+            }
+            $order->is_mobile = 1;   // forced, unlike item/order
+            $order->create_user_id = $loginId;
+
+            if (!$order->save()) {
+                $transaction->rollBack();
+                return null;
+            }
+
+            if ($status == '1' && isset($post['credit_note_id'])) {
+                $creditNote = CreditNote::find()
+                    ->where(['credit_number' => $post['credit_note_id']])
+                    ->orderBy(['id' => SORT_ASC])
+                    ->one();
+                if ($creditNote) {
+                    if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
+                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        $creditNote->save();
+                    } else {
+                        $ok = false;
+                    }
+                } else {
+                    $ok = false;
+                }
+            }
+
+            foreach ($basket as $line) {
+                $orderItem = ($status == '1') ? new OrderItem() : new OrderHoldItem();
+
+                $q = ItemDetail::find()->orderBy(['id' => SORT_ASC]);
+                if ($line['bar_code'] !== null && $line['bar_code'] !== '') {
+                    $q->andWhere(['bar_code' => $line['bar_code']]);
+                }
+                $detail = $q->one();
+
+                if (!$detail) {
+                    $ok = false;
+                    continue;
+                }
+
+                $orderItem->item_detail_id = $detail->id;
+                $orderItem->item_id = $detail->item_id;
+                $orderItem->qty = $line['qty'];
+                $orderItem->price = $orderItem->remove_format($line['base_price']);
+                if ($line['discount_id'] != 0) {
+                    $orderItem->discount_id = $line['discount_id'];
+                    $orderItem->discount_amt = $line['discount_amt'];
+                }
+                if ($line['tax_id'] != 0) {
+                    $orderItem->tax_id = $orderItem->getTaxValueID($line['tax_id']);
+                    if ($status == '1') {
+                        $orderItem->original_tax = $line['tax_id'];
+                    }
+                    $orderItem->tax_amount = $line['tax_amt'];
+                }
+                $orderItem->sale_rate = $line['mrp'];   // mrp, not sale_rate
+                $orderItem->mrp = $line['mrp'];
+                $orderItem->total_amt = $line['total_amount'];
+                $orderItem->cgst_per = $line['cgst_per'];
+                $orderItem->sgst_per = $line['sgst_per'];
+                $orderItem->cess_per = $line['cess_per'];
+                $orderItem->igst_per = $line['igst_per'];
+                $orderItem->cgst_amt = $line['cgst_amt'];
+                $orderItem->sgst_amt = $line['sgst_amt'];
+                $orderItem->cess_amt = $line['cess_amount'];
+                $orderItem->igst_amt = $line['igst_amount'];
+                $orderItem->create_user_id = $loginId;
+                if ($status == '1') {
+                    $orderItem->order_id = $order->id;
+                    $orderItem->status = '1';
+                } else {
+                    $orderItem->order_hold_id = $order->id;
+                }
+
+                if ($orderItem->save()) {
+                    if ($status == '1') {
+                        $order->UpdateStock($line['qty'], $detail->id);
+                    }
+                } else {
+                    $ok = false;
+                }
+            }
+
+            if (!$ok) {
+                $transaction->rollBack();
+                return null;
+            }
+
+            $transaction->commit();
+
+            $latest = Order::find()
+                ->where(['between', 'date(create_time)', $startDate, $endDate])
+                ->orderBy(['bill_no' => SORT_DESC])
+                ->one();
+            $billNo = $latest ? $latest->bill_no + 1 : 1;
+            $order->bill_no = $billNo;
+            $order->save(false, ['bill_no']);
+
+            if ($status == '1') {
+                $this->notifyOnlineOrderPacked($order, $post);
+                $order->SendSms();
+            }
+        } catch (\yii\base\ErrorException $e) {
+            $transaction->rollBack();
+            throw $e;
+        } catch (\Exception $e) {
+            Yii::error('item/punchorder rolled back: ' . $e->getMessage()
+                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
+            $transaction->rollBack();
+            return null;
+        }
+
+        return $billNo;
+    }
+
+    /**
+     * Yii 1's generateBillAndSend(): renders the bill to a PDF under the web
+     * root, posts it to the remote file endpoint and sends the customer a
+     * WhatsApp message pointing at it.
+     *
+     * Yii 1 goes through its ePdf extension, a wrapper round the same mPDF this
+     * uses directly. The view is app2/views/item/_pdf.php, a copy of
+     * protected/views/item/_pdf.php - it is plain PHP and needed no changes.
+     *
+     * $_POST['customer_id'] is read unchecked, as in Yii 1.
+     */
+    private function punchGenerateBillAndSend($billData, $billNo = null, $loginId = null)
+    {
+        $post = Yii::$app->request->post();
+        $customer = Customer::findOne($post['customer_id']);
+        $user = User::findOne($loginId);
+
+        if (!$customer || !$customer->contact_no) {
+            return ['message' => 'user not found'];
+        }
+
+        // @legacyroot, not @webroot - see the alias note in config/web.php
+        $uploadDir = Yii::getAlias('@legacyroot') . '/uploadbills/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        $fileName = $billNo . '.pdf';
+        $filePath = $uploadDir . $fileName;
+
+        $html = $this->renderPartial('//item/_pdf', [
+            'billData' => $billData,
+            'customer' => $customer,
+            'billNo' => $billNo,
+            'username' => $user ? $user->username : '',
+        ]);
+
+        $mpdf = new \Mpdf\Mpdf([
+            'format' => 'A4',
+            'tempDir' => Yii::getAlias('@runtime'),
+        ]);
+        $mpdf->WriteHTML($html);
+        $mpdf->Output($filePath, \Mpdf\Output\Destination::FILE);
+
+        $api = new InteraktApi(getenv('POS_INTERAKT_API_KEY') ?: null);
+        $api->uploadFileToServer($filePath);
+
+        $whatsappNo = preg_replace('/[^0-9]/', '', (string)$customer->contact_no);
+
+        $template = 'purchase_order';
+        if (strpos(strtolower($fileName), 'reprint') !== false) {
+            $template = 'reprint_order';
+        } elseif (strpos(strtolower($fileName), 'refund') !== false) {
+            $template = 'refund_order';
+        }
+
+        $pdfName = str_replace('.pdf', '', $fileName);
+        $pdfName = str_replace(['_Reprint', '_Refund', '-Reprint', '-Refund'], '', $pdfName);
+
+        return ['message' => $api->sendApprovalOrderMessageNew(
+            $template,
+            $whatsappNo,
+            [$customer->name, $pdfName],
+            ['http://61.2.241.71/pos/whatapporder/' . $fileName],
+            $fileName,
+            [
+                'user_id' => isset($post['user_id']) ? $post['user_id'] : null,
+                'computer_name' => isset($post['computer_name']) ? $post['computer_name'] : null,
+            ]
+        )];
     }
 }

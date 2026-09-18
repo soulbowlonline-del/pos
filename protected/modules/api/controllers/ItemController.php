@@ -1913,7 +1913,7 @@ class ItemController extends GxController {
 						foreach ( $item_arrays as $item ) {
 							$itemDetail = ItemDetail::model ()->findByAttributes ( array (
 								'bar_code' => $item->bar_code	,
-							) );
+							), array ( 'order' => 'id asc' ) );
 							if ($itemDetail) {
 								$itemDetail = $itemDetail->toArray();
 								$newItem = [];
@@ -2154,6 +2154,8 @@ class ItemController extends GxController {
 							}
 							$criteria1 = new CDbCriteria ();
 							$criteria1->compare ( "bar_code ", $item_array['bar_code']);
+							// no ORDER BY in the original; MySQL 8 does not sort implicitly
+							$criteria1->order = 'id asc';
 							$itemdetail = ItemDetail::model ()->find ( $criteria1 );
 								
 							if($itemdetail){

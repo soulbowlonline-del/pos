@@ -39,6 +39,13 @@ DELETE FROM tbl_item_stock       WHERE item_id = 9990600;
 DELETE FROM tbl_item_detail      WHERE item_id = 9990600;
 DELETE FROM tbl_item             WHERE id = 9990600;
 DELETE FROM tbl_vendor           WHERE id = 9990600;
+-- orders and held orders raised by the item/order, ordertest and punchorder
+-- suites, and the PDF bills punchorder writes. Real orders are all below
+-- 1,581,602; 9990001 and 9990500 are fixtures.
+DELETE FROM tbl_order_item                 WHERE order_id > 9990000 AND order_id NOT IN (9990001, 9990500);
+DELETE FROM tbl_order_hold_item            WHERE order_hold_id > 9990000 AND order_hold_id <> 9990002;
+DELETE FROM tbl_order                      WHERE id > 9990000 AND id NOT IN (9990001, 9990500);
+DELETE FROM tbl_order_hold                 WHERE id > 9990000 AND id <> 9990002;
 DELETE FROM tbl_user                       WHERE id = 9990002;
 -- GRN fixture (see item-grn-fixture-setup.sql). The user row has to go
 -- before the emp row it points at.

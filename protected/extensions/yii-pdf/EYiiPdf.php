@@ -148,13 +148,23 @@ class EYiiPdf extends CApplicationComponent
 		# key. Honour whichever the application has configured, else fall back to
 		# the Yii runtime directory. mPDF writes font caches here, so it must
 		# exist and be writable or every PDF render fails.
-		if (!isset($config['tempDir'])) {
-			if (defined('_MPDF_TEMP_PATH'))
+		# Each candidate has to be non-empty, not merely set. config/main.php
+		# computes this as Yii::getPathOfAlias('application.runtime'), which is
+		# evaluated while the configuration is being read - before the
+		# application exists - so it comes back false. mPDF then appends
+		# '/mpdf' to an empty string and every render dies with
+		# 'Temporary files directory "/mpdf" is not writable'.
+		if (empty($config['tempDir'])) {
+			if (defined('_MPDF_TEMP_PATH') && _MPDF_TEMP_PATH)
 				$config['tempDir'] = _MPDF_TEMP_PATH;
-			elseif (isset($this->params['mpdf']['constants']['_MPDF_TEMP_PATH']))
+			elseif (!empty($this->params['mpdf']['constants']['_MPDF_TEMP_PATH']))
 				$config['tempDir'] = $this->params['mpdf']['constants']['_MPDF_TEMP_PATH'];
 			else
-				$config['tempDir'] = Yii::getPathOfAlias('application.runtime');
+				# getRuntimePath(), not the 'application.runtime' alias: this
+				# application configures runtimePath as wdir/runtime, and
+				# protected/runtime - where the alias points - does not exist
+				# and is not writable by the web user.
+				$config['tempDir'] = Yii::app()->getRuntimePath();
 		}
 		if (!is_dir($config['tempDir']))
 			@mkdir($config['tempDir'], 0777, true);

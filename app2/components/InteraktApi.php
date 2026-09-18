@@ -129,4 +129,43 @@ class InteraktApi
         $this->sendTemplate($data, $extraData);
         return null;   // as in Yii 1
     }
+
+    /**
+     * Ported from InteraktApi::uploadFileToServer() - posts a file to the
+     * remote endpoint that serves the WhatsApp attachment.
+     *
+     * Returns 'Error: File not found.', true or false; never the response
+     * body. The stub records the call and answers true, after the file_exists
+     * guard so that branch survives being stubbed.
+     */
+    public function uploadFileToServer($filePath)
+    {
+        $uploadUrl = 'http://61.2.241.71/pos/uploadProductOrder.php';
+
+        if (!file_exists($filePath)) {
+            return 'Error: File not found.';
+        }
+
+        if (class_exists('PosOutbound') && \PosOutbound::isStubbed()) {
+            \PosOutbound::record(
+                \PosOutbound::CHANNEL_UPLOAD, $uploadUrl, ['file' => basename($filePath)]
+            );
+            return true;
+        }
+
+        $ch = curl_init($uploadUrl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'file' => new \CURLFile($filePath, 'application/pdf', basename($filePath)),
+            'token' => getenv('POS_UPLOAD_TOKEN') ?: '',
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: multipart/form-data']);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response === false ? false : true;
+    }
 }
