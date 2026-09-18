@@ -23,23 +23,16 @@ use app\models\Mrs;
 use app\models\MrsDetail;
 use app\models\Mrn;
 use app\components\LoyaltyService;
+use app\models\Emp;
 use yii\web\Controller;
 use yii\web\Response;
 
 /**
  * Yii 2 port of protected/modules/api/controllers/OrderController.php.
  *
- * Seventeen of the eighteen actions are ported and covered by differential
- * tests. Yii 1 still serves every /api/order/* route; nothing is cut over by
- * this file existing.
- *
- * Not ported:
- *
- *   search   Queries tbl_order_item for bill_date, bill_no and customer_id,
- *            three columns that only exist on tbl_order, so it throws for
- *            every request that reaches it. Twelve users can reach it. Fixing
- *            it means choosing what the endpoint returns, which is a decision
- *            rather than a port: see docs/live-bugs-found.md.
+ * All eighteen actions are ported and covered by differential tests. Yii 1
+ * still serves every /api/order/* route; nothing is cut over by this file
+ * existing.
  *
  * Yii 1 action ids are camelCase; the Yii 2 routes are hyphenated, so
  * /api/order/getOnlineOrder is /v2/api/order/get-online-order. Both read their
@@ -427,10 +420,12 @@ class OrderController extends Controller
     /**
      * POST /v2/api/order/online
      *
-     * The online orders in a status. Note that Yii 1 overwrites the caller id
-     * with the literal '1' immediately after reading it, so the login check
-     * below can never fail and the endpoint is effectively unauthenticated.
-     * Reproduced, and recorded in docs/live-bugs-found.md.
+     * The online orders in a status. Both stacks overwrote the caller id with
+     * the literal '1' right after reading it, so the login check could never
+     * fail and this was readable by anyone who could reach it. That line is
+     * gone from both; the header is now what decides.
+     *
+     * getOnlineOrder still has it. That was not part of this change.
      *
      * status=2 means "packed or shipped", not "status 2".
      */
@@ -438,9 +433,7 @@ class OrderController extends Controller
     {
         $out = $this->envelope('online');
 
-        $this->headerUserId();
-        $loginId = '1';   // as in Yii 1 - see above
-
+        $loginId = $this->headerUserId();
         if (!$loginId) {
             $out['message'] = 'Please login';
             return $out;
@@ -1081,5 +1074,104 @@ class OrderController extends Controller
         }
 
         return $out;
+    }
+    /**
+     * POST /v2/api/order/search
+     *
+     * Orders matching any of bill_date, bill_no or customer_id.
+     *
+     * This action threw for every request that reached it until now: it
+     * queried tbl_order_item for three columns that exist only on tbl_order.
+     * It was only reachable at all for the twelve users whose row has an
+     * employee record - the rest stop a branch earlier at "No employee found",
+     * which is why a broken endpoint went unnoticed. Changing the model is the
+     * whole fix; the local variable, the response key and every sibling action
+     * here already said orders.
+     *
+     * Yii 1's compare() is a partial match for a string and exact for a
+     * number, and it drops the condition entirely when the value is '' - so
+     * posting bill_no= with no value returns everything rather than nothing.
+     * Reproduced.
+     *
+     * The employee check is what Yii 1 does, not an endorsement: the employee
+     * is looked up and then never used.
+     */
+    public function actionSearch()
+    {
+        $out = $this->envelope('search');
+
+        $loginId = Yii::$app->request->getHeaders()->get('userlogin');
+        if (!$loginId) {
+            $out['message'] = 'Please Login First';
+            return $out;
+        }
+
+        $user = User::findOne($loginId);
+        if (!$user) {
+            $out['message'] = 'No User found';
+            return $out;
+        }
+
+        $emp = Emp::findOne($user->emp_id);
+        if (!$emp) {
+            $out['message'] = 'No employee found';
+            return $out;
+        }
+
+        $post = Yii::$app->request->post();
+        if (!isset($post['bill_date']) && !isset($post['bill_no']) && !isset($post['customer_id'])) {
+            $out['message'] = 'No data posted';
+            return $out;
+        }
+
+        $query = Order::find()->orderBy(['id' => SORT_ASC]);
+        $this->compareLike($query, 'bill_date', $post);
+        $this->compareLike($query, 'bill_no', $post);
+        $this->compareLike($query, 'customer_id', $post);
+
+        $orders = $query->all();
+        if (!$orders) {
+            $out['message'] = 'No order found';
+            return $out;
+        }
+
+        $list = [];
+        foreach ($orders as $order) {
+            $list[] = $order->toApiArray();
+        }
+        $out['status'] = 'OK';
+        $out['orders'] = $list;
+        return $out;
+    }
+
+    /**
+     * CDbCriteria::compare() in the shape this action uses it: nothing at all
+     * for an empty value, an exact match for a number, and a LIKE %value% for
+     * anything else. Yii 1 also reads a leading <, >, <=, >=, <> or = as an
+     * operator, which is reproduced because a caller can send one.
+     */
+    private function compareLike($query, $column, $post)
+    {
+        if (!isset($post[$column])) {
+            return;
+        }
+        $value = (string)$post[$column];
+
+        $operator = '';
+        if (preg_match('/^(<>|<=|>=|<|>|=)(.*)$/', $value, $m)) {
+            $operator = $m[1];
+            $value = $m[2];
+        }
+        if ($value === '') {
+            return;   // compare() adds no condition at all
+        }
+
+        if ($operator !== '') {
+            $query->andWhere([$operator === '<>' ? '!=' : $operator, $column, $value]);
+        } elseif (is_numeric($value)) {
+            $query->andWhere([$column => $value]);
+        } else {
+            $query->andWhere(['like', $column, $value]);
+        }
     }
 }

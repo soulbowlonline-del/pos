@@ -374,26 +374,41 @@ class ItemController extends Controller
     /**
      * POST /v2/api/item/bill-update
      *
-     * Reproduced as found. This action takes no parameters and does one thing:
-     * it loads purchase bill 97 - a literal id in the source - and sets its
-     * status to 0. Any caller, authenticated or not, can flip that one row, and
-     * it always answers OK whether or not the row exists or the save worked.
+     * Sets a purchase bill back to unapproved, so it can be received again.
      *
-     * It reads like a debug leftover that shipped. Ported rather than dropped
-     * so the two stacks match, and recorded in docs/live-bugs-found.md, because
-     * removing a live endpoint is the owner's call.
+     * It used to load bill 97 - a literal id in the source - and flip that one
+     * row for any caller, answering OK whether or not the row existed or the
+     * save worked. It takes purchase_bill_id from the request now and reports
+     * what happened. Changed on both stacks at the owner's request; the old
+     * behaviour is in docs/live-bugs-found.md.
+     *
+     * Still no authentication: that was not part of the change.
      */
     public function actionBillUpdate()
     {
         $out = $this->envelope('billUpdate');
 
-        $purchaseBill = PurchaseBill::findOne(97);
-        if ($purchaseBill) {
-            $purchaseBill->status = 0;
-            $purchaseBill->save();
+        $post = Yii::$app->request->post();
+        $billId = isset($post['purchase_bill_id'])
+            ? $post['purchase_bill_id']
+            : Yii::$app->request->get('purchase_bill_id');
+
+        if ($billId === null || $billId === '') {
+            $out['message'] = 'purchase_bill_id is required';
+            return $out;
         }
 
-        $out['status'] = 'OK';
+        $purchaseBill = PurchaseBill::findOne($billId);
+        if (!$purchaseBill) {
+            $out['message'] = 'Purchase bill not found';
+            return $out;
+        }
+
+        $purchaseBill->status = PurchaseBill::STATUS_UNAPPROVED;
+        if ($purchaseBill->save()) {
+            $out['status'] = 'OK';
+        }
+
         return $out;
     }
 

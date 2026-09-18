@@ -391,12 +391,28 @@ class ItemController extends GxController {
 				'action' => $this->action->id,
 				'status' => 'NOK'
 		);
-		$purchaseBill = PurchaseBill::model()->findByPk('97');
-		if($purchaseBill){
-			$purchaseBill->status = 0;
-			$purchaseBill->save();
+		// This used to read findByPk('97') - a literal id - so every caller,
+		// authenticated or not, flipped the status of that one purchase bill,
+		// and the action answered OK whether or not the row existed or the
+		// save worked. It takes the bill from the request now and reports what
+		// actually happened.
+		$billId = isset($_POST['purchase_bill_id']) ? $_POST['purchase_bill_id']
+			: (isset($_GET['purchase_bill_id']) ? $_GET['purchase_bill_id'] : null);
+		if ($billId === null || $billId === '') {
+			$arr ['message'] = 'purchase_bill_id is required';
+			$this->sendJSONResponse ( $arr );
+			return;
 		}
-		$arr ['status'] = 'OK';
+		$purchaseBill = PurchaseBill::model()->findByPk($billId);
+		if (!$purchaseBill) {
+			$arr ['message'] = 'Purchase bill not found';
+			$this->sendJSONResponse ( $arr );
+			return;
+		}
+		$purchaseBill->status = PurchaseBill::STATUS_UNAPPROVED;
+		if ($purchaseBill->save()) {
+			$arr ['status'] = 'OK';
+		}
 		$this->sendJSONResponse ( $arr );
 	}
 	public function isAllowed($model) {

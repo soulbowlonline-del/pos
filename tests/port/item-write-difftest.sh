@@ -19,9 +19,11 @@ restore_bill97() { sql "UPDATE tbl_purchase_bill p JOIN tbl_pb97_bak b ON b.id =
 
 # rows these actions add, with the ids normalised away
 reset() {
+  # the GRN fixture owns the purchase bills billUpdate now acts on
+  docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/grn_fixture.sql >/dev/null 2>&1
   sql "DELETE FROM tbl_stock_adjust_log WHERE create_user_id = $USER_ID;
        DELETE FROM tbl_scanned_items    WHERE user_id = $USER_ID;
-       UPDATE tbl_purchase_bill SET status = 1 WHERE id = 97;"
+"
 }
 written() {
   q "SELECT CONCAT('adj:', date,'|',item_detail_id,'|',item_id,'|',mrp,'|',IFNULL(outlet_id,'<N>'),'|',
@@ -30,7 +32,7 @@ written() {
      SELECT CONCAT('scan:', computer_name,'|',user_email,'|',item_id,'|',bar_code,'|',IFNULL(is_coupon,'<N>'),'|',
             qty,'|',sale_rate,'|',base_price,'|',mrp,'|',item_detail,'|',created_at)
        FROM tbl_scanned_items WHERE user_id = $USER_ID ORDER BY id;
-     SELECT CONCAT('bill97:', status) FROM tbl_purchase_bill WHERE id = 97;"
+     SELECT CONCAT('bill:', id,'|',status) FROM tbl_purchase_bill WHERE id IN (9990010,9990012) ORDER BY id;"
 }
 
 run_case() {
@@ -61,10 +63,16 @@ run_error_case() {
 }
 
 echo "=== item billUpdate + adjustitemtozero + scannedItem differential ==="
-save_bill97
-trap 'restore_bill97; reset' EXIT
+trap reset EXIT
 
-run_case "billUpdate (flips purchase bill 97)" "billUpdate" "bill-update" ""
+# billUpdate takes the bill from the request now, rather than flipping a
+# hardcoded id. The GRN fixture supplies the bills: 9990012 is approved,
+# 9990010 is already unapproved.
+run_case "billUpdate, no id"                  "billUpdate" "bill-update" ""
+run_case "billUpdate, approved bill"          "billUpdate" "bill-update" "purchase_bill_id=9990012"
+run_case "billUpdate, already unapproved"     "billUpdate" "bill-update" "purchase_bill_id=9990010"
+run_case "billUpdate, unknown bill"           "billUpdate" "bill-update" "purchase_bill_id=99999999"
+run_case "billUpdate, blank id"               "billUpdate" "bill-update" "purchase_bill_id="
 
 run_case "adjustitemtozero, valid detail"   "adjustitemtozero" "adjustitemtozero" "itemdetail_id=$DETAIL_ID&user_id=$USER_ID"
 run_case "adjustitemtozero, unknown detail" "adjustitemtozero" "adjustitemtozero" "itemdetail_id=99999999&user_id=$USER_ID"

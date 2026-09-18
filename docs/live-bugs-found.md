@@ -128,9 +128,9 @@ fatal on PHP 8. Affected 407 real orders. Fixed with a null guard.
 
 ## Found, not fixed — needs a product decision
 
-### order/search queries the wrong table, and cannot work at all
+### order/search queried the wrong table — **fixed**
 
-`actionSearch()` filters `OrderItem` by `bill_date`, `bill_no` and
+`actionSearch()` filtered `OrderItem` by `bill_date`, `bill_no` and
 `customer_id`:
 
 ```
@@ -138,80 +138,43 @@ SELECT * FROM `tbl_order_item` `t` WHERE bill_no =:ycp0
 -> SQLSTATE[42S22]: Unknown column 'bill_no' in 'where clause'
 ```
 
-All three columns exist on `tbl_order`; none exists on `tbl_order_item`. So
-the endpoint throws a `CDbException` for every request that reaches the query.
+All three columns exist on `tbl_order`; none exists on `tbl_order_item`. So the
+endpoint threw for every request that reached it. Of 590 users, 190 have
+`emp_id = 0` and 388 have it NULL, and those stop a branch earlier at "No
+employee found" — but **12 have a valid employee row**, and for them it was a
+live 500.
 
-It is only reached if the caller's user row has an employee record, and most
-do not: of 590 users, 190 have `emp_id = 0` and 388 have it NULL. But **12 have
-a valid employee row**, and for those the endpoint is live-broken today:
+Fixed by querying `Order`, which is the one-word change this file already
+identified: the local variable, the response key and every sibling action in
+the controller already said `orders`. The payload is `Order::toArray()`, the
+same shape `order/get` returns. Ported to Yii 2 and covered by twelve
+differential cases.
 
-```
-curl -X POST -H 'userlogin: 11' -d 'bill_no=1' /api/order/search   -> 500 CDbException
-curl -X POST -H 'userlogin: 1'  -d 'bill_no=1' /api/order/search   -> {"message":"No employee found"}
-```
+### item/billUpdate flipped one hardcoded row — **fixed**
 
-(An earlier version of this file said every user had `emp_id = 0`, which was
-wrong - it was read off a partial query. The endpoint is reachable, and it
-returns a 500 rather than never being called.)
+It loaded purchase bill 97 — a literal id — set its status to 0 for any caller,
+and answered OK whether or not the row existed or the save worked.
 
-The fix is one word: query `Order` rather than `OrderItem`. But `Order::toArray()`
-and `OrderItem::toArray()` return quite different payloads, so that choice
-defines the endpoint's contract, and whatever client calls `order/search`
-expects one of them. **Decision needed: what should order/search return?**
+It now takes `purchase_bill_id` from the request and reports what happened:
+`purchase_bill_id is required` with none, `Purchase bill not found` for an
+unknown one, OK only when the save succeeds. Changed identically on both
+stacks.
 
-The evidence points one way - the local variable is `$orders`, the response key
-is `orders`, and every other order-listing action in this controller returns
-`Order::toArray()` under that key - but "points one way" is not the same as
-knowing what the client parses, so this is not a call to make while porting.
+Still unauthenticated — that was not part of the change, and anyone who can
+reach the API can still set a bill back to unapproved.
 
-Until it is decided the action is not ported: porting it would mean either
-reproducing a guaranteed 500 or inventing an API contract. It is the only
-action in the controller left unported for this reason.
+### order/online was not authenticated — **fixed**
 
-### item/billUpdate flips one hardcoded row, for anyone who asks
+It read the caller id from a request header and then overwrote it with the
+literal `'1'`, so the check below could never fail. Every online order in the
+date window was readable by anyone who could reach the endpoint, with customer
+names, addresses and phone numbers.
 
-```php
-public function actionBillUpdate(){
-    $purchaseBill = PurchaseBill::model()->findByPk('97');
-    if($purchaseBill){ $purchaseBill->status = 0; $purchaseBill->save(); }
-    $arr ['status'] = 'OK';
-```
+The overwrite is gone from both stacks; the header decides now, and a request
+without one gets "Please login".
 
-That is the whole action. It takes no parameters, checks no caller, and sets
-the status of purchase bill 97 - a literal id - to 0. It answers OK whether or
-not the row exists and whether or not the save worked.
-
-It reads like a debug leftover that shipped. It is live on /api/item/billUpdate
-today and anyone who can reach the API can call it.
-
-Ported as-is so the two stacks agree, and left in place: deleting a live
-endpoint is the owner's call, not the porter's. **Decision needed: remove it,
-or is something calling it?**
-
-### order/online and order/getOnlineOrder are not authenticated
-
-Both read the caller id from a header and then overwrite it:
-
-```php
-$loginid = isset ( $headers ['userlogin'] ) ? $headers ['userlogin'] : null;
-...
-$loginid = '1';
-```
-
-so the `if ($loginid)` below can never fail. Every online order in the date
-window is readable by anyone who can reach the endpoint, with customer names,
-addresses and phone numbers. order/cancelOrder has a real login check but no
-ownership check, so any logged-in caller can cancel any online order.
-
-Reproduced in the port rather than fixed, because tightening an endpoint the
-delivery app calls is a change that needs testing against that app.
-
-### item/adjustitemtozero logs every adjustment against the first outlet
-
-The outlet is not a parameter. Yii 1 takes the first outlet by id and writes
-that on the stock adjustment log regardless of where the adjustment happened,
-so the log cannot distinguish outlets. Reproduced; worth deciding whether the
-log should take the outlet from the caller.
+**`order/getOnlineOrder` still has the identical line.** It was not part of this
+change. Removing it is the same one-line edit.
 
 ---
 

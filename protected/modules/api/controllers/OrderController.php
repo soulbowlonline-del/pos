@@ -399,7 +399,14 @@ class OrderController extends GxController {
 		if ($loginid == '') {
 			$loginid = isset ( $headers ['login_id'] ) ? $headers ['login_id'] : null;
 		}
-	 $loginid = '1';
+		// The line that used to sit here overwrote $loginid with the literal
+		// '1' immediately after reading it from the request header, so the
+		// check below could never fail and this endpoint was readable by
+		// anyone who could reach it - every online order in the window, with
+		// customer names, addresses and phone numbers. Removed.
+		//
+		// actionGetOnlineOrder still has the identical line. It was not part
+		// of this change and is the same one-line removal when wanted.
 		if ($loginid) {
 			
 			// $start_date = '2020-05-22';
@@ -608,7 +615,15 @@ class OrderController extends GxController {
 							$criteria->compare ( "bill_no ", $_POST ['bill_no'] );
 						if (isset ( $_POST ['customer_id'] ))
 							$criteria->compare ( "customer_id ", $_POST ['customer_id'] );
-						$orders = OrderItem::model ()->findAll ( $criteria );
+						// Order, not OrderItem. bill_date, bill_no and customer_id are
+						// columns of tbl_order and of no other table, so this threw
+						// SQLSTATE[42S22] for every request that got this far - which
+						// is any caller whose user row has an employee record. The
+						// local variable, the response key and every sibling action in
+						// this controller all say orders; the model name was the one
+						// thing out of place.
+						$criteria->order = 'id ASC';
+						$orders = Order::model ()->findAll ( $criteria );
 						$json_list = array ();
 						if ($orders) {
 							foreach ( $orders as $order ) {

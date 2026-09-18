@@ -63,6 +63,13 @@ run_case "getAssignList, unknown rider"       "getAssignList"               "get
 run_case "getAssignList, narrow window"        "getAssignList" "get-assign-list" 556 "start_date=2023-01-01&end_date=2023-12-31"
 run_case "getAssignList, window with none"     "getAssignList" "get-assign-list" 556 "start_date=1990-01-01&end_date=1990-01-02"
 
+# order/online used to overwrite the caller id with '1' and so answered
+# regardless; it honours the header now, on both stacks.
+echo -n "  online, no login header                      "
+o1=$(curl -sS --max-time 60 -X POST "$BASE/api/order/online")
+o2=$(curl -sS --max-time 60 -X POST "$BASE/v2/api/order/online")
+if [ "$o1" = "$o2" ]; then echo "OK  (${#o1} bytes)"; PASS=$((PASS+1)); else echo "MISMATCH"; echo "      yii1: $o1"; echo "      yii2: $o2"; FAIL=$((FAIL+1)); fi
+
 # no login header at all - the only one of the three that still checks
 echo -n "  getAssignList, no login header               "
 r1=$(curl -sS --max-time 60 -X POST "$BASE/api/order/getAssignList")
