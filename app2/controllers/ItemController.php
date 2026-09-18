@@ -11,6 +11,15 @@ use app\models\PurchaseBillDetail;
 use app\models\User;
 use app\models\StockAdjustLog;
 use app\models\ScannedItems;
+use app\models\Tax;
+use app\models\ItemStock;
+use app\models\ItemVendor;
+use app\models\MrsAdjust;
+use app\models\Organization;
+use app\models\Mrs;
+use app\models\MrsDetail;
+use app\models\Mrn;
+use app\models\StockLog;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -543,5 +552,534 @@ class ItemController extends Controller
 
         $out['barcode_item'] = $row;
         return $out;
+    }
+    /**
+     * POST /v2/api/item/update-stock
+     *
+     * Receives a GRN: marks the purchase bill received and rewrites each of its
+     * detail lines with the quantity actually counted, the recomputed tax and
+     * the margin.
+     *
+     * It does NOT add stock, despite the name. The ItemStock row is built here
+     * exactly as Yii 1 builds it, and then not saved - because in Yii 1 the
+     * save is commented out:
+     *
+     *     //if ($model->save ()) {
+     *     ...
+     *     $arr ['status'] = 'OK';
+     *     //}
+     *
+     * along with the StockLog write below it. So a received GRN updates the
+     * bill and its lines and leaves the stock level alone, and still answers
+     * OK. The row is built here rather than skipped so that the two stacks stay
+     * line-for-line comparable if that save is ever uncommented. Recorded in
+     * docs/live-bugs-found.md.
+     *
+     * Reproduced faults: the purchase bill is read without a null check, so an
+     * unknown purchase_bill_id is a fatal; and $itemdetail->id is read one line
+     * before the `if ($itemdetail && ...)` that tests it, so a bar code
+     * matching nothing is a fatal too. Both behave the same on either stack.
+     */
+    public function actionUpdateStock()
+    {
+        $out = $this->envelope('updateStock');
+
+        $post = Yii::$app->request->post();
+        if (!isset($post['stock_details'])) {
+            return $out;
+        }
+
+        $loginId = $this->headerUserId();
+        if (!$loginId) {
+            return $out;
+        }
+
+        $stocks = json_decode($post['stock_details']);
+        if (!$stocks || !isset($stocks[0])) {
+            return $out;
+        }
+
+        // no null check, as in Yii 1
+        $firstBill = PurchaseBill::findOne($stocks[0]->purchase_bill_id);
+
+        if ($firstBill->status != PurchaseBill::STATUS_UNAPPROVED) {
+            $out['status'] = 'OK';
+            $out['message'] = 'GRN is already received';
+            return $out;
+        }
+
+        $firstBill->status = PurchaseBill::STATUS_RECEIVED;
+        $firstBill->save();
+
+        foreach ($stocks as $stock) {
+            if (!isset($stock->bar_code) || !isset($stock->qty) || !isset($stock->purchase_bill_id)) {
+                continue;
+            }
+
+            // Yii 1 uses compare(), which drops the condition when the bar code
+            // is empty - so an empty one matches the first detail rather than
+            // none. Unordered there; ordered by id on both sides now.
+            $itemDetail = ItemDetail::find()->orderBy(['id' => SORT_ASC]);
+            if ($stock->bar_code !== null && $stock->bar_code !== '') {
+                $itemDetail->andWhere(['bar_code' => $stock->bar_code]);
+            }
+            $itemDetail = $itemDetail->one();
+
+            $purchaseBill = PurchaseBill::findOne($stock->purchase_bill_id);
+
+            // $itemDetail->id, before the null test below - as in Yii 1
+            $billDetail = PurchaseBillDetail::find()
+                ->where([
+                    'purchase_bill_id' => $stock->purchase_bill_id,
+                    'item_detail_id' => $itemDetail->id,
+                ])
+                ->orderBy(['id' => SORT_ASC])
+                ->one();
+
+            $batchNo = isset($stock->batch_no) ? $stock->batch_no : User::randomBarcode('5');
+
+            if (!$itemDetail || !$billDetail) {
+                continue;
+            }
+
+            $tax = Tax::findOne($billDetail->tax_id);
+            if ($tax) {
+                $billDetail->cgst_amt = ($stock->qty * $billDetail->price) * ($billDetail->cgst_per / 100);
+                $billDetail->sgst_amt = ($stock->qty * $billDetail->price) * ($billDetail->sgst_per / 100);
+                $billDetail->cess_amt = ($stock->qty * $billDetail->price) * ($billDetail->cess_per / 100);
+                $billDetail->igst_amt = ($stock->qty * $billDetail->price) * ($billDetail->igst_per / 100);
+            }
+
+            if ($billDetail->getGstTrue($stock->purchase_bill_id) == true) {
+                $billDetail->amount = ($stock->qty * $billDetail->price)
+                    + $billDetail->cgst_amt + $billDetail->sgst_amt + $billDetail->cess_amt;
+                $calculatedGst = ($billDetail->price * $billDetail->cgst_per) / 100
+                    + ($billDetail->price * $billDetail->sgst_per) / 100
+                    + ($billDetail->price * $billDetail->cess_per) / 100;
+            } else {
+                $billDetail->amount = ($stock->qty * $billDetail->price) + $billDetail->igst_amt;
+                $calculatedGst = ($billDetail->price * $billDetail->igst_per) / 100;
+            }
+
+            // a string comparison in Yii 1, so a price of '0.000' still divides
+            if ($billDetail->price != '0.00') {
+                $billDetail->margin = ($billDetail->mrp - ($billDetail->price + $calculatedGst))
+                    * 100 / ($billDetail->price + $calculatedGst);
+            }
+
+            $billDetail->approved_qty = $stock->qty;
+            $billDetail->order = $stock->entry_position;
+            $billDetail->save();
+
+            $itemStock = ItemStock::find()
+                ->where([
+                    'item_detail_id' => $itemDetail->id,
+                    'item_id' => $itemDetail->item_id,
+                    'batch_number' => $batchNo,
+                ])
+                ->orderBy(['id' => SORT_ASC])
+                ->one();
+
+            if ($itemStock === null) {
+                $itemStock = new ItemStock();
+                $purchaseQty = $stock->qty;
+                $balanceQty = $stock->qty;
+            } else {
+                $purchaseQty = $itemStock->purchase_qty + $stock->qty;
+                $balanceQty = $itemStock->balance_qty + $stock->qty;
+            }
+
+            $itemStock->batch_number = $batchNo;
+            $itemStock->item_detail_id = $itemDetail->id;
+            $itemStock->base_price = $billDetail->price;
+            $itemStock->mrp = $billDetail->mrp;
+            $itemStock->vendor_id = $purchaseBill->vendor_id;
+            $itemStock->outlet_id = $billDetail->outlet_id;
+            $itemStock->tax_id = $billDetail->tax_id;
+            $itemStock->item_id = $itemDetail->item_id;
+            $itemStock->purchase_qty = $purchaseQty;
+            $itemStock->balance_qty = $balanceQty;
+            $itemStock->create_user_id = $loginId;
+
+            // deliberately not saved - see the docblock
+
+            $out['status'] = 'OK';
+        }
+
+        return $out;
+    }
+    /**
+     * POST /v2/api/item/adjust
+     *
+     * A stocktake adjustment for one item detail: sets the stock to the counted
+     * figure, logs it twice (StockAdjustLog and StockLog), touches the item and
+     * its detail, and then either cancels a pending requisition for the item -
+     * if the adjustment took it back above its reorder level - or raises one, if
+     * it took it below.
+     *
+     * saleStatus (config/params.php, currently true) decides how qty and
+     * remain_qty combine. With it on, the larger of the two wins and the
+     * difference is the adjustment; with it off the posted qty is added as-is.
+     *
+     * Three places read a property off something that may be null, and are a
+     * fatal on PHP 8 rather than the notice they were on 5.6. All three are
+     * reproduced, because each one is reachable only with data this endpoint
+     * would not normally be given, and guarding them would change what a caller
+     * sees:
+     *
+     *   - $itemStock->vendor_id is written before $itemStock is known to exist,
+     *     so an item detail with no stock row at this outlet is a fatal;
+     *   - so is $ItemVendor->vendor_id, when the item has no vendor row;
+     *   - $vendorMRS->id in the create-a-requisition branch, when the vendor has
+     *     no requisition at all.
+     *
+     * Recorded in docs/live-bugs-found.md.
+     *
+     * Note the item-vendor lookup matches item_detail_id against the *item's*
+     * id, the same mismatch already noted on Item::getItemVendors().
+     */
+    public function actionAdjust()
+    {
+        $out = $this->envelope('adjust');
+
+        $post = Yii::$app->request->post();
+        foreach (['itemdetail_id', 'qty', 'remain_qty', 'remark', 'original_item_id', 'user_id'] as $k) {
+            if (!isset($post[$k])) {
+                return $out;
+            }
+        }
+
+        $userId = $post['user_id'];
+        $itemDetailId = $post['itemdetail_id'];
+        $qty = $post['qty'];
+        $remainQty = $post['remain_qty'];
+        $remarks = !empty($post['remark']) ? $post['remark'] : ' ';
+
+        if ($itemDetailId == '' || $qty == '') {
+            return $out;
+        }
+
+        $saleStatus = Yii::$app->params['saleStatus'];
+
+        $outletModel = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+        $outlet = $outletModel ? $outletModel->id : null;
+
+        $itemDetail = ItemDetail::findOne($itemDetailId);
+        $current = '0.000';
+        $adjusted = '0.000';
+        $actual = '0.000';
+
+        if (!$itemDetail) {
+            return $out;
+        }
+
+        $itemStock = ItemStock::find()
+            ->where(['item_detail_id' => $itemDetail->id, 'outlet_id' => $outlet])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        // both of these are read without a null check in Yii 1
+        $itemVendor = ItemVendor::find()
+            ->where(['item_detail_id' => $itemDetail->item_id])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+        $itemStock->vendor_id = $itemVendor->vendor_id;
+
+        $item = Item::findOne($itemDetail->item_id);
+
+        if ($saleStatus) {
+            if ($remainQty > $qty) {
+                $type = ItemStock::TYPE_SUBSTRACT;
+                $qty = $remainQty - $qty;
+            } else {
+                $type = ItemStock::TYPE_ADDED;
+                $qty = $qty - $remainQty;
+            }
+        } else {
+            $type = ItemStock::TYPE_ADDED;
+        }
+
+        if ($itemStock === null) {
+            $itemStock = new ItemStock();
+            if ($type == ItemStock::TYPE_ADDED) {
+                $itemStock->purchase_qty = $itemStock->purchase_qty + $qty;
+                $itemStock->balance_qty = $itemStock->balance_qty + $qty;
+            } else {
+                $itemStock->purchase_qty = $qty;
+                $itemStock->balance_qty = $qty;
+            }
+            $itemStock->batch_number = User::randomBarcode('5');
+            $itemStock->item_detail_id = $itemDetail->id;
+            if ($item) {
+                $itemStock->item_id = $item->id;
+                $itemStock->mrp = $itemDetail->getItemDetailMrp();
+                $itemStock->base_price = $item->purchase_price;
+                $itemStock->outlet_id = $outlet;
+            }
+        } else {
+            if ($type == ItemStock::TYPE_ADDED) {
+                $itemStock->purchase_qty = $itemStock->purchase_qty + $qty;
+                $itemStock->balance_qty = $itemStock->balance_qty + $qty;
+            } else {
+                $itemStock->balance_qty = $itemStock->balance_qty - $qty;
+            }
+        }
+
+        $current = $item->getOutletTotalRemainingQuantity($itemDetail->id, $outlet);
+
+        if ($type == ItemStock::TYPE_ADDED) {
+            $actual = bcadd((string)$current, (string)$qty, 3);
+        } else {
+            // three separate ifs in Yii 1, not a chain, and none covers
+            // $current == 0 together with the others - so a zero current stock
+            // takes the first branch only.
+            if ($current == 0) {
+                $actual = bcsub((string)$current, (string)$qty, 3);
+            }
+            if ($current < 0) {
+                $actual = '-' . bcadd((string)$current, (string)$qty, 3);
+            }
+            if ($current > 0) {
+                if ($current > $qty) {
+                    $actual = bcsub((string)$current, (string)$qty, 3);
+                } else {
+                    $actual = bcsub((string)$qty, (string)$current, 3);
+                }
+            }
+        }
+
+        $adjusted = ($type == ItemStock::TYPE_ADDED) ? $qty : '-' . $qty;
+
+        if (!$itemStock->save()) {
+            return $out;
+        }
+
+        $mrsAdjust = MrsAdjust::find()
+            ->where(['status' => MrsAdjust::STATUS_PENDING, 'item_id' => $itemStock->item_id])
+            ->orderBy(['id' => SORT_DESC])
+            ->one();
+        if ($mrsAdjust) {
+            $mrsAdjust->status = MrsAdjust::STATUS_DONE;
+            $mrsAdjust->save(false, ['status']);
+        }
+
+        $itemDetail->update_time = date('Y-m-d H:i:s');
+        $itemDetail->save(false, ['update_time']);
+        $item->update_time = date('Y-m-d H:i:s');
+        $item->save(false, ['update_time']);
+
+        $log = new StockAdjustLog();
+        $log->date = date('Y-m-d');
+        $log->item_detail_id = $itemDetail->id;
+        $log->item_id = $item->id;
+        $log->mrp = $itemDetail->getItemDetailMrp();
+        $log->outlet_id = $outlet;
+        $log->current_stock = $current;
+        $log->actual_stock = $actual;
+        $log->adjusted = $adjusted;
+        $log->create_user_id = $userId;
+        $log->remarks = $remarks;
+
+        if (!$log->save()) {
+            $out['message'] = 'last else';
+            return $out;
+        }
+
+        $stockLog = new StockLog();
+        $stockLog->item_detail_id = $itemDetail->id;
+        $stockLog->item_id = $item->id;
+        $stockLog->batch_no = $itemStock->batch_number;
+        $stockLog->current_qty = $itemDetail->getStockQty();
+        $stockLog->previous_qty = ($type == ItemStock::TYPE_ADDED)
+            ? bcsub((string)$itemDetail->getStockQty(), (string)$qty, 3)
+            : bcadd((string)$itemDetail->getStockQty(), (string)$qty, 3);
+        $stockLog->Qty = $adjusted;
+        $stockLog->outlet_id = $outlet;
+        $stockLog->vendor_id = $itemStock->vendor_id;
+        $stockLog->type_id = StockLog::TYPE_ADJUSTED;
+
+        if (!$stockLog->save()) {
+            $out['message'] = 'second last else';
+            return $out;
+        }
+
+        $out['message'] = 'save successfully';
+        $out['status'] = 'OK';
+
+        $mrsItemStock = ItemStock::find()
+            ->select('SUM(balance_qty) AS balance_qty')
+            ->where(['item_id' => $itemDetail->item_id])
+            ->groupBy('item_id')
+            ->one();
+
+        $remaining = $item->getTotalRemainingQuantity();
+
+        if ($remaining > $item->min_qty) {
+            $this->cancelPendingRequisitions($item);
+        } else {
+            $this->raiseRequisition($item, $itemDetail, $itemStock, $outlet, $mrsItemStock, $out);
+        }
+
+        return $out;
+    }
+
+    /**
+     * The adjustment took the item back above its reorder level, so the pending
+     * requisition lines for it go - and the requisition itself, if that was its
+     * only line and no goods receipt exists against it.
+     */
+    private function cancelPendingRequisitions($item)
+    {
+        $mrsDetails = MrsDetail::find()
+            ->where(['item_id' => $item->id, 'status' => Mrs::STATUS_PENDING])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+
+        foreach ($mrsDetails as $mrsDetail) {
+            $mrsId = $mrsDetail->mrs_id;
+            $lineCount = MrsDetail::find()->where(['mrs_id' => $mrsDetail->mrs_id])->count();
+            $mrs = Mrs::findOne($mrsId);
+
+            if ($mrs && $item->id == $mrsDetail->item_id && $mrs->status != Mrs::STATUS_DONE) {
+                $mrsDetail->delete();
+            }
+
+            if ($lineCount == 1) {
+                $mrs = Mrs::findOne($mrsId);
+                if ($mrs && $item->id == $mrsDetail->item_id && $mrs->status != Mrs::STATUS_DONE) {
+                    $mrn = Mrn::find()->where(['mrs_id' => $mrs->id])->orderBy(['id' => SORT_ASC])->one();
+                    if (!$mrn) {
+                        $mrs->delete();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The adjustment took the item below its reorder level, so a requisition is
+     * raised - or an existing pending one for the same vendor and outlet is
+     * reused.
+     *
+     * $vendorMRS->id is read without a null check, as in Yii 1: a vendor with no
+     * requisition at all is a fatal.
+     */
+    private function raiseRequisition($item, $itemDetail, $itemStock, $outlet, $mrsItemStock, &$out)
+    {
+        $vendorMRS = Mrs::find()
+            ->where('vendor_id = :v', [':v' => $itemStock->vendor_id])
+            ->orderBy(['id' => SORT_DESC])
+            ->one();
+
+        if (!$vendorMRS->id) {
+            return;
+        }
+
+        $item = Item::findOne($item->id);
+
+        $existingLine = MrsDetail::find()
+            ->where('mrs_id = :m', [':m' => $vendorMRS->id])
+            ->andWhere('item_id = :i', [':i' => $item->id])
+            ->orderBy(['id' => SORT_DESC])
+            ->one();
+        if (!empty($existingLine)) {
+            return;
+        }
+
+        $organization = Organization::find()->orderBy(['id' => SORT_ASC])->one();
+        $detailAgain = ItemDetail::findOne($itemDetail->id);
+        $tax = null;
+        if ($detailAgain) {
+            $tax = Tax::findOne($detailAgain->tax_id);
+        }
+
+        if ($itemStock->vendor_id === null) {
+            return;
+        }
+
+        $mrs = Mrs::find()
+            ->where(['status' => Mrs::STATUS_PENDING, 'vendor_id' => $itemStock->vendor_id, 'outlet_id' => $outlet])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+
+        $reorderQty = $item->reorder_qty != '' ? $item->reorder_qty : 10;
+        $maxQty = $item->max_qty != '' ? $item->max_qty : 10;
+        $minQty = $item->min_qty != '' ? $item->min_qty : 10;
+
+        if (!($minQty >= $mrsItemStock->balance_qty)) {
+            return;
+        }
+
+        if ($mrs === null) {
+            $mrs = new Mrs();
+        }
+        $mrs->code = 'ddd';
+        $mrs->mrs_date = date('Y-m-d');
+        $mrs->mrs_req_date = date('Y-m-d');
+        $mrs->outlet_id = $outlet;
+        $mrs->vendor_id = $itemStock->vendor_id;
+        $mrs->organization_id = $organization->id;
+
+        if (!$mrs->save()) {
+            return;
+        }
+
+        $mrsDetail = MrsDetail::find()
+            ->where(['item_detail_id' => $itemStock->item_detail_id, 'mrs_id' => $mrs->id])
+            ->orderBy(['id' => SORT_ASC])
+            ->one();
+        if ($mrsDetail === null) {
+            $mrsDetail = new MrsDetail();
+        }
+
+        $mrsDetail->price = $item->purchase_price;
+        $mrsDetail->req_qty = $maxQty;
+        $mrsDetail->approved_qty = $reorderQty;
+        $mrsDetail->min_qty = $minQty;
+
+        if ($tax) {
+            $mrsDetail->cgst_per = $tax->tax_val1;
+            $mrsDetail->sgst_per = $tax->tax_val2;
+            $mrsDetail->cess_per = $tax->tax_val3;
+            $mrsDetail->igst_per = $tax->tax_val4;
+            $mrsDetail->cgst_amt = ($reorderQty * $mrsDetail->price) * ($tax->tax_val1 / 100);
+            $mrsDetail->sgst_amt = ($reorderQty * $mrsDetail->price) * ($tax->tax_val2 / 100);
+            $mrsDetail->cess_amt = ($reorderQty * $mrsDetail->price) * ($tax->tax_val3 / 100);
+            $mrsDetail->igst_amt = ($reorderQty * $mrsDetail->price) * ($tax->tax_val4 / 100);
+            $mrsDetail->tax_id = $tax->id;
+        }
+
+        $mrsDetail->item_detail_id = $itemDetail->id;
+        $mrsDetail->item_id = $itemDetail->item_id;
+        $mrsDetail->outlet_id = $mrs->outlet_id;
+        $mrsDetail->mrp = $detailAgain->getItemDetailMrp();
+        $mrsDetail->sale_rate = $detailAgain->getItemDetailSaleRate();
+        $mrsDetail->mrs_id = $mrs->id;
+        $mrsDetail->discount = '0.00';
+        $mrsDetail->discount_amt = '0.00';
+        $mrsDetail->other_charge = '0.00';
+
+        if ($mrsDetail->getGstTrue($mrs->id) == true) {
+            $mrsDetail->amount = ($reorderQty * $mrsDetail->price)
+                + $mrsDetail->cgst_amt + $mrsDetail->sgst_amt + $mrsDetail->cess_amt;
+            $calculatedGst = ($mrsDetail->price * $mrsDetail->cgst_per) / 100
+                + ($mrsDetail->price * $mrsDetail->sgst_per) / 100
+                + ($mrsDetail->price * $mrsDetail->cess_per) / 100;
+        } else {
+            $mrsDetail->amount = ($reorderQty * $mrsDetail->price) + $mrsDetail->igst_amt;
+            $calculatedGst = ($mrsDetail->price * $mrsDetail->igst_per) / 100;
+        }
+
+        if ($mrsDetail->price != '0.00' && $mrsDetail->price !== null) {
+            $mrsDetail->margin = ($mrsDetail->mrp - ($mrsDetail->price + $calculatedGst))
+                * 100 / ($mrsDetail->price + $calculatedGst);
+        }
+
+        if ($mrsDetail->save()) {
+            $out['message'] = 'save successfully';
+            $out['status'] = 'OK';
+        } else {
+            $out['message'] = 'save time error';
+        }
     }
 }

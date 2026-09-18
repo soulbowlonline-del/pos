@@ -508,13 +508,15 @@ class ItemController extends GxController {
 									$code = $stock->bar_code ;
 									$criteria = new CDbCriteria ();
 									$criteria->compare ( "bar_code ", $code );
+									// no ORDER BY here; MySQL 8 does not sort implicitly
+									$criteria->order = 'id asc';
 									$itemdetail = ItemDetail::model ()->find ( $criteria );
 									$purchaseBill = PurchaseBill::model ()->findByPk ( $stock->purchase_bill_id );
 									$purchaseBillDetail = PurchaseBillDetail::model ()->findByAttributes ( array (
 											'purchase_bill_id' => $stock->purchase_bill_id ,
 											'item_detail_id' => $itemdetail->id
 
-									) );
+									), array ( 'order' => 'id asc' ) );
 									Yii::log ( CVarDumper::dumpAsString ( $loginid ), CLogger::LEVEL_WARNING, '$loginid' );
 									Yii::log ( CVarDumper::dumpAsString ( $purchaseBillDetail ), CLogger::LEVEL_WARNING, '$purchaseBillDetail' );
 									if(isset($stock->batch_no  )){
@@ -1365,13 +1367,13 @@ class ItemController extends GxController {
 							$itemStock = ItemStock::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->id,
 									'outlet_id' => $outlet 
-							) );
+							), array ( 'order' => 'id asc' ) );
 							
 							/*for item vendor*/
 								$ItemVendor = ItemVendor::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->item_id
 								
-							) );
+							), array ( 'order' => 'id asc' ) );
 							$itemStock->vendor_id=$ItemVendor->vendor_id;
 							/*end item vendor*/
 							$item = Item::model ()->findByPk ( $itemDetail->item_id );
@@ -1511,7 +1513,7 @@ class ItemController extends GxController {
 								if($remain >$min_qty){
 									$mrsdetails = MrsDetail::model()->findAllByAttributes(array('item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
-									));
+									), array ( 'order' => 'id asc' ));
 									Yii::log ( CVarDumper::dumpAsString ( $mrsdetails ), CLogger::LEVEL_WARNING, '$mrsdetails' );
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
@@ -1532,7 +1534,7 @@ class ItemController extends GxController {
 												if(($mrs) && ($item->id == $mrsdetail->item_id) && ($mrs->status != Mrs::STATUS_DONE))
 												{
 														
-													$mrn = Mrn::model()->findByAttributes(array('mrs_id'=>$mrs->id));
+													$mrn = Mrn::model()->findByAttributes(array('mrs_id'=>$mrs->id), array ( 'order' => 'id asc' ));
 													if(!$mrn){
 														$mrs->delete();
 													}
@@ -1563,7 +1565,7 @@ class ItemController extends GxController {
 									
 										/*Create MRS*/
 										// $itemdetail = Item::model()->findByPk($item->item_id);
-										$organization = Organization::model()->find();
+										$organization = Organization::model()->find(array('order'=>'id asc'));
 										$itemdetail_ = ItemDetail::model()->findByPk($itemDetail->id);
 										$tax='';
 										$tax_id='';
@@ -1575,7 +1577,7 @@ class ItemController extends GxController {
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
-										));
+										), array ( 'order' => 'id asc' ));
 										Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 										
 										if($item->reorder_qty != ''){
@@ -1636,7 +1638,7 @@ class ItemController extends GxController {
 										$itemdetail = ItemDetail::model ()->findByPk ( $itemDetail->id );
 										$mrsdetail = MrsDetail::model()->findByAttributes(array('item_detail_id'=>$itemStock->item_detail_id,
 											'mrs_id'=>$mrs->id
-										));
+										), array ( 'order' => 'id asc' ));
 										if($mrsdetail == null){
 										$mrsdetail = new MrsDetail();
 										}

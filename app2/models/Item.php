@@ -114,4 +114,24 @@ class Item extends ActiveRecord
         return $this->hasMany(ItemVendor::class, ['item_detail_id' => 'id'])
             ->orderBy(['id' => SORT_ASC]);
     }
+
+    /**
+     * Yii 1's getOutletTotalRemainingQuantity(): the balance of one item detail
+     * at one outlet, summed in PHP rather than by the database - which matters,
+     * because it starts at the integer 0 and not the string '0.000', so the
+     * result is a float where getTotalRemainingQuantity() returns a bcsub
+     * string.
+     */
+    public function getOutletTotalRemainingQuantity($itemDetailId, $outletId)
+    {
+        $remaining = 0;
+        $stocks = ItemStock::find()
+            ->where(['item_id' => $this->id, 'item_detail_id' => $itemDetailId, 'outlet_id' => $outletId])
+            ->orderBy(['id' => SORT_ASC])
+            ->all();
+        foreach ($stocks as $stock) {
+            $remaining += $stock->balance_qty;
+        }
+        return $remaining;
+    }
 }

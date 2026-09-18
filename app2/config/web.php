@@ -8,9 +8,11 @@
  * one framework, which avoids the class collision between Yii 1's Yii and
  * Yii 2's yii\BaseYii entirely.
  */
-$params = [
-    'adminEmail' => 'admin@daspos.com',
-];
+// The Yii 1 parameters, read from the file Yii 1 reads, so the two cannot
+// drift. item/adjust branches on saleStatus, and a copy of that value here
+// would be a second source of truth for something an operator changes.
+$params = require dirname(dirname(__DIR__)) . '/config/params.php';
+$params['adminEmail'] = 'admin@daspos.com';
 
 return [
     'id' => 'pos-v2',

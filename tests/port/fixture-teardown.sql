@@ -26,6 +26,19 @@ DELETE FROM tbl_item_stock                 WHERE item_id = 9990500;
 DELETE FROM tbl_item_detail                WHERE item_id = 9990500;
 DELETE FROM tbl_item                       WHERE id = 9990500;
 DELETE FROM tbl_credit_note                WHERE amt IN (100, 200, 300, 1000);
+-- item/adjust fixture: its own vendor, item, detail, stock, item-vendor link
+-- and requisition, plus everything an adjustment of them writes.
+DELETE FROM tbl_stock_log        WHERE item_id = 9990600;
+DELETE FROM tbl_stock_adjust_log WHERE item_id = 9990600;
+DELETE FROM tbl_mrs_adjust       WHERE item_id = 9990600;
+DELETE FROM tbl_mrs_detail       WHERE item_id = 9990600 OR mrs_id = 9990600;
+DELETE FROM tbl_mrn              WHERE mrs_id = 9990600;
+DELETE FROM tbl_mrs              WHERE id = 9990600 OR vendor_id = 9990600;
+DELETE FROM tbl_item_vendor      WHERE item_detail_id = 9990600 OR vendor_id = 9990600;
+DELETE FROM tbl_item_stock       WHERE item_id = 9990600;
+DELETE FROM tbl_item_detail      WHERE item_id = 9990600;
+DELETE FROM tbl_item             WHERE id = 9990600;
+DELETE FROM tbl_vendor           WHERE id = 9990600;
 DELETE FROM tbl_user                       WHERE id = 9990002;
 -- GRN fixture (see item-grn-fixture-setup.sql). The user row has to go
 -- before the emp row it points at.

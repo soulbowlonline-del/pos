@@ -11,7 +11,16 @@ use yii\db\ActiveRecord;
  */
 class StockLog extends ActiveRecord
 {
+    // the full set from BaseStockLog, so a caller cannot reach for one that
+    // happens not to have been ported yet
+    public const TYPE_ADDED = 0;
+    public const TYPE_SUBSTRACTED = 1;
+    public const TYPE_EXPIRED = 2;
+    public const TYPE_RETURNED = 3;
+    public const TYPE_ORDER = 4;
+    public const TYPE_ADJUSTED = 5;
     public const TYPE_REFUND = 6;
+    public const TYPE_B2B = 7;
 
     public static function tableName()
     {
