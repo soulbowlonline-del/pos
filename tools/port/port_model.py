@@ -296,7 +296,14 @@ def port_search_sort(body):
         return None
     stripped = re.sub(r'//[^\n]*', '', body)
     stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.S)
-    m = re.search(r"'defaultOrder'\s*=>\s*'([^']+)'", stripped)
+
+    # Two places, both of which decide the grid's order and neither of which
+    # this generator originally read. $criteria->order wins where both are
+    # present, because Yii 1 applies it to the criteria the provider is built
+    # from. Six models use the first, nine the second, and they are not all
+    # `id DESC` - three sort by `item.title asc` and one by `t.order Asc`.
+    m = (re.search(r"\$criteria\s*->\s*order\s*=\s*\(?\s*'([^']+)'", stripped)
+         or re.search(r"'defaultOrder'\s*=>\s*'([^']+)'", stripped))
     if not m:
         return None
 
@@ -305,7 +312,12 @@ def port_search_sort(body):
         bits = part.strip().split()
         if not bits:
             continue
-        col = bits[0].split('.')[-1]
+        col = bits[0]
+        # `t` is the main table's alias, which Yii 2 does not use; any other
+        # qualifier names a joined relation and has to stay, or the column is
+        # ambiguous - or simply the wrong one.
+        if col.startswith('t.'):
+            col = col[2:]
         desc = len(bits) > 1 and bits[1].lower().startswith('desc')
         cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
 
@@ -598,14 +610,6 @@ def port_concrete(src, model):
         name = m.group(2)
         if name == 'model':
             continue        # Yii 1's static model() has no Yii 2 equivalent
-        if name in YII2_PUBLIC_HOOKS and not read_only(text):
-            # A lifecycle hook that writes is behaviour, and this generator has
-            # no way to know whether the Yii 2 model wants it. Order::afterSave()
-            # reached a model the API port wrote and, being protected where
-            # Yii 2 declares it public, stopped the class loading at all - ten
-            # suites failed at once.
-            notes.append('%s(): not ported - a lifecycle hook that writes' % name)
-            continue
         if name in CLASHES_WITH_YII2:
             # Yii 2's ActiveRecord already declares these, with signatures the
             # Yii 1 versions do not match - City::toArray() against
@@ -634,6 +638,16 @@ def port_concrete(src, model):
                 depth -= 1
             i += 1
         text = src[m.start(1):i]
+
+        if name in YII2_PUBLIC_HOOKS and not read_only(text):
+            # A lifecycle hook that writes is behaviour, and this generator has
+            # no way to know whether the Yii 2 model wants it. Order::afterSave()
+            # reached a model the API port wrote and, being protected where
+            # Yii 2 declares it public, stopped the class loading entirely - ten
+            # suites failed at once. The test needs the method body, so it has
+            # to come after the body is extracted, not before.
+            notes.append('%s(): not ported - a lifecycle hook that writes' % name)
+            continue
 
         text = arrays(text)
         text = re.sub(r'Yii::app\(\)->', 'Yii::$app->', text)
@@ -827,6 +841,18 @@ def generate(model, table_alias):
     A('            && $parts[0] == $year && $parts[1] == $yearadd;')
     A('    }')
     A('')
+    A('    /**')
+    A("     * The order this model's listings use.")
+    A('     *')
+    A("     * The grid's own sort when search() names one, otherwise whatever")
+    A('     * defaultScope() applies. Both the admin grid and the index listing')
+    A('     * read this, so the two cannot drift apart.')
+    A('     */')
+    A('    public static function listingOrder()')
+    A('    {')
+    A('        return %s;' % (search_sort or 'self::defaultOrder()'))
+    A('    }')
+    A('')
     A('    /** Views ask the model whether the current role may reach a route. */')
     A('    public function checkPermission($url)')
     A('    {')
@@ -959,14 +985,18 @@ def generate(model, table_alias):
         A("        $query->joinWith([%s]);" % ', '.join("'%s'" % x for x in eager))
     A('        $provider = new ActiveDataProvider([')
     A("            'query' => $query,")
-    if search_sort:
-        A("            // The order Yii 1's search() gives its provider, which is not")
-        A('            // always the model\'s defaultScope(): the grid can name its own.')
-        A("            'sort' => ['defaultOrder' => %s]," % search_sort)
-    else:
-        A("            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],")
+    A("            // The order goes on the query, not on the provider's sort.")
+    A('            // Yii 1 sets it on the criteria, and three of these listings')
+    A("            // order by a joined column - 'item.title' - which Yii 2's Sort")
+    A('            // rejects as a key unless it is declared as a sortable')
+    A('            // attribute. orderBy takes it as written.')
+    A("            'sort' => ['defaultOrder' => []],")
     A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
     A('        ]);')
+    A('')
+    A('        if (self::listingOrder()) {')
+    A('            $query->orderBy(self::listingOrder());')
+    A('        }')
     A('')
     A('        $this->load($params, $this->formName());')
     A('')
@@ -1080,7 +1110,7 @@ def merge(existing, generated, model, warn):
     #     derived entirely from this pipeline's rules, and an earlier version
     #     of it loaded defaults in the search scenario too, which filtered the
     #     grid by every column that has one.
-    replace = ['attributeLabels', 'defaultOrder', 'init']
+    replace = ['attributeLabels', 'defaultOrder', 'listingOrder', 'init']
     replace += [n for n, _ in method_blocks(generated) if re.match(r'get\w*Options$', n)]
     for name in replace:
         if name not in have:
@@ -1166,7 +1196,8 @@ def merge(existing, generated, model, warn):
 # rules(), search() or beforeValidate() - those change how the model validates
 # and saves, and these models are already in use by the ported API.
 PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermission',
-                     'getRelationLabel', 'defaultOrder', 'getTotals', 'isAllowCreate'}
+                     'getRelationLabel', 'defaultOrder', 'listingOrder',
+                     'getTotals', 'isAllowCreate'}
 
 # Never added to a model the API port wrote, whatever else says otherwise.
 # These decide how the model validates, what it saves and what a listing

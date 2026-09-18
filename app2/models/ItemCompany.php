@@ -291,4 +291,16 @@ class ItemCompany extends ActiveRecord
 
             return $item_ids;
         }
+
+    /**
+     * The order this model's listings use.
+     *
+     * The grid's own sort when search() names one, otherwise whatever
+     * defaultScope() applies. Both the admin grid and the index listing
+     * read this, so the two cannot drift apart.
+     */
+    public static function listingOrder()
+    {
+        return self::defaultOrder();
+    }
 }

@@ -66,11 +66,22 @@ def translate(src, model, ctrl, warn):
                   "$model->load(Yii::$app->request->queryParams)", body)
 
     # data provider
-    body = re.sub(r"new\s+CActiveDataProvider\s*\(\s*'" + model + r"'\s*\)",
+    # Both `new CActiveDataProvider('X')` and the two-argument form that
+    # carries a sort. Note the brackets rather than array(): the array
+    # rewriter has already run, so the second argument reads `[ ... ]` here
+    # even though the Yii 1 source says `array( ... )`. Matching only the
+    # one-argument form left the call unconverted the moment a sort was
+    # added to those index actions, and the page died on a class that does
+    # not exist in Yii 2.
+    body = re.sub(r"new\s+CActiveDataProvider\s*\(\s*'" + model +
+                  r"'\s*(?:,\s*\[(?:[^\[\]]|\[[^\[\]]*\])*\]\s*)?\)",
                   ("new ActiveDataProvider(['query' => " + model + "::find(),\n"
                    "            // The model's own defaultScope() decides the order - most\n"
                    "            // inherit `id DESC`, but 22 of them override it to none.\n"
                    "            // Hardcoding id DESC here listed rows Yii 1 never showed.\n"
+                   "            // defaultOrder, not listingOrder: index builds its own\n"
+                   "            // provider and never calls search(), so the order the admin\n"
+                   "            // grid gets from the criteria does not apply here.\n"
                    "            'sort' => ['defaultOrder' => " + model + "::defaultOrder() ?: []],\n"
                    "            'pagination' => ['pageSize' => Ui::PAGE_SIZE]])"), body)
 

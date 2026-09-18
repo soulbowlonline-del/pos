@@ -182,30 +182,40 @@ four need either a distinct class name for the UI controller or the API
 controller absorbing the UI actions; until that is decided they cannot be
 ported.
 
-## The listings with no ORDER BY - and a correction
+## Where a listing's order comes from
 
-An earlier version of this document said eighteen listings had no `ORDER BY`
-and asked the owner to decide whether to add one. **Ten of those eighteen were
-wrong.** They do order their grid - `search()` sets `'defaultOrder'` on the
-data provider's sort - and the generator never read it, because it looked only
-at `defaultScope()`. The Yii 2 provider had no order and the rows differed.
-That was a bug here, not a property of the application.
+Three places, and a listing can use any of them:
 
-`itemTax`, `itemExpire` and `tax` now match with no behaviour change at all.
-`purchaseBillDetail` sorts by `t.order Asc`, so `id DESC` would have been the
-wrong answer for it regardless.
+| | models |
+|---|---|
+| `$criteria->order` inside `search()` | `itemDetail`, `itemReturn`, `mrnDetail`, `mrsDetail`, `orderRefundItem`, `purchaseOrderDetail` |
+| `'defaultOrder'` on the provider's sort | `b2bPurchaseBill`, `item`, `itemExpire`, `itemTax`, `order`, `orderItem`, `purchaseBillDetail`, `stockAdjustLog`, `tax` |
+| `defaultScope()` on the model | everything else, inheriting `id DESC` from `GxActiveRecord` |
 
-Eight listings genuinely have no ordering of any kind:
+This document previously said eighteen listings had no `ORDER BY` at all and
+asked the owner to add one. That was wrong, three times over, each time from
+checking only one of the three places. Fifteen of the eighteen do specify an
+order; the generator simply did not read it.
 
-`customer`, `itemReturn`, `itemReturnItem`, `mrnDetail`, `mrsDetail`,
-`orderRefund`, `orderRefundItem`, `purchaseOrderDetail`.
+Only three genuinely have none: **`customer`, `orderRefund`,
+`itemReturnItem`**. For those, which rows appear on page one is decided by the
+query plan, and they cannot be compared between two SQL builders without being
+given an order - which is a change to what an operator sees, and so the
+owner's call.
 
-For these, which ten rows appear on page one is decided by the query plan.
-Each stack is self-consistent - repeated requests return the same ten, and
-Yii 1's grid footer sums the ten Yii 1 shows - but two SQL builders cannot be
-made to agree on an unordered `LIMIT`. They need an explicit order before they
-can be ported and checked, and adding one changes which rows an operator sees
-first. That is the owner's call.
+Note the orders are not all `id DESC`. `mrnDetail`, `mrsDetail` and
+`purchaseOrderDetail` sort by `item.title asc` and `purchaseBillDetail` by
+`t.order Asc`, so a blanket `id DESC` would have been wrong for four of them.
+
+Two details the port has to respect:
+
+  - A joined column keeps its qualifier. `item.title` is the right column only
+    while qualified; stripped to `title` it is ambiguous or simply another
+    table's. Only the main table's alias `t.` is removed, because Yii 2 does
+    not use it.
+  - `index` and `admin` do not share an order. `index` builds its own data
+    provider and never calls `search()`, so it gets only whatever
+    `defaultScope()` applies.
 
 ## What is not carried across
 

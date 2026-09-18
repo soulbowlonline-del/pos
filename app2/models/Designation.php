@@ -105,6 +105,18 @@ class Designation extends ActiveRecord
             && $parts[0] == $year && $parts[1] == $yearadd;
     }
 
+    /**
+     * The order this model's listings use.
+     *
+     * The grid's own sort when search() names one, otherwise whatever
+     * defaultScope() applies. Both the admin grid and the index listing
+     * read this, so the two cannot drift apart.
+     */
+    public static function listingOrder()
+    {
+        return self::defaultOrder();
+    }
+
     /** Views ask the model whether the current role may reach a route. */
     public function checkPermission($url)
     {
@@ -244,9 +256,18 @@ class Designation extends ActiveRecord
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
 
         $this->load($params, $this->formName());
 
