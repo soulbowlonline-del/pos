@@ -154,6 +154,7 @@ class PurchaseBill extends ActiveRecord
     public function getPOVendorOptions(){
             $list = [];
             $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status ='.PurchaseBill::STATUS_UNAPPROVED);
             $mrss = $query->all();
             if($mrss){

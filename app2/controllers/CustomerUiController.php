@@ -2,7 +2,6 @@
 namespace app\controllers;
 
 use app\components\Ui;
-use app\models\City;
 use app\models\Customer;
 use app\models\Order;
 use Yii;
@@ -24,21 +23,21 @@ class CustomerUiController extends BaseUiController {
 		return $model->isAllowed ();
 	}
 	/* public function actionDuplicate() {
-		$criteria = new CDbCriteria();
-		$criteria->group = 'email';
+		$query = Customer::find();
+		$query->groupBy('email');
 		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
 		// explicitly by the grouped columns to preserve the previous output order.
-		$criteria->order = 'email';
-		$customers = Customer::model()->findAll($criteria);
+		$query->orderBy(['email' => SORT_ASC]);
+		$customers = $query->all();
 		
 	} */
 	
 	
 		public function actionSendEmailCustom() {
 	    
-	    $criteria = new CDbCriteria();
-	    $criteria->addCondition('id =5836');
-	    $customer = Customer::model()->find($criteria);
+	    $query = Customer::find();
+	    $query->andWhere('id =5836');
+	    $customer = $query->one();
 	  
 	  
 	 
@@ -60,9 +59,9 @@ class CustomerUiController extends BaseUiController {
 	}
 	
 	public function actionGetCustomerAddress() {
-		$criteria = new CDbCriteria();
+		$query = Customer::find();
 		//$criteria->addCondition('email = ""');
-		$customers = Customer::model()->findAll($criteria);
+		$customers = $query->all();
 		//echo '<pre>';
 		//print_r($customers);exit;
 		if($customers){
@@ -85,9 +84,9 @@ class CustomerUiController extends BaseUiController {
 					curl_close ( $ch );
 					$response = json_decode ( $server_output, true );
 					if($response['success'] == 1 && (isset($response['phone']) && $response['phone'] != null)){
-						$criteria = new CDbCriteria();
-						$criteria->compare('title',$response['city']);
-						$city = City::model()->find($criteria);
+						$query = Customer::find();
+						Criteria::compare($query, 'title', $response['city']);
+						$city = $query->all();
 						$customer->address = $response['address'];
 						$customer->contact_no = trim($response['phone']);
 						$customer->zip_code = $response['postcode'];
@@ -111,9 +110,9 @@ class CustomerUiController extends BaseUiController {
 		}
 	}
 	public function actionGetCustomerEmail() {
-	$criteria = new CDbCriteria();
+	$query = Customer::find();
 	//$criteria->addCondition('email = ""');
-	$customers = Customer::model()->findAll($criteria);
+	$customers = $query->all();
 	//echo '<pre>';
 	//print_r($customers);exit;
 	if($customers){
@@ -364,9 +363,9 @@ class CustomerUiController extends BaseUiController {
 		if( !($model->checkPermission ('customer/delete')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
-		$criteria1 = new CDbCriteria();
-		$criteria1->addCondition('customer_id ='.$id);
-		$orders = Order::model()->count($criteria1);
+		$query = Order::find();
+		$query->andWhere('customer_id ='.$id);
+		$orders = $query->count();
 		if($orders){
 			foreach($orders as $order){
 				$order->customer_id = 1;

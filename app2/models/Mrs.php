@@ -14,6 +14,7 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Mrs.php (Yii 1) - a material requisition. */
 class Mrs extends ActiveRecord
 {
+    public $item_id;
     // Yii 1 hands out column values as strings; the option helpers
     // compare them loosely and answer wrongly for an integer 0.
     use LegacyColumnTypes;
@@ -153,6 +154,7 @@ class Mrs extends ActiveRecord
     public function getMrsVendorOptions(){
             $list = [];
             $query = Mrs::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status ='.Mrs::STATUS_PENDING);
             $mrss = $query->all();
             if($mrss){

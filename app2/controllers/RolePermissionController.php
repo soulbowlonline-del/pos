@@ -28,10 +28,10 @@ class RolePermissionController extends BaseUiController {
 		$alreadypermissions = [];
 		if (isset ( $_POST ['role_id'] )) {
 			
-			$criteria = new CDbCriteria();
-			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-			$criteria->order = 'title asc';
-			$permissions = Permission::model()->findAll($criteria);
+			$query = Permission::find();
+			$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
+			$query->orderBy(['title' => SORT_ASC]);
+			$permissions = $query->all();
 			//$option .= '<div class="row">';
 			if ($permissions) {
 				foreach ( $permissions as $permission ) {

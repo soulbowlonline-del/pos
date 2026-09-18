@@ -50,7 +50,8 @@ class Ui
         'tax',
         'customer',
         'emp',
-        'itemCompanyCategory',
+        'outlet',
+        'emp',
     ];
 
     /**

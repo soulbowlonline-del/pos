@@ -442,6 +442,7 @@ class PurchaseBillDetail extends ActiveRecord
     public function getPBillVendorOptions(){
             $list = [];
             $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
             $mrss = $query->all();
             Yii::warning( var_export( $mrss ), '$mrss');
@@ -494,11 +495,13 @@ class PurchaseBillDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                         $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('vendor_id ='.$id);
                         $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
                         $polist = $query->all();
                     }else{
                         $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
 
                         $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
                         $polist = $query->all();
@@ -524,12 +527,14 @@ class PurchaseBillDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                         $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('vendor_id ='.$id);
                         $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
                         $polist = $query->all();
 
                     }else{
                         $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
 
                         $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
                         $polist = $query->all();
@@ -893,4 +898,18 @@ class PurchaseBillDetail extends ActiveRecord
     {
         return ['order' => SORT_ASC];
     }
+
+    public function getTaxIgstPercentage(){
+
+             $query = Tax::find();
+            $query->andWhere('id ='.$this->tax_id);
+            $details= $query->one();
+            $igst=$details->tax_val4;
+             if($igst){
+                return $igst;
+                }
+            else{
+                return '0.00';
+            }
+         }
 }

@@ -108,6 +108,11 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r'(?m)^(\s*)\$this\s*->\s*renderPartial\s*\(', r'\1return $this->renderPartial(', body)
     body = re.sub(r'(?m)^(\s*)\$this\s*->\s*redirect\s*\(', r'\1return $this->redirect(', body)
 
+    # CDbCriteria in an action body. The same converter the models use - it was
+    # only ever called from there, so a controller that built a query itself
+    # kept its Yii 1 code and died on a class that does not exist in Yii 2.
+    body = convert_criteria_blocks(body)
+
     # `X::model()->find*` - the Yii 1 way of reaching a finder, written both
     # tightly and with spaces.
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
@@ -158,6 +163,29 @@ def translate(src, model, ctrl, warn):
         warn.append('unconverted Yii 1 class: ' + leftover)
 
     return body
+
+
+def convert_criteria_blocks(src):
+    """
+    Run the model generator's CDbCriteria converter over every method body.
+
+    It works on one method at a time - it has to, because it reads the whole
+    query from declaration to fetch - so the source is split on method
+    boundaries and each piece is offered to it. A piece it cannot convert comes
+    back unchanged, and the leftover scan below reports it.
+    """
+    import port_model
+
+    pieces = re.split(r'(?=\n[ \t]*(?:public|protected|private)?\s*'
+                      r'(?:static\s+)?function\s+\w+\s*\()', src)
+    out = []
+    for piece in pieces:
+        if 'CDbCriteria' in piece:
+            converted, ok, _ = port_model.convert_criteria(piece)
+            piece = converted if ok else piece
+        out.append(piece)
+
+    return ''.join(out)
 
 
 def drop_method(src, name):

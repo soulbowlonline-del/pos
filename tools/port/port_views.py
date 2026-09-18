@@ -12,6 +12,7 @@ and reported, so the unconverted call shows up as a PHP error on the first
 request rather than as a page that renders and is quietly wrong.
 """
 import re, sys, os
+sys.path.insert(0, '/root/pos')
 
 # --- array(...) -> [...] ------------------------------------------------------
 
@@ -288,6 +289,23 @@ def rewrite(src, ctrl, unknown):
     # inline script
     src = re.sub(r"Yii::app\s*\(\s*\)\s*->\s*clientScript\s*->\s*registerScript\s*\(\s*'[^']*'\s*,\s*",
                  '$this->registerJs(', src)
+
+    # CDbCriteria written inline in a view - a few of them build their own
+    # query for a filter dropdown. Same converter as the models and the
+    # controllers use.
+    if 'CDbCriteria' in src:
+        import port_model
+        converted, ok, _ = port_model.convert_criteria(src)
+        if ok:
+            src = converted
+
+    # Yii 1's logger, which a few views call directly. Same mapping the models
+    # and controllers use: the level becomes the method name.
+    src = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', src)
+    src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
+                 lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', src)
+    src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
+                 lambda m: 'Yii::warning(' + m.group(1) + ', ' + m.group(2) + ')', src)
 
     # Whatever Yii::app() calls are left after the specific rewrites above -
     # user, session, params, request. The accessor differs; the shape does not.

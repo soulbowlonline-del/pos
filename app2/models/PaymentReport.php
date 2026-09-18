@@ -18,6 +18,11 @@ class PaymentReport extends ActiveRecord
     // compare them loosely and give the wrong answer for an integer 0.
     use LegacyColumnTypes;
 
+    // Declared on the Yii 1 model and not columns: the forms post to
+    // these and the actions assign them. Yii 2 throws on an unknown
+    // property, so the declarations have to come across.
+    public $columns;
+
     public static function tableName()
     {
         return '{{%payment_report}}';
@@ -377,6 +382,7 @@ class PaymentReport extends ActiveRecord
                     if (isset ( $arrays ['Vendor Name'] )) {
 
                         $query = Vendor::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         Criteria::compare($query, 'name', $itemcat_values [$arrays ['Vendor Name']]);
                         $vendor = $query->one();
                         if ($vendor) {
@@ -415,6 +421,7 @@ class PaymentReport extends ActiveRecord
                     if (isset ( $arrays ['Vendor Name'] ) && isset ( $arrays ['Value Dt'] ) && isset ( $arrays ['Status'] ) && isset ( $arrays ['Amt'] )) {
 
                         $query = Vendor::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         Criteria::compare($query, 'name', $itemcat_values [$arrays ['Vendor Name']]);
                         $vendor = $query->one();
 

@@ -148,6 +148,7 @@ class MrnDetail extends ActiveRecord
     public function getMrnVendorOptions(){
             $list = [];
             $query = Mrn::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
             $mrss = $query->all();
             if($mrss){
@@ -188,12 +189,14 @@ class MrnDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                         $query = Mrn::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('vendor_id ='.$id);
                         $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
                         $mrslist = $query->all();
 
                     } else {
                         $query = Mrn::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
                         $mrslist = $query->all();
                     }
@@ -217,11 +220,13 @@ class MrnDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                         $query = Mrn::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('vendor_id ='.$id);
                         $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
                         $mrslist = $query->all();
                     }else {
                         $query = Mrn::find();
+            $query->orderBy(['id' => SORT_DESC]);
                         $query->andWhere('status ='.Mrn::STATUS_UNAPPROVED);
                         $mrslist = $query->all();
                     }
@@ -364,4 +369,72 @@ class MrnDetail extends ActiveRecord
     {
         return ['item.title' => SORT_ASC];
     }
+
+    public function getPurchaseAmount(){
+            $mrs = Mrn::findOne($this->mrn_id);
+            $amount = '0';
+            $query = PurchaseBillDetail::find();
+            $query->andWhere('t.item_id ='.$this->item_id);
+            $query->select('sum(t.amount) as amount');
+            $orderitem = $query->one();
+            if($orderitem){
+                $amount = $orderitem->amount;
+            }
+            if($amount == ''){
+                $amount = '0';
+            }
+            //Yii::warning( var_export( $amount ), '$amount');
+            return $amount;
+        }
+
+    public function getSaleAmount(){
+            $amount = '0';
+            $query = OrderItem::find();
+            $query->andWhere('t.item_id ='.$this->item_id);
+            $query->select('sum(t.total_amt) as total_amt');
+            $orderitem = $query->one();
+            if($orderitem){
+                $amount = $orderitem->total_amt;
+            }
+            if($amount == ''){
+                $amount = '0';
+            }
+            //Yii::warning( var_export( $amount ), '$saleamount');
+            return $amount;
+        }
+
+    public function getPurchaseQty(){
+            $mrs = Mrn::findOne($this->mrn_id);
+            $qty = '0';
+            $query = PurchaseBillDetail::find();
+            $query->andWhere('t.item_id ='.$this->item_id);
+            $query->select('sum(t.approved_qty) as approved_qty');
+            $orderitem = $query->one();
+            if($orderitem){
+                $qty = $orderitem->approved_qty;
+            }
+            if($qty == ''){
+                $qty = '0';
+            }
+            Yii::warning( var_export( $this->item_id ), '$this->item_id');
+            Yii::warning( var_export( $qty ), '$purqty');
+            return $qty;
+        }
+
+    public function getSaleQty(){
+            $qty = '0';
+            $query = OrderItem::find();
+            $query->andWhere('t.item_id ='.$this->item_id);
+            $query->select('sum(t.qty) as qty');
+            $orderitem = $query->one();
+            if($orderitem){
+                $qty = $orderitem->qty;
+            }
+            if($qty == ''){
+                $qty = '0';
+            }
+            Yii::warning( var_export( $this->item_id ), '$this->item_id');
+            Yii::warning( var_export( $qty ), '$saleqty');
+            return $qty;
+        }
 }

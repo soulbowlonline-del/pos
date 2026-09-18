@@ -446,4 +446,63 @@ class Vendor extends ActiveRecord
     {
         return self::defaultOrder();
     }
+
+    public function getVendorPurchaseTotalAmount(){
+            //$item_ids = $this->getVendorItem_ids();
+            $amount = '0';
+            $query = PurchaseBill::find();
+            //$criteria1->addInCondition('item_id', $item_ids);
+            if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+            }
+            $query->andWhere('vendor_id ='.$this->id);
+            $query->select('sum(net_bill_amount) as net_bill_amount');
+            $orderitem = $query->one();
+            if($orderitem){
+                $amount = $orderitem->net_bill_amount;
+            }
+            if($amount == ''){
+                $amount = '0';
+            }
+            return $amount;
+        }
+
+    public function getVendorPurchaseTaxAmount(){
+            //$item_ids = $this->getVendorItem_ids();
+            $amount = '0';
+            $query = PurchaseBill::find();
+            //$criteria1->addInCondition('item_id', $item_ids);
+            if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+            }
+            $query->andWhere('vendor_id ='.$this->id);
+            $query->select('sum(tax_amount) as tax_amount');
+            $orderitem = $query->one();
+            if($orderitem){
+                $amount = $orderitem->tax_amount;
+            }
+            if($amount == ''){
+                $amount = '0';
+            }
+            return $amount;
+        }
+
+    public function getVendorDiscountAmount(){
+
+            $amount = '0';
+            $query = PurchaseBill::find();
+            $query->andWhere('vendor_id ='.$this->id);
+            if((Yii::$app->session['vendor_start_date'] != '') && (Yii::$app->session['vendor_end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
+            }
+            $query->select('sum(total_discount+bill_other_discount) as total_discount');
+            $orderitem = $query->one();
+            if($orderitem){
+                $amount = $orderitem->total_discount;
+            }
+            if($amount == ''){
+                $amount = '0';
+            }
+            return $amount;
+        }
 }

@@ -21,6 +21,11 @@ class FreeItem extends ActiveRecord
     public const STATUS_ACTIVE = 0;
     public const STATUS_INACTIVE = 1;
 
+    // Declared on the Yii 1 model and not columns: the forms post to
+    // these and the actions assign them. Yii 2 throws on an unknown
+    // property, so the declarations have to come across.
+    public $name;
+
     public static function tableName()
     {
         return '{{%free_item}}';

@@ -1071,4 +1071,64 @@ class Order extends ActiveRecord
     {
         return ['id' => SORT_DESC];
     }
+
+    public function getTotalGrossAmountData(){
+             $total = 0;
+            $query = OrderItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query->select('sum(price*qty) as price,sum(tax_amount) as tax_amount ,sum(discount_amt) as discount_amt');
+            $query->andWhere('create_user_id ='.$this->create_user_id);
+
+
+            $orderitem = $query->one();
+            $order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt ;
+
+            return round($order_amt);
+
+        }
+
+    public function getUserTotalRefundAmountData(){
+            $total = 0;
+
+
+            $query = OrderRefundItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query->select('sum(price*qty) as price,sum(tax_amt) as tax_amt');
+            $query->andWhere('create_user_id ='.$this->create_user_id);
+            $orderrefunditem = $query->one();
+            $order_refund_amt = $orderrefunditem->price + $orderrefunditem->tax_amt ;
+
+
+            $total = $order_refund_amt;
+
+            return round($total);
+        }
+
+    public function getUserTotalDiscountAmountData(){
+            $total = 0;
+
+
+            $query = Order::find();
+
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query->select('sum(discount_amt) as discount_amt');
+            $query->andWhere('create_user_id ='.$this->create_user_id);
+            $discountorder = $query->one();
+
+            $total =  $discountorder->discount_amt;
+
+            return round($total);
+        }
 }

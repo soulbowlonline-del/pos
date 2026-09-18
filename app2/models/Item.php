@@ -1026,4 +1026,57 @@ class Item extends ActiveRecord
     {
         return ['id' => SORT_DESC];
     }
+
+    public function getPurchaseQty(){
+
+            $qty = '0';
+            $query = PurchaseBillDetail::find();
+            $query->andWhere('t.item_id ='.$this->id);
+            $query->select('sum(t.approved_qty) as approved_qty');
+            $orderitem = $query->one();
+            if($orderitem){
+                $qty = $orderitem->approved_qty;
+            }
+            if($qty == ''){
+                $qty = '0';
+            }
+            Yii::warning( var_export( $this->id ), '$this->item_id');
+            Yii::warning( var_export( $qty ), '$purqty');
+            return $qty;
+        }
+
+    public function getSaleQty(){
+            $qty = '0';
+            $query = OrderItem::find();
+            $query->andWhere('t.item_id ='.$this->id);
+            $query->select('sum(t.qty) as qty');
+            $orderitem = $query->one();
+            if($orderitem){
+                $qty = $orderitem->qty;
+            }
+            if($qty == ''){
+                $qty = '0';
+            }
+            Yii::warning( var_export( $this->id ), '$this->item_id');
+            Yii::warning( var_export( $qty ), '$saleqty');
+            return $qty;
+        }
+
+    public function getItemSaleQty($start_date,$end_date){
+            $qty = '0';
+            $query = OrderItem::find();
+            $query->andWhere('t.item_id ='.$this->id);
+            $query->andWhere(['between', 'create_date', $start_date, $end_date]);
+            $query->select('sum(t.qty) as qty');
+            $orderitem = $query->one();
+            if($orderitem){
+                $qty = $orderitem->qty;
+            }
+            if($qty == ''){
+                $qty = '0';
+            }
+            Yii::warning( var_export( $this->id ), '$this->item_id');
+            Yii::warning( var_export( $qty ), '$saleqty');
+            return $qty;
+        }
 }

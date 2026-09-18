@@ -950,4 +950,422 @@ class ItemDetail extends ActiveRecord
     {
         return ['id' => SORT_DESC];
     }
+
+    public function toArray2() {
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+
+                $batch_no =  [];
+                $default_img = 'default.png';
+                $json_entry = [];
+                $json_entry ['item_id'] = $model->id;
+                $json_entry ['bar_code'] = $model->bar_code;
+                $json_entry ['item_name'] = isset($model->item)?$model->item->title:"";
+                $json_entry ['item_desc'] = isset($model->item)?$model->item->short_name:"";
+                //  $json_entry ['unit_id'] = isset($model->item)?$model->item->unit:"";
+                $json_entry ['unit_name'] = isset($model->item)?$model->item->getMeasurementTypeOptions($model->item->unit):"";
+                $json_entry ['is_coupon'] = isset($model->item)?$model->item->is_coupon:"";
+                $json_entry ['is_return'] = false;
+
+                $json_entry ['qty'] = 1;
+                $json_entry ['stock_qty'] = $model->getStockQty();
+                $json_entry ['sale_rate'] = $model->getItemDetailSaleRate();
+                $json_entry ['base_price'] = $model->getBasePrice();
+                $json_entry ['mrp'] = $model->getItemDetailMrp();
+
+                $json_entry ['batch_numbers'] = '';
+                $item_stock = $model->itemStock;
+                if(!empty($item_stock))
+                {
+
+                    $batch_no = $item_stock->batch_number;
+                    $json_entry ['batch_numbers'] =$batch_no;
+                }
+                $json_entry ['discount_id'] = 0;
+                $json_entry ['discount_val'] = 0;
+                $json_entry ['discount_type'] = 1;
+                $json_entry ['discount_amt'] = 0;
+                $json_entry ['tax_id'] = $model->getItemTax();
+                $json_entry ['tax_percent'] = $model->getItemTaxPercent();
+                $json_entry ['tax_amt'] = $model->getItemTaxAmount();
+
+
+                if($model->item)
+                {
+                    $check_discount = $model->item->is_discount;
+                    if($check_discount == 1)
+                    {
+                        if(!empty($model->itemDiscount))
+                        {
+                            $discount_id = $model->itemDiscount->discount_id;
+
+
+                            $current_date = date('Y-m-d');
+                            $current_time = date('H:i');
+
+                            $complete_date =  date('Y-m-d H:i');
+
+                            $query = Discount::find();
+
+                            $query->andWhere('id =' .$discount_id);
+
+                            $query->andWhere("start_date  <= '$current_date' AND end_date >= '$current_date'");
+                            //    $criteria_even->condition = "start_time  >= '$current_time' AND end_time <= '$current_time'";
+                            $discount_data = $query->one();
+                            if(!empty($discount_data))
+                            {
+
+                                $start_datetime = $discount_data->start_date .' ' . $discount_data->start_time;
+                                $end_datetime = $discount_data->end_date .' ' . $discount_data->end_time;
+
+                                if ((strtotime($complete_date) > strtotime($start_datetime)) && (strtotime($complete_date) < strtotime($end_datetime)))
+                                {
+                                    $json_entry ['discount_val'] = $discount_data->amount;
+                                    $json_entry ['discount_type'] = $discount_data->type_id;
+                                    $json_entry ['discount_id'] = $discount_data->id;
+                                    $json_entry ['discount_amt'] = $this->getItemDiscountAmount();
+                                }
+
+
+
+                            }
+                        }
+                    }
+                }
+                $json_entry ['total_amount'] = $this->getTotalAmount();
+                $json_entry ['cgst_amt'] = $model->getCgstAmount();
+                $json_entry ['sgst_amt'] = $model->getSgstAmount();
+                $json_entry ['cess_amount'] = $model->getCessAmount();
+                $json_entry ['igst_amount'] = $model->getIgstAmount();
+                /* $json_entry ['id'] = $model->id;
+                    $json_entry ['bar_code'] = isset ( $model->bar_code ) ? $model->bar_code : '';
+                    $json_entry ['open_stock_qty'] = isset ( $model->open_stock_qty ) ? $model->open_stock_qty : '';
+                    $json_entry ['reorder_qty'] = isset ( $model->reorder_qty ) ? $model->reorder_qty : '';
+                    $json_entry ['outlet'] =  isset ( $model->outlet ) ? $model->outlet->title : '';
+                    $json_entry ['tax'] = isset ( $model->tax ) ? $model->tax->title : '';
+                    $json_entry ['create_username'] = isset ( $model->createUser ) ? $model->createUser->full_name : '';
+                    $json_entry ['create_user_id'] = isset ( $model->create_user_id ) ? $model->create_user_id : '';
+                    $json_entry ['create_time'] = isset ( $model->create_time ) ? $model->create_time : '';
+
+                    if(isset($model->item))
+                    {
+
+                    $json_entry ['item'] = $model->item->toArray();
+
+                    }  */
+
+            }
+            return $json_entry;
+        }
+
+    public function toArray1($id,$state,$box=1) {
+            if($state == 1){
+            $orderitem = OrderHoldItem::findOne($id);
+            }else{
+                $orderitem = OrderItem::findOne($id);
+            }
+
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+
+                $batch_no =  [];
+                $default_img = 'default.png';
+                $json_entry = [];
+                $json_entry ['item_id'] = $model->id;
+                $json_entry ['bar_code'] = $model->bar_code;
+                $json_entry ['item_name'] = isset($model->item)?$model->item->title:"";
+                $json_entry ['item_desc'] = isset($model->item)?$model->item->short_name:"";
+                //  $json_entry ['unit_id'] = isset($model->item)?$model->item->unit:"";
+                $json_entry ['unit_name'] = isset($model->item)?$model->item->getMeasurementTypeOptions($model->item->unit):"";
+                $json_entry ['is_coupon'] = isset($model->item)?$model->item->is_coupon:"";
+                if($box == 0){
+                $json_entry ['box'] = 0;
+                }else{
+                    $json_entry ['is_return'] = 0;
+                }
+                if($orderitem){
+                    /* $qty = $orderitem->qty;
+                    if($state == 2){
+                        $orderrefund = OrderRefund::findOne(array('order_id'=>$orderitem->order_id));
+                        if($orderrefund){
+                            $orderrefunditem = OrderRefundItem::findOne(array('item_detail_id'=>$model->id,
+                                    'item_id'=>$model->item_id,'order_refund_id'=>$orderrefund->id,
+                            ));
+                            if($orderrefunditem){
+                                $qty = $qty - $orderrefunditem->qty;
+                            }
+                        }
+                    } */
+                $json_entry ['qty'] = $orderitem->qty;
+                }
+                else{
+                    $json_entry ['qty'] = 1;
+                }
+                $json_entry ['stock_qty'] = $model->getStockQty();
+                /* if($orderitem){
+                    $item_mrp  = isset($model->item)?$model->item->mrp:"0";
+                    $orderprice = number_format($orderitem->price,2);
+                    $ordertax = number_format($orderitem->tax_amount,2);
+                    $sale_after = round($orderprice + $ordertax);
+                    if($sale_after >$item_mrp){
+                        $sale_after = $item_mrp;
+                    }
+                    $json_entry ['sale_rate'] = $sale_after;
+                }
+                else{ */
+                    $json_entry ['sale_rate'] = $model->getItemDetailSaleRate();
+                /* } */
+
+                if($orderitem){
+                    $json_entry ['base_price'] = $orderitem->price;
+                }
+                else{
+                    $json_entry ['base_price'] = $model->getBasePrice();
+                }
+
+                $json_entry ['mrp'] = $model->getItemDetailMrp();
+
+                $json_entry ['batch_numbers'] = '';
+                $item_stock = $model->itemStock;
+                if(!empty($item_stock))
+                {
+
+                    $batch_no = $item_stock->batch_number;
+                    $json_entry ['batch_numbers'] =$batch_no;
+                }
+                if($orderitem){
+                    $json_entry ['discount_id'] = $orderitem->discount_id;
+                    $json_entry ['discount_val'] = isset($orderitem->discount)?$orderitem->discount->amount:"0";
+                    $json_entry ['discount_type'] = isset($orderitem->discount)?$orderitem->discount->type_id:"1";
+                    $json_entry ['discount_amt'] = $orderitem->discount_amt;
+                    $json_entry ['tax_id'] = $orderitem->tax_id;
+                    $json_entry ['tax_percent'] = $model->getItemTaxPercent();
+                    $json_entry ['tax_amt'] = $orderitem->tax_amount;
+                //    $baseprice = $model->getBasePrice() - ($model->getBasePrice()*$json_entry ['discount_val']/100);
+                    $baseprice = ($orderitem->price) - ($orderitem->discount_amt);
+                    $total = $baseprice + $orderitem->tax_amount;
+                    $total= number_format((float)$total,2);
+                    $json_entry ['total_amount'] = $total;
+                    $json_entry ['cgst_amt'] = $orderitem->getCgstAmount();
+                    $json_entry ['sgst_amt'] = $orderitem->getSgstAmount();
+                    $json_entry ['cess_amount'] = $orderitem->getCessAmount();
+                    $json_entry ['igst_amount'] = $orderitem->getIgstAmount();
+                    $json_entry ['cgst_per'] = $model->getCgstPercent();
+                    $json_entry ['sgst_per'] = $model->getSgstPercent();
+                    $json_entry ['cess_per'] = $model->getCessPercent();
+                    $json_entry ['igst_per'] = $model->getIgstPercent();
+                }
+                else{
+                    if($model->item)
+                    {
+                        $check_discount = $model->item->is_discount;
+                        if($check_discount == 1)
+                        {
+                            if(!empty($model->itemDiscount))
+                            {
+                                $discount_id = $model->itemDiscount->discount_id;
+
+
+                                $current_date = date('Y-m-d');
+                                $current_time = date('H:i');
+
+                                $complete_date =  date('Y-m-d H:i');
+
+                                $query = Discount::find();
+
+                                $query->andWhere('id =' .$discount_id);
+
+                                $query->andWhere("start_date  <= '$current_date' AND end_date >= '$current_date'");
+                                //    $criteria_even->condition = "start_time  >= '$current_time' AND end_time <= '$current_time'";
+                                $discount_data = $query->one();
+                                if(!empty($discount_data))
+                                {
+
+                                    $start_datetime = $discount_data->start_date .' ' . $discount_data->start_time;
+                                    $end_datetime = $discount_data->end_date .' ' . $discount_data->end_time;
+
+                                    if ((strtotime($complete_date) > strtotime($start_datetime)) && (strtotime($complete_date) < strtotime($end_datetime)))
+                                    {
+                                        $json_entry ['discount_val'] = $discount_data->amount;
+                                        $json_entry ['discount_type'] = $discount_data->type_id;
+                                        $json_entry ['discount_id'] = $discount_data->id;
+                                        $json_entry ['discount_amt'] = $this->getItemDiscountAmount();
+                                    }
+
+
+
+                                }
+                            }
+                        }
+                    }
+                    $json_entry ['tax_id'] = $model->getItemTax();
+                    $json_entry ['tax_percent'] = $model->getItemTaxPercent();
+
+                    $json_entry ['tax_amt'] = $model->getItemTaxAmount();
+
+                    $json_entry ['cgst_amt'] = $model->getCgstAmount();
+                    $json_entry ['sgst_amt'] = $model->getSgstAmount();
+                    $json_entry ['cess_amount'] = $model->getCessAmount();
+                    $json_entry ['igst_amount'] = $model->getIgstAmount();
+                    $json_entry ['cgst_per'] = $model->getCgstPercent();
+                    $json_entry ['sgst_per'] = $model->getSgstPercent();
+                    $json_entry ['cess_per'] = $model->getCessPercent();
+                    $json_entry ['igst_per'] = $model->getIgstPercent();
+                }
+
+
+
+
+
+
+
+                /* $json_entry ['id'] = $model->id;
+                    $json_entry ['bar_code'] = isset ( $model->bar_code ) ? $model->bar_code : '';
+                    $json_entry ['open_stock_qty'] = isset ( $model->open_stock_qty ) ? $model->open_stock_qty : '';
+                    $json_entry ['reorder_qty'] = isset ( $model->reorder_qty ) ? $model->reorder_qty : '';
+                    $json_entry ['outlet'] =  isset ( $model->outlet ) ? $model->outlet->title : '';
+                    $json_entry ['tax'] = isset ( $model->tax ) ? $model->tax->title : '';
+                    $json_entry ['create_username'] = isset ( $model->createUser ) ? $model->createUser->full_name : '';
+                    $json_entry ['create_user_id'] = isset ( $model->create_user_id ) ? $model->create_user_id : '';
+                    $json_entry ['create_time'] = isset ( $model->create_time ) ? $model->create_time : '';
+
+                    if(isset($model->item))
+                    {
+
+                    $json_entry ['item'] = $model->item->toArray();
+
+                    }  */
+
+            }
+            return $json_entry;
+        }
+
+    public function toOnlineOrderArray($order_item) {
+            $price = null;
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+
+                $batch_no =  [];
+                $default_img = 'default.png';
+                $json_entry = [];
+                $json_entry ['item_id'] = $model->id;
+                $json_entry ['bar_code'] = $model->bar_code;
+                $json_entry ['item_name'] = isset($model->item)?$model->item->title:"";
+                $json_entry ['item_desc'] = isset($model->item)?$model->item->short_name:"";
+                //  $json_entry ['unit_id'] = isset($model->item)?$model->item->unit:"";
+                $json_entry ['unit_name'] = isset($model->item)?$model->item->getMeasurementTypeOptions($model->item->unit):"";
+                $json_entry ['is_coupon'] = isset($model->item)?$model->item->is_coupon:"";
+                $json_entry ['box'] = 0;
+                $json_entry ['qty'] = number_format($order_item->qty,'2','.','');
+                $json_entry ['stock_qty'] = $model->getStockQty();
+                $json_entry ['total_remain'] = isset($model->item)?$model->item->getTotalRemainingQuantity():"0.000";
+
+                if($price != null){
+                    $json_entry ['sale_rate'] = $price;
+                }else{
+                    $json_entry ['sale_rate'] = $model->getItemDetailSaleRate();
+                }
+                if($price != null){
+                    $json_entry ['base_price'] = $model->getBasePrice($price);
+
+                }else{
+                    $json_entry ['base_price'] = $model->getBasePrice();
+                }
+
+                $json_entry ['mrp'] = $model->getItemDetailMrp();
+
+                $json_entry ['batch_numbers'] = '';
+                $item_stock = $model->itemStock;
+                if(!empty($item_stock))
+                {
+
+                    $batch_no = $item_stock->batch_number;
+                    $json_entry ['batch_numbers'] =$batch_no;
+                }
+                $json_entry ['discount_id'] = 0;
+                $json_entry ['discount_val'] = 0;
+                $json_entry ['discount_type'] = 1;
+                $json_entry ['discount_amt'] = 0;
+                $json_entry ['tax_id'] = $model->getItemTax();
+                $qty =  number_format($order_item->qty,'2','.','');
+                $json_entry ['tax_percent'] = $model->getItemTaxPercent();
+                $json_entry ['tax_amt'] = $qty * $model->getItemTaxAmount($price);
+
+
+                if($model->item)
+                {
+                    $check_discount = $model->item->is_discount;
+                    if($check_discount == 1)
+                    {
+                        if(!empty($model->itemDiscount))
+                        {
+                            $discount_id = $model->itemDiscount->discount_id;
+
+
+                            $current_date = date('Y-m-d');
+                            $current_time = date('H:i');
+
+                            $complete_date =  date('Y-m-d H:i');
+
+                            $query = Discount::find();
+
+                            $query->andWhere('id =' .$discount_id);
+
+                            $query->andWhere("start_date  <= '$current_date' AND end_date >= '$current_date'");
+                            //    $criteria_even->condition = "start_time  >= '$current_time' AND end_time <= '$current_time'";
+                            $discount_data = $query->one();
+                            if(!empty($discount_data))
+                            {
+
+                                $start_datetime = $discount_data->start_date .' ' . $discount_data->start_time;
+                                $end_datetime = $discount_data->end_date .' ' . $discount_data->end_time;
+
+                                if ((strtotime($complete_date) > strtotime($start_datetime)) && (strtotime($complete_date) < strtotime($end_datetime)))
+                                {
+                                    $json_entry ['discount_val'] = $discount_data->amount;
+                                    $json_entry ['discount_type'] = $discount_data->type_id;
+                                    $json_entry ['discount_id'] = $discount_data->id;
+                                    $json_entry ['discount_amt'] = $this->getItemDiscountAmount();
+                                }
+
+
+
+                            }
+                        }
+                    }
+                }
+                $total_amount = $order_item->qty * $model->getItemDetailSaleRate();
+                $json_entry ['total_amount'] = number_format($total_amount,'2','.','');
+                $json_entry ['cgst_amt'] = $qty * $model->getCgstAmount($price);
+                $json_entry ['sgst_amt'] = $qty * $model->getSgstAmount($price);
+                $json_entry ['cess_amount'] = $qty * $model->getCessAmount($price);
+                $json_entry ['igst_amount'] = $qty * $model->getIgstAmount();
+                $json_entry ['cgst_per'] = $model->getCgstPercent();
+                $json_entry ['sgst_per'] = $model->getSgstPercent();
+                $json_entry ['cess_per'] = $model->getCessPercent();
+                $json_entry ['igst_per'] = $model->getIgstPercent();
+
+                /* $json_entry ['id'] = $model->id;
+                    $json_entry ['bar_code'] = isset ( $model->bar_code ) ? $model->bar_code : '';
+                    $json_entry ['open_stock_qty'] = isset ( $model->open_stock_qty ) ? $model->open_stock_qty : '';
+                    $json_entry ['reorder_qty'] = isset ( $model->reorder_qty ) ? $model->reorder_qty : '';
+                    $json_entry ['outlet'] =  isset ( $model->outlet ) ? $model->outlet->title : '';
+                    $json_entry ['tax'] = isset ( $model->tax ) ? $model->tax->title : '';
+                    $json_entry ['create_username'] = isset ( $model->createUser ) ? $model->createUser->full_name : '';
+                    $json_entry ['create_user_id'] = isset ( $model->create_user_id ) ? $model->create_user_id : '';
+                    $json_entry ['create_time'] = isset ( $model->create_time ) ? $model->create_time : '';
+
+                    if(isset($model->item))
+                    {
+
+                    $json_entry ['item'] = $model->item->toArray();
+
+                    }  */
+
+            }
+            return $json_entry;
+        }
 }

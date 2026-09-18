@@ -18,6 +18,17 @@ class ItemTax extends ActiveRecord
     // compare them loosely and give the wrong answer for an integer 0.
     use LegacyColumnTypes;
 
+    // Declared on the Yii 1 model and not columns: the forms post to
+    // these and the actions assign them. Yii 2 throws on an unknown
+    // property, so the declarations have to come across.
+    public $columns;
+    public $item_id;
+    public $sale_rate;
+    public $match_total_tax;
+    public $match_cgst;
+    public $match_sgst_tax;
+    public $match_cess_tax;
+
     public static function tableName()
     {
         return '{{%item_tax}}';

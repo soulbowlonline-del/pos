@@ -171,6 +171,26 @@ def read_only(text):
     return not WRITES.search(text)
 
 
+_COLUMN_CACHE = {}
+
+
+def columns_of(table):
+    """The column names of a table, straight from the database."""
+    if table in _COLUMN_CACHE:
+        return _COLUMN_CACHE[table]
+
+    sql = ("SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+           "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tbl_%s'" % table)
+    out = subprocess.run(
+        ['docker', 'exec', 'pos-mysql-8', 'sh', '-c',
+         'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -uroot $MYSQL_DATABASE -N -e "%s"' % sql],
+        capture_output=True, text=True)
+    cols = {c.strip() for c in out.stdout.split() if c.strip()}
+    _COLUMN_CACHE[table] = cols
+
+    return cols
+
+
 def public_properties(base, concrete):
     """
     The public properties a Yii 1 model declares.
@@ -468,75 +488,80 @@ def convert_criteria(text):
     """
     Rewrites a CDbCriteria query as a Yii 2 query, statement by statement.
 
-    In place, not hoisted. A first version collected the conditions and
-    appended them to one ->find() chain, which is wrong twice over: the
-    application applies some of them conditionally, so hoisting changes what
-    the query asks, and a condition built inside an `if` refers to variables
-    that only exist there - the generated method referred to an
-    $itemvendor_ids declared in a block it had been lifted out of.
+    The variable is whatever the method calls it. It is $criteria most of the
+    time, but $criteria1 and $criteria2 appear too, and hardcoding the common
+    name meant those methods were reported as having no CDbCriteria at all -
+    then left as Yii 1 code, then excluded from the model, and the page died on
+    a missing method rather than on anything to do with criteria.
 
-    Converting each statement where it stands preserves both.
+    The declaration is also written both `new CDbCriteria()` and
+    `new CDbCriteria;` - 107 of the latter across the models.
 
-    All or nothing: every use of $criteria is rewritten or the method is
-    returned untouched for the caller to report. Code that looks converted and
-    is not is worse than code that still says CDbCriteria.
+    In place, not hoisted: the application applies some conditions inside an
+    `if`, and a condition built there refers to variables that only exist
+    there.
+
+    All or nothing. Every use is rewritten or the method is returned untouched
+    for the caller to report, because code that looks converted and is not is
+    worse than code that still says CDbCriteria.
 
     Returns (text, converted, reason).
     """
     original = text
     text, restore = mask_comments(text)
 
-    if not re.search(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;', text):
+    decls = re.findall(r'\$(\w+)\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;', text)
+    if not decls:
         return original, False, 'no CDbCriteria'
+    if len(set(decls)) > 1:
+        return original, False, 'more than one criteria variable (%s)' % ', '.join(sorted(set(decls)))
 
-    find = re.search(r"(\w+)::model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*\$criteria\s*\)", text)
+    var = decls[0]
+    V = r'\$' + re.escape(var)
+
+    find = re.search(r"(\w+)::model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*" + V + r"\s*\)", text)
     if not find:
-        return original, False, 'the $criteria is not passed to a finder this knows'
+        return original, False, 'the criteria is not passed to a finder this knows'
     cls, kind = find.group(1), find.group(2)
 
     out = text
 
-    # The declaration becomes the query - carrying that model's defaultScope,
-    # because Yii 1's X::model()->findAll() applies it and Yii 2's X::find()
-    # does not. Without it the rows come back in a different order, which is
-    # visible wherever the result becomes an option list.
     scope = default_order_of(cls)
-    start = '$query = ' + cls + '::find();'
+    start_stmt = '$query = ' + cls + '::find();'
     if scope and scope != 'null' and 'order' not in text.lower():
-        start += '\n        $query->orderBy(' + scope + ');'
-    out = re.sub(r'\$criteria\s*=\s*new\s+CDbCriteria\s*\(\s*\)\s*;',
-                 lambda m: start, out)
+        start_stmt += '\n        $query->orderBy(' + scope + ');'
+    out = re.sub(V + r'\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;',
+                 lambda m: start_stmt, out)
 
-    # assignments
     def order_by(m):
         cols = []
         for part in m.group(1).split(','):
             bits = part.strip().split()
             if not bits:
                 continue
-            col = bits[0].split('.')[-1]
+            col = bits[0]
+            if col.startswith('t.'):
+                col = col[2:]
             desc = len(bits) > 1 and bits[1].lower().startswith('desc')
             cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
         return '$query->orderBy([%s]);' % ', '.join(cols)
 
-    out = re.sub(r"\$criteria\s*->\s*order\s*=\s*'([^']+)'\s*;", order_by, out)
-    out = re.sub(r"\$criteria\s*->\s*select\s*=\s*([^;]+);",
+    out = re.sub(V + r"\s*->\s*order\s*=\s*'([^']+)'\s*;", order_by, out)
+    out = re.sub(V + r"\s*->\s*select\s*=\s*([^;]+);",
                  lambda m: '$query->select(%s);' % m.group(1).strip(), out)
-    out = re.sub(r"\$criteria\s*->\s*group\s*=\s*([^;]+);",
+    out = re.sub(V + r"\s*->\s*group\s*=\s*([^;]+);",
                  lambda m: '$query->groupBy(%s);' % m.group(1).strip(), out)
-    out = re.sub(r"\$criteria\s*->\s*limit\s*=\s*'?(\d+)'?\s*;",
+    out = re.sub(V + r"\s*->\s*limit\s*=\s*'?(\d+)'?\s*;",
                  lambda m: '$query->limit(%s);' % m.group(1), out)
 
-    # condition/params travel together
-    cond = re.search(r"\$criteria\s*->\s*condition\s*=\s*([^;]+);", out)
+    cond = re.search(V + r"\s*->\s*condition\s*=\s*([^;]+);", out)
     if cond:
-        params = re.search(r"\$criteria\s*->\s*params\s*=\s*([^;]+);", out)
+        params = re.search(V + r"\s*->\s*params\s*=\s*([^;]+);", out)
         out = out.replace(cond.group(0), '$query->andWhere(%s%s);' % (
             cond.group(1).strip(), ', ' + params.group(1).strip() if params else ''))
         if params:
             out = out.replace(params.group(0), '')
 
-    # the condition helpers
     def helper(m):
         name, args = m.group(1), m.group(2).strip()
         if name == 'addCondition':
@@ -553,16 +578,15 @@ def convert_criteria(text):
             return 'Criteria::compare($query, %s, %s%s);' % (bits[0].strip(), bits[1].strip(), partial)
         return m.group(0)
 
-    out = re.sub(r"\$criteria\s*->\s*(addCondition|addInCondition|addBetweenCondition|"
+    out = re.sub(V + r"\s*->\s*(addCondition|addInCondition|addBetweenCondition|"
                  r"addSearchCondition|compare)\s*\((.*?)\)\s*;", helper, out, flags=re.S)
 
-    # and the fetch
     tail = {'findAll': '$query->all()', 'find': '$query->one()', 'count': '$query->count()'}[kind]
-    out = re.sub(r"\w+::model\s*\(\s*\)\s*->\s*(?:findAll|find|count)\s*\(\s*\$criteria\s*\)",
+    out = re.sub(r"\w+::model\s*\(\s*\)\s*->\s*(?:findAll|find|count)\s*\(\s*" + V + r"\s*\)",
                  lambda m: tail, out)
 
-    if '$criteria' in out:
-        left = sorted(set(re.findall(r'\$criteria\s*->\s*(\w+)', out))) or ['a bare reference']
+    if re.search(V + r'\b', out):
+        left = sorted(set(re.findall(V + r'\s*->\s*(\w+)', out))) or ['a bare reference']
         return original, False, 'CDbCriteria uses ' + ', '.join(left)
 
     return restore(out), True, ''
@@ -773,6 +797,28 @@ def generate(model, table_alias):
     rels = port_relations(parse_block(base, 'relations') or '', warn)
     labels = port_labels(parse_block(base, 'attributeLabels') or '',
                          parse_block(base, 'relations') or '')
+
+    # A property whose name is also a column must not be declared. Yii 2 reads
+    # and writes columns through __get/__set on the attribute array, and a real
+    # declared property shadows that entirely - the column is then never
+    # populated from the row. Outlet::$bill_prefix was declared this way and
+    # its update form came back empty where Yii 1 shows the stored value.
+    #
+    # The Yii 1 base declares both kinds together, so the column list decides:
+    # anything in attributeLabels() is a column or a relation, and only what is
+    # left is a genuine extra property.
+    # The column list comes from the database, because nothing in the source
+    # is complete. attributeLabels() does not mention every column, and the
+    # giix docblock is stale - Outlet's omits bill_prefix, a column added after
+    # the model was generated. Declaring a property for a real column shadows
+    # Yii 2's attribute handling and the column is never populated, which is
+    # what emptied Outlet's update form.
+    known = columns_of(table) | {n for n, _ in labels}
+    dropped = [n for n, _ in props if n.lstrip('$') in known]
+    props = [(n, d) for n, d in props if n.lstrip('$') not in known]
+    for n in dropped:
+        warn.append('property %s not declared - it is a column, and declaring '
+                    'it would shadow the attribute' % n)
     search_body = parse_block(base, 'search') or ''
     exact, partial = port_search(search_body, warn)
     eager = port_with(search_body)
@@ -1204,6 +1250,8 @@ def merge(existing, generated, model, warn):
     # lacks. Emp declares $username and $password - not columns, but the form
     # posts to them and the update action assigns them, and Yii 2 throws
     # "Setting unknown property" the moment it does.
+    # Only the properties the generated model actually declares reach here -
+    # the column-shadowing ones were already filtered out above.
     for m in re.finditer(r'(?m)^    public (\$\w+)(\s*=\s*[^;]+)?;', generated):
         name = m.group(1)
         if re.search(r'(?m)^\s*public\s+' + re.escape(name) + r'\s*[;=]', body):

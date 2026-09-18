@@ -14,6 +14,7 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Tax.php (Yii 1). */
 class Tax extends ActiveRecord
 {
+    public $columns;
     // Yii 1 hands out column values as strings; the option helpers
     // compare them loosely and answer wrongly for an integer 0.
     use LegacyColumnTypes;
