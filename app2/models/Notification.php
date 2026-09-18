@@ -6,7 +6,12 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/Notification.php (Yii 1). */
 class Notification extends ActiveRecord
 {
+    // BaseNotification's full set. The layout branches on all four to pick
+    // the link a notification points at.
     public const TYPE_MRS = 1;
+    public const TYPE_MRN = 2;
+    public const TYPE_PO = 3;
+    public const TYPE_PBILL = 4;
 
     public static function tableName()
     {

@@ -27,6 +27,14 @@ return [
         // one level up, and ported actions have to use that same directory or
         // a file written by one stack would be invisible to the other.
         '@legacyroot' => dirname(dirname(__DIR__)),
+        // The web root for Yii 2's own purposes is /v2, where the entry script
+        // lives; published assets land in /v2/assets and are served from there.
+        '@webroot' => dirname(dirname(__DIR__)) . '/v2',
+        '@web' => '/v2',
+        // composer.json installs asset packages under vendor/bower-asset, not
+        // the vendor/bower that Yii 2 assumes by default.
+        '@bower' => dirname(dirname(__DIR__)) . '/vendor/bower-asset',
+        '@npm' => dirname(dirname(__DIR__)) . '/vendor/npm-asset',
     ],
     'components' => [
         'request' => [
@@ -43,6 +51,16 @@ return [
             // Same PHP session as Yii 1: same container, same save path, same
             // cookie name. Yii 2 must not regenerate or rename it.
             'class' => \yii\web\Session::class,
+        ],
+        'formatter' => [
+            // Yii 1's grids and detail views render a null as an empty cell.
+            // Yii 2's default is the literal "(not set)", which would show up
+            // in every column that can be null.
+            'nullDisplay' => '',
+        ],
+        'assetManager' => [
+            'basePath' => '@webroot/assets',
+            'baseUrl' => '@web/assets',
         ],
         'db' => require __DIR__ . '/db.php',
         'urlManager' => [
@@ -67,6 +85,12 @@ return [
                 'api/order/<action:[\w-]+>' => 'order/<action>',
                 'api/tally/<action:[\w-]+>' => 'tally/<action>',
                 'api/item/<action:[\w-]+>' => 'item/<action>',
+
+                // The ported web-UI controllers, at the same paths Yii 1 uses.
+                // Listed after the API rules so those still win. The rule only
+                // answers for controllers in Ui::PORTED, so an unported path
+                // still 404s rather than resolving to something odd.
+                ['class' => \app\components\LegacyUrlRule::class],
             ],
         ],
         'response' => [

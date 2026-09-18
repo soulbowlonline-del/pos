@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use Yii;
+
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
 
@@ -44,5 +46,25 @@ class Identity extends ActiveRecord implements IdentityInterface
     public function validateAuthKey($authKey)
     {
         return false;
+    }
+
+    /**
+     * Port of User::checkSelectedSession().
+     *
+     * False when the operator has explicitly selected an older trading session
+     * than the latest one; the layout then hides the stock menus, because those
+     * pages act on the current session. An unset selection counts as current.
+     */
+    public function checkSelectedSession()
+    {
+        $latestSession = Session::latest();
+        $selected = Yii::$app->session['select_session_id'];
+
+        if ($selected !== null && $selected !== ''
+            && $latestSession !== null && $selected != $latestSession->id) {
+            return false;
+        }
+
+        return true;
     }
 }

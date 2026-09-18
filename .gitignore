@@ -61,3 +61,6 @@ adminer-*.php
 
 app2/runtime/*
 !app2/runtime/.gitkeep
+
+# Assets Yii 2 publishes at runtime from vendor/bower-asset.
+v2/assets/

@@ -15,6 +15,20 @@ use yii\helpers\Url;
  */
 class User extends ActiveRecord
 {
+    /** BaseUser's representing column, used by __toString(). */
+    public static function representingColumn()
+    {
+        return 'full_name';
+    }
+
+    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    public function __toString()
+    {
+        $value = $this->hasAttribute('full_name') ? $this->full_name : null;
+
+        return (string) ($value === null || $value === '' ? $this->id : $value);
+    }
+
     public const STATUS_INACTIVE = 0;
     public const STATUS_ACTIVE = 1;
     public const STATUS_BANNED = -1;

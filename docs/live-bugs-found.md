@@ -174,6 +174,25 @@ included.
 The overwrite is gone from both actions on both stacks. The header decides now,
 and a request without one gets "Please login".
 
+### The web UI's permission table is not enforced on URLs — **found, not fixed**
+
+`tbl_permission` decides which sidebar links and which row buttons a role is
+shown. It does not decide what that role can reach.
+
+Every CRUD controller's `accessRules()` is the same: signed in, no further
+condition. `checkPermission()` is called only from the views. So a user whose
+role has no `paymentMode/update` permission sees no Update button and can still
+open `/paymentMode/update/id/1` by typing it, and the action runs.
+
+That is 58 controllers and roughly 670 actions, all of them reachable by any
+authenticated account regardless of role.
+
+The Yii 2 port reproduces this rather than closing it. Enforcing the permission
+on the action is a one-line change in `BaseUiController` — it was written that
+way first — but it would deny URLs that work today, and which of those denials
+are wanted is the owner's call, not the porter's. Say the word and it is a
+small change on both stacks.
+
 ---
 
 ## Documented elsewhere

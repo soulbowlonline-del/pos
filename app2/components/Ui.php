@@ -1,0 +1,87 @@
+<?php
+namespace app\components;
+
+use yii\helpers\Url;
+
+/**
+ * Link building across the two stacks, for as long as both are serving.
+ *
+ * The web UI is being ported controller by controller. Until it is finished,
+ * most of the sidebar and most of the grid buttons have to keep pointing at the
+ * Yii 1 pages, or navigating away from a ported screen would 404. So every link
+ * in the Yii 2 UI goes through here: PORTED lists the controllers this
+ * application serves, and everything else is handed back to Yii 1 at the site
+ * root.
+ *
+ * Adding a controller to PORTED is what switches its links over. That is the
+ * only edit needed when one lands.
+ */
+class Ui
+{
+    /** Controller ids the Yii 2 UI serves. Everything else stays with Yii 1. */
+    public const PORTED = [
+        'paymentMode',
+    ];
+
+    /**
+     * @param string $route 'controller/action', as Yii 1 spells it
+     * @param array  $params query parameters
+     */
+    public static function to($route, $params = [])
+    {
+        $controller = strtok($route, '/');
+
+        if (in_array($controller, self::PORTED, true)) {
+            return Url::to(array_merge(['/' . $route], $params));
+        }
+
+        // Yii 1, at the site root rather than under /v2
+        $url = '/' . ltrim($route, '/');
+        return $params ? $url . '?' . http_build_query($params) : $url;
+    }
+
+    /**
+     * Rows per page in a listing.
+     *
+     * Yii 1's CPagination defaults to 10 and Yii 2's to 20, so a provider that
+     * names no page size lists a different number of rows on each stack. The
+     * pages do not set one, so the framework default is the behaviour being
+     * reproduced.
+     */
+    public const PAGE_SIZE = 10;
+
+    /** True when the Yii 2 UI serves this controller. */
+    public static function isPorted($controller)
+    {
+        return in_array($controller, self::PORTED, true);
+    }
+
+    /**
+     * paymentMode -> payment-mode.
+     *
+     * Yii 1 spells controller and action ids in camelCase; Yii 2 requires
+     * lowercase and hyphens and rejects anything else. Both spellings are in
+     * play at once - the URL and the permission table use Yii 1's, the
+     * controller and action objects use Yii 2's - so the conversion lives here
+     * rather than being repeated wherever the two meet.
+     */
+    public static function toYii2Id($id)
+    {
+        return strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1-$2', $id));
+    }
+
+    /** payment-mode -> paymentMode */
+    public static function toYii1Id($id)
+    {
+        return lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $id))));
+    }
+
+    /**
+     * The route as tbl_permission spells it, from Yii 2's controller and
+     * action ids. This is what the permission rows are keyed by.
+     */
+    public static function legacyRoute($controllerId, $actionId)
+    {
+        return self::toYii1Id($controllerId) . '/' . self::toYii1Id($actionId);
+    }
+}
