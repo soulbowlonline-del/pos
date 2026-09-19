@@ -3,7 +3,6 @@
  * Ported from protected/views/mrn/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Mrn;
@@ -122,7 +121,7 @@ $('.search-form form').submit(function(){
 						'htmlOptions'=> ['style'=>'width:80px'],
 						'buttons'=>[
 								'view'=>[
-										'visible' => Access::check('mrn/view'),
+										'visible' => function ($data) { return $data->checkPermission ("mrn/view")=="true"; },
 										'url' => function ($data) { return Ui::to("mrn/view", ["id" => $data->id]); },
 										'label'=>'View',
 										'options'=>['class'=>'view'],

@@ -60,20 +60,20 @@ use app\widgets\Button;
 
 
 if ($model->country_id == null) {
-	$country = Country::findOne( [
+	$country = Country::find()->where([
 			'title' => 'India' 
-	] );
+	])->orderBy(['id' => SORT_DESC])->one();
 	if ($country) {
 		$model->country_id = $country->id;
 	}
 }
 ?>
-<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::findAll(['status'=>Country::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select Country']); ?>
-<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::findAll(['status'=>State::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select State']); ?>
+<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
+<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::findAll(['status'=>City::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select City']); ?>
+<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
 
 
 

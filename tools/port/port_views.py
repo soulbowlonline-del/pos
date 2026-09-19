@@ -345,7 +345,11 @@ def rewrite(src, ctrl, unknown):
                     # and orderItem's admin grid died on "Unknown column
                     # 'attribute' in 'order clause'".
                     query += "->orderBy('" + ', '.join(cols) + "')"
-        return query + ('->all()' if kind.startswith('findAll') else '->one()')
+        # The order Yii 1's defaultScope() puts on every finder - see
+        # port_model.default_order_call(). Without it order/admin's filter
+        # dropdowns came back in the opposite order from Yii 1's.
+        return (query + port_model.default_order_call(cls, query)
+                + ('->all()' if kind.startswith('findAll') else '->one()'))
 
     src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
                  r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes, src, flags=re.S)
@@ -646,8 +650,13 @@ def port_file(path, ctrl):
     out = rewrite(src, ctrl, unknown)
     uses = imports(out, ctrl)
 
-    header = ('<?php\n/**\n * Ported from protected/views/%s/%s.\n */\n\n%s\n?>\n'
-              % (ctrl, os.path.basename(path), '\n'.join(uses)))
+    # The source path as it is spelled on disk, not as the controller was
+    # named on the command line. `port_views.py Order` produced 26 views whose
+    # header claimed they came from protected/views/Order/, a directory that
+    # does not exist - the read had found the real one case-insensitively.
+    origin = '/'.join(os.path.normpath(path).split(os.sep)[-3:])
+    header = ('<?php\n/**\n * Ported from protected/%s.\n */\n\n%s\n?>\n'
+              % (origin, '\n'.join(uses)))
     # The header has already closed PHP, so the tag is re-opened only for a
     # file that opened with one itself. Deciding by "it does not start with
     # markup" instead wrapped a view that is plain text in <?php and made it

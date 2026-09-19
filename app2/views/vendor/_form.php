@@ -114,22 +114,22 @@ $form = ActiveForm::begin([
 if ($model->country_id == null) {
 	$country = Country::find()->where([
 			'title' => 'India' 
-	])->one();
+	])->orderBy(['id' => SORT_DESC])->one();
 	if ($country) {
 		$model->country_id = $country->id;
 	}
 }
 ?>
-<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
-<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
+<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
+<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
+<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'parent_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Parent Vendor']); ?>
+<?php echo $form->dropDownListRow($model, 'parent_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Parent Vendor']); ?>
 
 
 <?php

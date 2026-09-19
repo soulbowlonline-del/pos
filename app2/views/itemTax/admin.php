@@ -146,80 +146,80 @@ $('.search-form form').submit(function(){
 			[
 					'header' => '<a>Bar Code</a>',
 					'attribute' =>'item_detail_id',
-					'value' => function ($data) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
+					'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
 					//'filter'=>Gx::listData(ItemDetail::class),
 				
 			],
 			[
 					'header' => '<a>Item</a>',
 					'attribute' =>'item_id',
-					'value' => function ($data) { return $data->getItemName(); },
+					'value' => function ($data, $key, $index) { return $data->getItemName(); },
 				//	'filter'=>Gx::listData(Item::class),
 			
 			],
 			[
 					'header' => '<a>Sale Rate</a>',
 					'attribute' =>'sale_rate',
-					'value' => function ($data) { return $data->getSaleRate(); },
+					'value' => function ($data, $key, $index) { return $data->getSaleRate(); },
 			
 			],
 			[
 					'header' => '<a>Tax</a>',
 					'attribute' =>'tax_id',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->title:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->title:""; },
 					'filter'=>Gx::listData(Tax::class),
 			
 			],
 			[
 					'header' => '<a>Total Tax(%age)</a>',
 					'attribute' =>'match_total_tax',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->hrn_code:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->hrn_code:""; },
 						
 			],
 			[
 					'header' => '<a>CGST (%age)</a>',
 					'attribute' =>'match_cgst',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->tax_val1:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->tax_val1:""; },
 			
 			],
 			[
 					'header' => '<a>CGST Amount</a>',
-					'value' => function ($data) { return $data->getCgstAmt(); },
+					'value' => function ($data, $key, $index) { return $data->getCgstAmt(); },
 						
 			],
 			[
 					'header' => '<a>SGST (%age)</a>',
 					'attribute' =>'match_sgst_tax',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->tax_val2:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->tax_val2:""; },
 			
 			],
 			[
 					'header' => '<a>SGST Amount</a>',
-					'value' => function ($data) { return $data->getSgstAmt(); },
+					'value' => function ($data, $key, $index) { return $data->getSgstAmt(); },
 			
 			],
 			
 			/* array(
 					'header' => '<a>IGST (%age)</a>',
 					'attribute' =>'match_cgst',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->tax_val4:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->tax_val4:""; },
 			
 			),
 			array(
 					'header' => '<a>IGST Amount</a>',
-					'value' => function ($data) { return $data->getIgstAmt(); },
+					'value' => function ($data, $key, $index) { return $data->getIgstAmt(); },
 						
 			),*/
 			
 			[
 					'header' => '<a>CESS (%age)</a>',
 					'attribute' =>'match_cess_tax',
-					'value' => function ($data) { return isset($data->tax)?$data->tax->tax_val3:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->tax_val3:""; },
 			
 			],
 			[
 					'header' => '<a>CESS Amount</a>',
-					'value' => function ($data) { return $data->getCessAmt(); },
+					'value' => function ($data, $key, $index) { return $data->getCessAmt(); },
 			
 			],
 		

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/texwisereport.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/texwisereport.php.
  */
 
 use app\components\Ui;

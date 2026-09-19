@@ -210,7 +210,7 @@ $this->params['breadcrumbs'] = [
 										[
 											'attribute' => 'user_id',
 											'header' => '<a>Username</a>',
-											'value' => function ($data) { return isset($data->createUser)?$data->createUser:""; },
+											'value' => function ($data, $key, $index) { return isset($data->createUser)?$data->createUser:""; },
 											'filter'=>User::getAllUserOptions(),
 										],
 										'computer_name',

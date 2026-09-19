@@ -71,47 +71,47 @@ $('.search-form form').submit(function(){
 			[
 					'class' => CheckboxColumn::class,
 					'selectableRows'  => 100,
-					'value' => function ($data) { return $data["id"]; },
+					'value' => function ($data, $key, $index) { return $data["id"]; },
 					'checkBoxHtmlOptions' => ["name" =>"idList[]"],
 						
 			],
 		'id',
 			[
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			],
 			[
 					'attribute' =>'vendor_id',
-					'value' => function ($data) { return Gx::str($data->vendor); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 					'filter'=>Gx::listData(Vendor::class),
 			],
 		/* array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Mrs::getStatusOptions(),
 				), */
 		/*
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Mrs::getTypeOptions(),
 				),
 		'remarks:html',
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 			'attribute' =>'organization_id',
-			'value' => function ($data) { return Gx::str($data->organization); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->organization); },
 			'filter'=>Gx::listData(Organization::class),
 			),
 		*/

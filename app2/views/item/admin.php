@@ -3,7 +3,6 @@
  * Ported from protected/views/item/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -139,14 +138,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							/* 	'view'=>array(
-							 'visible' => Access::check('item/view'),
+							 'visible' => function ($data) { return $data->checkPermission ("item/view")=="true"; },
 									'url' => function ($data) { return Ui::to("item/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>array('class'=>'view'),
 			
 							), */
 							'update'=>[
-									'visible' => Access::check('item/create'),
+									'visible' => function ($data) { return $data->checkPermission ("item/create")=="true"; },
 									'url' => function ($data) { return Ui::to("item/create", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],
@@ -443,7 +442,7 @@ $('.search-form form').submit(function(){
 						
 			],
 			/* array(
-				'visible' => Access::check('itemDetail/admin'),
+				'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
 					'header'=>'Vendor',
 				'attribute' =>'vendor_id',
 					'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },
@@ -458,7 +457,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'Details'=>[
-									'visible' => Access::check('itemDetail/admin'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/admin", ["id" => $data->id]); },
 									'label'=>'SubItems',
 									'options'=>['class'=>'view'],
@@ -475,7 +474,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'Free'=>[
-									//'visible' => Access::check('itemDetail/admin'),
+									//'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
 									'url' => function ($data) { return Ui::to("freeItem/admin", ["id" => $data->id]); },
 									'label'=>'Free Items',
 									'options'=>['class'=>'view'],

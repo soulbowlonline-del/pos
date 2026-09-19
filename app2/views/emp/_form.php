@@ -72,7 +72,7 @@ use app\widgets\Button;
 
 
 <h2>Employee Info</h2>
-<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::findAll(['status'=>Outlet::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 <?php echo $form->checkBoxListRow($model, 'shift_id', $model->getShiftOptions()); ?>
 <?php echo $form->datepickerRow($model, 'date_of_joining',
 					['hint'=>'Click inside! to select a date.',
@@ -91,20 +91,20 @@ use app\widgets\Button;
 
 
 if ($model->country_id == null) {
-	$country = Country::findOne( [
+	$country = Country::find()->where([
 			'title' => 'India' 
-	] );
+	])->orderBy(['id' => SORT_DESC])->one();
 	if ($country) {
 		$model->country_id = $country->id;
 	}
 }
 ?>
-<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::findAll(['status'=>Country::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select Country']); ?>
-<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::findAll(['status'=>State::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select State']); ?>
+<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
+<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::findAll(['status'=>City::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select City']); ?>
+<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
 
 
 <h2>Temporary Address</h2>
@@ -115,20 +115,20 @@ if ($model->country_id == null) {
 
 
 if ($model->temp_country_id == null) {
-	$country = Country::findOne( [
+	$country = Country::find()->where([
 			'title' => 'India' 
-	] );
+	])->orderBy(['id' => SORT_DESC])->one();
 	if ($country) {
 		$model->temp_country_id = $country->id;
 	}
 }
 ?>
-<?php echo $form->dropDownListRow($model, 'temp_country_id', Gx::listData(Country::findAll(['status'=>Country::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select Country']); ?>
-<?php echo $form->dropDownListRow($model, 'temp_state_id', Gx::listData(State::findAll(['status'=>State::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select State']); ?>
+<?php echo $form->dropDownListRow($model, 'temp_country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
+<?php echo $form->dropDownListRow($model, 'temp_state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'temp_city_id', Gx::listData(City::findAll(['status'=>City::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select City']); ?>
+<?php echo $form->dropDownListRow($model, 'temp_city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
 
 
 
@@ -137,7 +137,7 @@ if ($model->temp_country_id == null) {
 			$model->getStatusOptions(),['class'=>'form-control']); ?>
 
 
-<?php echo $form->dropDownListRow($model, 'designation_id', Gx::listData(Designation::findAll(['status'=>Designation::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'designation_id', Gx::listData(Designation::find()->where(['status'=>Designation::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 
 
 

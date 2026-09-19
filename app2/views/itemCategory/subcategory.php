@@ -3,7 +3,6 @@
  * Ported from protected/views/itemCategory/subcategory.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\ItemCategory;
@@ -130,14 +129,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('itemCategory/view'),
+									'visible' => function ($data) { return $data->checkPermission ("itemCategory/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemCategory/subview", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 			
 							],
 							'update'=>[
-									'visible' => Access::check('itemCategory/update'),
+									'visible' => function ($data) { return $data->checkPermission ("itemCategory/update")=="true"; },
 									'url' => function ($data) { return Ui::to("itemCategory/subUpdate", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

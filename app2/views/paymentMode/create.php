@@ -1,18 +1,23 @@
 <?php
-/** @var yii\web\View $this */
-/** @var app\models\PaymentMode $model */
+/**
+ * Ported from protected/views/paymentMode/create.php.
+ */
 
-use app\components\Ui;
 use yii\helpers\Html;
-
+?>
+<?php
 $this->params['breadcrumbs'] = [
-    ['label' => $model->label(2), 'url' => [Ui::to('paymentMode/index')]],
-    'Create',
+	$model->label(2) => ['index'],
+	'Create',
 ];
 ?>
 <section class="content">
 <div class="page-header">
-<h1><?= 'Create' . ' ' . Html::encode($model->label()) ?></h1>
+<h1><?php echo 'Create' . ' ' . Html::encode($model->label()); ?></h1>
 </div>
-<?= $this->render('_form', ['model' => $model, 'buttons' => 'create']) ?>
+<?php
+echo $this->render('_form', [
+		'model' => $model,
+		'buttons' => 'create']);
+?>
 </section>

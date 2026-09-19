@@ -103,8 +103,35 @@ class ActiveForm extends \yii\widgets\ActiveForm
         if (!empty($htmlOptions['multiple'])) {
             $htmlOptions = self::noUnselect($htmlOptions);
         }
+        $htmlOptions = self::promptFromEmpty($htmlOptions);
 
         return (string) $this->field($model, $attribute)->dropDownList($data, $htmlOptions);
+    }
+
+    /**
+     * CHtml's `empty` is Yii 2's `prompt`.
+     *
+     * Both prepend an option with an empty value and the given label. Passed
+     * through untouched, Yii 2 does not recognise the key and renders it as
+     * an attribute on the <select> - so the option was simply missing, on 25
+     * dropdowns across the forms: "Select State", "Select Country", "No
+     * Parent".
+     *
+     * The UI suite did not see it. It compares a form's fields and their
+     * current values, not the options inside a select.
+     *
+     * CHtml also accepts an array here, as a set of options to prepend rather
+     * than one. Nothing in this application does, so that form is left alone
+     * and reaches Yii 2 unchanged, where it still fails loudly.
+     */
+    private static function promptFromEmpty(array $htmlOptions)
+    {
+        if (array_key_exists('empty', $htmlOptions) && !is_array($htmlOptions['empty'])) {
+            $htmlOptions['prompt'] = (string) $htmlOptions['empty'];
+            unset($htmlOptions['empty']);
+        }
+
+        return $htmlOptions;
     }
 
     public function checkBoxRow($model, $attribute, $htmlOptions = [])

@@ -59,36 +59,36 @@ $('.search-form form').submit(function(){
 		'bill_no',
 			[
 					'attribute' =>'image_file1',
-					'value' => function ($data) { return $data->getNewImage($data->image_file1); },
+					'value' => function ($data, $key, $index) { return $data->getNewImage($data->image_file1); },
 					'format' => 'raw',
 			],
 			[
 					'attribute' =>'image_file2',
-					'value' => function ($data) { return $data->getNewImage($data->image_file2); },
+					'value' => function ($data, $key, $index) { return $data->getNewImage($data->image_file2); },
 					'format' => 'raw',
 			],
 			//	'image_file1:html',
 			
 			[
 					'attribute' =>'po_id',
-					'value' => function ($data) { return isset($data->po)?$data->po->id:""; },
+					'value' => function ($data, $key, $index) { return isset($data->po)?$data->po->id:""; },
 					//'filter'=>Gx::listData(PurchaseOrder::class),
 			],
 		//'image_file3:html',
 		/* array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Bill::getTypeOptions(),
 				), */
 		/*
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Bill::getStatusOptions(),
 				),
 		array(
 			'attribute' =>'po_id',
-			'value' => function ($data) { return Gx::str($data->po); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->po); },
 			'filter'=>Gx::listData(PurchaseOrder::class),
 			),
 		*/

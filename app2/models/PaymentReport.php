@@ -296,11 +296,11 @@ class PaymentReport extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'doc_no', 'amount', 'vendor_id', 'type_id', 'status', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['doc_no', 'doc_no'], ['amount', 'amount'], ['vendor_id', 'vendor_id'], ['type_id', 'type_id'], ['status', 'status'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['chq_no', 'comp_code', 'house_bank', 'hb_acct', 'ben_acc_no', 'ref_no', 'run_date', 'inst_date', 'value_date', 'pay_type', 'pay_status', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['chq_no', 'chq_no'], ['comp_code', 'comp_code'], ['house_bank', 'house_bank'], ['hb_acct', 'hb_acct'], ['ben_acc_no', 'ben_acc_no'], ['ref_no', 'ref_no'], ['run_date', 'run_date'], ['inst_date', 'inst_date'], ['value_date', 'value_date'], ['pay_type', 'pay_type'], ['pay_status', 'pay_status'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

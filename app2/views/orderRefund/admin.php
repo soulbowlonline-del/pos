@@ -51,18 +51,18 @@ You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&g
 		/*
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>OrderRefund::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>OrderRefund::getTypeOptions(),
 				),
 		'city_id',
 		array(
 				'attribute' => 'state_id',
-				'value' => function ($data) { return $data->getStatusOptions($data->state_id); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->state_id); },
 				'filter'=>OrderRefund::getStatusOptions(),
 				),
 		'country_id',

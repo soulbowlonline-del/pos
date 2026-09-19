@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/LoyaltyAdmin/viewTransactions.php.
+ * Ported from protected/views/loyaltyAdmin/viewTransactions.php.
  */
 
 use app\components\Gx;

@@ -456,11 +456,11 @@ class Emp extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'code', 'contact_no', 'gender_id', 'status', 'type_id', 'designation_id', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['code', 'code'], ['contact_no', 'contact_no'], ['gender_id', 'gender_id'], ['status', 'status'], ['type_id', 'type_id'], ['designation_id', 'designation_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['name', 'email', 'date_of_birth', 'date_of_joining', 'permanent_address', 'temp_address', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['name', 'name'], ['email', 'email'], ['date_of_birth', 'date_of_birth'], ['date_of_joining', 'date_of_joining'], ['permanent_address', 'permanent_address'], ['temp_address', 'temp_address'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

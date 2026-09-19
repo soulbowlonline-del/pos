@@ -3,7 +3,6 @@
  * Ported from protected/views/mrsDetail/pending.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -68,7 +67,7 @@ $('.search-form form').submit(function(){
 					'prepend'=>'<i class="icon-calendar"></i>',
 					'class'=>'form-control'])
 ; ?>
-<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 
 
 </div>
@@ -132,7 +131,7 @@ $('.search-form form').submit(function(){
     				'htmlOptions'=> ['style'=>'width:80px'],
     				'buttons'=>[
     						'Assign'=>[
-    								//'visible' => Access::check('mrsDetail/admin'),
+    								//'visible' => function ($data) { return $data->checkPermission ("mrsDetail/admin")=="true"; },
     								'url' => function ($data) { return Ui::to("mrsDetail/assign", ["id" => $data->id]); },
     								'label'=>'Assign',
     								'options'=>['class'=>'view'],

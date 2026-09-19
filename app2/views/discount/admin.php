@@ -3,7 +3,6 @@
  * Ported from protected/views/discount/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Discount;
@@ -111,14 +110,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('discount/view'),
+									'visible' => function ($data) { return $data->checkPermission ("discount/view")=="true"; },
 									'url' => function ($data) { return Ui::to("discount/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 			
 							],
 							'update'=>[
-									'visible' => Access::check('discount/update'),
+									'visible' => function ($data) { return $data->checkPermission ("discount/update")=="true"; },
 									'url' => function ($data) { return Ui::to("discount/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

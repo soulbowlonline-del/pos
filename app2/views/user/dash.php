@@ -212,7 +212,7 @@ use app\widgets\GridView;
             <!-- /.box-header -->
             <div class="box-body">
               <ul class="products-list product-list-in-box">
-              <?php $notifications = Notification::find()->where(array('to_id'=>Yii::$app->user->id)->all());
+              <?php $notifications = Notification::find()->where(array('to_id'=>Yii::$app->user->id)->orderBy(['id' => SORT_DESC])->all());
               if($notifications){
               foreach($notifications as $notification){
               	?>

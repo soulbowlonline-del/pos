@@ -97,19 +97,19 @@ Title
 <?php echo $form->dropDownListRow($model, 'item_detail_id',$model->getItemOptions(),['class'=>'form-control']); ?>
 
 
-<?php echo $form->dropDownListRow($model, 'item_category_id', Gx::listData(ItemCategory::find()->where(['status'=>ItemCategory::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'item_category_id', Gx::listData(ItemCategory::find()->where(['status'=>ItemCategory::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 
 
 </div>
 <div class="col-md-6">
-<?php echo $form->dropDownListRow($model, 'item_company_id', Gx::listData(ItemCompany::find()->where(['status'=>ItemCompany::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'item_company_id', Gx::listData(ItemCompany::find()->where(['status'=>ItemCompany::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 
 <?php echo $form->textFieldRow($model,'qty',['class'=>'form-control']); ?>
 
 
 <?php echo $form->textFieldRow($model,'stock_qty',['class'=>'form-control']); ?>
 <?php  $user = Yii::$app->user->model;
-            $role = UserRole::find()->where(['title'=>'Admin'])->one();
+            $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
             if($user->role_id == $role->id ){?>
             <?php echo $form->dropDownListRow($model, 'status',$model->getStatusOptions(),['class'=>'form-control']); ?>
             <?php }?>

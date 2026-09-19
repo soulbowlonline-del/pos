@@ -73,12 +73,12 @@ $('.search-form form').submit(function(){
 		[
 				'header'=>'<a>Bar Code</a>',
 			'attribute' =>'item_detail_id',
-			'value' => function ($data) { return Gx::str($data->itemDetail); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 			'filter'=>Gx::listData(ItemDetail::class),
 			],
 		[
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>Gx::listData(Item::class),
 			],
 		'batch_no','previous_qty',
@@ -86,38 +86,38 @@ $('.search-form form').submit(function(){
 		'Qty',
 			[
 					'attribute' => 'type_id',
-					'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+					'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 					'filter'=>StockLog::getTypeOptions(),
 			],
 		[
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			],
 			[
 					'attribute' =>'vendor_id',
-					'value' => function ($data) { return Gx::str($data->vendor); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 					'filter'=>Gx::listData(Vendor::class),
 			],
 			[
 					'attribute' =>'create_time',
-					'value' => function ($data) { return date("Y-m-d",strtotime($data->create_time)); },
+					'value' => function ($data, $key, $index) { return date("Y-m-d",strtotime($data->create_time)); },
 					//'filter'=>Gx::listData(Vendor::class),
 			],
 		/*
 		array(
 			'attribute' =>'vendor_id',
-			'value' => function ($data) { return Gx::str($data->vendor); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 			'filter'=>Gx::listData(Vendor::class),
 			),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>StockLog::getTypeOptions(),
 				),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>StockLog::getStatusOptions(),
 				),
 		'update_time',

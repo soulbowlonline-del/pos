@@ -518,7 +518,7 @@ class PurchaseBillDetail extends ActiveRecord
             //$user = User::findOne($id);
             if($user){
                 $role_id = $user->role_id;
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
@@ -550,7 +550,7 @@ class PurchaseBillDetail extends ActiveRecord
             if($user){
                 $role_id = $user->role_id;
 
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
@@ -1334,10 +1334,10 @@ class PurchaseBillDetail extends ActiveRecord
     {
         $this->load($params, $this->formName());
 
-		$query = self::find()->alias('t');
+		$query = PurchaseBillDetail::find()->alias('t');
 	
 		$purchase_bill_ids = array();
-		$query1 = PurchaseBill::find();
+		$query1 = PurchaseBill::find()->alias('t');
         $query1->orderBy(['id' => SORT_DESC]);
 		$user = Yii::$app->user->model;
 		$role_id = $user->role_id;

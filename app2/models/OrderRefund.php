@@ -302,11 +302,11 @@ class OrderRefund extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'qty', 'discount', 'discount_amt', 'total_amt', 'paid_amt', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'order_id', 'customer_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['qty', 'qty'], ['discount', 'discount'], ['discount_amt', 'discount_amt'], ['total_amt', 'total_amt'], ['paid_amt', 'paid_amt'], ['status', 'status'], ['type_id', 'type_id'], ['city_id', 'city_id'], ['state_id', 'state_id'], ['country_id', 'country_id'], ['order_id', 'order_id'], ['customer_id', 'customer_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['address', 'note', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['address', 'address'], ['note', 'note'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

@@ -206,7 +206,7 @@ table {
                 <td style="text-align:left; padding-top:5px; padding-bottom:5px;  padding-left:15px; padding-right:15px;">Subtotal</td>
             </tr>
            
-             <?php $orderitems = OnlineOrderItem::find()->where(['order_id'=>$order->id])->all();?>
+             <?php $orderitems = OnlineOrderItem::find()->where(['order_id'=>$order->id])->orderBy(['id' => SORT_DESC])->all();?>
                <?php 
                $total = 0;
                if($orderitems){

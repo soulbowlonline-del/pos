@@ -57,7 +57,7 @@ $('.search-form form').submit(function(){
 	'htmlOptions'=>['enctype'=>'multipart/form-data'],
 ]);
 ?>
-<?php echo $form->dropdownListRow($model, 'vendor_id',Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropdownListRow($model, 'vendor_id',Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 <?php ActiveForm::end(); ?>
 <div class="table-responsive">
 <?php echo GridView::widget([

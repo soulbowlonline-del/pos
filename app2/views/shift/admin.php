@@ -3,7 +3,6 @@
  * Ported from protected/views/shift/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Shift;
@@ -79,18 +78,18 @@ $('.search-form form').submit(function(){
 		'end_time',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Shift::getStatusOptions(),
 				],
 		/* array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Shift::getTypeOptions(),
 				), */
 		/*
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -102,14 +101,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('shift/view'),
+									'visible' => function ($data) { return $data->checkPermission ("shift/view")=="true"; },
 									'url' => function ($data) { return Ui::to("shift/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('shift/update'),
+									'visible' => function ($data) { return $data->checkPermission ("shift/update")=="true"; },
 									'url' => function ($data) { return Ui::to("shift/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

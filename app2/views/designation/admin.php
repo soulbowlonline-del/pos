@@ -74,7 +74,7 @@ $('.search-form form').submit(function(){
 		'title',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Designation::getStatusOptions(),
 				],
 		

@@ -3,7 +3,6 @@
  * Ported from protected/views/tax/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Tax;
@@ -166,19 +165,19 @@ $('.search-form form').submit(function(){
 			'tax_val4',
 		[
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Tax::getTypeOptions(),
 				], 
 		/* array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Tax::getStatusOptions(),
 				), */
 		/*
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -190,14 +189,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('tax/view'),
+									'visible' => function ($data) { return $data->checkPermission ("tax/view")=="true"; },
 									'url' => function ($data) { return Ui::to("tax/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('tax/update'),
+									'visible' => function ($data) { return $data->checkPermission ("tax/update")=="true"; },
 									'url' => function ($data) { return Ui::to("tax/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

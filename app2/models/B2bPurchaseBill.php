@@ -308,7 +308,7 @@ class B2bPurchaseBill extends ActiveRecord
      * never validates, and a required rule with no `on` clause would
      * otherwise reject every filtered request and return the full list.
      */
-    public function search($params = [])
+    public function search($params = [], $val = false)
     {
         $this->load($params, $this->formName());
 
@@ -326,7 +326,7 @@ class B2bPurchaseBill extends ActiveRecord
 		Yii::warning( var_export($role_id, true), '$role_id');
 		if($role_id== 6){
 		
-			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id)->one());
+			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id)->orderBy(['id' => SORT_DESC])->one());
 			if($vendor)
 				Criteria::compare($query, 'vendor_id', $vendor->id);
 		}

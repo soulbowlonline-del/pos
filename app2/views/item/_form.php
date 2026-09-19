@@ -145,7 +145,7 @@ HSN Code
 	<?php
 	
 /* $role = UserRole::find()->where(array (
-			'title' => 'Admin')->one());
+			'title' => 'Admin')->orderBy(['id' => SORT_DESC])->one());
 	$user = Yii::$app->user->model;
 	if ($user->role_id == $role->id) { */
 		?>

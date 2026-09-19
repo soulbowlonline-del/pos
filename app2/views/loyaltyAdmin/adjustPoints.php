@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/LoyaltyAdmin/adjustPoints.php.
+ * Ported from protected/views/loyaltyAdmin/adjustPoints.php.
  */
 
 use app\components\Ui;

@@ -3,7 +3,6 @@
  * Ported from protected/views/item/barcode.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\ItemDetail;
@@ -228,14 +227,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
 							'view'=>array(
-									'visible' => Access::check('itemDetail/view'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>array('class'=>'view'),
 										
 							),
 							'update'=>array(
-									'visible' => Access::check('itemDetail/update'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/update")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>array('class'=>'update'),

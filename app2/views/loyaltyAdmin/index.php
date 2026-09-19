@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/LoyaltyAdmin/index.php.
+ * Ported from protected/views/loyaltyAdmin/index.php.
  */
 
 use app\components\Gx;

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/create.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/create.php.
  */
 
 use yii\helpers\Html;

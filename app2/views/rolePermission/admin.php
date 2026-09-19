@@ -81,17 +81,17 @@ $('.search-form form').submit(function(){
 		'id',
 		[
 			'attribute' =>'role_id',
-			'value' => function ($data) { return Gx::str($data->role); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->role); },
 			'filter'=>Gx::listData(UserRole::class),
 			],
 		[
 			'attribute' =>'permission_id',
-			'value' => function ($data) { return Gx::str($data->permission); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->permission); },
 			'filter'=>Gx::listData(Permission::class),
 			],
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>RolePermission::getStatusOptions(),
 				],
 		

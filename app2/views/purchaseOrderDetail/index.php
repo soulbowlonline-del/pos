@@ -92,12 +92,12 @@ if($user->role_id == 1){?>
 <div class="clearfix"></div>
 <hr />
 <?php $vendor_id = null;
-$role = UserRole::find()->where(['title'=>'Vendor'])->one();
+$role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 			$loggedinuser = Yii::$app->user->model;
 			if($loggedinuser->role_id == $role->id){
 				$user = Vendor::find()->where([
 						'create_user_id' => $loggedinuser->id 
-				])->one();
+				])->orderBy(['id' => SORT_DESC])->one();
 				if($user){
 					$vendor_id = $user->id;
 				}
@@ -227,7 +227,7 @@ $role = UserRole::find()->where(['title'=>'Vendor'])->one();
   </div>
 </section>
 <?php $user = Yii::$app->user->model;
-$role = UserRole::find()->where(['title'=>'Admin'])->one();?>
+$role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();?>
 <script>
 $('#PurchaseOrderDetail_purchase_order_id').change(function(){
 	var vendor_id = <?php echo $user->id?>;

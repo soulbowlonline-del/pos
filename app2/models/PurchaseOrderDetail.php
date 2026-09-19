@@ -569,7 +569,7 @@ class PurchaseOrderDetail extends ActiveRecord
             $user = Yii::$app->user->model;
             if($user){
                 $role_id = $user->role_id;
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
@@ -600,7 +600,7 @@ class PurchaseOrderDetail extends ActiveRecord
             $user = Yii::$app->user->model;
             if($user){
                 $role_id = $user->role_id;
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {

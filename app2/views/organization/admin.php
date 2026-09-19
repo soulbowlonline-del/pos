@@ -3,7 +3,6 @@
  * Ported from protected/views/organization/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\City;
@@ -87,32 +86,32 @@ $('.search-form form').submit(function(){
 		/*
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Organization::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Organization::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'city_id',
-			'value' => function ($data) { return Gx::str($data->city); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->city); },
 			'filter'=>Gx::listData(City::class),
 			),
 		array(
 			'attribute' =>'state_id',
-			'value' => function ($data) { return Gx::str($data->state); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->state); },
 			'filter'=>Gx::listData(State::class),
 			),
 		array(
 			'attribute' =>'country_id',
-			'value' => function ($data) { return Gx::str($data->country); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->country); },
 			'filter'=>Gx::listData(Country::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -124,14 +123,14 @@ $('.search-form form').submit(function(){
 		'htmlOptions'=> ['style'=>'width:80px'],
 		'buttons'=>[
 				'view'=>[
-						'visible' => Access::check('organization/view'),
+						'visible' => function ($data) { return $data->checkPermission ("organization/view")=="true"; },
 						'url' => function ($data) { return Ui::to("organization/view", ["id" => $data->id]); },
 						'label'=>'View',
 						'options'=>['class'=>'view'],
 							
 				],
 				'update'=>[
-						'visible' => Access::check('organization/update'),
+						'visible' => function ($data) { return $data->checkPermission ("organization/update")=="true"; },
 						'url' => function ($data) { return Ui::to("organization/update", ["id" => $data->id]); },
 						'label'=>'Update',
 						'options'=>['class'=>'update'],

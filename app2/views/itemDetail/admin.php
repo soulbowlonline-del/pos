@@ -3,7 +3,6 @@
  * Ported from protected/views/itemDetail/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -68,7 +67,7 @@ $('.search-form form').submit(function(){
 	//	'id',
 	/* 	array(
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>Gx::listData(Item::class),
 			), */
 		'bar_code',
@@ -77,33 +76,33 @@ $('.search-form form').submit(function(){
 		
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemDetail::getStatusOptions(),
 				],
 			[
 					'attribute' =>'tax_id',
-					'value' => function ($data) { return Gx::str($data->tax); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
 					'filter'=>Gx::listData(Tax::class),
 			],
 			[
 					'attribute' =>'item_id',
-					'value' => function ($data) { return Gx::str($data->item); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 					//'filter'=>$model->getItemOptions(),
 			],
 		/*'reorder_qty',
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemDetail::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'tax_id',
-			'value' => function ($data) { return Gx::str($data->tax); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
 			'filter'=>Gx::listData(Tax::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -115,21 +114,21 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('itemDetail/view'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('itemDetail/update'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/update")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],
 			
 							],
 							'delete'=>[
-									'visible' => Access::check('itemDetail/delete'),
+									'visible' => function ($data) { return $data->checkPermission ("itemDetail/delete")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/delete", ["id" => $data->id]); },
 									'label'=>'Delete',
 									'options'=>['class'=>'update'],

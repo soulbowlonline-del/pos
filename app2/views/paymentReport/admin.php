@@ -159,28 +159,28 @@ $cols = [
 		'value_date',
 		[
 				'attribute' => 'pay_type',
-				'value' => function ($data) { return $data->getTypeOptions($data->pay_type); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->pay_type); },
 				'filter'=>PaymentReport::getTypeOptions(),
 				],
 		[
 				'attribute' => 'pay_status',
-				'value' => function ($data) { return $data->getStatusOptions($data->pay_status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->pay_status); },
 				'filter'=>PaymentReport::getStatusOptions(),
 				],
 	/*	array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>PaymentReport::getTypeOptions(),
 				),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>PaymentReport::getStatusOptions(),
 				),
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

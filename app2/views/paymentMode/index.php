@@ -1,18 +1,26 @@
 <?php
-/** @var yii\web\View $this */
-/** @var yii\data\ActiveDataProvider $dataProvider */
+/**
+ * Ported from protected/views/paymentMode/index.php.
+ */
 
 use app\models\PaymentMode;
 use yii\helpers\Html;
-
+?>
+<?php
 $this->params['breadcrumbs'] = [
-    PaymentMode::label(2),
-    'Index',
+	PaymentMode::label(2),
+	'Index',
 ];
 ?>
 
 <div class="page-header">
-<h1><?= Html::encode(PaymentMode::label(2)) ?></h1>
+<h1><?php echo Html::encode(PaymentMode::label(2)); ?></h1>
 </div>
 
-<?= $this->render('_list', ['dataProvider' => $dataProvider]) ?>
+<?php 
+
+
+echo $this->render('_list', [
+		'dataProvider'=>$dataProvider,
+]);
+

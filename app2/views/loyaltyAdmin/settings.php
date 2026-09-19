@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/LoyaltyAdmin/settings.php.
+ * Ported from protected/views/loyaltyAdmin/settings.php.
  */
 
 use app\components\Ui;

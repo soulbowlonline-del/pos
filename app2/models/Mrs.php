@@ -323,17 +323,26 @@ class Mrs extends ActiveRecord
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-        foreach (['id', 'status', 'type_id', 'create_user_id', 'updated_by', 'outlet_id', 'organization_id'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['status', 'status'], ['type_id', 'type_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by'], ['outlet_id', 'outlet_id'], ['organization_id', 'organization_id']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['code', 'mrs_date', 'mrs_update_date', 'mrs_req_date', 'remarks', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['code', 'code'], ['mrs_date', 'mrs_date'], ['mrs_update_date', 'mrs_update_date'], ['mrs_req_date', 'mrs_req_date'], ['remarks', 'remarks'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

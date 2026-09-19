@@ -3,7 +3,6 @@
  * Ported from protected/views/state/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Country;
@@ -78,24 +77,24 @@ $('.search-form form').submit(function(){
 		'title',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>State::getStatusOptions(),
 				],
 		// array(
 				// 'attribute' => 'type_id',
-				// 'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				// 'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				// 'filter'=>State::getTypeOptions(),
 				// ),
 		[
 			'attribute' =>'country_id',
-			'value' => function ($data) { return Gx::str($data->country); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->country); },
 			'filter'=>Gx::listData(Country::class),
 			],
 		/*'update_time',
 		
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -107,14 +106,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('state/view'),
+									'visible' => function ($data) { return $data->checkPermission ("state/view")=="true"; },
 									'url' => function ($data) { return Ui::to("state/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('state/update'),
+									'visible' => function ($data) { return $data->checkPermission ("state/update")=="true"; },
 									'url' => function ($data) { return Ui::to("state/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

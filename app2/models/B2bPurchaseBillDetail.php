@@ -706,7 +706,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
                 $role_id = $user->role_id;
                 $role = UserRole::find()->where([
                     'title' => 'Vendor'
-                ])->one();
+                ])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
@@ -741,7 +741,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 
                 $role = UserRole::find()->where([
                     'title' => 'Vendor'
-                ])->one();
+                ])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {

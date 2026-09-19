@@ -23,3 +23,10 @@ purchaseOrder/update form      purchaseOrder/update returns 500 on the 5.6 basel
 purchaseBill/update form       purchaseBill/update returns 500 on the 5.6 baseline
 purchaseBillDetail/create form   purchaseBillDetail/create returns 500 on the 5.6 baseline
 purchaseBillDetail/update form   purchaseBillDetail/update returns 500 on the 5.6 baseline
+b2bPurchaseBill/admin rows       every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/admin headings   every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/admin page 2     every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/index rows       every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/create form      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/view detail      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+b2bPurchaseBill/update form      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill

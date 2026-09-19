@@ -277,7 +277,7 @@ echo $form->dropDownListRow($model, 'session_id',
                  <?php 
              $user = Yii::$app->user->model;
            
-             $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+             $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
              if($role->id == $user->role_id ){
              	$query = Notification::find();
              	$query->orderBy(['id' => SORT_DESC]);

@@ -87,8 +87,8 @@ if($vendor){
 ]); 
 ?>
 
-		<?php echo $form->dropDownListRow($model, 'vendor_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->all()), ['prompt' => 'Select Vendor']); ?>
-		<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()), ['prompt' => 'Select Outlet']); ?>
+		<?php echo $form->dropDownListRow($model, 'vendor_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()), ['prompt' => 'Select Vendor']); ?>
+		<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()), ['prompt' => 'Select Outlet']); ?>
 
 
 		<div class="form-actions">
@@ -1255,7 +1255,7 @@ $(document).ready(function(){
   </div>
 </section>
 <?php $user = Yii::$app->user->model;
-$role = UserRole::find()->where(['title'=>'Admin'])->one();?>
+$role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();?>
 <script>
 $('.mrp_input').change(function(){
 	var mrp = $(this).val();

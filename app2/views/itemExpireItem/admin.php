@@ -51,12 +51,12 @@ You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&g
 		'id',
 		[
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>Gx::listData(Item::class),
 			],
 		[
 			'attribute' =>'item_detail_id',
-			'value' => function ($data) { return Gx::str($data->itemDetail); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 			'filter'=>Gx::listData(ItemDetail::class),
 			],
 		'mrp',
@@ -68,27 +68,27 @@ You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&g
 		'vendor_id',
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemExpireItem::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemExpireItem::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'item_expire_id',
-			'value' => function ($data) { return Gx::str($data->itemExpire); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemExpire); },
 			'filter'=>Gx::listData(ItemExpire::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

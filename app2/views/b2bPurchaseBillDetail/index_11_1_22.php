@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/index_11_1_22.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/index_11_1_22.php.
  */
 
 use app\components\Gx;
@@ -49,7 +49,7 @@ $mrs = null;
 if ($poid) {
 	$mrs = PurchaseBill::find()->where([
 			'id' => $poid 
-	])->one();
+	])->orderBy(['id' => SORT_DESC])->one();
 	if ($mrs) {
 		$outlet = Outlet::findOne( $mrs->outlet_id );
 		if ($outlet) {
@@ -1531,7 +1531,7 @@ if ($poid) {
 $user = Yii::$app->user->model;
 $role = UserRole::find()->where([
 		'title' => 'Admin' 
-])->one();
+])->orderBy(['id' => SORT_DESC])->one();
 ?>
 <script>
 $('form input').keydown(function (e) {

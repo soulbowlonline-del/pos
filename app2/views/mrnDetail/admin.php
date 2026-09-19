@@ -41,7 +41,7 @@ $('.search-form form').submit(function(){
 <?php 
 $gst = true;
 if($mrnid){
-$mrn = Mrn::find()->where(['id'=>$mrnid])->one();
+$mrn = Mrn::find()->where(['id'=>$mrnid])->orderBy(['id' => SORT_DESC])->one();
 if($mrn){
 	$outlet = Outlet::findOne($mrn->outlet_id);
 	if($outlet){
@@ -100,7 +100,7 @@ $form = ActiveForm::begin([
 							'options'=>['format'=>'yyyy-mm-dd']])
 ; ?>
 
-<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 <?php $user = Yii::$app->user->model;
 if($user->role_id != 6){?>
 <?php echo $form->dropdownListRow($model, 'vendor_id',$model->getMrnVendorOptions(),['class'=>'form-control']); ?>
@@ -396,17 +396,17 @@ echo GridView::widget([
 				// 'selectableRows' => '50',
 				// ),
 				['header'=>'SN.',
-						'value'=>'++$row',
+						'value' => function ($data, $key, $index) { return ++$index; },
 				],
 				[
 						'attribute' => 'item_id',
-						'value' => function ($data) { return Gx::str($data->item); },
+						'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 						//'filter'=>$model->getItemOptions($vendor_id), 
 						'filter'=>false,
 				],
 				[
 						'attribute' => 'item_detail_id',
-						'value' => function ($data) { return Gx::str($data->itemDetail); },
+						'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 						'filter'=>false,
 						//'filter'=>$model->getItemOptionbarcodes(),
 				],
@@ -414,7 +414,7 @@ echo GridView::widget([
 							
 						'attribute' =>'min_qty',
 							
-						'value' => function ($data) { return Html::activeTextInput($data,'min_qty', ["id"=>"min_input_qty$data->id","class"=>"min_input_qty"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'min_qty', ["id"=>"min_input_qty$data->id","class"=>"min_input_qty"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'min_qty'],
 						'filter'=>false
@@ -423,29 +423,29 @@ echo GridView::widget([
 				],
 			/* 	array (
 						'attribute' => 'outlet_id',
-						'value' => function ($data) { return Gx::str($data->outlet); },
+						'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 						'filter' => Gx::listData(Outlet::class) 
 				),
 				array (
 						'header' => 'Vendor',
-						'value' => function ($data) { return Gx::str($data->mrn->vendor); })
+						'value' => function ($data, $key, $index) { return Gx::str($data->mrn->vendor); })
 				, */
 					[
     				'header'=>'Ttl Rmn Qty',
-    				'value' => function ($data) { return isset($data->item)?$data->item->getTotalRemainingQuantity():""; },
+    				'value' => function ($data, $key, $index) { return isset($data->item)?$data->item->getTotalRemainingQuantity():""; },
     				'htmlOptions'=>['class'=>'item_qty_field'],
     		
     		],
 				/* array (
 						'header' => 'Max Qty',
-						'value' => function ($data) { return $data->req_qty; },
+						'value' => function ($data, $key, $index) { return $data->req_qty; },
 						
 				), */
 				[
 							
 						'attribute' =>'req_qty',
 							
-						'value' => function ($data) { return Html::activeTextInput($data,'req_qty', ["id"=>"req_input_qty$data->id","class"=>"req_input_qty"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'req_qty', ["id"=>"req_input_qty$data->id","class"=>"req_input_qty"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'req_qty'],
 						'filter'=>false
@@ -455,7 +455,7 @@ echo GridView::widget([
 				[
 						
 						'header' => 'App Qty',
-						'value' => function ($data) { return Html::activeTextInput($data,'approved_qty', ["id"=>"approve_input_qty$data->id","class"=>"approve_input_qty"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'approved_qty', ["id"=>"approve_input_qty$data->id","class"=>"approve_input_qty"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'approve_qty' 
@@ -465,7 +465,7 @@ echo GridView::widget([
 				[
 						
 						'header' => 'MRP',
-						'value' => function ($data) { return Html::activeTextInput($data,'mrp', ["id"=>"mrp_input$data->id","class"=>"mrp_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'mrp', ["id"=>"mrp_input$data->id","class"=>"mrp_input"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'mrp' 
@@ -475,7 +475,7 @@ echo GridView::widget([
 				[
 				
 						'header' => 'Sale Rate',
-						'value' => function ($data) { return Html::activeTextInput($data,'sale_rate', ["id"=>"sale_rate$data->id","class"=>"sale_rate_input","disabled"=>$data->getCompanyBarcode($data->item_detail_id)]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'sale_rate', ["id"=>"sale_rate$data->id","class"=>"sale_rate_input","disabled"=>$data->getCompanyBarcode($data->item_detail_id)]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'sale_rate'
@@ -485,7 +485,7 @@ echo GridView::widget([
 				[
 						
 						'header' => 'Price',
-						'value' => function ($data) { return Html::activeTextInput($data,'price', ["id"=>"price_input$data->id","class"=>"price_inpput"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'price', ["id"=>"price_input$data->id","class"=>"price_inpput"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'price' 
@@ -497,7 +497,7 @@ echo GridView::widget([
 				[
 							
 						'header'=>'Margin',
-						'value' => function ($data) { return Html::activeTextInput($data,'margin', ["id"=>"margin_input$data->id","class"=>"margin_inpput","readOnly"=>true]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'margin', ["id"=>"margin_input$data->id","class"=>"margin_inpput","readOnly"=>true]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'margin'],
 							
@@ -505,7 +505,7 @@ echo GridView::widget([
 				[
 				
 						'header' => 'Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'amount',["id"=>"total_amount_input$data->id","class"=>"total_amount_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'amount',["id"=>"total_amount_input$data->id","class"=>"total_amount_input"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'amount'
@@ -514,7 +514,7 @@ echo GridView::widget([
 				[
 						
 						'header' => 'Dis%',
-						'value' => function ($data) { return Html::activeTextInput($data,'discount',["id"=>"discount_input$data->id","class"=>"discount_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'discount',["id"=>"discount_input$data->id","class"=>"discount_input"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'discount' 
@@ -524,7 +524,7 @@ echo GridView::widget([
 				[
 						
 							'header'=>'Disc Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'discount_amt',["id"=>"discount_amt_input$data->id","class"=>"discount_amt_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'discount_amt',["id"=>"discount_amt_input$data->id","class"=>"discount_amt_input"]); },
 						'format' => 'raw',
 						'htmlOptions' => [
 								'class' => 'discount_amt' 
@@ -535,7 +535,7 @@ echo GridView::widget([
 				[
 							
 							'header'=>'Other Disc%',
-						'value' => function ($data) { return Html::activeTextInput($data,'discount1',["id"=>"discount1_input$data->id","class"=>"discount1_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'discount1',["id"=>"discount1_input$data->id","class"=>"discount1_input"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'discount1'],
 							
@@ -543,21 +543,21 @@ echo GridView::widget([
 				[
 							
 						'header'=>'Other Disc Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'discount_amt1',["id"=>"discount_amt1_input$data->id","class"=>"discount_amt1_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'discount_amt1',["id"=>"discount_amt1_input$data->id","class"=>"discount_amt1_input"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'discount_amt1'],
 							
 				],
 				[
 						'header' => 'Tax',
-						'value' => function ($data) { return Gx::str($data->tax); } ,
+						'value' => function ($data, $key, $index) { return Gx::str($data->tax); } ,
 							'htmlOptions'=>['class'=>'select_tax_val'],
 				]
 				,
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'CGST (%age)',
-						'value' => function ($data) { return Html::activeTextInput($data,'cgst_per',["id"=>"CGST_per_input$data->id","class"=>"CGST_per_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'cgst_per',["id"=>"CGST_per_input$data->id","class"=>"CGST_per_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'CGST_per_input'],
 							
@@ -565,7 +565,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'SGST (%age)',
-						'value' => function ($data) { return Html::activeTextInput($data,'sgst_per',["id"=>"SGST_per_input$data->id","class"=>"SGST_per_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'sgst_per',["id"=>"SGST_per_input$data->id","class"=>"SGST_per_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'SGST_per_input'],
 							
@@ -573,7 +573,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'CESS (%age)',
-						'value' => function ($data) { return Html::activeTextInput($data,'cess_per',["id"=>"CESS_per_input$data->id","class"=>"CESS_per_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'cess_per',["id"=>"CESS_per_input$data->id","class"=>"CESS_per_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'CESS_per_input'],
 							
@@ -581,7 +581,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'CGST Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'cgst_amt',["id"=>"CGST_amt_input$data->id","class"=>"CGST_amount_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'cgst_amt',["id"=>"CGST_amt_input$data->id","class"=>"CGST_amount_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'CGST_amt_input'],
 							
@@ -589,7 +589,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'SGST Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'sgst_amt',["id"=>"SGST_amt_input$data->id","class"=>"SGST_amount_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'sgst_amt',["id"=>"SGST_amt_input$data->id","class"=>"SGST_amount_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'SGST_amt_input'],
 							
@@ -597,7 +597,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == true,
 						'header'=>'CESS Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'cess_amt',["id"=>"CESS_amt_input$data->id","class"=>"CESS_amount_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'cess_amt',["id"=>"CESS_amt_input$data->id","class"=>"CESS_amount_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'CESS_amt_input'],
 							
@@ -605,7 +605,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == false,
 						'header'=>'IGST (%age)',
-						'value' => function ($data) { return Html::activeTextInput($data,'igst_per',["id"=>"IGST_per_input$data->id","class"=>"IGST_per_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'igst_per',["id"=>"IGST_per_input$data->id","class"=>"IGST_per_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'IGST_per_input'],
 							
@@ -613,7 +613,7 @@ echo GridView::widget([
 				[
 						'visible'=>$model->getGSTTrue($mrnid) == false,
 						'header'=>'IGST Amt',
-						'value' => function ($data) { return Html::activeTextInput($data,'igst_amt',["id"=>"IGST_amt_input$data->id","class"=>"IGST_amount_input","ReadOnly"=>"ReadOnly"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'igst_amt',["id"=>"IGST_amt_input$data->id","class"=>"IGST_amount_input","ReadOnly"=>"ReadOnly"]); },
 						'format' => 'raw',
 						'htmlOptions'=>['class'=>'IGST_amt_input'],
 							
@@ -622,7 +622,7 @@ echo GridView::widget([
 			/* 	array (
 						
 						'header' => 'Other Charge',
-						'value' => function ($data) { return Html::activeTextInput($data,'other_charge',["id"=>"other_charge_input$data->id","class"=>"other_charge_input"]); },
+						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'other_charge',["id"=>"other_charge_input$data->id","class"=>"other_charge_input"]); },
 						'format' => 'raw',
 						'htmlOptions' => array (
 								'class' => 'other_charge' 
@@ -1172,7 +1172,7 @@ $("td.req_qty input:text").each(function(key,value){
 $user = Yii::$app->user->model;
 $role = UserRole::find()->where([
 		'title' => 'Admin' 
-])->one();
+])->orderBy(['id' => SORT_DESC])->one();
 ?>
 <script>
 $('form input').keydown(function (e) {

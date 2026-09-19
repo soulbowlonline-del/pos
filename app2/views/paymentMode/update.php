@@ -1,19 +1,24 @@
 <?php
-/** @var yii\web\View $this */
-/** @var app\models\PaymentMode $model */
+/**
+ * Ported from protected/views/paymentMode/update.php.
+ */
 
-use app\components\Ui;
+use app\components\Gx;
 use yii\helpers\Html;
-
+?>
+<?php
 $this->params['breadcrumbs'] = [
-    ['label' => $model->label(2), 'url' => [Ui::to('paymentMode/index')]],
-    ['label' => (string) $model, 'url' => [Ui::to('paymentMode/view', ['id' => $model->id])]],
-    'Update',
+	$model->label(2) => ['index'],
+	Gx::str($model) => ['view', 'id' => Gx::pk($model)],
+	'Update',
 ];
 ?>
 <section class="content-header">
 
-<h1><?= 'Update' . ' ' . Html::encode($model->label()) . ' : ' . Html::encode((string) $model) ?></h1>
+<h1><?php echo 'Update' . ' ' . Html::encode($model->label()) . ' : ' . Html::encode(Gx::str($model)); ?></h1>
 </section>
 
-<?= $this->render('_form', ['model' => $model]) ?>
+
+<?php
+echo $this->render('_form', [
+		'model' => $model]);

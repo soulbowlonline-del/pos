@@ -182,7 +182,7 @@ $('.search-form form').submit(function(){
 				'attribute' =>'create_user_id',
 				// 'value' => function ($data, $key, $index) { return $data->getUserNameById(); },createUser
 				'value' => function ($data, $key, $index) { return isset($data->createUser)?$data->createUser:""; },
-				'filter'=>Gx::listData(User::find()->orderBy(['full_name' => SORT_ASC])->all()),
+				'filter'=>Gx::listData(User::find()->orderBy('full_name ASC')->all()),
 				],
 		[
 			'attribute' =>'item_detail_id',

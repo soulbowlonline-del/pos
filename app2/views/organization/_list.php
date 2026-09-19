@@ -27,32 +27,32 @@ echo GridView::widget([
 		/*
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Organization::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Organization::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'city_id',
-			'value' => function ($data) { return Gx::str($data->city); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->city); },
 			'filter'=>Gx::listData(City::class),
 			),
 		array(
 			'attribute' =>'state_id',
-			'value' => function ($data) { return Gx::str($data->state); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->state); },
 			'filter'=>Gx::listData(State::class),
 			),
 		array(
 			'attribute' =>'country_id',
-			'value' => function ($data) { return Gx::str($data->country); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->country); },
 			'filter'=>Gx::listData(Country::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

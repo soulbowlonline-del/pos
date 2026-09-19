@@ -51,8 +51,8 @@ $this->params['breadcrumbs'] = [
 ]); 
 ?>
 
-		<?php echo $form->dropDownListRow($model, 'vendor_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->all()), ['prompt' => 'Select Vendor']); ?>
-		<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()), ['prompt' => 'Select Outlet']); ?>
+		<?php echo $form->dropDownListRow($model, 'vendor_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()), ['prompt' => 'Select Vendor']); ?>
+		<?php echo $form->dropDownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()), ['prompt' => 'Select Outlet']); ?>
 
 	<div class="col-md-3 col-xs-12">
 		<div class="form-actions">

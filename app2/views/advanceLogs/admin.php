@@ -48,17 +48,17 @@ You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&g
 		'amount',
 		[
 			'attribute' =>'advance_payment_id',
-			'value' => function ($data) { return Gx::str($data->advancePayment); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->advancePayment); },
 			'filter'=>Gx::listData(AdvancePayment::class),
 			],
 		[
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>AdvanceLogs::getTypeOptions(),
 				],
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>AdvanceLogs::getStatusOptions(),
 				],
 		'update_time',

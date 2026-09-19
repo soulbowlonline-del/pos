@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/index.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/index.php.
  */
 
 use app\components\Gx;
@@ -1676,7 +1676,7 @@ if ($poid) {
 $user = Yii::$app->user->model;
 $role = UserRole::find()->where([
 		'title' => 'Admin' 
-])->one();
+])->orderBy(['id' => SORT_DESC])->one();
 ?>
 <script>
 $('form input').keydown(function (e) {

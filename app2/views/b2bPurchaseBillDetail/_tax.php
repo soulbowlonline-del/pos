@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/_tax.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/_tax.php.
  */
 
 use app\models\MrsDetail;

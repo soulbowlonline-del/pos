@@ -1465,7 +1465,7 @@ class ItemDetail extends ActiveRecord
         $this->load($params, $this->formName());
 
 		$item_ids = array ();
-		$query = self::find();
+		$query = ItemDetail::find()->alias('t');
 		$item_list_ids = array ();
 		
 		$match_purchase_price = null;
@@ -1475,8 +1475,8 @@ class ItemDetail extends ActiveRecord
 		$match_product_code = null;
 		
 		if ($this->item_id != null) {
-			/* Yii::warning( var_export( $this->item_id , true), '$this->item_id');
-			$query2 = Item::find();
+			/* Yii::warning( var_export($this->item_id, true), '$this->item_id');
+			$query2 = Item::find()->alias('t');
 			
 				$query2->andWhere("title LIKE :title", array (
 						':title' => trim (  $this->item_id ) . '%'
@@ -1486,7 +1486,7 @@ class ItemDetail extends ActiveRecord
 			//$criteria2->compare ( 'title', $this->item_id );
 			$getitem = $query2->one();
 			if($getitem){
-			$query1 = ItemDetail::find();
+			$query1 = ItemDetail::find()->alias('t');
 			$query1->orderBy(['id' => SORT_ASC]);
 			$query1->andWhere('item_id ='.$getitem->id);
 			$itemDetail = $query1->one();
@@ -1495,7 +1495,7 @@ class ItemDetail extends ActiveRecord
 			}
 			} */
 			$match_item_id = $this->item_id;
-			Yii::warning( var_export( $match_item_id , true), '$match_item_id');
+			Yii::warning( var_export($match_item_id, true), '$match_item_id');
 		}
 		if ($this->mrp != null) {
 			$match_mrp = $this->mrp;
@@ -1523,7 +1523,7 @@ class ItemDetail extends ActiveRecord
 		Criteria::compare($query, 'id', $this->id);
 		
 		$role = UserRole::find()->where(array (
-				'title' => 'Vendor')->one());
+				'title' => 'Vendor')->orderBy(['id' => SORT_DESC])->one());
 		$user = Yii::$app->user->model;
 		if ($user->role_id == $role->id) {
 			$is_vendor = 1;
@@ -1549,6 +1549,8 @@ class ItemDetail extends ActiveRecord
 		Criteria::compare($query, 'create_user_id', $this->create_user_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by);
 		
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

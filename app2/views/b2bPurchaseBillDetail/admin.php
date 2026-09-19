@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/admin.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/admin.php.
  */
 
 use app\components\Gx;
@@ -65,7 +65,7 @@ $('.search-form form').submit(function(){
 					'prepend'=>'<i class="icon-calendar"></i>',
 							'options'=>['format'=>'yyyy-mm-dd']])
 ; ?>
-<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
+<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 <?php $user = Yii::$app->user->model;
 if($user->role_id != 6){?>
 <?php echo $form->dropdownListRow($model, 'vendor_id',$model->getPBillVendorOptions(),['class'=>'form-control']); ?>
@@ -88,12 +88,12 @@ if($user->role_id != 6){?>
 <?php ActiveForm::end(); ?>
 
 <?php $vendor_id = null;
-$role = UserRole::find()->where(['title'=>'Vendor'])->one();
+$role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 			$loggedinuser = Yii::$app->user->model;
 			if($loggedinuser->role_id == $role->id){
 				$user = Vendor::find()->where([
 						'create_user_id' => $loggedinuser->id 
-				])->one();
+				])->orderBy(['id' => SORT_DESC])->one();
 				if($user){
 					$vendor_id = $user->id;
 				}

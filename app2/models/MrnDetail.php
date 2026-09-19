@@ -493,12 +493,12 @@ class MrnDetail extends ActiveRecord
     {
         $this->load($params, $this->formName());
 
-		$query = self::find()->alias('t');
+		$query = MrnDetail::find()->alias('t');
 		$query->joinWith(['item' => function ($q) { $q->alias('item'); }]);
 		$query->orderBy(['item.title' => SORT_ASC]);
 		if($this->mrs_req_date != null || $this->vendor_id != null){
 			$mrs_ids = array();
-		$query1 = Mrn::find();
+		$query1 = Mrn::find()->alias('t');
         $query1->orderBy(['id' => SORT_DESC]);
 		if($this->mrs_req_date != null){
 			Criteria::compare($query1, 'mrs_req_date', $this->mrs_req_date);
@@ -507,7 +507,7 @@ class MrnDetail extends ActiveRecord
 			Criteria::compare($query1, 'vendor_id', $this->vendor_id);
 		}
 		$mrss= $query1->all();
-		Yii::warning( var_export( $mrss , true), '$mrss');
+		Yii::warning( var_export($mrss, true), '$mrss');
 		if($mrss){
 			foreach($mrss as $mrs){
 				$mrs_ids[] = $mrs->id;
@@ -531,6 +531,8 @@ class MrnDetail extends ActiveRecord
 		Criteria::compare($query, 't.item_detail_id', $this->item_detail_id);
 		Criteria::compare($query, 't.mrn_id', $this->mrn_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
+
+		$query->orderBy(['item.title' => SORT_ASC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
@@ -561,7 +563,7 @@ class MrnDetail extends ActiveRecord
             $list = [];
             $item_vendors = ItemVendor::find()->where([
                     'item_detail_id' => $this->item_id
-            ])->all();
+            ])->orderBy(['id' => SORT_DESC])->all();
             if ($item_vendors) {
                 foreach ( $item_vendors as $item_vendor ) {
                     $vendor = Vendor::findOne( $item_vendor->vendor_id );
@@ -578,7 +580,7 @@ class MrnDetail extends ActiveRecord
             $user = Yii::$app->user->model;
             if ($user) {
                 $role_id = $user->role_id;
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {
@@ -609,7 +611,7 @@ class MrnDetail extends ActiveRecord
             $user = Yii::$app->user->model;
             if ($user) {
                 $role_id = $user->role_id;
-                $role = UserRole::find()->where(['title'=>'Vendor'])->one();
+                $role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 
                 if ($id != null) {
                     if ($role_id == $role->id) {

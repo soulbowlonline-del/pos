@@ -383,7 +383,7 @@ class User extends ActiveRecord
 
     public static function getMerchantOptions(){
             $userlist = [];
-            $users = User::find()->where(['role_id'=>User::ROLE_MERCHANT])->all();
+            $users = User::find()->where(['role_id'=>User::ROLE_MERCHANT])->orderBy(['id' => SORT_DESC])->all();
             if($users)
             {
                 foreach($users as $user)

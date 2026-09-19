@@ -1,6 +1,7 @@
 <?php
-/** @var yii\web\View $this */
-/** @var app\models\PaymentMode $model */
+/**
+ * Ported from protected/views/paymentMode/_form.php.
+ */
 
 use app\widgets\ActiveForm;
 use app\widgets\Button;
@@ -20,24 +21,28 @@ use app\widgets\Button;
 					<div class="row">
 						<div class="col-md-12">
 
+
 <?php $form = ActiveForm::begin([
-    'id' => 'payment-mode-form',
-    'type' => 'horizontal',
-    'options' => ['enctype' => 'multipart/form-data'],
-]); ?>
+	'id' => 'payment-mode-form',
+	'type'=>'horizontal',
+	'enableAjaxValidation' => true,
+	'htmlOptions'=>['enctype'=>'multipart/form-data'],
+]);
+?>
 
 
-<?= $form->textFieldRow($model, 'title', ['class' => 'form-control', 'maxlength' => 255]) ?>
+<?php echo $form->textFieldRow($model,'title',['class'=>'form-control','maxlength'=>255]); ?>
 
 
-<?= $form->dropDownListRow($model, 'type_id', $model->getTypeOptions()) ?>
+<?php echo $form->dropDownListRow($model, 'type_id',
+			$model->getTypeOptions()); ?>
 
 	<div class="form-actions">
-		<?= Button::widget([
-		    'buttonType' => 'submit',
-		    'type' => 'primary',
-		    'label' => 'Save',
-		]) ?>
+		<?php echo Button::widget([
+			'buttonType'=>'submit',
+			'type'=>'primary',
+			'label'=>'Save',
+		]); ?>
 	</div>
 
 <?php ActiveForm::end(); ?>

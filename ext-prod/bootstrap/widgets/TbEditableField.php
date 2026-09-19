@@ -270,7 +270,14 @@ class TbEditableField extends CWidget
             throw new CException('Parameter "attribute" should be provided for Editable');
         }
 
-        $originalText = strlen($this->text) ? $this->text : CHtml::value($this->model, $this->attribute);
+        // (string) for PHP 8.1: `text` and `value` both default to null,
+        // and strlen(null) is deprecated - which this application turns
+        // into a 500, because Yii 1's error handler reports a deprecation
+        // like any other error. purchaseBill/view renders an editable
+        // column and died here on PHP 8.3 while working on 5.6. The cast
+        // keeps the test exactly as it was: strlen(null) was 0, and
+        // strlen((string) null) is 0.
+        $originalText = strlen((string) $this->text) ? $this->text : CHtml::value($this->model, $this->attribute);
 
         //if apply set to false --> just print text
         if ($this->apply === false) {
@@ -329,7 +336,7 @@ class TbEditableField extends CWidget
          If text not defined, generate it from model attribute for types except lists ('select', 'checklist' etc)
          For lists keep it empty to apply autotext
         */
-        if (!strlen($this->text) && !$this->_prepareToAutotext) {
+        if (!strlen((string) $this->text) && !$this->_prepareToAutotext) {
             $this->text = $originalText;
         }
 

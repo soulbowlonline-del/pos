@@ -129,7 +129,17 @@ def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     s1, s2 = status(y1), status(y2)
     if s1 != '200' or s2 != '200':
         if s1 == s2:
-            print(f'  ok    {name} (both {s1})')
+            # Neither page rendered, so there was nothing to compare. Two
+            # error pages agreeing is not agreement, and counting it as a pass
+            # is the exact failure this suite exists to avoid: every one of
+            # b2bPurchaseBill's seven pages is 500 on both stacks - its view
+            # directory is spelled protected/views/b2bpurchaseBill and Yii 1
+            # looks for b2bPurchaseBill - and the controller was reported
+            # green for as long as the port happened to fail too. The moment
+            # the port started rendering them, the "agreement" became seven
+            # mismatches.
+            NOTHING.append(name)
+            print(f'  none  {name}: both stacks answered {s1}; nothing compared')
             return
         key = CTRL + '/' + name
         if s1 == '500' and key in KNOWN:

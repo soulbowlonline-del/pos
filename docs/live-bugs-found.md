@@ -128,6 +128,92 @@ fatal on PHP 8. Affected 407 real orders. Fixed with a null guard.
 
 ## Found, not fixed — needs a product decision
 
+### Seventeen pages are refused to every role, including Admin — **found, not fixed**
+
+`GxActiveRecord::checkPermission($url)` builds a `url => id` map from
+`tbl_permission` and answers from it:
+
+```php
+if (isset($permIdByUrl[$url]))
+    return isset($rolePermSet[$roleId][$permIdByUrl[$url]]);
+return false;
+```
+
+A PHP array lookup is case-sensitive. A MySQL comparison, under this
+database's collation, is not. So a controller that asks for a URL spelled
+differently from the row that grants it gets `false` — and the page answers
+403 for every role, Admin included, while the permission it needs is sitting
+in the table.
+
+Auditing all 98 `checkPermission()` calls in the Yii 1 controllers against
+`tbl_permission`:
+
+| | |
+|---|---|
+| match a row exactly | 81 |
+| differ only in letter case | **11** |
+| no such row at all | **6** |
+
+The eleven:
+
+    CreditNote/admin  create  delete  update  view   ->  creditNote/...
+    ItemCompany/create  update  view                 ->  itemCompany/...
+    ItemDetail/create   update  view                 ->  itemDetail/...
+
+The six, which have no row under any spelling:
+
+    advancePayment/delete   item/extra   mrn/admin
+    mrn/view                purchaseOrder/admin      purchaseOrder/view
+
+So the whole credit-note section, the item-company and item-detail
+create/update/view pages, and the MRN and purchase-order admin and view pages
+cannot be opened by anybody.
+
+Not fixed here: the repair is either 17 rows of data or 17 string literals, and
+which one is right is a product decision — whether those pages are meant to be
+reachable at all. The port reproduces the refusal exactly, which is the correct
+behaviour for a port.
+
+It is also why the UI suite reports these as **nothing compared** rather than
+as passes: both stacks answer 403, and a page neither stack renders has not
+been verified by their agreeing about it.
+
+### Every b2bPurchaseBill page is dead, and has been — **found, not fixed**
+
+All seven pages of the B2B purchase bill section answer 500, on the untouched
+PHP 5.6 baseline as well as on 8.3:
+
+    :8082 (5.6)  b2bPurchaseBill/admin   500
+                 b2bPurchaseBill/index   500
+                 b2bPurchaseBill/create  500
+                 b2bPurchaseBill/view    500
+                 b2bPurchaseBill/update  500
+
+`B2bPurchaseBillController cannot find the requested view "admin"`.
+
+Yii 1 builds a controller's view path from its id, so
+`B2bPurchaseBillController` looks in `protected/views/b2bPurchaseBill`. The
+directory on disk is `protected/views/b2bpurchaseBill` — lower-case `p`. On a
+case-insensitive filesystem, which is what a Windows or macOS development
+machine has, those are the same directory. On Linux they are not, and every
+one of the fifteen view files is invisible.
+
+So this section of the application has been unusable on the server for as long
+as it has been on Linux.
+
+Not fixed here: renaming a directory changes the Yii 1 tree in a way that is
+not part of porting it, and the fix is one `git mv`. The port renders all seven
+pages, because Yii 2 resolves its own view path and `app2/views/b2bPurchaseBill`
+is spelled the way its controller is.
+
+**This was hiding inside a green suite.** `check_pair()` treated two equal
+non-200 statuses as agreement — "ok (both 500)" — so for as long as the port
+failed in the same way, the controller reported seven passes. It only surfaced
+when the port started rendering the pages and the statuses stopped matching.
+The suite now counts that as *nothing compared* rather than as a pass.
+
+
+
 ### order/search queried the wrong table — **fixed**
 
 `actionSearch()` filtered `OrderItem` by `bill_date`, `bill_no` and

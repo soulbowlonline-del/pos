@@ -78,6 +78,15 @@ PY
   rid=$(docker exec pos-mysql-8 sh -c \
         "mysql -uroot -p\$MYSQL_ROOT_PASSWORD \$MYSQL_DATABASE -N -e \
          'SELECT id FROM tbl_$table ORDER BY id DESC LIMIT 1'" 2>/dev/null | tr -d '\r')
+  # The session outlives a controller but not the whole suite: PHP's default
+  # lifetime is 24 minutes and this run is longer than that. Once it lapses,
+  # Yii 1 answers the login page for every remaining controller and the port
+  # redirects, which reads as a mismatch - discount was reported as three
+  # failures that way while all three of its pages render correctly.
+  probe=$(curl -sS -b "$COOKIE" --max-time 60 \
+          "http://127.0.0.1:8084/v2/paymentMode/admin" -o /dev/null -w '%{http_code}')
+  [ "$probe" = "200" ] || bash /root/pos/uilogin.sh >/dev/null 2>&1
+
   out=$(COOKIE_FILE="$COOKIE" python3 "$REPO/tests/port/ui-difftest.py" "$ctrl" "$model" "$grid" "$rid" 2>&1)
   p=$(echo "$out" | grep -c '^  ok ')
   m=$(echo "$out" | grep -c '^  FAIL ')
@@ -91,6 +100,10 @@ PY
     printf "    %-22s ok=%-3s fail=%s\n" "$ctrl" "$p" "$m"
   fi
   [ "$m" -gt 0 ] && echo "$out" | grep -A 3 '^  FAIL '
+  # Why a case compared nothing, not just how many did. Without this the
+  # count is a number nobody can act on - and these are the cases where the
+  # suite is saying it does not know.
+  [ "$n" -gt 0 ] && echo "$out" | grep '^  none '
 done
 
 echo "passed: $P mismatched: $M nothing-compared: $N"

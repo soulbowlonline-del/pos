@@ -3,7 +3,6 @@
  * Ported from protected/views/emp/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Designation;
@@ -84,11 +83,11 @@ $('.search-form form').submit(function(){
 			[
 					'attribute' => 'gender_id',
 					'format' => 'raw',
-					'value' => function ($data) { return $data->getGenderOptions($data->gender_id); },
+					'value' => function ($data, $key, $index) { return $data->getGenderOptions($data->gender_id); },
 			],
 			[
 					'attribute' =>'designation_id',
-					'value' => function ($data) { return Gx::str($data->designation); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->designation); },
 					'filter'=>Gx::listData(Designation::class),
 			],
 		/*
@@ -98,22 +97,22 @@ $('.search-form form').submit(function(){
 		'temp_address:html',
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Emp::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Emp::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'designation_id',
-			'value' => function ($data) { return Gx::str($data->designation); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->designation); },
 			'filter'=>Gx::listData(Designation::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -125,14 +124,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('emp/view'),
+									'visible' => function ($data) { return $data->checkPermission ("emp/view")=="true"; },
 									'url' => function ($data) { return Ui::to("emp/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 			
 							],
 							'update'=>[
-									'visible' => Access::check('emp/update'),
+									'visible' => function ($data) { return $data->checkPermission ("emp/update")=="true"; },
 									'url' => function ($data) { return Ui::to("emp/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

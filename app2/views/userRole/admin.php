@@ -3,7 +3,6 @@
  * Ported from protected/views/userRole/admin.php.
  */
 
-use app\components\Access;
 use app\components\Ui;
 use app\models\UserRole;
 use app\widgets\ActionColumn;
@@ -64,7 +63,7 @@ $('.search-form form').submit(function(){
 		'title',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>UserRole::getStatusOptions(),
 				],
 		
@@ -76,14 +75,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('userRole/view'),
+									'visible' => function ($data) { return $data->checkPermission ("userRole/view")=="true"; },
 									'url' => function ($data) { return Ui::to("userRole/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('userRole/update'),
+									'visible' => function ($data) { return $data->checkPermission ("userRole/update")=="true"; },
 									'url' => function ($data) { return Ui::to("userRole/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

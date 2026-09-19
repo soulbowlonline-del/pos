@@ -43,7 +43,7 @@ $('.search-form form').submit(function(){
 $gst = true;
 $user = Yii::$app->user->model;
 if ($mrsid) {
-	$mrs = Mrs::find()->where(['id' => $mrsid])->one();
+	$mrs = Mrs::find()->where(['id' => $mrsid])->orderBy(['id' => SORT_DESC])->one();
 	if ($mrs) {
 		$outlet = Outlet::findOne($mrs->outlet_id);
 		if ($outlet) {
@@ -95,7 +95,7 @@ if ($mrsid) {
 										'options' => ['format' => 'yyyy-mm-dd']
 									]
 								); ?>
-								<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status' => Outlet::STATUS_ACTIVE])->all()), ['class' => 'form-control']); ?>
+								<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status' => Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()), ['class' => 'form-control']); ?>
 								<?php
 								if ($user->role_id != 6) { ?>
 									<div class="form-group ">
@@ -108,6 +108,7 @@ if ($mrsid) {
 												<?php if ($vendors) {
 													foreach ($vendors as $key => $vendor) {
 														$query = Mrs::find();
+        $query->orderBy(['id' => SORT_DESC]);
 														$query->andWhere('vendor_id =' . $key);
 														$query->andWhere('status =' . Mrs::STATUS_PENDING);
 														$mrss = $query->all();
@@ -1292,7 +1293,7 @@ if ($mrsid) {
 	</div>
 </section>
 <?php $user = Yii::$app->user->model;
-$role = UserRole::find()->where(['title' => 'Admin'])->one(); ?>
+$role = UserRole::find()->where(['title' => 'Admin'])->orderBy(['id' => SORT_DESC])->one(); ?>
 <script>
 	$('#MrsDetail_bar_code').change(function() {
 		checkTaxes();

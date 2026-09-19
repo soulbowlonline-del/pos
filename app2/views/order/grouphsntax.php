@@ -249,7 +249,7 @@ echo GridView::widget([
 						'header' => 'Mode of Payment',
 						'attribute' =>'mode_of_payment',
 						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->modePayment:""; },
-						'filter'=>Gx::listData(PaymentMode::find()->where(['type_id'=>0])->all()),
+						'filter'=>Gx::listData(PaymentMode::find()->where(['type_id'=>0])->orderBy(['id' => SORT_DESC])->all()),
 				]
 				,
 				/* array (

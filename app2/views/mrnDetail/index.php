@@ -41,12 +41,12 @@ $('.search-form form').submit(function(){
 
 </section>
 <?php $vendor_id = null;
-$role = UserRole::find()->where(['title'=>'Vendor'])->one();
+$role = UserRole::find()->where(['title'=>'Vendor'])->orderBy(['id' => SORT_DESC])->one();
 			$loggedinuser = Yii::$app->user->model;
 			if($loggedinuser->role_id == $role->id){
 				$user = Vendor::find()->where([
 						'create_user_id' => $loggedinuser->id 
-				])->one();
+				])->orderBy(['id' => SORT_DESC])->one();
 				if($user){
 					$vendor_id = $user->id;
 				}
@@ -146,27 +146,27 @@ echo Button::widget([
         // ),
         [
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>$model->getItemOptions($vendor_id), 
 	],
 			[
 					'attribute' =>'item_detail_id',
-					'value' => function ($data) { return Gx::str($data->itemDetail); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 					'filter'=>$model->getItemOptionbarcodes(),
 			],
 			[
 					'attribute' =>'outlet_id',
-					'value' => function ($data) { return Gx::str($data->outlet); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 					'filter'=>Gx::listData(Outlet::class),
 			],
 			[
 					'header'=>'vendor',
-					'value' => function ($data) { return Gx::str($data->mrn->vendor); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->mrn->vendor); },
 					
 			],
 			[
 				'attribute' =>'req_qty',
-				'value' => function ($data) { return $data->req_qty; },
+				'value' => function ($data, $key, $index) { return $data->req_qty; },
 				'filter'=>false,
 			],
     		'approved_qty',
@@ -178,7 +178,7 @@ echo Button::widget([
     	//	'vat',
     		[
     				'header'=>'Tax',
-    				'value' => function ($data) { return Gx::str($data->tax); },
+    				'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
     					
     		],
     		'cgst_per',
@@ -211,7 +211,7 @@ echo Button::widget([
 $user = Yii::$app->user->model;
 $role = UserRole::find()->where([
 		'title' => 'Admin' 
-])->one();
+])->orderBy(['id' => SORT_DESC])->one();
 ?>
 <script>
 $('#MrnDetail_mrn_id').change(function(){

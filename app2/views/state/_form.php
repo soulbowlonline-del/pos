@@ -32,7 +32,7 @@ use app\widgets\Button;
 
 
 
-<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::findAll(['status'=>Country::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all()),['class'=>'form-control']); ?>
 
 
 	<div class="form-actions">

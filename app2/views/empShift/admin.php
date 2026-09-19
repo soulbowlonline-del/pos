@@ -49,27 +49,27 @@ You may optionally enter a comparison operator (&lt;, &lt;=, &gt;, &gt;=, &lt;&g
 		'id',
 		[
 			'attribute' =>'emp_id',
-			'value' => function ($data) { return Gx::str($data->emp); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->emp); },
 			'filter'=>Gx::listData(Emp::class),
 			],
 		[
 			'attribute' =>'shift_id',
-			'value' => function ($data) { return Gx::str($data->shift); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->shift); },
 			'filter'=>Gx::listData(Shift::class),
 			],
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>EmpShift::getStatusOptions(),
 				],
 		[
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>EmpShift::getTypeOptions(),
 				],
 		[
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			],
 		[

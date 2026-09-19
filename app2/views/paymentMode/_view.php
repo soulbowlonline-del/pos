@@ -1,33 +1,42 @@
 <?php
-/** @var yii\web\View $this */
-/** @var app\models\PaymentMode $data */
+/**
+ * Ported from protected/views/paymentMode/_view.php.
+ */
 
-use app\components\Ui;
+use app\components\Gx;
 use yii\helpers\Html;
 ?>
 <div class="view">
 
-	<b><?= Html::encode($data->getAttributeLabel('id')) ?>:</b>
-	<?= Html::a(Html::encode($data->id), Ui::to('paymentMode/view', ['id' => $data->id])) ?>
+	<b><?php echo Html::encode($data->getAttributeLabel('id')); ?>:</b>
+	<?php echo Html::a(Html::encode($data->id), Gx::url(['view','id'=>$data->id])); ?>
 	<br />
 
-	<?= Html::encode($data->getAttributeLabel('id')) ?>:
-	<?= Html::encode($data->id) ?>
+	<?php echo Html::encode($data->getAttributeLabel('id')); ?>:
+	<?php echo Html::encode($data->id); ?>
 	<br />
-	<?= Html::encode($data->getAttributeLabel('title')) ?>:
-	<?= Html::encode($data->title) ?>
+	<?php echo Html::encode($data->getAttributeLabel('title')); ?>:
+	<?php echo Html::encode($data->title); ?>
 	<br />
-	<?= Html::encode($data->getAttributeLabel('type_id')) ?>:
-	<?= Html::encode($data->type_id) ?>
+	<?php echo Html::encode($data->getAttributeLabel('type_id')); ?>:
+	<?php echo Html::encode($data->type_id); ?>
 	<br />
-	<?= Html::encode($data->getAttributeLabel('status')) ?>:
-	<?= Html::encode($data->status) ?>
+	<?php echo Html::encode($data->getAttributeLabel('status')); ?>:
+	<?php echo Html::encode($data->status); ?>
 	<br />
-	<?= Html::encode($data->getAttributeLabel('create_time')) ?>:
-	<?= Html::encode($data->create_time) ?>
+	<?php echo Html::encode($data->getAttributeLabel('create_time')); ?>:
+	<?php echo Html::encode($data->create_time); ?>
 	<br />
-	<?= Html::encode($data->getAttributeLabel('update_time')) ?>:
-	<?= Html::encode($data->update_time) ?>
+	<?php echo Html::encode($data->getAttributeLabel('update_time')); ?>:
+	<?php echo Html::encode($data->update_time); ?>
 	<br />
+	<?php /*
+	<?php echo Html::encode($data->getAttributeLabel('create_user_id')); ?>:
+		<?php echo Html::encode(Gx::str($data->createUser)); ?>
+	<br />
+	<?php echo Html::encode($data->getAttributeLabel('updated_by')); ?>:
+		<?php echo Html::encode(Gx::str($data->updatedBy)); ?>
+	<br />
+	*/ ?>
 
 </div>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ported from protected/views/b2bPurchaseBillDetail/_list.php.
+ * Ported from protected/views/b2bpurchaseBillDetail/_list.php.
  */
 
 use app\components\Gx;

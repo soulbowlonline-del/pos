@@ -3,7 +3,6 @@
  * Ported from protected/views/itemCompanyCategory/admin.php.
  */
 
-use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\ItemCompany;
@@ -59,24 +58,24 @@ $('.search-form form').submit(function(){
 		'title',
 		/* array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemCompanyCategory::getTypeOptions(),
 				), */
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemCompanyCategory::getStatusOptions(),
 				],
 		//'update_time',
 		/* array(
 			'attribute' =>'company_id',
-			'value' => function ($data) { return Gx::str($data->company); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->company); },
 			'filter'=>Gx::listData(ItemCompany::class),
 			), */
 		/*
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -88,14 +87,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							 	'view'=>[
-							 'visible' => Access::check('itemCompanyCategory/view'),
+							 'visible' => function ($data) { return $data->checkPermission ("itemCompanyCategory/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemCompanyCategory/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							], 
 							'update'=>[
-									'visible' => Access::check('itemCompanyCategory/update'),
+									'visible' => function ($data) { return $data->checkPermission ("itemCompanyCategory/update")=="true"; },
 									'url' => function ($data) { return Ui::to("itemCompanyCategory/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

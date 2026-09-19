@@ -79,6 +79,7 @@ class Ui
         'b2bPurchaseBillDetail',
         'loyaltyAdmin',
         'orderItem',
+        'purchaseBill',
     ];
 
     /**

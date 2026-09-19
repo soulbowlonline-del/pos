@@ -238,7 +238,7 @@ $('.search-form form').submit(function(){
 					'header' => 'Employee',
 					'attribute' =>'create_user_id',
 					'value' => function ($data, $key, $index) { return isset($data->createUser)?$data->createUser:""; },
-					'filter' => Gx::listData( User::find()->where(['role_id'=>7])->all())
+					'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy(['id' => SORT_DESC])->all())
 			]
 			,
 			[
@@ -271,12 +271,12 @@ $('.search-form form').submit(function(){
 		/* 	array(
 					'attribute' =>'mode_of_payment',
 					'value' => function ($data, $key, $index) { return Gx::str($data->modePayment); },
-					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>0)->all())),
+					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>0)->orderBy(['id' => SORT_DESC])->all())),
 			),
 			array(
 					'attribute' =>'mode_of_delivery',
 					'value' => function ($data, $key, $index) { return Gx::str($data->modeDelivery); },
-					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>1)->all())),
+					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>1)->orderBy(['id' => SORT_DESC])->all())),
 			),
 			
 			array(

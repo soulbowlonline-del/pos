@@ -91,6 +91,34 @@ def parse_block(src, name):
     return src[m.end():i - 1]
 
 
+def block_params(src, name):
+    """
+    The parameter list a Yii 1 method declares, as written.
+
+    search() is emitted with Yii 2's signature, `search($params = [])`, and
+    where the whole body is converted rather than rebuilt that threw away any
+    parameter the application had declared. BasePurchaseBill::search($val =
+    false) tests $val twice in its body, so the generated method referred to a
+    variable it no longer had: "Undefined variable $val", and purchaseBill's
+    admin grid answered 500.
+    """
+    m = re.search(r'function\s+' + name + r'\s*\(([^)]*)\)\s*\{', src)
+    if not m or not m.group(1).strip():
+        return []
+
+    out = []
+    for bit in m.group(1).split(','):
+        bit = bit.strip()
+        if not bit:
+            continue
+        # Anything this cannot read - a type hint, a by-reference parameter -
+        # is reported rather than guessed at.
+        pm = re.match(r'^(\$\w+)\s*(=\s*(.+))?$', bit)
+        out.append((pm.group(1), pm.group(3)) if pm else (bit, None))
+
+    return out
+
+
 def port_rules(body, warn):
     """Yii 1 validation rules -> Yii 2."""
     out = []
@@ -1072,7 +1100,33 @@ def by_attributes_php(m):
                 # quotes the column itself.
                 query += "->orderBy('" + ', '.join(cols) + "')"
 
-    return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
+    return query + default_order_call(cls, query) + \
+        ('->all()' if kind.lower().startswith('findall') else '->one()')
+
+
+def default_order_call(cls, query):
+    """
+    `->orderBy(...)` for a finder that inherits Yii 1's defaultScope().
+
+    Yii 1 applies defaultScope() to every finder, so
+    `PaymentMode::model()->findAllByAttributes(['type_id' => 0])` comes back
+    id DESC. Yii 2 has no such thing, and the converted query came back in
+    whatever order the storage engine gave - which for these was ascending,
+    so order/admin's filter dropdowns listed the same names as Yii 1 in
+    exactly the opposite order.
+
+    Not caught by the UI suite: a filter dropdown lives in the grid's <th>
+    row, which grid_rows() skips.
+
+    The order is read from the model's own defaultScope() and emitted as a
+    literal, so nothing at runtime has to know what defaultOrder() is - and a
+    model that overrides the scope to no ordering gets no orderBy at all.
+    """
+    if '->orderBy(' in query:
+        return ''                    # the options array already gave one
+    order = default_order_of(cls)
+
+    return '->orderBy(%s)' % order if order else ''
 
 
 def dump_as_string(text):
@@ -1359,7 +1413,8 @@ def options_finder(m):
         if w:
             query += '->%s(%s)' % (which, w.group(1))
 
-    return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
+    return query + default_order_call(cls, query) + \
+        ('->all()' if kind.lower().startswith('findall') else '->one()')
 
 
 def finder_idioms(text):
@@ -2078,7 +2133,23 @@ def generate(model, table_alias):
     A('     * never validates, and a required rule with no `on` clause would')
     A('     * otherwise reject every filtered request and return the full list.')
     A('     */')
-    A('    public function search($params = [])')
+    # Yii 1's own parameters, after Yii 2's. Nothing in the port calls
+    # search() with arguments - the controllers call $model->search() - so
+    # they only ever take their defaults, which is what Yii 1 did too. A
+    # parameter Yii 1 declared without one gets null, because it would
+    # otherwise be a required parameter following an optional one.
+    extra = [pair for pair in block_params(base, 'search')
+             if pair[0] not in ('$params',)]
+    sig = '$params = []'
+    for name, default in extra:
+        if not name.startswith('$'):
+            warn.append('search(%s): parameter this cannot read, dropped' % name)
+            continue
+        sig += ', %s = %s' % (name, default if default else 'null')
+        if not default:
+            warn.append('search(): %s had no default in Yii 1; it gets null here'
+                        % name)
+    A('    public function search(%s)' % sig)
     A('    {')
     # Rebuilding search() out of its compares is enough for most of these and
     # silently wrong for the few that filter by anything else. Where Yii 1's
