@@ -253,6 +253,18 @@ def rewrite(src, ctrl, unknown):
     # before the argument is rewritten below, so both forms end up as
     # Gx::listData(...) - a class name or a list of models, either of which it
     # accepts.
+    # `count(X::model()->findAllAttributes(null, true)) > 0` is asking whether
+    # the table has a row. Yii 1 answers it by loading every row - but only two
+    # columns of each, the key and the representing column, which is why it
+    # survives. Converting the finder to `X::find()->all()` drops that narrow
+    # select and loads whole rows: order/create asked it of tbl_order_item and
+    # exhausted a ten-gigabyte limit.
+    #
+    # exists() is the same question and the same answer.
+    src = re.sub(r"count\s*\(\s*(\w+)::model\s*\(\s*\)\s*->\s*findAllAttributes\s*\("
+                 r"[^)]*\)\s*\)\s*>\s*0",
+                 lambda m: "%s::find()->exists()" % m.group(1), src)
+
     src = re.sub(r"\bGxHtml::listDataEx\s*\(", 'Gx::listData(', src)
 
     # X::model()->findAllAttributes(...) is Yii 1's "every row, two columns".
@@ -323,9 +335,15 @@ def rewrite(src, ctrl, unknown):
                     if col.startswith('t.'):
                         col = col[2:]
                     desc = len(p2) > 1 and p2[1].lower().startswith('desc')
-                    cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+                    cols.append('%s %s' % (col, 'DESC' if desc else 'ASC'))
                 if cols:
-                    query += '->orderBy([' + ', '.join(cols) + '])'
+                    # A string, not an array. The grid-column rename below
+                    # turns every `'name' =>` into `'attribute' =>`, and it
+                    # runs after this one - so an order on a column called
+                    # `name` came out as `orderBy(['attribute' => SORT_ASC])`
+                    # and orderItem's admin grid died on "Unknown column
+                    # 'attribute' in 'order clause'".
+                    query += "->orderBy('" + ', '.join(cols) + "')"
         return query + ('->all()' if kind.startswith('findAll') else '->one()')
 
     src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"

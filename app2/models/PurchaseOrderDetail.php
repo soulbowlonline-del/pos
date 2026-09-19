@@ -18,10 +18,6 @@ class PurchaseOrderDetail extends ActiveRecord
     // compare them loosely and give the wrong answer for an integer 0.
     use LegacyColumnTypes;
 
-    // Declared on the Yii 1 model and not columns: the forms post
-    // to these and the actions assign them.
-    public $vendor_id;
-
     public const STATUS_PENDING = 0;
     public const STATUS_HALF_DONE = 2;
     public const STATUS_DONE = 1;
@@ -32,6 +28,7 @@ class PurchaseOrderDetail extends ActiveRecord
     // these and the actions assign them. Yii 2 throws on an unknown
     // property, so the declarations have to come across.
     public $start_date;
+    public $vendor_id;
     public $salerate;
     public $vat;
 
@@ -55,11 +52,11 @@ class PurchaseOrderDetail extends ActiveRecord
     /**
      * GxActiveRecord::__toString(): the representing column's value.
      *
-     * Empty when that value is null. Yii 1 falls back to the primary key when
-     * representingColumn() itself is empty - which is why 'id' is named above
-     * for the models that have no other - and never because the column happens
-     * to be null on this row. Falling back on the value put an id in every grid
-     * cell where Yii 1 shows nothing.
+     * Empty when that value is null. Yii 1 falls back to the primary key
+     * when representingColumn() itself is empty - which the generator
+     * has already done above, by naming 'id' - and never because the
+     * column happens to be null on this row. Falling back on the value
+     * put an id in every grid cell where Yii 1 shows nothing.
      */
     public function __toString()
     {
@@ -442,6 +439,8 @@ class PurchaseOrderDetail extends ActiveRecord
     public function rules()
     {
         return [
+            [['start_date', 'vendor_id'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['salerate', 'vat'], 'safe'],  // form-only, declared on the Yii 1 model
             [['req_qty', 'item_detail_id', 'item_id', 'purchase_order_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'item_id', 'purchase_order_id', 'outlet_id'], 'integer'],
             [['charge_amount', 'extra_charges'], 'number'],
@@ -493,11 +492,12 @@ class PurchaseOrderDetail extends ActiveRecord
     {
         $this->load($params, $this->formName());
 
-		$query = self::find()->alias('t');
+		$query = PurchaseOrderDetail::find()->alias('t');
 		$query->joinWith(['item' => function ($q) { $q->alias('item'); }]);
 		$query->orderBy(['item.title' => SORT_ASC]);
 		$purchase_order_ids = array();
-		$query1 = PurchaseOrder::find();
+		$query1 = PurchaseOrder::find()->alias('t');
+        $query1->orderBy(['id' => SORT_DESC]);
 		if($this->start_date != null){
 			Criteria::compare($query1, 'start_date', $this->start_date);
 		}
@@ -507,7 +507,7 @@ class PurchaseOrderDetail extends ActiveRecord
 		
 		$query1->andWhere('status !='.PurchaseOrderDetail::STATUS_DONE);
 		$purchaseorders= $query1->all();
-		Yii::warning( var_export( $purchaseorders , true), '$mrss');
+		Yii::warning( var_export($purchaseorders, true), '$mrss');
 		if($purchaseorders){
 			foreach($purchaseorders as $purchaseorder){
 				$purchase_order_ids[] = $purchaseorder->id;
@@ -532,6 +532,8 @@ class PurchaseOrderDetail extends ActiveRecord
 		Criteria::compare($query, 't.item_id', $this->item_id);
 		Criteria::compare($query, 't.purchase_order_id', $this->purchase_order_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
+
+		$query->orderBy(['item.title' => SORT_ASC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
@@ -682,11 +684,11 @@ class PurchaseOrderDetail extends ActiveRecord
     public function Pdfsearch($id)
     {
 
-		$query = self::find()->alias('t');
+		$query = PurchaseOrderDetail::find()->alias('t');
 		$query->joinWith(['item' => function ($q) { $q->alias('item'); }]);
 		$query->orderBy(['item.title' => SORT_ASC]);
 		$query->andWhere('t.purchase_order_id ='. $id);
-		Yii::warning( var_export( $id , true), '$id');
+		Yii::warning( var_export($id, true), '$id');
 		/* Criteria::compare($query, 'id', $this->id);
 		Criteria::compare($query, 'req_qty', $this->req_qty);
 		Criteria::compare($query, 'bal_qty', $this->bal_qty);
@@ -704,6 +706,8 @@ class PurchaseOrderDetail extends ActiveRecord
 		//$criteria->compare('purchase_order_id', $this->purchase_order_id);
 		//$criteria->compare('outlet_id', $this->outlet_id);
 	
+		$query->orderBy(['item.title' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

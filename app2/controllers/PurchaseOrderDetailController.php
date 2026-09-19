@@ -139,6 +139,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 	
 			$query = PurchaseOrder::find();
+        $query->orderBy(['id' => SORT_DESC]);
 			$query->andWhere('vendor_id ='.$_POST ['vendor_id']);
 			$query->andWhere('status !='.PurchaseOrderDetail::STATUS_DONE);
 			$mrslist = $query->all();
@@ -581,7 +582,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 			$user = Vendor::findOne($id);
 		} */
 		$model = new PurchaseOrderDetail(['scenario' => 'search']);
-		Yii::warning( var_export( $_POST , true), 'pos_post');
+		Yii::warning( var_export($_POST, true), 'pos_post');
 		if($poid == null){
 			$poids = $model->getAllPOOptions($user->id);
 			if(isset($poids['0']))

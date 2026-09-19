@@ -942,6 +942,8 @@ class ItemReturnItem extends ActiveRecord
     public function rules()
     {
         return [
+            [['tally_start_date', 'tally_end_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['columns', 'bar_code', 'item_val_id', 'start_date', 'credit_note_no', 'credit_note_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['price', 'tax_id', 'vendor_id', 'outlet_id', 'return_id', 'create_time', 'create_user_id'], 'required'],
             [['item_id', 'item_detail_id', 'free', 'tax_id', 'vendor_id', 'outlet_id', 'status', 'type_id', 'return_id', 'create_user_id', 'updated_by'], 'integer'],
             [['price', 'discount', 'discount_amt', 'discount1', 'discount_amt1', 'cgst_per', 'sgst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt', 'igst_per', 'igst_amt', 'other_charge'], 'number'],

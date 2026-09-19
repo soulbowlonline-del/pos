@@ -1,27 +1,25 @@
 <?php
 /**
- * Ported from protected/views/orderItem/b2bsales.php.
+ * Ported from protected/views/order/b2bitemwise.php.
  */
 
-use app\components\Gx;
 use app\components\Ui;
+use app\models\Item;
 use app\models\OrderItem;
-use app\models\User;
-use app\models\Vendor;
 use app\widgets\ActionColumn;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
+use app\widgets\EChosenWidget;
 use app\widgets\GridView;
 use app\widgets\Menu;
 use yii\helpers\Html;
 ?>
 <?php
 $this->params['breadcrumbs'] = [
-		$model->label ( 2 ) => [
-				'index' 
-		],
-		Yii::t ( 'app', 'Manage' ) 
+	$model->label(2) => ['index'],
+	'Manage',
 ];
+
 
 $this->registerJs("
 $('.search-button').click(function(){
@@ -29,14 +27,13 @@ $('.search-button').click(function(){
 	return false;
 });
 $('.search-form form').submit(function(){
-	$.fn.yiiGridView.update('order-item-grid', {
+	$.fn.yiiGridView.update('order-grid', {
 		data: $(this).serialize()
 	});
 	return false;
 });
-" );
+");
 ?>
-
 
 <style>
 .btn-info.export-btn {
@@ -50,50 +47,28 @@ $('.search-form form').submit(function(){
 }
 </style>
 
- <?php 	/*   if(empty($model->start_date) && empty($model->end_date ))
-		{
-			
-				Yii::$app->session['order_item_start_date'] ='';
-				Yii::$app->session['order_item_end_date'] ='';
-				
-			
-		}   */
-		
-	/*	if(empty($model->min_amt) && empty($model->max_amt ))
-		{
-		
-			Yii::$app->session['order_item_min_amt'] ='';
-			Yii::$app->session['order_item_max_amt'] ='';
-		
-		
-		} */
-		?> 
-
 <section class="content-header">
-	<h1>Manage: B2b Sale Report</h1>
+
+	<h1><?php echo 'Manage' . ' : ' . Html::encode($model->label(2)); ?></h1>
 </section>
 
-<?php 
-/*
-	       * echo Menu::widget(array(
-	       * 'type' => 'pills',
-	       * 'stacked' => false,
-	       * 'items' => array(
-	       * array('label' => 'Export',
-	       * 'url' => array('orderItem/admin' ,'exportCSV'=>'1',
-	       *
-	       *
-	       * ),
-	       *
-	       * ),
-	       * ),
-	       * ));
-	       */
-?>
-
-<ul class="nav nav-pills" id="yw2">
-	<li><button type="button" class="btn btn-info export-btn"
-			data-toggle="modal" data-target="#myModal">Export</button></li>
+<?php    /* echo Menu::widget(array(
+       'type' => 'pills',
+       'stacked' => false,
+       'items' => array(
+        		array('label' => 'Export',
+        				'url' => array('order/admin' ,'exportCSV'=>'1',
+        						
+        		
+        		),
+       		
+       		),
+       ),
+   )); */  ?>
+   
+   <ul class="nav nav-pills" id="yw2">
+	<li><button type="button" class="btn btn-info export-btn" data-toggle="modal"
+			data-target="#myModal">Export</button></li>
 </ul>
 
 <!-- Modal -->
@@ -112,7 +87,7 @@ $('.search-form form').submit(function(){
 					$form = ActiveForm::begin([
 							'id' => 'customer-export-form',
 							'type' => 'horizontal',
-							'action' => Ui::to( 'orderItem/b2bsales?exportCSV=1' ),
+							'action' => Ui::to( 'order/b2bItemWiseExport?exportCSV=1' ),
 							'enableAjaxValidation' => true,
 							'htmlOptions' => [
 									'enctype' => 'multipart/form-data' 
@@ -121,18 +96,15 @@ $('.search-form form').submit(function(){
 					?>
 <?php
 
+				
 					$cols = [
-							'bill_no' => 'Bill No',
-							'bill_date' => 'Bill Date',
-							'bar_code' => 'Barcode',
-							'customer_id' => 'Customer',
-							'employee_id' => 'Employee',
-							'item' => 'Item',
+							'item_detail_id' => 'Bar Code',
+							'item_id' => 'Item',
 							'qty' => 'Quantity',
-							'mrp' => 'Mrp',
-							'discount_amt' => 'Discounted Amount',
-							'tax_amount' => 'Tax Amount',
-							'total_amt' => 'Total Amount'
+							'price' => 'MRP',
+						  'tax_amount' => 'Tax Amount',
+							'amount' => 'Total Amount',
+				
 					];
 					?>
 <div class="form-group ">
@@ -151,8 +123,8 @@ $('.search-form form').submit(function(){
 				'type' => 'primary',
 				'label' => 'Export',
 				'htmlOptions' => [
-						'id' => 'form-export' 
-				] 
+						'id' => 'form-export'
+				]
 		] );
 		?>
 	</div>
@@ -167,15 +139,13 @@ $('.search-form form').submit(function(){
 	</div>
 </div>
 <section class="content">
-	<div class="row">
-		<div class="col-md-12 col-xs-12">
-			<div class="box">
-				<div class="box-header">
-					<h3 class="box-title"><?php echo  Html::encode($model->label(2));?></h3>
-				</div>
-				<div class="box-body">
-					<div class="">
-					       <?php $form = ActiveForm::begin([
+  <div class="row">
+    <div class="col-md-12 col-xs-12">
+      <div class="box">
+         <div class="box-header"><h3 class="box-title"><?php echo  Html::encode($model->label(2));?></h3></div>
+        <div class="box-body">
+          <div class="row">
+               <?php $form = ActiveForm::begin([
 	'id' => 'stock-adjust-log-form',
 	'type'=>'horizontal',
 	'enableAjaxValidation' => true,
@@ -184,13 +154,13 @@ $('.search-form form').submit(function(){
 ?>
 
 <div class="col-md-6">
-
 <?php echo $form->datepickerRow($model, 'start_date',
 					['hint'=>'Click inside! to select a date.',
 					'prepend'=>'<i class="icon-calendar"></i>',
 						'options'=>['format'=>'yyyy-mm-dd']])
 
 ; ?>
+
 </div>
 <div class="col-md-6">
 <?php echo $form->datepickerRow($model, 'end_date',
@@ -200,8 +170,8 @@ $('.search-form form').submit(function(){
 
 ; ?>
 </div>
-<div class="col-md-6">
-	<div class="form-actions  mb-10">
+<div class="col-md-6 mb-10">
+<div class="form-actions">
 		<?php echo Button::widget([
 			'buttonType'=>'submit',
 			'type'=>'primary',
@@ -210,91 +180,99 @@ $('.search-form form').submit(function(){
 	</div>
 	</div>
 
+<?php /*?>
+<div class="form-group">
+<label for="inputEmail3" class="control-label col-md-3">
+Item
+</label>
+<div class="col-md-9">
+<?php echo Html::activeListBox($model, 'item_id',Item::getActiveItems(), array('class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select Item')) ?>
+</div>
+</div>*/?>	
 
+
+<?php 
+   
+?>
+ <?php echo EChosenWidget::widget([
+    // the select selector
+    'selector'=>'.chosen',
+    // Chosen options
+]);?>
+
+	
 <?php ActiveForm::end(); ?>
-						<div class="col-md-12">
-							<div class="table-responsive customsmallgridwidth">
+            <div class="col-md-12">
+<div class="table-responsive customgridwidth">
+ 
 								
 <?php
 
+/* $model->itemwisesearch ();
+
+if(isset(Yii::$app->session ['itemwise_total_amt'])){
+	$itemwise_total = Yii::$app->session ['itemwise_total_amt'];
+}else{
+	$itemwise_total =0;
+} */
 echo GridView::widget([
 		'id' => 'order-item-grid',
 		'type' => 'striped bordered condensed',
-		'dataProvider' => $model->b2bsearch (),
+		'dataProvider' => $model->itemwisesearch (),
 		'filter' => $model,
 		'pager'=>true,
 		'columns' => [
 				// 'id',
-					[
+				/* 	array (
 						'header' => 'Bill No',
-							'attribute' =>'purchase_bill_id',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillNo(); } 
-				],
-				[
-						'header' => 'Bill Date',
-						'attribute' =>'bill_date',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillDate(); }
-				],
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->bill_no:""; } 
+				), */
+					// array (
+							// 'header' => 'Bill Date',
+							// 'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->bill_date:""; }
+					// ),
 				[
 						'header' => 'Barcode',
 						'attribute' =>'item_detail_id',
-						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
-				]
-				,
+						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; } 
+				],
 				[
 						'header' => 'Item',
 						'attribute' =>'item_id',
-						'value' => function ($data, $key, $index) { return $data->getItemName(); },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
-				]
-				,
-				[
-						'header' => 'Customer',
-						'attribute' =>'vendor',
-						'value' => function ($data, $key, $index) { return $data->getVendorName(); },
-						'filter' => Gx::listData( Vendor::find()->orderBy('name ASC')->all())
-				]
-				,
-				[
-						'header' => 'Employee',
-						'attribute' =>'create_user_id',
-						'value' => function ($data, $key, $index) { return $data->createduser(); },
-						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy('full_name ASC')->all())
+						'value' => function ($data, $key, $index) { return $data->getItemName(); }
 				]
 				,
 				// 'item_detail_id',
-				'approved_qty',
-				// array (
-						// 'header' => 'Refund Qty',
-						// 'attribute' =>'refund_qty',
-						// 'value' => function ($data, $key, $index) { return $data->getOrderRefundQty(); }
-				
-				// )
-				// ,
 				[
-						'header' => 'Mrp',
-						'attribute' =>'mrp',
+						'header' => 'Quantity',
+						
+						'value' => function ($data, $key, $index) { return $data->approved_qty; }
+				]
+				,
+				[
+						'header'=>'MRP',
 						'value' => function ($data, $key, $index) { return $data->mrp; },
 						
-				]
-				,
-			//	'price',
-				'discount_amt',
-				[
-						'header' => 'Tax Amount',
-						
-						'value' => function ($data, $key, $index) { return $data->TotalTax(); },
-				
 				],
-				
+				/* array(
+						'attribute' =>'discount_amt',
+						'value' => function ($data, $key, $index) { return $data->discount_amt; },
+						'footer'=>$model->getTotals($model->itemwisesearch()->getKeys(),'discount_amt','tbl_order_item'),
+				), */
 				[
-						'header' => 'Total Amt',
-						'attribute' =>'amount',
-						'value' => function ($data, $key, $index) { return $data->amount; }
-				
-				]
-				,
+						'header'=>'Tax Amount',
+						'value' => function ($data, $key, $index) { return $data->cess_amt + $data->sgst_amt + $data->igst_amt + $data->cgst_amt; },
+						
+				],
+				//'qty',
+				/* 'price',
+				'discount_amt',
+				'tax_amount', */
+				[
+						'header' => 'Total Amount',
+						'value' => function ($data, $key, $index) { return $data->amount; },
+						// 'footer'=>$model->getTotals($model->itemwisesearch()->getKeys(),'amount','tbl_b2bpurchase_bill_detail'),
+				],
 		/*
 		'discount_amt',
 		'tax_id',
@@ -320,13 +298,13 @@ echo GridView::widget([
 ] );
 ?>
 
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 </section>
 <script>
 $('#form-export').click(function(){

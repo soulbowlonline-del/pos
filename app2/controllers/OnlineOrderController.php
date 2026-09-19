@@ -289,13 +289,13 @@ class OnlineOrderController extends BaseUiController {
 								} else {
 									$set = false;
 									$errors1 = $orderitem->getErrors ();
-									Yii::warning( var_export($errors1, true, true), '$errors1');
+									Yii::warning( var_export($errors1, true), '$errors1');
 								}
 							}
 						} else {
 							$set = false;
 							$errors = $onlineorder->getErrors ();
-							Yii::warning( var_export($errors, true, true), '$errors');
+							Yii::warning( var_export($errors, true), '$errors');
 						}
 							
 						if ($set == true) {

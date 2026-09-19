@@ -1440,6 +1440,18 @@ class ItemDetail extends ActiveRecord
     public function rules()
     {
         return [
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['item_print_id', 'item_qty', 'company_id', 'expiry_date', 'packing_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['hsn_code', 'product_code', 'purchase_price'], 'safe'],  // form-only, declared on the Yii 1 model
             [['bar_code', 'mrp', 'open_stock_qty', 'outlet_id', 'create_time', 'create_user_id'], 'required'],
             [['item_id', 'status', 'type_id', 'tax_id', 'create_user_id', 'updated_by'], 'integer'],
             [['bar_code'], 'string', 'max' => 255],

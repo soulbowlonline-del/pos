@@ -245,8 +245,13 @@ def translate(src, model, ctrl, warn):
     # CVarDumper::dumpAsString is var_export.
     body = dump_as_string(body)
     body = global_classes(body)
-    body = re.sub(r"(var_export\([^;]*?)\)(\s*),(\s*)CLogger::LEVEL_\w+",
-                  lambda m: m.group(1) + ', true)' + m.group(2) + ',' + m.group(3) + 'LEVEL', body)
+    # Only the level marker; the second argument is dump_as_string's job. This
+    # rule predates it and was adding a second `, true`, so every log line in a
+    # controller came out as var_export($x, true, true) - three arguments,
+    # which is a fatal. It cost order, orderItem and purchaseOrderDetail their
+    # admin grids.
+    body = re.sub(r"(var_export\([^;]*?\))(\s*),(\s*)CLogger::LEVEL_\w+",
+                  lambda m: m.group(1) + m.group(2) + ',' + m.group(3) + 'LEVEL', body)
     body = re.sub(r"Yii::log\s*\(([^;]*?),\s*LEVEL\s*,\s*('[^']*')\s*\)",
                   lambda m: 'Yii::warning(' + m.group(1) + ', ' + m.group(2) + ')', body)
     body = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",

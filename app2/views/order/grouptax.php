@@ -1,26 +1,25 @@
 <?php
 /**
- * Ported from protected/views/orderItem/b2bsales.php.
+ * Ported from protected/views/order/grouptax.php.
  */
 
 use app\components\Gx;
 use app\components\Ui;
+use app\models\Customer;
 use app\models\OrderItem;
-use app\models\User;
-use app\models\Vendor;
+use app\models\PaymentMode;
 use app\widgets\ActionColumn;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 use app\widgets\GridView;
 use app\widgets\Menu;
-use yii\helpers\Html;
 ?>
 <?php
 $this->params['breadcrumbs'] = [
 		$model->label ( 2 ) => [
-				'index' 
+				'index'
 		],
-		Yii::t ( 'app', 'Manage' ) 
+		Yii::t ( 'app', 'Manage' )
 ];
 
 $this->registerJs("
@@ -45,32 +44,12 @@ $('.search-form form').submit(function(){
 	margin-left: 16px;
 	margin-top: 10px;
 }
-.mb-10 {
-    margin-bottom: 1rem;
-}
 </style>
 
- <?php 	/*   if(empty($model->start_date) && empty($model->end_date ))
-		{
-			
-				Yii::$app->session['order_item_start_date'] ='';
-				Yii::$app->session['order_item_end_date'] ='';
-				
-			
-		}   */
-		
-	/*	if(empty($model->min_amt) && empty($model->max_amt ))
-		{
-		
-			Yii::$app->session['order_item_min_amt'] ='';
-			Yii::$app->session['order_item_max_amt'] ='';
-		
-		
-		} */
-		?> 
+ 
 
 <section class="content-header">
-	<h1>Manage: B2b Sale Report</h1>
+	<h1><?php echo 'Department with group tax wise report' ; ?></h1>
 </section>
 
 <?php 
@@ -112,7 +91,7 @@ $('.search-form form').submit(function(){
 					$form = ActiveForm::begin([
 							'id' => 'customer-export-form',
 							'type' => 'horizontal',
-							'action' => Ui::to( 'orderItem/b2bsales?exportCSV=1' ),
+							'action' => Ui::to( 'order/groupTax?exportCSV=1' ),
 							'enableAjaxValidation' => true,
 							'htmlOptions' => [
 									'enctype' => 'multipart/form-data' 
@@ -122,17 +101,18 @@ $('.search-form form').submit(function(){
 <?php
 
 					$cols = [
-							'bill_no' => 'Bill No',
+							'taxable' => 'Taxable',
 							'bill_date' => 'Bill Date',
-							'bar_code' => 'Barcode',
-							'customer_id' => 'Customer',
-							'employee_id' => 'Employee',
-							'item' => 'Item',
-							'qty' => 'Quantity',
-							'mrp' => 'Mrp',
-							'discount_amt' => 'Discounted Amount',
-							'tax_amount' => 'Tax Amount',
-							'total_amt' => 'Total Amount'
+							'Gst' => 'Gst',
+							'Cgst_per' => 'Cgst(%age)',
+							'Sgst_per' => 'Sgst(%age)',
+							'Cess_per' => 'Cess(%age)',
+							'Igst_per' => 'Igst(%age)',
+							'Cgst' => 'Cgst',
+							'Sgst' => 'Sgst',
+							'Cess' => 'Cess',
+							'Igst' => 'Igst',
+							'Amount' => 'Amount'
 					];
 					?>
 <div class="form-group ">
@@ -171,11 +151,18 @@ $('.search-form form').submit(function(){
 		<div class="col-md-12 col-xs-12">
 			<div class="box">
 				<div class="box-header">
-					<h3 class="box-title"><?php echo  Html::encode($model->label(2));?></h3>
+					<h3 class="box-title"><?php echo  'Report';?></h3>
 				</div>
 				<div class="box-body">
 					<div class="">
-					       <?php $form = ActiveForm::begin([
+					<?php if(empty($model->start_date)){
+						Yii::$app->session ['order_item_start_date'] = '';
+					}
+					if(empty($model->end_date)){
+						Yii::$app->session ['order_item_end_date'] = '';
+					}?>
+					
+							       <?php $form = ActiveForm::begin([
 	'id' => 'stock-adjust-log-form',
 	'type'=>'horizontal',
 	'enableAjaxValidation' => true,
@@ -200,101 +187,144 @@ $('.search-form form').submit(function(){
 
 ; ?>
 </div>
-<div class="col-md-6">
-	<div class="form-actions  mb-10">
+
+	<div class="form-actions pull-left">
 		<?php echo Button::widget([
 			'buttonType'=>'submit',
 			'type'=>'primary',
 			'label'=>'Search',
 		]); ?>
 	</div>
-	</div>
-
 
 <?php ActiveForm::end(); ?>
+					
 						<div class="col-md-12">
+						<?php $model->groupTaxsearch ();?>
+						<?php if(isset(Yii::$app->session ['group_tax_gst'])){
+						$gst = Yii::$app->session ['group_tax_gst'];
+						}else{
+							$gst = 0;
+						}
+						if(isset(Yii::$app->session ['group_tax_cgst'])){
+							$cgst = Yii::$app->session ['group_tax_cgst'];
+						}else{
+							$cgst = 0;
+						}
+						if(isset(Yii::$app->session ['group_tax_sgst'])){
+							$sgst = Yii::$app->session ['group_tax_sgst'];
+						}else{
+							$sgst = 0;
+						}
+						if(isset(Yii::$app->session ['group_tax_cess'])){
+							$cess = Yii::$app->session ['group_tax_cess'];
+						}else{
+							$cess = 0;
+						}
+						if(isset(Yii::$app->session ['group_tax_igst'])){
+							$igst = Yii::$app->session ['group_tax_igst'];
+						}else{
+							$igst = 0;
+						}
+						if(isset(Yii::$app->session ['group_tax_total'])){
+							$tax_total = Yii::$app->session ['group_tax_total'];
+						}else{
+							$tax_total = 0;
+						}
+						if(isset(Yii::$app->session ['group_taxable_total'])){
+							$taxable_total = Yii::$app->session ['group_taxable_total'];
+						}else{
+							$taxable_total = 0;
+						}
+						
+						?>
+						
 							<div class="table-responsive customsmallgridwidth">
+							
 								
 <?php
 
 echo GridView::widget([
 		'id' => 'order-item-grid',
 		'type' => 'striped bordered condensed',
-		'dataProvider' => $model->b2bsearch (),
+		'dataProvider' => $model->groupTaxsearch (),
 		'filter' => $model,
 		'pager'=>true,
 		'columns' => [
 				// 'id',
-					[
-						'header' => 'Bill No',
-							'attribute' =>'purchase_bill_id',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillNo(); } 
-				],
 				[
 						'header' => 'Bill Date',
-						'attribute' =>'bill_date',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillDate(); }
+						'attribute' =>'order_id',
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->bill_date:""; }
+				],
+					[
+						'header' => 'Taxable',
+						'value' => function ($data, $key, $index) { return $data->getTotalItemTaxableAmount(); }, 
+						'footer'=>$taxable_total
 				],
 				[
-						'header' => 'Barcode',
-						'attribute' =>'item_detail_id',
-						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
+						'header' => 'Mode of Payment',
+						'attribute' =>'mode_of_payment',
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->modePayment:""; },
+						'filter'=>Gx::listData(PaymentMode::find()->where(['type_id'=>0])->all()),
 				]
 				,
-				[
-						'header' => 'Item',
-						'attribute' =>'item_id',
-						'value' => function ($data, $key, $index) { return $data->getItemName(); },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
-				]
-				,
-				[
+				/* array (
 						'header' => 'Customer',
-						'attribute' =>'vendor',
-						'value' => function ($data, $key, $index) { return $data->getVendorName(); },
-						'filter' => Gx::listData( Vendor::find()->orderBy('name ASC')->all())
-				]
-				,
+						'attribute' =>'customer_id',
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->customer:""; },
+						'filter' => Gx::listData(Customer::class)
+				)
+				, */
 				[
-						'header' => 'Employee',
-						'attribute' =>'create_user_id',
-						'value' => function ($data, $key, $index) { return $data->createduser(); },
-						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy('full_name ASC')->all())
-				]
-				,
-				// 'item_detail_id',
-				'approved_qty',
-				// array (
-						// 'header' => 'Refund Qty',
-						// 'attribute' =>'refund_qty',
-						// 'value' => function ($data, $key, $index) { return $data->getOrderRefundQty(); }
-				
-				// )
-				// ,
+						'header' => 'Gst',
+						'value' => function ($data, $key, $index) { return $data->getOrderTotalgstAmount(); },
+						'footer'=>$gst,
+				],
 				[
-						'header' => 'Mrp',
-						'attribute' =>'mrp',
-						'value' => function ($data, $key, $index) { return $data->mrp; },
-						
-				]
-				,
-			//	'price',
-				'discount_amt',
+						'header' => 'Cgst(%age)',
+						'value' => function ($data, $key, $index) { return $data->cgst_per; }
+				],
 				[
-						'header' => 'Tax Amount',
-						
-						'value' => function ($data, $key, $index) { return $data->TotalTax(); },
-				
+						'header' => 'Sgst(%age)',
+						'value' => function ($data, $key, $index) { return $data->sgst_per; }
+				],
+				[
+						'header' => 'Cess(%age)',
+						'value' => function ($data, $key, $index) { return $data->cess_per; }
+				],
+				[
+						'header' => 'Igst(%age)',
+						'value' => function ($data, $key, $index) { return $data->igst_per; }
+				],
+				[
+						'header' => 'Cgst',
+						'value' => function ($data, $key, $index) { return $data->getGroupTaxCgstAmount(); },
+						'footer'=>$cgst,
+				],
+				[
+						'header' => 'Sgst',
+						'value' => function ($data, $key, $index) { return $data->getGroupTaxSgstAmount(); },
+						'footer'=>$sgst,
+				],
+				[
+						'header' => 'Cess',
+							'value' => function ($data, $key, $index) { return $data->getGroupTaxCessAmount(); },
+						'footer'=>$cess,
+				],
+				[
+						'header' => 'Igst',
+						'value' => function ($data, $key, $index) { return $data->getGroupTaxIgstAmount(); },
+						'footer'=>$igst,
+				],
+				[
+						'header' => 'Amount',
+						'value' => function ($data, $key, $index) { return $data->getGroupTaxOrderTotalAmount(); },
+						'footer'=>$tax_total,
 				],
 				
-				[
-						'header' => 'Total Amt',
-						'attribute' =>'amount',
-						'value' => function ($data, $key, $index) { return $data->amount; }
+				// 'item_detail_id',
 				
-				]
-				,
+				
 		/*
 		'discount_amt',
 		'tax_id',

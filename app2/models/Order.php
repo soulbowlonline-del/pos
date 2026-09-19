@@ -20,6 +20,10 @@ use yii\db\ActiveRecord;
  */
 class Order extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $start_date;
@@ -1681,4 +1685,249 @@ class Order extends ActiveRecord
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
     }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['bill_date', 'mode_of_payment', 'mode_of_delivery'], 'required'],
+            [['qty', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'customer_id', 'updated_by'], 'integer'],
+            [['discount_amt', 'total_amt', 'paid_amt'], 'number'],
+            [['address', 'min_amt', 'max_amt', 'note', 'create_time', 'update_time', 'bill_no', 'bill_date', 'mode_of_payment', 'mode_of_delivery', 'columns', 'credit_note_id', 'create_user_id', 'start_date', 'end_date', 'item_id', 'bill_no', 'min_amt', 'max_amt', 'start_date', 'end_date', 'is_mobile', 'online_order_id'], 'safe'],
+            [['qty', 'discount_amt', 'total_amt', 'paid_amt', 'status', 'type_id', 'address', 'note', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
+            [['bill_no', 'id', 'qty', 'discount_amt', 'total_amt', 'paid_amt', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'address', 'note', 'create_time', 'update_time', 'customer_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$result_ids = array();
+		$order_refund_ids = array();
+		$order_ids = array();
+		$query1 = Order::find()->alias('t');
+		
+		if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_start_date'], Yii::$app->session ['order_end_date']]);
+		}
+		
+		if ((Yii::$app->session ['order_min_amt'] != '') && (Yii::$app->session ['order_max_amt'] != '')) {
+			$query1->andWhere(['between', 't.total_Amt', Yii::$app->session ['order_min_amt'], Yii::$app->session ['order_max_amt']]);
+		}
+		if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+		$orders = $query1->all();
+		if($orders){
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+		}
+		
+		if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+			$query2 = OrderRefund::find();
+			$query2->andWhere(['between', 'date(create_time)', Yii::$app->session ['order_start_date'], Yii::$app->session ['order_end_date']]);
+			$order_refunds = $query2->all();
+			Yii::warning( var_export($order_refunds, true), '$order_refunds');
+			if(!empty($order_refunds)){
+				foreach($order_refunds as $order_refund){
+					$order_refund_ids[] = $order_refund->order_id;
+				}
+			}
+		}
+		
+		
+		
+		
+		if(!empty($order_refund_ids) && !empty($order_ids)){
+			$result_ids = array_merge($order_refund_ids,$order_ids);
+			$result_ids = array_unique($result_ids);
+		}else{
+			if ((Yii::$app->session ['order_start_date'] != '') && (Yii::$app->session ['order_end_date'] != '')) {
+			$result_ids = $order_ids;
+			}
+		}
+	Yii::warning( var_export($order_refund_ids, true), '$order_refund_ids');
+		Yii::warning( var_export($order_ids, true), '$order_ids');
+		Yii::warning( var_export($result_ids, true), '$result_ids');
+// 		Yii::warning( var_export(Yii::$app->session['order_start_date'], true), 'startt_date');
+// 		Yii::warning( var_export(Yii::$app->session['order_end_date'], true), 'endd_datte');
+		$query = self::find()->alias('t');
+		//if(!empty($result_ids)){
+			
+			$query->andWhere(['id' => $result_ids]);
+		//}
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'qty', $this->qty);
+		Criteria::compare($query, 'mode_of_payment', $this->mode_of_payment);
+		Criteria::compare($query, 'bill_no', $this->bill_no);
+		Yii::warning( var_export($this, true), '$$this');
+		Criteria::compare($query, 'bill_date', $this->bill_date);
+		Criteria::compare($query, 'discount_amt', $this->discount_amt);
+		Criteria::compare($query, 'total_amt', $this->total_amt);
+		Criteria::compare($query, 'paid_amt', $this->paid_amt);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'city_id', $this->city_id);
+		Criteria::compare($query, 'state_id', $this->state_id);
+		Criteria::compare($query, 'country_id', $this->country_id);
+		Criteria::compare($query, 'address', $this->address, true);
+		Criteria::compare($query, 'note', $this->note, true);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'customer_id', $this->customer_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		
+		$query->orderBy(['id' => SORT_DESC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
+		]);
+    }
+
+    public function toArray2() {
+            $model = $this;
+            $json_entry = null;
+            $bill_prefix = 'B';
+            if ($model) {
+                $outlet = Outlet::findOne($model->outlet_id);
+                if($outlet){
+                    if($outlet->bill_prefix != ''){
+                        $bill_prefix = $outlet->bill_prefix;
+                    }else{
+                        $bill_prefix = 'B';
+                    }
+
+                }
+
+                // $criteria = new CDbCriteria();
+                // $criteria->compare('order_id',$model->id);
+                // $orderRefund = OrderRefund::model()->find($criteria);
+                 // [id] => 7088
+                // [qty] => 5
+                // [discount] => 0.00
+                // [discount_amt] => 0.00
+                // [total_amt] => 5.00
+                // [paid_amt] => 0.00
+                // [status] => 0
+                // [type_id] => 2
+                // [city_id] => 6
+                // [state_id] => 3
+                // [country_id] => 1
+                // [address] =>
+                // [note] =>
+                // [create_time] => 2022-11-10 14:01:26
+                // [update_time] =>
+                // [order_id] => 830303
+                // [customer_id] => 1
+                // [updated_by] =>
+
+                // echo"<pre>"; print_r($orderRefund ); die;
+                $json_list = [];
+                $json_entry = [];
+                $json_entry ['id'] = $model->id;
+                // $json_entry ['refund_no'] = "R-".$orderRefund->id;
+                $json_entry ['bill_no'] = $model->getOrderBillNo();
+                $json_entry ['bill_date'] = $model->bill_date;
+                $json_entry ['mode_of_payment'] = isset($model->modePayment)?$model->modePayment->title:'';
+                $json_entry ['mode_of_delivery'] =isset($model->modeDelivery)?$model->modeDelivery->title:'';
+                $json_entry ['qty'] = $model->qty;
+                $json_entry ['discount_amt'] = $model->discount_amt;
+                $json_entry ['total_sale'] = $model->total_amt;
+                $json_entry ['total_amt'] = ($model->total_amt)+($model->discount_amt);
+                $json_entry ['paid_amt'] = $model->paid_amt;
+                $json_entry ['status'] = $model->status;
+                $json_entry ['type_id'] = $model->type_id;
+                $json_entry ['city_id'] = $model->city_id;
+                $json_entry ['state_id'] = $model->state_id;
+                $json_entry ['country_id'] = $model->country_id;
+                $json_entry ['address'] = $model->address;
+                $json_entry ['note'] = $model->note;
+                $json_entry ['create_time'] = $model->create_time;
+                $json_entry ['customer_id'] = $model->customer_id;
+                $json_entry['is_mobile'] = $model->is_mobile;
+                $json_entry['gross_total_amt'] = $model->gross_total_amt;
+                $json_entry ['customer_name'] = isset($model->customer)?$model->customer->name:'';
+                $loyaltyInfo = LoyaltyTransaction::model()->find([
+                    'condition' => 'order_id = :order_id AND transaction_type = :type',
+                    'params' => [':order_id' => $model->id, ':type' => 'REDEEM'],
+                    'order' => 'created_at DESC, id DESC', // id breaks the 1-second tie
+                ]);
+                $json_entry ['redeemed_points'] = 0;
+                if ($loyaltyInfo) {
+                    $json_entry ['redeemed_points'] = $loyaltyInfo->points;
+                }
+                $json_entry ['lifetime_earn'] = LoyaltyTransaction::getLoyaltyLifetimeEarnedPoints($model->customer_id);
+                $json_entry ['lifetime_redeem'] = LoyaltyTransaction::getLoyaltyLifetimeRedeemedPoints($model->customer_id);
+                $json_entry ['current_bill_earn'] = LoyaltyTransaction::getLoyaltyCurrentBillEarnedPoints($model->customer_id, $model->id);
+
+                $order_items = $model->orderItems;
+                if(!empty($order_items))
+                {
+                    foreach ($order_items as $order_item)
+                    {
+                        /* if(isset($order_item->itemDetail)){
+                            $json_list [] = $order_item->itemDetail->toArray1($order_item->id,2,1);
+                        } */
+                        $json_list [] = $order_item->toArray($return=1);
+                    }
+                }
+                $json_entry ['order_items'] = $json_list;
+
+            }
+            return $json_entry;
+        }
 }

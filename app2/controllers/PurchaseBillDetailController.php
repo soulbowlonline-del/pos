@@ -465,7 +465,7 @@ class PurchaseBillDetailController extends BaseUiController {
 		
 		$this->updateMenuItems ( $model );
 		$columns = [];
-		Yii::warning( var_export($_POST, true, true), '$_POST');
+		Yii::warning( var_export($_POST, true), '$_POST');
 		if (isset ( $_POST ['PurchaseBillDetail'] ['tally_start_date'] ) && ($_POST ['PurchaseBillDetail'] ['tally_start_date'] != '') && (isset ( $_POST ['PurchaseBillDetail'] ['tally_end_date'] )) && ($_POST ['PurchaseBillDetail'] ['tally_end_date'] != '')) {
 			$_GET ['PurchaseBillDetail'] ['tally_start_date'] = $_POST ['PurchaseBillDetail'] ['tally_start_date'];
 			$_GET ['PurchaseBillDetail'] ['tally_end_date'] = $_POST ['PurchaseBillDetail'] ['tally_end_date'];
@@ -536,7 +536,7 @@ class PurchaseBillDetailController extends BaseUiController {
 				}else{
 					$advancepay = true;
 				}
-				Yii::warning( var_export($advancepay, true, true), '$$advancepay');
+				Yii::warning( var_export($advancepay, true), '$$advancepay');
 				$set = true;
 				$transaction = Yii::$app->db->beginTransaction ();
 				try {
@@ -580,9 +580,9 @@ class PurchaseBillDetailController extends BaseUiController {
 							 	if ($billstock->save ()) {
 								$billstock->createMrs();
 							 	}else{
-							 		Yii::warning( var_export($billstock->getErrors(), true, true), 'error1');
+							 		Yii::warning( var_export($billstock->getErrors(), true), 'error1');
 							 	}
-								Yii::warning( var_export($billstock, true, true), '$billstock');
+								Yii::warning( var_export($billstock, true), '$billstock');
 							}else{ 
 							    if($billstock == null){
 							    	$billstock = new ItemStock ();
@@ -598,9 +598,9 @@ class PurchaseBillDetailController extends BaseUiController {
 							    	$billstock->item_detail_id = $itemdetail->id;
 							    	if ($billstock->save ()) {
 							    		$billstock->createMrs();
-							    		Yii::warning( var_export($billstock, true, true), '$billstock1');
+							    		Yii::warning( var_export($billstock, true), '$billstock1');
 							    	}else{
-							    		Yii::warning( var_export($billstock->getErrors(), true, true), 'error2');
+							    		Yii::warning( var_export($billstock->getErrors(), true), 'error2');
 							    	}
 							    }
 								
@@ -811,7 +811,7 @@ class PurchaseBillDetailController extends BaseUiController {
 									$mrsdetails = MrsDetail::findAll(['item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
 									]);
-									Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
+									Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
 											$mrs_id = $mrsdetail->mrs_id;
@@ -874,17 +874,17 @@ class PurchaseBillDetailController extends BaseUiController {
 								if($stocklog->save ()){
 								}else{
 									$set = false;
-									Yii::warning( var_export($stocklog->getErrors(), true, true), 'error5');
+									Yii::warning( var_export($stocklog->getErrors(), true), 'error5');
 								}
 							}else{
 								$set = false;
-								Yii::warning( var_export($itemstock->getErrors(), true, true), 'error4');
+								Yii::warning( var_export($itemstock->getErrors(), true), 'error4');
 							}
 							}
 						} 
 
 						else {
-							Yii::warning( var_export($model->getErrors(), true, true), 'error3');
+							Yii::warning( var_export($model->getErrors(), true), 'error3');
 							$set = false;
 							throw new \Exception ( "Something went wrong", 500 );
 						}

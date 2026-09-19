@@ -130,7 +130,7 @@ use yii\helpers\Html;
 <?php echo $form->radioButtonListRow($model, 'organization_id', Gx::listData(Organization::class)); ?>
 
 
-<?php if ( count (PurchaseBill::find()->all() ) > 0 ): ?>
+<?php if ( PurchaseBill::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('purchaseBills')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'purchaseBills', Gx::encodeEx(Gx::listData(PurchaseBill::class), false, true)); ?>
@@ -143,7 +143,7 @@ use yii\helpers\Html;
 
 
 
-<?php if ( count (PurchaseOrderDetail::find()->all() ) > 0 ): ?>
+<?php if ( PurchaseOrderDetail::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('purchaseOrderDetails')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'purchaseOrderDetails', Gx::encodeEx(Gx::listData(PurchaseOrderDetail::class), false, true)); ?>

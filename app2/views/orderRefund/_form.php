@@ -95,7 +95,7 @@ use yii\helpers\Html;
 <?php echo $form->textFieldRow($model,'updated_by',['class'=>'span5']); ?>
 
 
-<?php if ( count (OrderRefundItem::find()->all() ) > 0 ): ?>
+<?php if ( OrderRefundItem::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('orderRefundItems')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'orderRefundItems', Gx::encodeEx(Gx::listData(OrderRefundItem::class), false, true)); ?>

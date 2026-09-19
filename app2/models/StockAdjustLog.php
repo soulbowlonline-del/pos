@@ -38,6 +38,7 @@ class StockAdjustLog extends ActiveRecord
     public function rules()
     {
         return [
+            [['columns', 'start_date', 'end_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['id', 'date', 'item_detail_id', 'item_id', 'mrp', 'current_stock', 'actual_stock', 'adjusted', 'outlet_id', 'type_id', 'status', 'create_time', 'update_time'], 'safe', 'on' => 'search'],
             [['date', 'item_detail_id', 'item_id', 'mrp', 'current_stock', 'actual_stock', 'adjusted'],
              'required'],

@@ -30,6 +30,7 @@ class ScannedItems extends ActiveRecord
     public function rules()
     {
         return [
+            [['start_date', 'end_date', 'columns'], 'safe'],  // form-only, declared on the Yii 1 model
             [['computer_name', 'user_id', 'item_id'], 'required'],
             [['user_id', 'item_id'], 'integer'],
             [['computer_name'], 'string', 'max' => 255],

@@ -36,6 +36,7 @@ class WhatsappLogs extends ActiveRecord
     public function rules()
     {
         return [
+            [['start_date', 'end_date', 'columns'], 'safe'],  // form-only, declared on the Yii 1 model
             [['number', 'message'], 'required'],
             [['id'], 'integer'],
         ];

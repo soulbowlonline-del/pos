@@ -113,14 +113,14 @@ use yii\helpers\Html;
 
 
 
-<?php if ( count (OrderItem::find()->all() ) > 0 ): ?>
+<?php if ( OrderItem::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('orderItems')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'orderItems', Gx::encodeEx(Gx::listData(OrderItem::class), false, true)); ?>
 <?php endif; ?>	
 
 
-<?php if ( count (OrderRefund::find()->all() ) > 0 ): ?>
+<?php if ( OrderRefund::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('orderRefunds')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'orderRefunds', Gx::encodeEx(Gx::listData(OrderRefund::class), false, true)); ?>

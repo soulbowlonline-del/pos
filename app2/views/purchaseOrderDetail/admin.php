@@ -112,11 +112,12 @@ if($user->role_id != 6){?>
 											<?php if($vendors){
 											foreach($vendors as $key=>$vendor){
 												$query = PurchaseOrder::find();
+        $query->orderBy(['id' => SORT_DESC]);
 												$query->andWhere('vendor_id ='.$key);
 												$query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
 												$orders = $query->all();
-												Yii::warning( var_export( $vendor , true), '$vendor');
-												Yii::warning( var_export( $orders , true), '$orders');
+												Yii::warning( var_export($vendor, true), '$vendor');
+												Yii::warning( var_export($orders, true), '$orders');
 												$class = "form-control";
 												if($orders){
 													foreach($orders as $order)

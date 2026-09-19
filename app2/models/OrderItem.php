@@ -3572,6 +3572,16 @@ class OrderItem extends ActiveRecord
     public function rules()
     {
         return [
+            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['create_user_id'], 'required'],
             [['order_id', 'item_detail_id', 'discount_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['price', 'discount_amt'], 'number'],
@@ -3610,7 +3620,7 @@ class OrderItem extends ActiveRecord
 		
 		
 		Yii::warning( var_export(Yii::$app->session['order_item_item_id'], true), '$orderItems');
-		$query1 = Order::find();
+		$query1 = Order::find()->alias('t');
 		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
 			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
 		}
@@ -3627,7 +3637,7 @@ class OrderItem extends ActiveRecord
 			}
 		}
 		Yii::warning( var_export($order_ids, true), '$order_ids');
-		$query = self::find()->alias('t');
+		$query = OrderItem::find()->alias('t');
 		$query->andWhere(['t.order_id' => $order_ids]);
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
 		Criteria::compare($query, 'item.title', $this->item_id, true);
@@ -3648,6 +3658,8 @@ class OrderItem extends ActiveRecord
 		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
 	
 		
+
+		$query->orderBy(['id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,

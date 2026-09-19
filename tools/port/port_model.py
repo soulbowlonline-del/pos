@@ -667,7 +667,13 @@ def region_edits(text, start, end, var, name, cls, kind):
 
     decl = re.match(DECL_RE, region)
     scope = default_order_of(cls)
-    stmt = Q + ' = ' + cls + '::find();'
+    # `t` when this criteria's own conditions name it. Yii 2 aliases the
+    # primary table after the table, so a condition on `t.bill_date` refers to
+    # an alias the query does not have: "Unknown column 't.bill_date' in 'where
+    # clause'", which is what order and orderItem died on. The rebuilt search()
+    # already did this; a criteria converted anywhere else did not.
+    alias = "->alias('t')" if re.search(r"['\"]t\.", region) else ''
+    stmt = Q + ' = ' + cls + '::find()' + alias + ';'
     # An explicit order on the criteria, not the word 'order' anywhere in
     # the method. StockAdjustLog's search mentions order_id, which
     # suppressed the model's own id DESC and listed the oldest first.
@@ -829,9 +835,16 @@ def by_attributes_php(m):
                 if col.startswith('t.'):
                     col = col[2:]
                 desc = len(p2) > 1 and p2[1].lower().startswith('desc')
-                cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+                cols.append('%s %s' % (col, 'DESC' if desc else 'ASC'))
             if cols:
-                query += '->orderBy([' + ', '.join(cols) + '])'
+                # As a string, not an array. port_views renames every
+                # `'name' =>` key to `'attribute' =>` for the grid columns, and
+                # that rule runs *after* this one - so an order on a column
+                # called `name` came out as `orderBy(['attribute' => SORT_ASC])`
+                # and orderItem's admin grid died on "Unknown column
+                # 'attribute' in 'order clause'". Yii 2 parses this form and
+                # quotes the column itself.
+                query += "->orderBy('" + ', '.join(cols) + "')"
 
     return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
 

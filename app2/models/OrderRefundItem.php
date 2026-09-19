@@ -389,6 +389,8 @@ class OrderRefundItem extends ActiveRecord
     public function rules()
     {
         return [
+            [['bill_no'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['columns'], 'safe'],  // form-only, declared on the Yii 1 model
             [['tax_id', 'tax_amt', 'order_discount'], 'required'],
             [['order_refund_id', 'item_detail_id', 'discount_id', 'tax_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['price', 'discount_amt', 'tax_amt', 'order_discount'], 'number'],

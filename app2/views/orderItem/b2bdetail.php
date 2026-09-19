@@ -258,14 +258,14 @@ echo GridView::widget([
 						'header' => 'Customer',
 						'attribute' =>'vendor',
 						'value' => function ($data, $key, $index) { return $data->getVendorName(); },
-						'filter' => Gx::listData( Vendor::find()->orderBy(['attribute' => SORT_ASC])->all())
+						'filter' => Gx::listData( Vendor::find()->orderBy('name ASC')->all())
 				]
 				,
 				[
 						'header' => 'Employee',
 						'attribute' =>'create_user_id',
 						'value' => function ($data, $key, $index) { return $data->createduser(); },
-						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy(['full_name' => SORT_ASC])->all())
+						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy('full_name ASC')->all())
 				]
 				,
 				// 'item_detail_id',

@@ -36,6 +36,7 @@ class LoyaltyTransaction extends ActiveRecord
     public function rules()
     {
         return [
+            [['total'], 'safe'],  // form-only, declared on the Yii 1 model
             [['customer_id', 'transaction_type', 'points'], 'required'],
             [['customer_id', 'order_id', 'created_by'], 'integer'],
             [['points', 'reference_amount'], 'number'],

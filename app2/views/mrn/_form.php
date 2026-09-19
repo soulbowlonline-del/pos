@@ -93,14 +93,14 @@ use yii\helpers\Html;
 
 
 
-<?php if ( count (MrnDetail::find()->all() ) > 0 ): ?>
+<?php if ( MrnDetail::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('mrnDetails')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'mrnDetails', Gx::encodeEx(Gx::listData(MrnDetail::class), false, true)); ?>
 <?php endif; ?>	
 
 
-<?php if ( count (PurchaseOrder::find()->all() ) > 0 ): ?>
+<?php if ( PurchaseOrder::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('purchaseOrders')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'purchaseOrders', Gx::encodeEx(Gx::listData(PurchaseOrder::class), false, true)); ?>

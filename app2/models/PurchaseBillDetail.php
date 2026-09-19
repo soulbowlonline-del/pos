@@ -1311,6 +1311,8 @@ class PurchaseBillDetail extends ActiveRecord
     public function rules()
     {
         return [
+            [['expiry_date', 'packing_date', 'columns', 'start_date', 'tally_start_date', 'tally_end_date', 'vendor_id', 'bar_code', 'item_val_id'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['bill_date', 'bill_no'], 'safe'],  // form-only, declared on the Yii 1 model
             [['req_qty', 'item_detail_id', 'item_id', 'purchase_bill_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'purchase_bill_id', 'outlet_id'], 'integer'],
             [['mrp', 'price', 'discount', 'discount_amt', 'tax_id', 'other_charge', 'amount', 'sale_rate', 'charge_amount', 'extra_charges'], 'number'],

@@ -16,17 +16,17 @@ echo GridView::widget([
 		//'id',
 			[
 					'header' => 'Barcode',
-					'value' => function ($data) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; }
+					'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; }
 					
 			],
 			[
 					'header' => 'Item',
-					'value' => function ($data) { return $data->getItemName(); }
+					'value' => function ($data, $key, $index) { return $data->getItemName(); }
 			
 			],
 			[
 					'header' => 'Quantity',
-					'value' => function ($data) { return $data->getItemQuantity(); }
+					'value' => function ($data, $key, $index) { return $data->getItemQuantity(); }
 		
 			],
 			//'qty',
@@ -39,12 +39,12 @@ echo GridView::widget([
 		'tax_amount',
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>OrderItem::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>OrderItem::getTypeOptions(),
 				),
 		'update_time',

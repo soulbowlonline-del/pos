@@ -152,11 +152,11 @@ table {
 	 												$itemms = $query->all();
 	if($itemms){
 		foreach($itemms as $item){
-			$query = OrderItem::find();
-			$query->andWhere('order_id =' . $order->id);
-			$query->andWhere('tax_id =' . $item->tax_id);
-			$taxes = $query->all();
-			// Yii::warning( var_export( $taxes , true), '$ordertaxes');
+			$query_2 = OrderItem::find();
+			$query_2->andWhere('order_id =' . $order->id);
+			$query_2->andWhere('tax_id =' . $item->tax_id);
+			$taxes = $query_2->all();
+			// Yii::warning( var_export($taxes, true), '$ordertaxes');
 			
 			if ($taxes) {
 				$cgst = 0;

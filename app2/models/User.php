@@ -1084,6 +1084,18 @@ class User extends ActiveRecord
     {
         return [
             [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
             [['username', 'email'], 'required'],
             [['password', 'username', 'email'], 'required'],
             [['password', 'password_2'], 'required'],

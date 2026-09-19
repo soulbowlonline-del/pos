@@ -135,7 +135,7 @@ use yii\helpers\Html;
 
 
 
-<?php if ( count (PurchaseBillDetail::find()->all() ) > 0 ): ?>
+<?php if ( PurchaseBillDetail::find()->exists() ): ?>
 		<label><?php echo Html::encode($model->getRelationLabel('purchaseBillDetails')); ?></label>
 	
 		<?php echo $form->checkBoxListRow($model, 'purchaseBillDetails', Gx::encodeEx(Gx::listData(PurchaseBillDetail::class), false, true)); ?>

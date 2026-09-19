@@ -1,13 +1,14 @@
 <?php
 /**
- * Ported from protected/views/orderItem/b2bsales.php.
+ * Ported from protected/views/order/tax.php.
  */
 
 use app\components\Gx;
 use app\components\Ui;
+use app\models\Item;
+use app\models\ItemDetail;
 use app\models\OrderItem;
-use app\models\User;
-use app\models\Vendor;
+use app\models\Tax;
 use app\widgets\ActionColumn;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
@@ -18,9 +19,9 @@ use yii\helpers\Html;
 <?php
 $this->params['breadcrumbs'] = [
 		$model->label ( 2 ) => [
-				'index' 
+				'index'
 		],
-		Yii::t ( 'app', 'Manage' ) 
+		Yii::t ( 'app', 'Manage' )
 ];
 
 $this->registerJs("
@@ -45,32 +46,12 @@ $('.search-form form').submit(function(){
 	margin-left: 16px;
 	margin-top: 10px;
 }
-.mb-10 {
-    margin-bottom: 1rem;
-}
 </style>
 
- <?php 	/*   if(empty($model->start_date) && empty($model->end_date ))
-		{
-			
-				Yii::$app->session['order_item_start_date'] ='';
-				Yii::$app->session['order_item_end_date'] ='';
-				
-			
-		}   */
-		
-	/*	if(empty($model->min_amt) && empty($model->max_amt ))
-		{
-		
-			Yii::$app->session['order_item_min_amt'] ='';
-			Yii::$app->session['order_item_max_amt'] ='';
-		
-		
-		} */
-		?> 
+
 
 <section class="content-header">
-	<h1>Manage: B2b Sale Report</h1>
+	<h1><?php echo 'Manage' . ' : ' . Html::encode($model->label(2)); ?></h1>
 </section>
 
 <?php 
@@ -112,7 +93,7 @@ $('.search-form form').submit(function(){
 					$form = ActiveForm::begin([
 							'id' => 'customer-export-form',
 							'type' => 'horizontal',
-							'action' => Ui::to( 'orderItem/b2bsales?exportCSV=1' ),
+							'action' => Ui::to( 'order/tax?exportCSV=1' ),
 							'enableAjaxValidation' => true,
 							'htmlOptions' => [
 									'enctype' => 'multipart/form-data' 
@@ -123,16 +104,18 @@ $('.search-form form').submit(function(){
 
 					$cols = [
 							'bill_no' => 'Bill No',
-							'bill_date' => 'Bill Date',
 							'bar_code' => 'Barcode',
-							'customer_id' => 'Customer',
-							'employee_id' => 'Employee',
+							'sale_rate' => 'Sale Rate',
 							'item' => 'Item',
-							'qty' => 'Quantity',
-							'mrp' => 'Mrp',
-							'discount_amt' => 'Discounted Amount',
-							'tax_amount' => 'Tax Amount',
-							'total_amt' => 'Total Amount'
+							'tax' => 'Tax',
+							'hrn_code' => 'Total Tax(%age)',
+							'cgst_per' => 'CGST(%age)',
+							'cgst_amt' => 'CGST Amount',
+							'sgst_per' => 'SGST(%age)',
+							'sgst_amt' => 'SGST Amount',
+							'cess_per' => 'CESS(%age)',
+							'cess_amt' => 'CESS Amount',
+							'tax_amount' => 'Tax Amount' 
 					];
 					?>
 <div class="form-group ">
@@ -174,127 +157,91 @@ $('.search-form form').submit(function(){
 					<h3 class="box-title"><?php echo  Html::encode($model->label(2));?></h3>
 				</div>
 				<div class="box-body">
-					<div class="">
-					       <?php $form = ActiveForm::begin([
-	'id' => 'stock-adjust-log-form',
-	'type'=>'horizontal',
-	'enableAjaxValidation' => true,
-	'htmlOptions'=>['enctype'=>'multipart/form-data'],
-]);
-?>
-
-<div class="col-md-6">
-
-<?php echo $form->datepickerRow($model, 'start_date',
-					['hint'=>'Click inside! to select a date.',
-					'prepend'=>'<i class="icon-calendar"></i>',
-						'options'=>['format'=>'yyyy-mm-dd']])
-
-; ?>
-</div>
-<div class="col-md-6">
-<?php echo $form->datepickerRow($model, 'end_date',
-					['hint'=>'Click inside! to select a date.',
-					'prepend'=>'<i class="icon-calendar"></i>',
-								'options'=>['format'=>'yyyy-mm-dd']])
-
-; ?>
-</div>
-<div class="col-md-6">
-	<div class="form-actions  mb-10">
-		<?php echo Button::widget([
-			'buttonType'=>'submit',
-			'type'=>'primary',
-			'label'=>'Search',
-		]); ?>
-	</div>
-	</div>
-
-
-<?php ActiveForm::end(); ?>
+					<div class="row">
 						<div class="col-md-12">
-							<div class="table-responsive customsmallgridwidth">
+							<div class="table-responsive">
 								
 <?php
 
 echo GridView::widget([
 		'id' => 'order-item-grid',
 		'type' => 'striped bordered condensed',
-		'dataProvider' => $model->b2bsearch (),
+		'dataProvider' => $model->search (),
 		'filter' => $model,
 		'pager'=>true,
 		'columns' => [
 				// 'id',
 					[
 						'header' => 'Bill No',
-							'attribute' =>'purchase_bill_id',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillNo(); } 
-				],
-				[
-						'header' => 'Bill Date',
-						'attribute' =>'bill_date',
-						'value' => function ($data, $key, $index) { return $data->getOrderBillDate(); }
+							'attribute' =>'order_id',
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->bill_no:""; } 
 				],
 				[
 						'header' => 'Barcode',
 						'attribute' =>'item_detail_id',
-						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
+						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; } ,
+						//'filter'=>Gx::listData(ItemDetail::class),
 				]
 				,
 				[
 						'header' => 'Item',
 						'attribute' =>'item_id',
-						'value' => function ($data, $key, $index) { return $data->getItemName(); },
-						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
-				]
-				,
+						'value' => function ($data, $key, $index) { return $data->getItemName(); } ,
+						//'filter'=>Gx::listData(Item::class),
+				],
 				[
-						'header' => 'Customer',
-						'attribute' =>'vendor',
-						'value' => function ($data, $key, $index) { return $data->getVendorName(); },
-						'filter' => Gx::listData( Vendor::find()->orderBy('name ASC')->all())
-				]
-				,
+						'header' => '<a>Sale Rate</a>',
+						'value' => function ($data, $key, $index) { return $data->getSaleRate(); },
+							
+				],
 				[
-						'header' => 'Employee',
-						'attribute' =>'create_user_id',
-						'value' => function ($data, $key, $index) { return $data->createduser(); },
-						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy('full_name ASC')->all())
-				]
-				,
-				// 'item_detail_id',
-				'approved_qty',
-				// array (
-						// 'header' => 'Refund Qty',
-						// 'attribute' =>'refund_qty',
-						// 'value' => function ($data, $key, $index) { return $data->getOrderRefundQty(); }
-				
-				// )
-				// ,
+						'header' => 'Tax',
+						'attribute' =>'tax_id',
+						'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->title:""; },
+						'filter'=>Gx::listData(Tax::class),
+				],
 				[
-						'header' => 'Mrp',
-						'attribute' =>'mrp',
-						'value' => function ($data, $key, $index) { return $data->mrp; },
-						
-				]
-				,
-			//	'price',
-				'discount_amt',
+						'header' => 'Total Tax(%age)',
+						'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->hrn_code:""; },
+				],
 				[
-						'header' => 'Tax Amount',
-						
-						'value' => function ($data, $key, $index) { return $data->TotalTax(); },
+						'header' => '<a>CGST (%age)</a>',
+						'value' => function ($data, $key, $index) { return $data->cgst_per; },
+							
+				],
+				[
+						'header' => '<a>CGST Amount</a>',
+						'value' => function ($data, $key, $index) { return $data->cgst_amt; },
 				
 				],
-				
 				[
-						'header' => 'Total Amt',
-						'attribute' =>'amount',
-						'value' => function ($data, $key, $index) { return $data->amount; }
+						'header' => '<a>SGST (%age)</a>',
+						'value' => function ($data, $key, $index) { return $data->sgst_per; },
+							
+				],
+				[
+						'header' => '<a>SGST Amount</a>',
+						'value' => function ($data, $key, $index) { return $data->sgst_amt; },
+							
+				],
+				[
+						'header' => '<a>CESS (%age)</a>',
+						'value' => function ($data, $key, $index) { return $data->cess_per; },
+							
+				],
+				[
+						'header' => '<a>CESS Amount</a>',
+						'value' => function ($data, $key, $index) { return $data->cess_amt; },
+							
+				],
+				[
+						'header' => 'Tax Amount',
+						'value' => function ($data, $key, $index) { return $data->tax_amount; },
+				],
 				
-				]
-				,
+				// 'item_detail_id',
+				
+				
 		/*
 		'discount_amt',
 		'tax_id',

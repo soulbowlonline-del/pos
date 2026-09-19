@@ -331,7 +331,7 @@ class ItemUiController extends BaseUiController {
 						'item_id' => $item->id,
 						'status' => Mrs::STATUS_PENDING 
 				] );
-				Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
+				Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
 				if ($mrsdetails) {
 					foreach ( $mrsdetails as $mrsdetail ) {
 						$mrs_id = $mrsdetail->mrs_id;
@@ -743,7 +743,7 @@ curl_close($ch);
 									$mrsdetails = MrsDetail::findAll(['item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
 									]);
-									Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
+									Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
 											$mrs_id = $mrsdetail->mrs_id;
@@ -802,12 +802,12 @@ curl_close($ch);
 											$tax = Tax::findOne($itemdetail_->tax_id);
 										$tax_id = $itemdetail_->tax_id;
 										}
-										Yii::warning( var_export($itemStock->vendor_id, true, true), '$mrs_vendor_id');
+										Yii::warning( var_export($itemStock->vendor_id, true), '$mrs_vendor_id');
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
 										]);
-										Yii::warning( var_export($mrs, true, true), '$mrs_id');
+										Yii::warning( var_export($mrs, true), '$mrs_id');
 										
 										if($item->reorder_qty != ''){
 										//$reorder_qty = $item->getReorderQty();
@@ -844,7 +844,7 @@ curl_close($ch);
 										$mrs->outlet_id = $outlet;
 										$mrs->vendor_id = $itemStock->vendor_id;
 									
-										Yii::warning( var_export($mrs->vendor_id, true, true), '$mrs->vendor_id');
+										Yii::warning( var_export($mrs->vendor_id, true), '$mrs->vendor_id');
 										//$mrs->tax_id = $this->tax_id;
  
 										$mrs->organization_id = $organization->id;
@@ -1364,7 +1364,7 @@ curl_close($ch);
 		if (isset ( $_POST ['ItemDetail'] ['company_id'] )) {
 			$model->company_id = $_POST ['ItemDetail'] ['company_id'];
 		}
-		Yii::warning( var_export($_POST, true, true), '$_POST');
+		Yii::warning( var_export($_POST, true), '$_POST');
 		if (isset ( $_GET ['id'] )) {
 			$model->item_id = $_GET ['id'];
 		}
