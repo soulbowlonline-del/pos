@@ -14,3 +14,7 @@
 
 itemExpire/index rows      itemExpire/index returns 500 on the 5.6 baseline
 orderRefund/update form    orderRefund/update returns 500 on the 5.6 baseline
+itemExpire/update form     itemExpire/update returns 500 on the 5.6 baseline
+mrn/update form            mrn/update returns 500 on the 5.6 baseline
+itemStock/admin rows       itemStock/admin returns 500 on the 5.6 baseline
+itemStock/admin page 2     itemStock/admin returns 500 on the 5.6 baseline

@@ -54,13 +54,50 @@ def known_yii1_failures():
         line = line.strip()
         if not line or line.startswith('#'):
             continue
-        parts = line.split(None, 2)
-        if len(parts) >= 2:
-            known[parts[0] + ' ' + parts[1]] = parts[2] if len(parts) > 2 else ''
+        # Split on a run of spaces, not on one. The case name can itself
+        # contain a space - "admin page 2" - and splitting on single spaces
+        # made the key "itemStock/admin page", which never matched.
+        parts = re.split(r'\s{2,}', line, maxsplit=1)
+        if parts[0]:
+            known[parts[0].strip()] = parts[1].strip() if len(parts) > 1 else ''
     return known
 
 
 KNOWN = known_yii1_failures()
+
+
+def unordered_listings():
+    """
+    Listings where neither stack defines an order.
+
+    `GxActiveRecord::defaultScope()` puts `id DESC` on most models, but some
+    override it to an empty array and their search() sets no order either. For
+    those the row *sequence* is whatever the storage engine returns, and the
+    two engines disagree - so comparing sequences asserts something Yii 1 does
+    not promise. The rows themselves are still the contract and are still
+    compared.
+
+    This is not a way to make a red case green: a page is listed here only
+    after reading the model and confirming that defaultOrder() is null and
+    search() sets no order. If either does, a sequence difference is a real
+    difference and must stay a failure.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'unordered-listings.txt')
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding='utf-8'):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        parts = re.split(r'\s{2,}', line, maxsplit=1)
+        if parts[0]:
+            out[parts[0].strip()] = parts[1].strip() if len(parts) > 1 else ''
+    return out
+
+
+UNORDERED = unordered_listings()
 
 
 def volatile_fields(url):
@@ -158,6 +195,7 @@ def form_fields(html):
 
 
 FAIL = []
+NOTHING = []
 CTRL = ''
 
 
@@ -184,6 +222,16 @@ def check(name, a, b, require='nonempty'):
               f'nothing was compared')
         return
     if require == 'nonempty' and not a:
+        # Both sides empty, with both having answered 200 upstream, is the two
+        # stacks agreeing - itemReturnItem/create renders nothing on the 5.6
+        # baseline too. That is not a mismatch, and it is not a verified case
+        # either: nothing was compared. It gets its own outcome so it can never
+        # be counted as coverage.
+        if not b:
+            NOTHING.append(name)
+            print(f'  none  {name}: both stacks render an empty page - '
+                  f'nothing was compared')
+            return
         FAIL.append(name + ' (nothing compared)')
         print(f'  FAIL  {name}: yii1 produced nothing to compare - the page did '
               f'not render, or the session is not logged in')
@@ -191,6 +239,23 @@ def check(name, a, b, require='nonempty'):
     if a == b:
         print(f'  ok    {name}')
         return
+    key = CTRL + '/' + name
+    if key in UNORDERED and isinstance(a, list) and isinstance(b, list):
+        if sorted(a) == sorted(b):
+            # The whole listing is here and both stacks hold the same rows.
+            # Only the sequence differs, and neither stack defines one.
+            print(f'  ok    {name}: same rows in a different order - '
+                  f'{UNORDERED[key]}')
+            return
+        if len(a) == len(b):
+            # Paginated as well as unordered: which ten of fifty thousand rows
+            # land on page one is not defined by either stack, so there is
+            # nothing here to be right or wrong about. Not a pass - nothing was
+            # compared - and it is counted as such.
+            NOTHING.append(name)
+            print(f'  none  {name}: unordered paginated listing, {len(a)} rows '
+                  f'each - which rows appear is undefined ({UNORDERED[key]})')
+            return
     FAIL.append(name)
     print(f'  FAIL  {name}')
     if isinstance(a, list) and isinstance(b, list):
@@ -300,6 +365,8 @@ def main():
                                     if k not in volatile))
 
     print()
+    if NOTHING:
+        print(f'NOTHING COMPARED {len(NOTHING)}: {", ".join(NOTHING)}')
     if FAIL:
         print(f'FAILED {len(FAIL)}: {", ".join(FAIL)}')
         sys.exit(1)

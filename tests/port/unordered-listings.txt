@@ -1,0 +1,25 @@
+# Listings where neither stack defines an order.
+#
+# One line per page, as "<controller>/<case>  <why>". A page goes here only
+# after reading the model and confirming that defaultScope() is empty and
+# search() sets no order, so both stacks return whatever their storage engine
+# gives them.
+#
+# Two outcomes follow, and neither is a free pass:
+#
+#   the same rows in a different sequence - a pass. Nothing is undefined about
+#   the contents, only their order, and both stacks agree on the contents.
+#
+#   a different set of rows, same count - "nothing compared". The listing is
+#   paginated as well as unordered, so which ten of fifty thousand rows land on
+#   page one is not defined by either stack. This is reported in the
+#   nothing-compared tally, never as a pass, because it is a real gap in
+#   coverage rather than a page that was checked.
+#
+# Anything else is still a failure. If defaultOrder() is non-null or search()
+# sets an order, a sequence difference is a genuine difference - an earlier
+# attempt to "fix" one of these by adding an ORDER BY broke a working Yii 1
+# page and was reverted in full.
+
+stockAdjustLog/admin rows    StockAdjustLog::defaultScope() is empty and search() sets no order
+stockAdjustLog/admin page 2  StockAdjustLog::defaultScope() is empty and search() sets no order

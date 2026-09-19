@@ -70,6 +70,17 @@ class ActiveForm extends \yii\widgets\ActiveForm
      */
     public function dropDownListRow($model, $attribute, $data, $htmlOptions = [])
     {
+        // A multiple select is CHtml::activeDropDownList's other shape, and it
+        // behaves like activeListBox: the name gains `[]` and there is no
+        // hidden "nothing selected" input. Yii 2's listBox emits one unless it
+        // is told not to, which gave discount's form a scalar
+        // `Discount[item_detail_id]` beside the real
+        // `Discount[item_detail_id][]` - thirteen fields where Yii 1 has
+        // twelve.
+        if (!empty($htmlOptions['multiple'])) {
+            $htmlOptions = self::noUnselect($htmlOptions);
+        }
+
         return (string) $this->field($model, $attribute)->dropDownList($data, $htmlOptions);
     }
 

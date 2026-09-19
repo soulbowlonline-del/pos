@@ -250,35 +250,44 @@ found, not fixed.
 renders four more columns than Yii 1's and three fewer rows, and neither
 difference is explained yet. It stays on Yii 1 until it is.
 
-## The nine cases the UI suite still reports
+## The cases the UI suite does not count as passes
 
-257 of 266 compare clean. The nine that do not are worth reading, because only
-three of them are the port's fault.
+Every comparison either matches, mismatches, or is reported as **nothing
+compared** - a third outcome, tallied separately, for a page where there was
+nothing to be right or wrong about. It exists so that a page which cannot be
+checked can never read as a page that was.
 
-**Yii 1 answers 500 and the port answers 200** - `itemExpire/update`,
-`itemStock/admin` and its second page, `mrn/update`. The port is healthier
-than the original here. These were hidden until tonight: the port used to fail
-too, on the output that `var_export` was writing into the response, so the two
-statuses matched and the case passed. Fixing the port revealed that Yii 1 was
-broken all along. They need checking against the 5.6 baseline and then listing
-in `known-yii1-failures.txt`.
+Three kinds end up there, and none of them is a way to make a red case green.
 
-**Yii 1 renders nothing to compare** - `itemReturnItem/create`. Same family,
-not yet diagnosed.
+**Yii 1 crashes and the port does not.** `itemExpire/update`, `mrn/update` and
+`itemStock/admin` return 500 on the untouched 5.6 baseline, confirmed with
+`tools/port/baseline_check.sh`; the port renders all three. They are listed in
+`known-yii1-failures.txt`, which only accepts a page after it has failed on
+:8082 - Yii 1 failing in the 8.3 tree alone would show only that this work
+broke it.
 
-**Neither side orders the rows** - `stockAdjustLog/admin` and its second page.
-`defaultScope()` returns an empty array and `search()` sets no order, so both
-engines return storage order and the two disagree. This one passed before and
-fails now precisely because the port got *more* correct: the search used to
-drop its `addBetweenCondition`, and the different result set happened to come
-back in the same order. Adding an `ORDER BY` here would be inventing behaviour
-Yii 1 does not have - an earlier attempt to do exactly that broke a working
-Yii 1 page and was reverted in full.
+These were invisible until the port stopped writing `var_export` output into
+its responses. Until then the ported page failed too, the two statuses agreed,
+and the comparison passed. A suite can be green because both sides are broken.
 
-**The port's fault** - `discount/create` and `discount/update` render thirteen
-form fields where Yii 1 renders twelve: `item_detail_id` comes out as a scalar
-where Yii 1 emits `Discount[item_detail_id][]`, a multiple select, and a
-`type_id` field appears that Yii 1 does not show.
+**Both stacks render nothing.** `itemReturnItem/create` answers 200 with an
+empty body on the baseline, on Yii 1 under 8.3 and on the port. All three
+agree, so there is nothing to fix - and nothing was compared either.
+
+**The listing is unordered and paginated.** `stockAdjustLog/admin` has an empty
+`defaultScope()` and a `search()` that sets no order, so neither stack defines
+which ten of fifty thousand rows appear on page one. Both queries are
+equivalent - same joins, same `LIMIT 10`, no `ORDER BY` - but Yii 1 selects
+every column of every joined table and Yii 2 selects `t.*`, so MySQL picks a
+different plan and a different ten rows. There is no correct answer to match.
+
+`unordered-listings.txt` holds these. Where the whole listing fits on one page
+and the two stacks hold the same rows in a different sequence, that is a pass:
+the contents agree and only the order, which nothing defines, does not. Where
+the rows themselves differ it is *not* a pass - it goes to nothing-compared,
+because the page genuinely was not checked. Adding an `ORDER BY` to settle it
+would be inventing behaviour Yii 1 does not have; doing exactly that earlier in
+this port broke a working Yii 1 page and was reverted in full.
 
 ## What "verified" covers, and what it does not
 

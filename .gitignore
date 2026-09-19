@@ -64,3 +64,4 @@ app2/runtime/*
 
 # Assets Yii 2 publishes at runtime from vendor/bower-asset.
 v2/assets/
+__pycache__/

@@ -214,3 +214,29 @@ change on both stacks.
   - MySQL runs in UTC and PHP in Asia/Kolkata, so `hasPendingOTP()` compares a
     PHP-written timestamp with MySQL's `NOW()` and locks a customer out for
     five and a half hours.
+
+## Three more pages that crash on the untouched 5.6 baseline
+
+Confirmed with `tools/port/baseline_check.sh`, which fetches the page from
+:8082 as well as :8084 - Yii 1 failing in the PHP 8.3 tree alone would only
+show that this work broke it.
+
+| page | baseline | 8.3 |
+|---|---|---|
+| `itemExpire/update/2840` | 500 | 500 |
+| `mrn/update/64040` | 500 | 500 |
+| `itemStock/admin` | 500 | 500 |
+
+The Yii 2 port renders all three. They are listed in
+`tests/port/known-yii1-failures.txt` so the suite stops reporting a mismatch
+for a page the port cannot match by crashing too.
+
+These were invisible until the port stopped writing `var_export` output into
+its responses: until then the ported page failed as well, the two statuses
+agreed, and the comparison passed. A suite can be green because both sides are
+broken.
+
+`itemReturnItem/create` is a fourth of the same family but not a crash: it
+answers 200 with an empty body on the baseline, on Yii 1 under 8.3, and on the
+port. All three agree, so there is nothing to fix - but nothing is compared
+either, which the suite now says out loud rather than counting as a pass.
