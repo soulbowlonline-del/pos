@@ -117,7 +117,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'pdf'=>[
-								//	'visible'=>'$data->state_id=='.User::STATUS_INACTIVE,
+								//	'visible' => function ($data) { return $data->state_id==User::STATUS_INACTIVE; },
 									'url' => function ($data) { return Ui::to("purchaseOrder/printPdf", ["id" => $data->id]); },
 									'label'=>'pdf',
 									'options'=>['class'=>'pdf'],
@@ -134,7 +134,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'Bill'=>[
-									//	'visible'=>'$data->state_id=='.User::STATUS_INACTIVE,
+									//	'visible' => function ($data) { return $data->state_id==User::STATUS_INACTIVE; },
 									'url' => function ($data) { return Ui::to("bill/create", ["id" => $data->id]); },
 									'label'=>'Bill',
 									'options'=>['class'=>'bill'],

@@ -32,8 +32,31 @@ class ActiveForm extends \yii\widgets\ActiveForm
     /** @var array Yii 1 spells the form's tag attributes htmlOptions. */
     public $htmlOptions = [];
 
+    /**
+     * CActiveForm's clientOptions.
+     *
+     * Yii 1 takes the client-side validation settings as one array;
+     * yii\widgets\ActiveForm exposes them as properties and answers
+     * clientOptions from a getter, so assigning it raises "Setting read-only
+     * property". The keys that have a counterpart are copied onto it and the
+     * rest are dropped with a note, rather than the whole form failing.
+     */
+    public $clientOptions = [];
+
     public function init()
     {
+        foreach ($this->clientOptions as $name => $value) {
+            // Yii 2 spells these the same way, as properties of the form.
+            if (in_array($name, ['validateOnSubmit', 'validateOnChange',
+                                 'validateOnBlur', 'validateOnType',
+                                 'enableClientValidation', 'enableAjaxValidation',
+                                 'errorCssClass', 'successCssClass',
+                                 'validatingCssClass', 'errorSummaryCssClass'], true)) {
+                $this->$name = $value;
+            }
+        }
+        $this->clientOptions = [];
+
         if (!empty($this->htmlOptions)) {
             $this->options = ArrayHelper::merge($this->htmlOptions, $this->options);
         }

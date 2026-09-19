@@ -68,6 +68,7 @@ class Ui
         'vendorSchemes',
         'orderRefundItem',
         'vendor',
+        'user',
     ];
 
     /**

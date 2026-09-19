@@ -330,11 +330,11 @@ class User extends ActiveRecord
     {
 		$list = [];
 		$alreadyroles = [6,7];
-		$criteria = new CDbCriteria();
-		$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-		$criteria->addNotInCondition('id', $alreadyroles);
-		$criteria->order = 'title asc';
-		$roles = UserRole::model()->findAll($criteria);
+		$query = UserRole::find();
+		$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
+		$query->andWhere(['not in', 'id', $alreadyroles]);
+		$query->orderBy(['title' => SORT_ASC]);
+		$roles = $query->all();
 	
 		if($roles){
 			foreach($roles as $role){
@@ -348,10 +348,10 @@ class User extends ActiveRecord
     {
 		$list = [];
 		$alreadyroles = [6,7];
-		$criteria = new CDbCriteria();
-		$criteria->addCondition('state_id = 1');
-		$criteria->order = 'full_name asc';
-		$users = User::model()->findAll($criteria);
+		$query = User::find();
+		$query->andWhere('state_id = 1');
+		$query->orderBy(['full_name' => SORT_ASC]);
+		$users = $query->all();
 	
 		if($users){
 			foreach($users as $user){
@@ -598,7 +598,7 @@ class User extends ActiveRecord
 
     public static function getUsers()
         {
-            $users = User::model()->active()->findAll();
+            $users = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->all();
             return $users;
         }
 
@@ -610,13 +610,13 @@ class User extends ActiveRecord
 
     public static function getUserByName($name)
         {
-            $user = User::model()->active()->findByAttributes([ 'username'=>$name]);
+            $user = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->andWhere([ 'username'=>$name])->one();
             return $user;
         }
 
     public static function getUserById($id)
         {
-            $user = User::model()->active()->findByAttributes([ 'id'=>$id]);
+            $user = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->andWhere([ 'id'=>$id])->one();
             return $user;
         }
 
@@ -1348,4 +1348,23 @@ class User extends ActiveRecord
             $session->save();
             }
         }
+
+    public static function getRoleOptions($id = null)
+    {
+		$list = [];
+		$alreadyroles = [];
+		//$alreadyroles = array(6,7);
+		$query = UserRole::find();
+		$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
+		$query->andWhere(['not in', 'id', $alreadyroles]);
+		$query->orderBy(['title' => SORT_ASC]);
+		$roles = $query->all();
+		
+		if($roles){
+			foreach($roles as $role){
+				$list[$role->id] = $role->title;
+			}
+		}
+		return $list;
+    }
 }

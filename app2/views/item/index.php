@@ -171,7 +171,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'tax_id',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => function ($data, $key, $index) { return $data->getMainItemTax(); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
@@ -208,7 +208,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'category_id',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => function ($data, $key, $index) { return Gx::str($data->category); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
@@ -225,7 +225,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'sub_category_id',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => function ($data, $key, $index) { return Gx::str($data->subcategory); },
 					'headerOptions' => ['style' => 'width: 110px'],
 				
@@ -237,7 +237,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'company_id',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => function ($data, $key, $index) { return Gx::str($data->company); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
@@ -275,7 +275,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'status',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => function ($data, $key, $index) { return Item::getStatusOptions($data->status); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
@@ -290,14 +290,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> array('style'=>'width:80px'),
 					'buttons'=>array(
 							 'Active'=>array(
-							 'visible'=>'$data->status == '.Item::STATUS_INACTIVE,
+							 'visible' => function ($data) { return $data->status == Item::STATUS_INACTIVE; },
 									'url' => function ($data) { return Ui::to("item/toggle", ["id" => $data->id]); },
 									'label'=>'Active',
 									'options'=>array('class'=>'view'),
 			
 							), 
 							'InActive'=>array(
-									 'visible'=>'$data->status == '.Item::STATUS_ACTIVE,
+									 'visible' => function ($data) { return $data->status == Item::STATUS_ACTIVE; },
 									'url' => function ($data) { return Ui::to("item/toggle", ["id" => $data->id]); },
 									'label'=>'InActive',
 									'options'=>array('class'=>'update'),

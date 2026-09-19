@@ -3,7 +3,6 @@
  * Ported from protected/views/user/admin.php.
  */
 
-use app\components\Access;
 use app\components\Ui;
 use app\models\User;
 use app\widgets\ActionColumn;
@@ -89,14 +88,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'activate'=>[
-									'visible'=>'$data->state_id=='.User::STATUS_INACTIVE,
+									'visible' => function ($data) { return $data->state_id==User::STATUS_INACTIVE; },
 									'url' => function ($data) { return Ui::to("user/toggle", ["id" => $data->id]); },
 									'label'=>'activate',
 									'options'=>['class'=>'update'],
 										
 							],
 							'inactivate'=>[
-									'visible'=>'$data->state_id=='.User::STATUS_ACTIVE,
+									'visible' => function ($data) { return $data->state_id==User::STATUS_ACTIVE; },
 									'url' => function ($data) { return Ui::to("user/toggle", ["id" => $data->id]); },
 									'label'=>'inactivate',
 									'options'=>['class'=>'update'],
@@ -150,14 +149,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => Access::check('user/view'),
+									'visible' => function ($data) { return $data->checkPermission ("user/view")=="true"; },
 									'url' => function ($data) { return Ui::to("user/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => Access::check('user/update'),
+									'visible' => function ($data) { return $data->checkPermission ("user/update")=="true"; },
 									'url' => function ($data) { return Ui::to("user/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

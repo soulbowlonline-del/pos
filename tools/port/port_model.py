@@ -902,6 +902,67 @@ def global_classes(text):
 
     return text
 
+
+def scopes_of(cls):
+    """A model's Yii 1 named scopes, as name -> condition."""
+    path = '%s/protected/models/%s.php' % (ROOT, cls)
+    try:
+        text = read(path)
+    except OSError:
+        return {}
+    body = parse_block(text, 'scopes')
+    if not body:
+        return {}
+
+    out = {}
+    for m in re.finditer(r"'(\w+)'\s*=>\s*(?:array\s*\(|\[)\s*'condition'\s*=>\s*([^,\)\]]+)",
+                         body, re.S):
+        out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def named_scopes(text):
+    """
+    Yii 1 named scopes, inlined.
+
+    `User::model()->active()->findByAttributes(...)` chains a scope declared in
+    scopes() - 'active' => array('condition' => 'state_id=...'). Yii 2 has no
+    equivalent short of a query class per model, and only two models here
+    declare any, so the condition is inlined at the call site instead. That is
+    what Yii 1 does with it: applyScopes merges the condition into the criteria.
+
+    Left alone the call is a fatal - User::model() does not exist - and it sat
+    in two shipped models.
+    """
+    def one(m):
+        cls, scope, finder, args = m.group(1), m.group(2), m.group(3), m.group(4)
+        cond = scopes_of(cls).get(scope)
+        if cond is None:
+            return m.group(0)
+        #  in the scope means the model that declared it, which is
+        # not the class the call sits in: StockAdjustLog calls User's
+        # 'active' scope, and self::STATUS_ACTIVE there is a constant that
+        # does not exist.
+        cond = re.sub(r'\bself::', cls + '::', cond)
+        q = "%s::find()->andWhere(%s)" % (cls, cond)
+        arg = args.strip()
+        if finder.lower() == 'findall' and not arg:
+            return q + '->all()'
+        if finder.lower() == 'find' and not arg:
+            return q + '->one()'
+        if finder.lower() == 'count':
+            return q + '->count()'
+        if finder.lower() == 'findbyattributes':
+            return q + '->andWhere(%s)->one()' % arg
+        if finder.lower() == 'findallbyattributes':
+            return q + '->andWhere(%s)->all()' % arg
+        if finder.lower() == 'findbypk':
+            return q + '->andWhere([%s::primaryKey()[0] => %s])->one()' % (cls, arg)
+        return m.group(0)
+
+    return re.sub(r'\b(\w+)::model\s*\(\s*\)\s*->\s*(\w+)\s*\(\s*\)\s*->\s*'
+                  r'(\w+)\s*\((.*?)\)\s*(?=[;,\)\]])', one, text, flags=re.S)
+
 def yii1_idioms(text):
     """
     The Yii 1 -> Yii 2 conversions any carried-over snippet needs.
@@ -919,6 +980,11 @@ def yii1_idioms(text):
     text = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', text)
 
     text = dump_as_string(text)
+    # Qualify the global classes a namespaced file names. The guard that
+    # was meant to add this line matched the helper's own definition, so
+    # it never went in and only the controllers got it.
+    text = global_classes(text)
+    text = named_scopes(text)
     text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                   lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', text)
     text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
@@ -1205,12 +1271,37 @@ def generate(model, table_alias):
     consts = re.findall(r'const\s+(\w+)\s*=\s*([^;]+);', base)
     props = public_properties(base, concrete)
 
-    # the getXOptions helpers, copied across with their array syntax updated
+    # The getXOptions helpers. These were copied across with only their array
+    # syntax updated, which left any CDbCriteria inside them untouched - and
+    # because get*Options is on the list of methods a merge replaces, the
+    # unconverted copy overwrote a working one every time the model was
+    # refreshed. User::getAllRoleOptions() was repaired by hand and reverted
+    # itself twice before anyone looked at why.
+    #
+    # One that still names a Yii 1 class after conversion is dropped rather
+    # than written: a missing method is a page that fails where it is called,
+    # and an emitted broken one is a page that fails *and* replaces whatever
+    # was there.
     options = []
-    for m in re.finditer(r'(public\s+static\s+function\s+get\w+Options\s*\([^)]*\)\s*\{)', base):
-        body = parse_block(base, re.search(r'function\s+(get\w+Options)', m.group(1)).group(1))
+    # Both `public static function` and plain `public function`:
+    # BaseUser::getRoleOptions() is the second, and user/create died
+    # looking for it.
+    for m in re.finditer(r'(public\s+(?:static\s+)?function\s+get\w+Options\s*\([^)]*\)\s*\{)', base):
         name = re.search(r'function\s+(get\w+Options)', m.group(1)).group(1)
-        options.append((name, arrays(body)))
+        body = arrays(parse_block(base, name))
+        if 'CDbCriteria' in body:
+            converted, ok, why = convert_criteria(body)
+            if not ok:
+                warn.append('%s(): not carried across - %s' % (name, why))
+                continue
+            body = converted
+        body = yii1_idioms(body)
+        if re.search(YII1_CLASSES, body):
+            left = sorted(set(re.findall(YII1_CLASSES, body)))
+            warn.append('%s(): not carried across - still names %s'
+                        % (name, ', '.join(left)))
+            continue
+        options.append((name, body))
 
     tbl = re.search(r"tableName\s*\(\)\s*\{\s*return\s*'\{\{(\w+)\}\}'", base)
     table = tbl.group(1) if tbl else table_alias

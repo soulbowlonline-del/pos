@@ -213,7 +213,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-								//	'visible'=>'$data->state_id=='.User::STATUS_INACTIVE,
+								//	'visible' => function ($data) { return $data->state_id==User::STATUS_INACTIVE; },
 									'url' => function ($data) { return Ui::to("purchaseBill/view", ["id" => $data->id]); },
 									'label'=>'view',
 									'options'=>['class'=>'view'],

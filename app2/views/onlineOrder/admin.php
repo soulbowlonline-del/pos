@@ -192,7 +192,7 @@ $('.search-form form').submit(function(){
 										
 							],
 							/* 'update'=>array(
-							 'visible'=>'$data->status =='."'".OnlineOrder::STATUS_PENDING."'",
+							 'visible' => function ($data) { return $data->status =="'"OnlineOrder::STATUS_PENDING"'"; },
 									'url' => function ($data) { return Ui::to("onlineOrder/hold", ["id" => $data->id]); },
 									'label'=>'Hold',
 									'options'=>array('class'=>'update'),
@@ -217,7 +217,7 @@ $('.search-form form').submit(function(){
 			
 							],
 							 /* 'update'=>array(
-									'visible'=>'$data->status =='."'".OnlineOrder::STATUS_PENDING."'",
+									'visible' => function ($data) { return $data->status =="'"OnlineOrder::STATUS_PENDING"'"; },
 									'url' => function ($data) { return Ui::to("onlineOrder/hold", ["id" => $data->id]); },
 									'label'=>'Hold',
 									'options'=>array('class'=>'update'),

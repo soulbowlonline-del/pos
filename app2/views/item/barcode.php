@@ -147,7 +147,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'expiry_date',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 				 'value' => "date('Y-m-d')",
 					'headerOptions' => ['style' => 'width: 110px'],
 					'editable' => [
@@ -169,7 +169,7 @@ $('.search-form form').submit(function(){
 					'attribute' => 'packing_date',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
-					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
 					'value' => "",
 					'headerOptions' => ['style' => 'width: 110px'],
 					'editable' => [

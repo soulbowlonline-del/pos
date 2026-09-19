@@ -57,47 +57,47 @@ use app\widgets\GridView;
     				'attribute' =>'cgst_per',
     				'value' => function ($data, $key, $index) { return $data->cgst_per; },
 	             	'format' => 'raw',
-		          'visible'=>'$data->purchase_bill_id== 0',
+		          'visible' => function ($data) { return $data->purchase_bill_id== 0; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== true; },
     				'attribute' =>'sgst_per',
     				'value' => function ($data, $key, $index) { return $data->sgst_per; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== true; },
     				'attribute' =>'sgst_per',
     				'value' => function ($data, $key, $index) { return $data->cess_per; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== false',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== false; },
     				'attribute' =>'igst_per',
     				'value' => function ($data, $key, $index) { return $data->igst_per; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== true; },
     				'attribute' =>'sgst_per',
     				'value' => function ($data, $key, $index) { return $data->cgst_amt; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== true; },
     				'attribute' =>'sgst_amt',
     				'value' => function ($data, $key, $index) { return $data->sgst_amt; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== true; },
     				'attribute' =>'cess_amt',
     				'value' => function ($data, $key, $index) { return $data->cess_amt; },
     					
     		],
     		[
-    				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== false',
+    				'visible' => function ($data) { return $data->getGSTTrue($data->purchase_bill_id)== false; },
     				'attribute' =>'igst_amt',
     				'value' => function ($data, $key, $index) { return $data->igst_amt; },
     					

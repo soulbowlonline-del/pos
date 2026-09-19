@@ -383,6 +383,24 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"\$this\s*->\s*widget\s*\(\s*'CLinkPager'\s*,\s*",
                  lambda m: 'echo %s::widget(' % pager, src)
 
+    # A button's `visible`, which Yii 1 evaluates per row with $data in scope.
+    # Left as a string it is simply truthy, so every conditional button showed
+    # on every row - user's grid offered both "activate" and "inactivate"
+    # where Yii 1 offers whichever applies.
+    def visible_expr(m):
+        # Already a closure - the value was converted on an earlier pass over
+        # this file. Running the rule again wrapped it in a second closure,
+        # which is an object and therefore always truthy: every conditional
+        # button came back on every row.
+        if m.group(1).lstrip().startswith('function'):
+            return m.group(0)
+        code = expression_to_code(m.group(1))
+        if code is None or '$data' not in code:
+            return m.group(0)
+        return "'visible' => function ($data) { return %s; }" % code
+
+    src = re.sub(r"'visible'\s*=>\s*((?:'(?:[^'\\]|\\.)*'|[^,\n])+)", visible_expr, src)
+
     src = dump_as_string(src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', src)
@@ -456,6 +474,66 @@ def rewrite(src, ctrl, unknown):
     # $model->search() keeps its name; $data->getXOptions stays a method call
     return src
 
+
+
+def expression_to_code(value):
+    """
+    A Yii 1 expression written as a concatenation, as PHP code.
+
+    CButtonColumn evaluates a button's `visible` as PHP with $data in scope,
+    and the views build it by concatenation:
+
+        'visible' => '$data->state_id==' . User::STATUS_INACTIVE
+
+    The string literal is only the first term. Turning the whole thing into a
+    closure means emitting each literal's *contents* as code and each other
+    term as itself, which is what Yii 1's eval sees. Returns None when a term
+    cannot be read, and the caller then leaves the value alone.
+    """
+    out, i, n = [], 0, len(value)
+    while i < n:
+        while i < n and value[i] in ' \t\n':
+            i += 1
+        if i >= n:
+            break
+        if value[i] == "'":
+            j = i + 1
+            buf = []
+            while j < n:
+                if value[j] == '\\' and j + 1 < n:
+                    buf.append(value[j + 1])
+                    j += 2
+                    continue
+                if value[j] == "'":
+                    break
+                buf.append(value[j])
+                j += 1
+            if j >= n:
+                return None
+            out.append(''.join(buf))
+            i = j + 1
+        else:
+            j = i
+            depth = 0
+            while j < n:
+                c = value[j]
+                if c in '([':
+                    depth += 1
+                elif c in ')]':
+                    depth -= 1
+                elif c == '.' and depth == 0:
+                    break
+                j += 1
+            out.append(value[i:j].strip())
+            i = j
+        while i < n and value[i] in ' \t\n':
+            i += 1
+        if i < n and value[i] == '.':
+            i += 1
+        elif i < n:
+            return None
+
+    return ''.join(out) if out else None
 
 def imports(src, ctrl):
     """The use statements the rewritten view needs."""

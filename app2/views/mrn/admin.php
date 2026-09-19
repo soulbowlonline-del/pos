@@ -106,7 +106,7 @@ $('.search-form form').submit(function(){
 						'htmlOptions'=> ['style'=>'width:80px'],
 						'buttons'=>[
 								'approve'=>[
-										'visible'=>'$data->status=='.Mrn::STATUS_UNAPPROVED,
+										'visible' => function ($data) { return $data->status==Mrn::STATUS_UNAPPROVED; },
 										'url' => function ($data) { return Ui::to("mrn/approve", ["id" => $data->id]); },
 										'label'=>'Approve',
 										'options'=>['class'=>'approve'],

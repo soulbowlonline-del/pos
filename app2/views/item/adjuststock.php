@@ -148,7 +148,7 @@ $this->params['breadcrumbs'] = [
     						'attribute' => 'vendor_id',
     						//  'data_demanded_quantity' => '$data->demanded_quantity',
     						//  'data-state_id' => '$data->state_id',
-    						//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
+    						//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
     						'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },
     						'headerOptions' => ['style' => 'width: 110px'],
     				

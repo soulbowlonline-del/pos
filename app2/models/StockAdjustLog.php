@@ -467,7 +467,7 @@ class StockAdjustLog extends ActiveRecord
 
     public function getUserNameById()
         {
-            $user = User::model()->active()->findByAttributes([ 'id'=>$this->create_user_id]);
+            $user = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->andWhere([ 'id'=>$this->create_user_id])->one();
             // print_r($user->full_name); die;
             return $user ? $user->full_name : '';
         }
