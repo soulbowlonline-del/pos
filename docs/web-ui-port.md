@@ -289,6 +289,32 @@ because the page genuinely was not checked. Adding an `ORDER BY` to settle it
 would be inventing behaviour Yii 1 does not have; doing exactly that earlier in
 this port broke a working Yii 1 page and was reverted in full.
 
+## Access control: what Yii 1 refuses
+
+`BaseUiController` checks only that someone is signed in, on the reading that
+Yii 1's `accessRules()` amounts to the same thing. For 43 of the 48 ported
+controllers it does, and for a reason worth writing down:
+`CAccessRule::isActionMatched` is `empty($this->actions) || in_array(...)`, so
+a rule with no action list - or with every entry commented out, which is how
+most of these look - matches **every** action. Reading an empty list as
+"nothing" is what made a first attempt at this report 59 refused actions, not
+one of which was refused.
+
+Read correctly, the application has 22 actions that Yii 1 refuses a signed-in
+user outright. Two are in ported controllers: `item/getDiffStocks` and
+`item/check`. The other 20 are in `onlineOrder`, `order` and `user`, and will
+matter when those are ported.
+
+The generator reads `accessRules()` and writes the refused actions onto each
+controller as `deniedActions()`, which `BaseUiController::beforeAction`
+enforces. Only actions refused outright are listed - anything a role or an
+expression decides is left out rather than guessed at - so the port can refuse
+less than Yii 1, never more.
+
+`item/check` remains a difference of a kind: Yii 1 answers 403 and the port
+404, because the action does not exist here at all. Both refuse; they disagree
+about why.
+
 ## The action sweep
 
 The UI suite compares six page types per controller. The ported controllers

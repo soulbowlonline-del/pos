@@ -23,6 +23,77 @@ def lcfirst(s):
     return s[0].lower() + s[1:]
 
 
+
+def access_rules(src):
+    """Each accessRules() entry as (kind, actions, users, undecidable)."""
+    m = re.search(r'function\s+accessRules\s*\(\s*\)', src)
+    if not m:
+        return None
+    i = src.find('{', m.end())
+    depth, start = 1, i + 1
+    i += 1
+    while i < len(src) and depth:
+        if src[i] == '{':
+            depth += 1
+        elif src[i] == '}':
+            depth -= 1
+        i += 1
+    body = src[start:i - 1]
+    body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
+    body = re.sub(r'//[^\n]*', '', body)
+
+    out = []
+    for r in re.finditer(r"(?:array\s*\(|\[)\s*'(allow|deny)'(.*?)"
+                         r"(?=(?:array\s*\(|\[)\s*'(?:allow|deny)'|$)", body, re.S):
+        kind, rest = r.group(1), r.group(2)
+        am = re.search(r"'actions'\s*=>\s*(?:array\s*\(|\[)(.*?)(?:\)|\])", rest, re.S)
+        actions = [a.lower() for a in re.findall(r"'(\w+)'", am.group(1))] if am else None
+        um = re.search(r"'users'\s*=>\s*(?:array\s*\(|\[)(.*?)(?:\)|\])", rest, re.S)
+        users = re.findall(r"'([^']+)'", um.group(1)) if um else None
+        undecidable = bool(re.search(r"'(roles|expression)'\s*=>", rest))
+        out.append((kind, actions, users, undecidable))
+
+    return out
+
+
+def denied_actions(src):
+    """
+    The actions Yii 1's accessRules() refuses a signed-in user.
+
+    CAccessControlFilter walks the rules in order and the first match decides;
+    if none matches it runs the action, which is why the deny-all that ends
+    most of these lists is what makes them exhaustive.
+
+    CAccessRule::isActionMatched is `empty($this->actions) || in_array(...)`,
+    so a rule with no actions - or with all of them commented out, which is
+    common here - matches *every* action. Reading that as "nothing" is what
+    made an earlier attempt at this report 59 denied actions, none of which
+    were denied.
+
+    A rule decided by a role or an expression cannot be read, so its actions
+    are left out rather than guessed at: this list only ever holds actions
+    refused outright.
+    """
+    rules = access_rules(src)
+    if rules is None:
+        return []
+
+    out = []
+    for m in re.finditer(r'public function action(\w+)\s*\(', src):
+        act = m.group(1)[0].lower() + m.group(1)[1:]
+        for kind, actions, users, undecidable in rules:
+            if actions and act.lower() not in actions:
+                continue
+            if users is not None and not ({'*', '@'} & set(users)):
+                continue
+            if undecidable:
+                break
+            if kind == 'deny':
+                out.append(act)
+            break
+
+    return out
+
 def translate(src, model, ctrl, warn):
     body = arrays_to_brackets(src)
 
@@ -309,6 +380,28 @@ use yii\\web\\NotFoundHttpException;
         header = header.replace('use app\\models\\' + model + ';',
                                 '\n'.join(['use app\\models\\' + c + ';' for c in
                                            sorted(others + [model])]))
+
+    # Yii 1's accessRules(), as a list the base controller enforces. The port
+    # checks only that someone is signed in, which is what Yii 1's rules amount
+    # to for most controllers - but not all: item/getDiffStocks is refused to
+    # everybody there and was reachable here.
+    denied = denied_actions(src)
+    if denied:
+        body = body.rstrip().rstrip('}').rstrip() + '''
+
+	/**
+	 * Actions Yii 1's accessRules() refuses to a signed-in user.
+	 *
+	 * Read from accessRules() when this file was generated, not enforced by
+	 * duplicating the rules: only actions refused outright are listed, and a
+	 * rule decided by a role or an expression is left out.
+	 */
+	public function deniedActions()
+	{
+		return [%s];
+	}
+}
+''' % ', '.join("'%s'" % d for d in denied)
 
     # A name the API port already uses gets a suffixed controller class. The
     # URL is unchanged - Ui::toYii2Id() maps /v2/item/admin to item-ui/admin -

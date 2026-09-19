@@ -3581,4 +3581,15 @@ curl_close($ch);
 		Yii::$app->end();
 	}
 
+	/**
+	 * Actions Yii 1's accessRules() refuses to a signed-in user.
+	 *
+	 * Read from accessRules() when this file was generated, not enforced by
+	 * duplicating the rules: only actions refused outright are listed, and a
+	 * rule decided by a role or an expression is left out.
+	 */
+	public function deniedActions()
+	{
+		return ['getDiffStocks', 'check'];
+	}
 }

@@ -7,6 +7,7 @@ use app\widgets\Tabs;
 use Yii;
 use yii\web\Controller;
 use yii\helpers\Html;
+use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
@@ -49,6 +50,18 @@ abstract class BaseUiController extends Controller
 
     public $enableCsrfValidation = true;
 
+    /**
+     * Actions Yii 1's accessRules() refuses to a signed-in user.
+     *
+     * Empty here; a generated controller overrides it where its rules refuse
+     * something. Kept as a method rather than a property so that a hand-edited
+     * controller can compute it.
+     */
+    public function deniedActions()
+    {
+        return [];
+    }
+
     public function beforeAction($action)
     {
         if (!parent::beforeAction($action)) {
@@ -62,6 +75,23 @@ abstract class BaseUiController extends Controller
             // rendering one here. loginUrl in config/main.php is user/login.
             Yii::$app->response->redirect('/user/login')->send();
             return false;
+        }
+
+        // Yii 1's accessRules(), for the actions it refuses outright.
+        //
+        // The port checks only that someone is signed in, on the reading that
+        // Yii 1's rules amount to the same thing - and for 43 of the 48 ported
+        // controllers they do, because their first rule carries no action list
+        // and CAccessRule matches every action when the list is empty. The
+        // exceptions are real: item/getDiffStocks is refused to everybody
+        // there, and was reachable here.
+        //
+        // The list is generated per controller from accessRules() and holds
+        // only actions refused outright; anything a role or an expression
+        // decides is left out rather than guessed at, so this can refuse less
+        // than Yii 1 but never more.
+        if (in_array(Ui::toYii1Id($action->id), $this->deniedActions(), true)) {
+            throw new ForbiddenHttpException('You are not allowed to access this page.');
         }
 
         return true;
