@@ -129,7 +129,11 @@ def widgets(src, unknown):
     src = re.sub(r"(echo\s+)?\$this\s*->\s*widget\s*\(\s*'(?:[\w.]*\.)?([A-Za-z]+)'\s*,\s*",
                  repl, src)
     # the begin/end pair used by forms
-    src = re.sub(r"\$form\s*=\s*\$this\s*->\s*beginWidget\s*\(\s*'bootstrap\.widgets\.TbActiveForm'\s*,\s*",
+    # TbActiveForm and plain CActiveForm alike. item/importTaxData uses the
+    # second, which was left as $this->beginWidget() - a View method that does
+    # not exist - and the page died on it. The shim takes the same
+    # configuration either way.
+    src = re.sub(r"\$form\s*=\s*\$this\s*->\s*beginWidget\s*\(\s*'(?:bootstrap\.widgets\.TbActiveForm|CActiveForm)'\s*,\s*",
                  '$form = ActiveForm::begin(', src)
     src = re.sub(r"\$this\s*->\s*endWidget\s*\(\s*\)", 'ActiveForm::end()', src)
     return src

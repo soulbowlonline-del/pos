@@ -69,7 +69,7 @@ AIR FILTER 2 WHEELER,84212300,GST @28%</pre>
             </div>
 
             <?php 
-            $form = $this->beginWidget('CActiveForm', [
+            $form = ActiveForm::begin([
                 'id' => 'csv-upload-form',
                 'enableAjaxValidation' => false,
                 'htmlOptions' => [
