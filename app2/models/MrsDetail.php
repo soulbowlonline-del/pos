@@ -453,8 +453,8 @@ class MrsDetail extends ActiveRecord
     public function rules()
     {
         return [
-            [['adjust_qty', 'adjust_type_id', 'mrs_req_date', 'vendor_id', 'item_val_id', 'bar_code'], 'safe'],  // form-only, declared on the Yii 1 model
             [['salerate'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['adjust_qty', 'adjust_type_id', 'mrs_req_date', 'vendor_id', 'item_val_id', 'bar_code'], 'safe'],  // form-only, declared on the Yii 1 model
             [['req_qty', 'item_detail_id', 'mrs_id', 'outlet_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'mrs_id', 'outlet_id'], 'integer'],
             [['adjust_qty', 'adjust_type_id', 'remarks', 'create_time', 'update_time', 'item_id', 'gross_amt', 'total_discount', 'tax_amount', 'bill_amount', 'mrs_req_date', 'vendor_id', 'mrp', 'sale_rate', 'tax_id', 'discount1', 'discount_amt1', 'discount', 'discount_amt', 'other_charge', 'amount', 'price', 'cgst_per', 'sgst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt', 'igst_per', 'igst_amt', 'margin', 'item_val_id', 'bar_code', 'min_qty'], 'safe'],

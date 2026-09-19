@@ -18,6 +18,7 @@ itemExpire/update form     itemExpire/update returns 500 on the 5.6 baseline
 mrn/update form            mrn/update returns 500 on the 5.6 baseline
 itemStock/admin rows       itemStock/admin returns 500 on the 5.6 baseline
 itemStock/admin page 2     itemStock/admin returns 500 on the 5.6 baseline
+itemStock/admin headings   itemStock/admin returns 500 on the 5.6 baseline
 purchaseOrder/update form      purchaseOrder/update returns 500 on the 5.6 baseline
 purchaseBill/update form       purchaseBill/update returns 500 on the 5.6 baseline
 purchaseBillDetail/create form   purchaseBillDetail/create returns 500 on the 5.6 baseline

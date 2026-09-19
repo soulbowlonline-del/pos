@@ -439,8 +439,8 @@ class PurchaseOrderDetail extends ActiveRecord
     public function rules()
     {
         return [
-            [['start_date', 'vendor_id'], 'safe'],  // form-only, declared on the Yii 1 model
             [['salerate', 'vat'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['start_date', 'vendor_id'], 'safe'],  // form-only, declared on the Yii 1 model
             [['req_qty', 'item_detail_id', 'item_id', 'purchase_order_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'item_id', 'purchase_order_id', 'outlet_id'], 'integer'],
             [['charge_amount', 'extra_charges'], 'number'],

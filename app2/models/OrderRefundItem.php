@@ -188,7 +188,7 @@ class OrderRefundItem extends ActiveRecord
             'item_detail_id' => 'ItemDetail',
             'qty' => 'Qty',
             'price' => 'Price',
-            'discount_id' => 'Discount',
+            'discount_id' => 'Discount Id',
             'discount_amt' => 'Discount Amt',
             'tax_id' => 'Tax',
             'tax_amt' => 'Tax Amt',
@@ -412,12 +412,12 @@ class OrderRefundItem extends ActiveRecord
     {
         $this->load($params, $this->formName());
 
-		$query = self::find()->alias('t');
+		$query = OrderRefundItem::find()->alias('t');
 		if(isset($this->bill_no) && ($this->bill_no != '')){
 			$refund_ids = array();
 			$order = Order::find()->where(array('bill_no'=>$this->bill_no)->one());
 			if($order){
-		$query1 = OrderRefund::find();
+		$query1 = OrderRefund::find()->alias('t');
 		Criteria::compare($query1, 'order_id', $order->id);
 		$orders = $query1->all();
 		if($orders){
@@ -457,6 +457,8 @@ class OrderRefundItem extends ActiveRecord
 			}
 			Yii::$app->session ['refund_total']=number_format($total,2);
 		}
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

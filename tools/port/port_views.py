@@ -196,7 +196,8 @@ def wrap_urls(src):
 
 # --- everything else ----------------------------------------------------------
 
-from port_model import split_args_php, dump_as_string
+import port_model
+from port_model import split_args_php, dump_as_string, resolve_path
 
 
 def rewrite(src, ctrl, unknown):
@@ -349,11 +350,24 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
                  r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes, src, flags=re.S)
 
+    # Yii 1's *options* form: findAll(array('order' => 'name ASC')) asks for
+    # every row in that order, not for the rows whose `order` column holds
+    # that string - which is what the condition rule below would have made of
+    # it. loyaltyAdmin/adjustPoints lists its customer dropdown that way.
+    src = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\("
+                 r"\s*(?:array\s*\(|\[)((?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*)"
+                 r"[)\]]\s*\)", port_model.options_finder, src, flags=re.S)
+
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
     src = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', src)
     src = re.sub(M + r"(?i:findByAttributes)\s*\(", lambda m: m.group(1) + '::findOne(', src)
     src = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', src)
     src = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', src)
+
+    # The DAO query builder and CJSON, from the one place all three
+    # translators share. Four loyaltyAdmin views query the database
+    # directly and died on a Command that has no select().
+    src = port_model.dao_idioms(src)
 
     # controller state the views set or read
     src = re.sub(r"\$this->breadcrumbs\s*=", "$this->params['breadcrumbs'] =", src)
@@ -368,7 +382,6 @@ def rewrite(src, ctrl, unknown):
     # query for a filter dropdown. Same converter as the models and the
     # controllers use.
     if 'CDbCriteria' in src:
-        import port_model
         converted, ok, _ = port_model.convert_criteria(src)
         if ok:
             src = converted
@@ -418,6 +431,25 @@ def rewrite(src, ctrl, unknown):
         return "'visible' => function ($data) { return %s; }" % code
 
     src = re.sub(r"'visible'\s*=>\s*((?:'(?:[^'\\]|\\.)*'|[^,\n])+)", visible_expr, src)
+
+    # The `name` key is written with double quotes on purpose: the
+    # grid-column rename below turns every `'name' =>` into `'attribute' =>`
+    # and runs after this, which left the widget with no name at all -
+    # "Either 'name', or 'model' and 'attribute' properties must be specified."
+    # Yii 1's captcha. The guard asks whether GD is present, which Yii 2
+    # spells the same way on its own action class. The widget renders only the
+    # image in Yii 1 - the text field beside it is written out separately - so
+    # the template is narrowed to match, and the action route is the ported
+    # controller's own.
+    # CCaptcha::checkRequirements() asks whether GD is available; Yii 2 has
+    # no equivalent static - its CaptchaAction throws from init() instead -
+    # so the question is asked directly, which is what Yii 1 is asking.
+    src = re.sub(r"\bCCaptcha::checkRequirements\s*\(\s*\)",
+                 lambda m: "function_exists('imagecreatetruecolor')", src)
+    src = re.sub(r"\$this\s*->\s*widget\s*\(\s*'CCaptcha'\s*\)",
+                 lambda m: ("echo \\yii\\captcha\\Captcha::widget([\"name\" => 'verifyCode', "
+                            "'captchaAction' => Ui::toYii2Id('%s') . '/captcha', "
+                            "'template' => '{image}'])" % ctrl), src)
 
     src = dump_as_string(src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
@@ -632,8 +664,16 @@ if __name__ == '__main__':
     # With --keep-existing, a view already in the tree is left alone: it may
     # have been ported by hand and tuned against a test.
     keep = '--keep-existing' in sys.argv
-    src_dir = '/root/pos/pos83/protected/views/' + ctrl
-    dst_dir = '/root/pos/pos83/app2/views/' + ctrl
+    # The view directory is not always spelled as the controller is:
+    # B2BPurchaseBillDetailController's views live in
+    # protected/views/b2bpurchaseBillDetail.
+    src_dir = resolve_path('/root/pos/pos83/protected/views/' + ctrl)
+    # Case-insensitively, like src_dir. Generating under a different
+    # spelling of the controller's own name - LoyaltyAdmin for
+    # loyaltyAdmin - built a second directory beside the live one and
+    # left the pages being served untouched: the views looked
+    # regenerated and were not.
+    dst_dir = resolve_path('/root/pos/pos83/app2/views/' + ctrl)
     os.makedirs(dst_dir, exist_ok=True)
     allunknown = {}
     for f in sorted(os.listdir(src_dir)):

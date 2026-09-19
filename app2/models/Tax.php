@@ -32,7 +32,7 @@ class Tax extends ActiveRecord
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
-        return $n == 1 ? 'Tax' : 'Taxs';
+        return $n == 1 ? 'Tax' : 'Taxes';
     }
 
     /** The column that stands for the whole row in a link or a breadcrumb. */

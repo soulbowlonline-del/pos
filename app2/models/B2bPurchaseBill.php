@@ -284,12 +284,12 @@ class B2bPurchaseBill extends ActiveRecord
             'create_time' => 'Create Time',
             'update_time' => 'Update Time',
             'print_id' => 'Item',
-            'create_user_id' => 'User',
-            'updated_by' => 'User',
+            'create_user_id' => 'Create User Id',
+            'updated_by' => 'Updated By',
             'outlet_id' => 'Outlet',
             'vendor_id' => 'Vendor',
-            'purchase_order_id' => 'PurchaseOrder',
-            'organization_id' => 'Organization',
+            'purchase_order_id' => 'Purchase Order Id',
+            'organization_id' => 'Organization Id',
             'createUser' => 'Create User',
             'organization' => 'Organization',
             'outlet' => 'Outlet',
@@ -390,7 +390,7 @@ class B2bPurchaseBill extends ActiveRecord
 		Criteria::compare($query, 'outlet_id', $this->outlet_id);
 		
 		 $data=  $query->all();
-	   } catch (Exception $ex) {
+	   } catch (\Exception $ex) {
 		
 		echo $ex ; die;
 	}
@@ -422,6 +422,8 @@ class B2bPurchaseBill extends ActiveRecord
 		//$criteria->compare('vendor_id', $this->vendor_id);
 		Criteria::compare($query, 'purchase_order_id', $this->purchase_order_id);
 		Criteria::compare($query, 'organization_id', $this->organization_id);
+
+		$query->orderBy(['id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,

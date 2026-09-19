@@ -24,6 +24,16 @@ class GridView extends \yii\grid\GridView
     /** @var \yii\base\Model TbGridView calls the filter model `filter`. */
     public $filter;
 
+    /** @var string CBaseListView's name for the summary line. */
+    public $summaryText;
+
+    /**
+     * @var array TbGridView's default pager. Yii 2's GridView defaults this
+     *            to [], which would be indistinguishable from a view that
+     *            asked for the framework default with `'pager' => true`.
+     */
+    public $pager = ['class' => TbPager::class];
+
     public function init()
     {
         // Plain columns go through the shim too, so a column written with
@@ -49,10 +59,20 @@ class GridView extends \yii\grid\GridView
             $this->tableOptions
         );
 
-        // CGridView takes `'pager' => true` to mean "the default pager";
-        // Yii 2 expects a configuration array and fails on a scalar.
+        // Which pager, and it is not one answer for every grid.
+        //
+        // CGridView::renderPager() reads a `pager` that is not an array as
+        // "the framework default", and that default is CLinkPager - so the 57
+        // views writing `'pager' => true` get CLinkPager's "Go to page: <<
+        // First" even though they are TbGridViews. A view that says nothing
+        // keeps TbGridView's own default, TbPager, which has no header and
+        // uses arrows. Yii 2's pager is neither.
         if (!is_array($this->pager)) {
-            $this->pager = $this->pager ? [] : ['class' => \yii\widgets\LinkPager::class, 'options' => ['style' => 'display:none']];
+            $this->pager = $this->pager
+                ? ['class' => LinkPager::class]
+                : ['class' => \yii\widgets\LinkPager::class, 'options' => ['style' => 'display:none']];
+        } elseif (!isset($this->pager['class'])) {
+            $this->pager['class'] = TbPager::class;
         }
 
         // CGridColumn::$visible. Yii 2 has no such property, so a column
@@ -80,6 +100,23 @@ class GridView extends \yii\grid\GridView
                 $this->showFooter = true;
                 break;
             }
+        }
+
+        // CBaseListView::$summaryText, which the trait above was quietly
+        // swallowing - loyaltyAdmin/customers prints "Showing 1-20 of 5141
+        // customers" and the port printed nothing at all.
+        //
+        // The placeholders are not the same. Yii 1's {start} is Yii 2's
+        // {begin}, its {pages} is {pageCount}, and - the one that matters -
+        // its {count} is the total number of rows, which Yii 2 calls
+        // {totalCount}; Yii 2's own {count} is how many rows this page shows.
+        // Passing the string through unchanged would have read "of 20".
+        if ($this->summaryText !== null && $this->summary === null) {
+            $this->summary = strtr($this->summaryText, [
+                '{start}' => '{begin}',
+                '{count}' => '{totalCount}',
+                '{pages}' => '{pageCount}',
+            ]);
         }
 
         if ($this->summary === null) {

@@ -271,12 +271,12 @@ class StockAdjustLog extends ActiveRecord
             'id' => 'ID',
             'date' => 'Date',
             'item_detail_id' => 'Bar Code',
-            'item_id' => 'Item',
+            'item_id' => 'Item Id',
             'mrp' => 'Mrp',
             'current_stock' => 'Current Stock',
             'actual_stock' => 'Actual Stock',
             'adjusted' => 'Adjusted',
-            'outlet_id' => 'Outlet',
+            'outlet_id' => 'Outlet Id',
             'type_id' => 'Type',
             'status' => 'Status',
             'start_date' => 'Start Date',
@@ -301,7 +301,7 @@ class StockAdjustLog extends ActiveRecord
     {
         $this->load($params, $this->formName());
 
-		$query = self::find()->alias('t');
+		$query = StockAdjustLog::find()->alias('t');
 		
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }]);
 		
@@ -327,6 +327,8 @@ class StockAdjustLog extends ActiveRecord
 		Criteria::compare($query, 't.adjusted', $this->adjusted);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 		
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

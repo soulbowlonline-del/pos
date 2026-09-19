@@ -12,8 +12,53 @@ import re, sys, os, subprocess
 ROOT = '/root/pos/pos83'
 
 
+
+_CASE_CACHE = {}
+
+
+def resolve_path(path):
+    """
+    The file on disk, whatever case its name is written in.
+
+    This application spells the same thing three ways: the controller is
+    B2BPurchaseBillDetailController, the model B2bPurchaseBillDetail, and the
+    view directory b2bpurchaseBillDetail. The generators derive one name from
+    another and then open it verbatim, so that controller could not be ported
+    from either spelling - the model lookup missed with the controller's, and
+    the controller lookup missed with the model's.
+
+    Exact matches are returned untouched, so nothing else changes.
+    """
+    if os.path.exists(path):
+        return path
+
+    # Every component, not just the last. The mismatch is as often in a
+    # directory as in a file name: B2BPurchaseBillDetailController's views live
+    # in protected/views/b2bpurchaseBillDetail, so resolving only the basename
+    # left the lookup pointing at a directory that does not exist.
+    parts = path.split(os.sep)
+    resolved = parts[0] or os.sep
+    for part in parts[1:]:
+        if not part:
+            continue
+        candidate = os.path.join(resolved, part)
+        if os.path.exists(candidate):
+            resolved = candidate
+            continue
+        if not os.path.isdir(resolved):
+            return path
+        if resolved not in _CASE_CACHE:
+            _CASE_CACHE[resolved] = {e.lower(): e for e in os.listdir(resolved)}
+        match = _CASE_CACHE[resolved].get(part.lower())
+        if match is None:
+            return path
+        resolved = os.path.join(resolved, match)
+
+    return resolved
+
 def read(p):
-    return open(p, encoding='utf-8', errors='replace').read()
+    return open(resolve_path(p), encoding='utf-8',
+                errors='replace').read()
 
 
 def arrays(src):
@@ -114,7 +159,7 @@ def model_label(cls, plural=False):
     return cls + ('s' if plural else '')
 
 
-def port_labels(body, relations_body):
+def port_labels(body, relations_body, table=None):
     """
     Yii 1's attributeLabels(), with its null entries resolved.
 
@@ -124,6 +169,11 @@ def port_labels(body, relations_body):
     and `advance_payment_id` both show as "AdvancePayment", not as
     "Advance Payment" - which is what a naive fallback produces, and what the
     comparison against Yii 1 catches immediately.
+
+    "Foreign key" there means the schema's constraint, not the model's
+    BELONGS_TO - see foreign_keys_of(). A column the model relates but the
+    table does not constrain falls through to generateAttributeLabel() like
+    any other column.
     """
     rel = {}          # relation name -> (kind, class)
     fk = {}           # foreign key column -> class
@@ -142,7 +192,7 @@ def port_labels(body, relations_body):
         elif name in rel:
             kind, cls = rel[name]
             out.append((name, model_label(cls, kind in ('HAS_MANY', 'MANY_MANY'))))
-        elif name in fk:
+        elif name in fk and (table is None or name in foreign_keys_of(table)):
             out.append((name, model_label(fk[name])))
         else:
             out.append((name, attr_label(name)))
@@ -189,6 +239,40 @@ def columns_of(table):
     _COLUMN_CACHE[table] = cols
 
     return cols
+
+
+_FK_CACHE = {}
+
+
+def foreign_keys_of(table):
+    """
+    The columns of a table that carry a declared FOREIGN KEY.
+
+    Not the same thing as the BELONGS_TO relations the model declares, and the
+    difference is visible on a page. GxActiveRecord::getAttributeLabel() hands
+    a column with no explicit label to getRelationLabel(), which asks
+    findRelation() whether it is a foreign key - and findRelation() answers
+    `if (!$column->isForeignKey) return null;`, reading the *schema*. So
+    `discount_id`, which BaseOrderItem relates to Discount but which
+    tbl_order_item declares no constraint on, gets generateAttributeLabel() -
+    "Discount Id" - while `order_id`, which does carry one, gets the related
+    model's label, "Discount"... or rather "Order". orderItem's detail view
+    differed in exactly that one cell.
+    """
+    if table in _FK_CACHE:
+        return _FK_CACHE[table]
+
+    sql = ("SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE "
+           "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tbl_%s' "
+           "AND REFERENCED_TABLE_NAME IS NOT NULL" % table)
+    out = subprocess.run(
+        ['docker', 'exec', 'pos-mysql-8', 'sh', '-c',
+         'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -uroot $MYSQL_DATABASE -N -e "%s"' % sql],
+        capture_output=True, text=True)
+    keys = {c.strip() for c in out.stdout.split() if c.strip()}
+    _FK_CACHE[table] = keys
+
+    return keys
 
 
 def public_properties(base, concrete):
@@ -334,6 +418,48 @@ def port_with(body):
 
     walk(block, '')
     return paths
+
+
+def port_with_full(body):
+    """
+    port_with(), plus the `together` option and whether the block was readable.
+
+    `together` is not decoration. Yii 1 runs an eager load either as a JOIN in
+    the same query or as a second query, and `together` is what picks: false
+    means a second query, and a condition or order written against the
+    relation's alias would then name a table the main query does not have.
+    Loading every relation with joinWith() - which is what this did, because
+    an options array was simply unreadable and the method was refused - would
+    turn loyaltyAdmin/customers' plain listing into a join.
+
+    Returns (paths, together, ok). `together` carries only the relations where
+    the application set it explicitly; anything else keeps the join this has
+    always emitted. `ok` is False when a relation carries an option this
+    cannot model, so the caller can refuse the method rather than emit a query
+    that quietly drops it.
+    """
+    paths = port_with(body)
+    together, bad = {}, []
+
+    # Only the entries that are an options array with no nested array inside -
+    # a nested `'with' => array(...)` is the eager-load form port_with()
+    # already walked, and it never carries `together` in this application.
+    for nm in re.finditer(r"'(\w+)'\s*=>\s*(?:array\s*\(|\[)([^()\[\]]*)[)\]]", body, re.S):
+        keys = re.findall(r"'(\w+)'\s*=>", nm.group(2))
+        if not keys:
+            continue
+        unknown = [k for k in keys if k != 'together']
+        if unknown:
+            bad.extend(unknown)
+            continue
+        name = nm.group(1)
+        if name not in paths:
+            paths.append(name)
+        t = re.search(r"'together'\s*=>\s*(true|false)", nm.group(2), re.I)
+        if t:
+            together[name] = t.group(1).lower() == 'true'
+
+    return paths, together, not bad
 
 
 def port_search_sort(body):
@@ -549,6 +675,20 @@ def finder_re(var):
             r"\$" + re.escape(var) + r"\s*\)")
 
 
+def provider_re(var):
+    """
+    The other consumer of a criteria: a data provider built around it.
+
+    convert_criteria() only ever looked for a finder, so an action that handed
+    its criteria to a CActiveDataProvider - which is how every Yii 1 listing
+    that is not search() is written - was refused whole, and the four
+    loyaltyAdmin pages kept their Yii 1 code and died on a class Yii 2 does
+    not have.
+    """
+    return (r"new\s+CActiveDataProvider\s*\(\s*'(\w+)'\s*,\s*(?:array\s*\(|\[)"
+            r"[^;]*?'criteria'\s*=>\s*\$" + re.escape(var) + r"\b")
+
+
 def query_var_for(var):
     """The Yii 2 variable a named criteria becomes."""
     m = re.match(r'criteria(\w*)$', var)
@@ -610,8 +750,13 @@ def convert_criteria(text):
                 end = later.start()
                 break
         fm = re.search(finder_re(var), text[d.start():end])
-        if not fm:
-            return original, False, 'the criteria is not passed to a finder this knows'
+        if fm:
+            cls, kind = fm.group(1), fm.group(2)
+        else:
+            pm = re.search(provider_re(var), text[d.start():end])
+            if not pm:
+                return original, False, 'the criteria is not passed to a finder this knows'
+            cls, kind = pm.group(1), 'provider'
 
         # A name free in the method as the application wrote it, and not
         # already handed to another region. actionGetCustomerAddress() has its
@@ -627,7 +772,7 @@ def convert_criteria(text):
             name = '%s_%d' % (base, n)
         seen[var] = seen.get(var, 0) + 1
 
-        plans.append((d.start(), end, var, name, fm.group(1), fm.group(2)))
+        plans.append((d.start(), end, var, name, cls, kind))
 
     # Regions of two different criteria interleave, so the edits are collected
     # against the original offsets and applied back to front rather than each
@@ -661,9 +806,12 @@ def region_edits(text, start, end, var, name, cls, kind):
     edits = []
     claimed = []
 
+    def take_span(a, b, replacement):
+        edits.append(((start + a, start + b), replacement))
+        claimed.append((a, b))
+
     def take(m, replacement):
-        edits.append(((start + m.start(), start + m.end()), replacement))
-        claimed.append((m.start(), m.end()))
+        take_span(m.start(), m.end(), replacement)
 
     decl = re.match(DECL_RE, region)
     scope = default_order_of(cls)
@@ -714,13 +862,40 @@ def region_edits(text, start, end, var, name, cls, kind):
     # eager-loaded table after the relation, and the order and conditions
     # around it say `item.title`; Yii 2 would join on the real table name and
     # that column would resolve to nothing.
+    # Yii 1 *assigns* `$criteria->with`, so a second assignment replaces the
+    # first - loyaltyAdmin/customers sets a plain eager load and then, inside
+    # the search branch, replaces it with a join. Yii 2's joinWith() only ever
+    # adds, so where a region assigns more than once the property is cleared
+    # first. Emitted only for those regions, so the output for every method
+    # that assigns once is unchanged.
+    assigns = len(re.findall(V + r"\s*->\s*with\s*=", region))
+    joined_before = False
     for m in re.finditer(V + r"\s*->\s*with\s*=\s*([^;]+);", region):
-        paths = port_with('$criteria->with = %s;' % m.group(1).strip())
-        if not paths:
+        paths, together, ok = port_with_full('$criteria->with = %s;' % m.group(1).strip())
+        if not ok or not paths:
             return [], False, 'CDbCriteria with a `with` this cannot read'
-        take(m, Q + '->joinWith([%s]);' % ', '.join(
-            "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
-            for x in paths))
+        stmts = []
+        # Unless the application said `together => false`, this joins - which
+        # is what it has always done, and what the 55 controllers already
+        # compared against were generated with.
+        joined = [x for x in paths if together.get(x, True)]
+        lazy = [x for x in paths if not together.get(x, True)]
+        if joined:
+            if assigns > 1:
+                stmts.append(Q + '->with = [];')
+            stmts.append(Q + '->joinWith([%s]);' % ', '.join(
+                "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
+                for x in joined))
+        if lazy and joined_before:
+            return [], False, ('a CDbCriteria whose `with` replaces a join - '
+                               'Yii 2 cannot drop one')
+        if joined:
+            joined_before = True
+        if lazy:
+            # The property, not with(): Yii 1 assigns to $criteria->with and
+            # the assignment replaces, while Yii 2's with() appends.
+            stmts.append(Q + '->with = [%s];' % ', '.join("'%s'" % x for x in lazy))
+        take(m, ('\n' + ' ' * 8).join(stmts))
 
     # `condition` plus `params` is one andWhere; `params` on its own adds to
     # whatever conditions the add* calls have already put on the query.
@@ -760,9 +935,15 @@ def region_edits(text, start, end, var, name, cls, kind):
             return [], False, 'CDbCriteria %s() with arguments this cannot read' % m.group(1)
         take(m, rep)
 
-    tail = {'findAll': Q + '->all()', 'find': Q + '->one()', 'count': Q + '->count()'}[kind]
-    for m in re.finditer(finder_re(var), region):
-        take(m, tail)
+    if kind == 'provider':
+        got, ok, why = provider_edits(region, var, cls, Q, take_span)
+        if not ok:
+            return [], False, why
+    else:
+        tail = {'findAll': Q + '->all()', 'find': Q + '->one()',
+                'count': Q + '->count()'}[kind]
+        for m in re.finditer(finder_re(var), region):
+            take(m, tail)
 
     # Nothing may mention this criteria that has not been rewritten.
     for m in re.finditer(V + r'\b', region):
@@ -772,6 +953,51 @@ def region_edits(text, start, end, var, name, cls, kind):
                                else 'a bare CDbCriteria reference')
 
     return edits, True, ''
+
+def provider_edits(region, var, cls, Q, take_span):
+    """
+    Rewrite `new CActiveDataProvider('X', array('criteria' => $criteria, ...))`
+    as Yii 2's ActiveDataProvider over the converted query.
+
+    Every option other than `criteria` is carried through untouched: the two
+    this application uses - `pagination => array('pageSize' => N)` and
+    `sort => false` - mean the same thing in both frameworks, and rewriting
+    them would have replaced a page size of 20 with the default.
+    """
+    pat = (r"new\s+CActiveDataProvider\s*\(\s*'" + re.escape(cls) +
+           r"'\s*,\s*(array\s*\(|\[)")
+    found = False
+    for m in re.finditer(pat, region):
+        opener = '(' if m.group(1).strip().startswith('array') else '['
+        closer = ')' if opener == '(' else ']'
+        i, depth = m.end(), 1
+        while i < len(region) and depth:
+            if region[i] == opener:
+                depth += 1
+            elif region[i] == closer:
+                depth -= 1
+            i += 1
+        if depth:
+            return [], False, 'a CActiveDataProvider this cannot read'
+        block = region[m.end():i - 1]
+        close = re.match(r'\s*\)', region[i:])
+        if not close:
+            return [], False, 'a CActiveDataProvider this cannot read'
+
+        opts = [b.strip() for b in split_args_php(block)
+                if b.strip() and not re.match(r"'criteria'\s*=>", b.strip())]
+        if len(opts) == len(split_args_php(block)):
+            continue          # some other provider in the same region
+        take_span(m.start(), i + close.end(),
+                  'new ActiveDataProvider([%s])'
+                  % ', '.join(["'query' => " + Q] + opts))
+        found = True
+
+    if not found:
+        return [], False, 'a CActiveDataProvider this cannot read'
+
+    return [], True, ''
+
 
 def split_two(args):
     bits = split_args_php(args)
@@ -992,6 +1218,8 @@ def yii1_idioms(text):
     text = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', text)
     text = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', text)
 
+    text = dao_idioms(text)
+
     text = dump_as_string(text)
     # Qualify the global classes a namespaced file names. The guard that
     # was meant to add this line matched the helper's own definition, so
@@ -1008,6 +1236,141 @@ def yii1_idioms(text):
     text = re.sub(r'\b(?:Gx|C)Html::image\s*\(', 'Html::img(', text)
     text = re.sub(r'\bGxHtml::valueEx\s*\(', 'Gx::str(', text)
 
+    text = finder_idioms(text)
+
+    return text
+
+
+def dao_idioms(text):
+    """
+    The framework calls that are neither a model nor a query: Yii 1's DAO
+    query builder, and CJSON.
+
+    Shared by all three translators. These lived in the model translator
+    alone, then in the model and controller translators, and each time the
+    same page found the copy that was missing: loyaltyAdmin/index died on
+    "Calling unknown method: Command::select()" from its *view*, which
+    had neither. An idiom belongs in one place that all three call.
+    """
+    # Yii 1's DAO query builder hangs off createCommand(); Yii 2's is a Query
+    # object, and its Command has no select().
+    #
+    # The chain's last call has to move with it. Yii 1 ends one of these with
+    # queryScalar()/queryAll()/queryRow()/queryColumn(), which are Command's
+    # methods - and Yii 2's Command has all four, so rewriting them everywhere
+    # would break the places that really do call a Command. Only the chains
+    # this rule has just turned into a Query are followed.
+    FETCH = {'queryScalar': 'scalar', 'queryAll': 'all',
+             'queryRow': 'one', 'queryColumn': 'column'}
+    start = re.compile(r"Yii::(?:app\s*\(\s*\)|\$app)\s*->\s*db\s*->\s*"
+                       r"createCommand\s*\(\s*\)\s*->\s*select\s*\(")
+    out, i = [], 0
+    while True:
+        m = start.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        out.append('(new \\yii\\db\\Query())->select(')
+        # Walk the chain from the open parenthesis this just emitted, so the
+        # fetch call that ends it is the one belonging to this query and not
+        # some later statement's.
+        j, depth = m.end(), 1
+        while j < len(text) and depth:
+            if text[j] == '(':
+                depth += 1
+            elif text[j] == ')':
+                depth -= 1
+            j += 1
+        out.append(text[m.end():j])          # select()'s own arguments
+        while True:
+            link = re.match(r"\s*->\s*(\w+)\s*\(", text[j:])
+            if not link:
+                break
+            called = link.group(1)
+            k, depth = j + link.end(), 1
+            while k < len(text) and depth:
+                if text[k] == '(':
+                    depth += 1
+                elif text[k] == ')':
+                    depth -= 1
+                k += 1
+            if called in FETCH:
+                out.append(text[j:j + link.start(1)] + FETCH[called]
+                           + text[j + link.end(1):k])
+                j = k
+                break
+            out.append(text[j:k])
+            j = k
+        i = j
+
+    text = ''.join(out)
+
+    # CJSON is PHP's own json_* in Yii 2. decode() returns an array in Yii 1,
+    # so the second argument is not optional if the result is used as one.
+    text = re.sub(r"\bCJSON::encode\s*\(", 'json_encode(', text)
+    text = re.sub(r"\bCJSON::decode\s*\(([^;]*?)\)(\s*[;,\)])",
+                  lambda m: 'json_decode(' + m.group(1) + ', true)' + m.group(2), text)
+
+    return text
+
+
+# The keys Yii 1's CActiveRecord::findAll($options) understands. An array of
+# these is a *criteria*, not a set of column values - `findAll(['order' =>
+# 'name ASC'])` asks for every row in name order, and converting it as a
+# condition asked Yii 2 for the rows whose `order` column is 'name ASC'. Not
+# an error, just the wrong rows, which is why it has to be recognised rather
+# than left to the condition rule.
+FINDER_OPTIONS = ('order', 'limit', 'offset', 'condition', 'params', 'select',
+                  'with', 'group', 'having', 'distinct', 'index', 'together',
+                  'join', 'alias', 'scopes')
+
+
+def options_finder(m):
+    cls, kind, args = m.group(1), m.group(2), m.group(3)
+    keys = re.findall(r"'(\w+)'\s*=>", args)
+    if not keys or any(k not in FINDER_OPTIONS for k in keys):
+        return m.group(0)
+    # Only the options this can express. Anything else is left as Yii 1 code,
+    # which is a page that fails loudly rather than one that lists the wrong
+    # rows.
+    if any(k not in ('order', 'limit', 'offset', 'select') for k in keys):
+        return m.group(0)
+
+    query = cls + '::find()'
+    sel = re.search(r"'select'\s*=>\s*('[^']*')", args)
+    if sel:
+        query += '->select(%s)' % sel.group(1)
+    om = re.search(r"'order'\s*=>\s*'([^']+)'", args)
+    if om:
+        cols = []
+        for part in om.group(1).split(','):
+            bits = part.strip().split()
+            if not bits:
+                continue
+            col = bits[0][2:] if bits[0].startswith('t.') else bits[0]
+            desc = len(bits) > 1 and bits[1].lower().startswith('desc')
+            cols.append('%s %s' % (col, 'DESC' if desc else 'ASC'))
+        if cols:
+            # A string, for the reason by_attributes_php() gives.
+            query += "->orderBy('%s')" % ', '.join(cols)
+    for which in ('limit', 'offset'):
+        w = re.search(r"'" + which + r"'\s*=>\s*(\d+)", args)
+        if w:
+            query += '->%s(%s)' % (which, w.group(1))
+
+    return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
+
+
+def finder_idioms(text):
+    """
+    `X::model()->find*` as Yii 2 spells it.
+
+    Shared, because the controller translator has its own rule set and does not
+    call yii1_idioms(): these conversions lived here only, so a controller kept
+    every `X::model()` it was written with - five of them in LoyaltyAdmin - and
+    died on the first one to run.
+    """
     M = r"(\w+)::model\s*\(\s*\)\s*->\s*"
     text = re.sub(M + r"(?i:findByPk)\s*\(", lambda m: m.group(1) + '::findOne(', text)
     # See port_views.py: these take an options array Yii 2's findAll/findOne
@@ -1015,8 +1378,39 @@ def yii1_idioms(text):
     # "nothing useful" through findAll().
     text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
                   r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes_php, text, flags=re.S)
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\("
+                  r"\s*(?:array\s*\(|\[)((?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*)"
+                  r"[)\]]\s*\)", options_finder, text, flags=re.S)
+
     text = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', text)
     text = re.sub(M + r"count\s*\(\s*\)", lambda m: m.group(1) + '::find()->count()', text)
+    # `X::model()->with(...)->findByAttributes(...)` - a finder reached
+    # through a chain rather than directly, which the rules above skip because
+    # they want the finder next to model(). loyaltyAdmin/viewTransactions is
+    # written that way and kept its Yii 1 call.
+    def chained(m):
+        cls, withargs, kind, args = m.groups()
+        paths, together, ok = port_with_full('$criteria->with = %s;' % withargs)
+        if not ok or not paths:
+            return m.group(0)
+        eager = ', '.join("'%s'" % x for x in paths)
+        # A relation the application asked not to join stays a second query.
+        join = [x for x in paths if together.get(x, True)]
+        load = ("->joinWith([%s])" % ', '.join(
+            "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
+            for x in join)) if join else ''
+        lazy = [x for x in paths if not together.get(x, True)]
+        if lazy:
+            load += '->with([%s])' % ', '.join("'%s'" % x for x in lazy)
+        tail = '->all()' if kind.lower().startswith('findall') else '->one()'
+        return '%s::find()%s->where(%s)%s' % (cls, load, args.strip(), tail)
+
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*with\s*\((.*?)\)\s*->\s*"
+                  r"((?i:findAllByAttributes|findByAttributes))\s*\((.*?)\)\s*(?=[;,)\]])",
+                  chained, text, flags=re.S)
+
+    text = re.sub(M + r"find\s*\(\s*\)", lambda m: m.group(1) + '::find()->one()', text)
+    text = re.sub(M + r"exists\s*\(", lambda m: m.group(1) + '::find()->exists(', text)
 
     return text
 
@@ -1327,6 +1721,11 @@ def generate(model, table_alias):
     tbl = re.search(r"tableName\s*\(\)\s*\{\s*return\s*'\{\{(\w+)\}\}'", base)
     table = tbl.group(1) if tbl else table_alias
 
+    # After `table`: a null label is resolved against the schema's foreign
+    # keys, not the model's relations().
+    labels = port_labels(parse_block(base, 'attributeLabels') or '',
+                         parse_block(base, 'relations') or '', table)
+
     rep = re.search(r"representingColumn\s*\(\)\s*\{\s*return\s*'(\w+)'", base)
     representing = rep.group(1) if rep else 'id'
 
@@ -1335,8 +1734,6 @@ def generate(model, table_alias):
 
     rules = port_rules(parse_block(base, 'rules') or '', warn)
     rels = port_relations(parse_block(base, 'relations') or '', warn)
-    labels = port_labels(parse_block(base, 'attributeLabels') or '',
-                         parse_block(base, 'relations') or '')
 
     # A property whose name is also a column must not be declared. Yii 2 reads
     # and writes columns through __get/__set on the attribute array, and a real
@@ -1882,8 +2279,14 @@ def merge(existing, generated, model, warn):
                                              generated, re.M)]
     if props_wanted:
         names = [n.lstrip('$') for n in props_wanted]
-        already = re.search(r"\[\[([^\]]*)\],\s*'safe'\]", existing)
-        safe_now = set(re.findall(r"'(\w+)'", already.group(1))) if already else set()
+        # Every safe rule, not the first one. With re.search() a model that
+        # had already been given two of these - OrderItem has `refund_qty,
+        # bill_date` and `mode_of_payment, columns, ...` - only ever matched
+        # one of them, so the names in the other counted as missing and were
+        # added again on each run. OrderItem had accumulated fifteen copies.
+        safe_now = set()
+        for grp in re.findall(r"\[\[([^\]]*)\],\s*'safe'\]", existing):
+            safe_now.update(re.findall(r"'(\w+)'", grp))
         missing = [n for n in names if n not in safe_now]
         if missing and 'public function rules' in existing:
             rule = ("            [['%s'], 'safe'],  // form-only, declared on the "
@@ -1931,7 +2334,14 @@ def merge(existing, generated, model, warn):
     #     derived entirely from this pipeline's rules, and an earlier version
     #     of it loaded defaults in the search scenario too, which filtered the
     #     grid by every column that has one.
-    replace = ['attributeLabels', 'defaultOrder', 'listingOrder', 'init']
+    #   label() and representingColumn() - both read straight out of the
+    #     Yii 1 model and used only for display. An older generated label()
+    #     survived every refresh and put 'Payment Mode' in the page title
+    #     where Yii 1 writes 'PaymentMode'. The difftest compares grid rows
+    #     and form fields, never the title, so 54 controllers passed with
+    #     the wrong one.
+    replace = ['attributeLabels', 'defaultOrder', 'listingOrder', 'init',
+               'label', 'representingColumn']
 
     #   search() - but only on a full port, never on a presentation-only merge
     #     into a model this pipeline is not porting. search() backs the admin

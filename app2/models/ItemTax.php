@@ -247,8 +247,8 @@ class ItemTax extends ActiveRecord
     public function rules()
     {
         return [
-            [['columns', 'item_id'], 'safe'],  // form-only, declared on the Yii 1 model
             [['sale_rate', 'match_total_tax', 'match_cgst', 'match_sgst_tax', 'match_cess_tax'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['columns', 'item_id'], 'safe'],  // form-only, declared on the Yii 1 model
             [['item_detail_id', 'tax_id', 'create_time', 'create_user_id'], 'required'],
             [['item_detail_id', 'tax_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['columns', 'item_id'], 'safe'],

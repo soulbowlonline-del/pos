@@ -444,8 +444,8 @@ class MrnDetail extends ActiveRecord
     public function rules()
     {
         return [
-            [['vendor_id', 'item_val_id', 'bar_code'], 'safe'],  // form-only, declared on the Yii 1 model
             [['mrs_req_date', 'salerate', 'vat'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['vendor_id', 'item_val_id', 'bar_code'], 'safe'],  // form-only, declared on the Yii 1 model
             [['req_qty', 'item_detail_id', 'mrn_id', 'outlet_id'], 'required'],
             [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'mrn_id', 'outlet_id'], 'integer'],
             [['remarks', 'margin', 'create_time', 'update_time', 'item_id', 'mrn_req_date', 'vendor_id', 'gross_amt', 'igst_per', 'igst_amt', 'total_discount', 'tax_amount', 'bill_amount', 'mrp', 'sale_rate', 'tax_id', 'discount', 'discount_amt', 'discount1', 'discount_amt1', 'other_charge', 'amount', 'price', 'cgst_per', 'sgst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt', 'item_val_id', 'bar_code', 'min_qty'], 'safe'],

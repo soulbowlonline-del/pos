@@ -18,6 +18,10 @@ use yii\db\ActiveRecord;
  */
 class B2bPurchaseBillDetail extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     public const STATUS_APPROVED = 2;
     public const STATUS_RECEIVED = 1;
     public const STATUS_PENDING = 0;
@@ -628,11 +632,11 @@ class B2bPurchaseBillDetail extends ActiveRecord
             'remarks' => 'Remarks',
             'create_time' => 'Create Time',
             'update_time' => 'Update Time',
-            'create_user_id' => 'User',
-            'updated_by' => 'User',
-            'item_detail_id' => 'ItemDetail',
-            'purchase_bill_id' => 'B2b PurchaseBill',
-            'outlet_id' => 'Outlet',
+            'create_user_id' => 'Create User Id',
+            'updated_by' => 'Updated By',
+            'item_detail_id' => 'Item Detail Id',
+            'purchase_bill_id' => 'Purchase Bill Id',
+            'outlet_id' => 'Outlet Id',
             'vendor_id' => 'Vendor',
             'createUser' => 'User',
             'itemDetail' => 'ItemDetail',
@@ -2276,6 +2280,386 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['bill_date', 'bill_no'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['expiry_date', 'packing_date', 'columns', 'start_date', 'tax_amount', 'end_date', 'min_amt', 'max_amt', 'tally_start_date', 'tally_end_date', 'vendor_id', 'bar_code', 'bill_amount', 'item_val_id', 'vendor'], 'safe'],  // form-only, declared on the Yii 1 model
+            [['req_qty', 'item_detail_id', 'item_id', 'purchase_bill_id'], 'required'],
+            [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'purchase_bill_id', 'outlet_id'], 'integer'],
+            [['mrp', 'price', 'discount', 'discount_amt', 'tax_id', 'other_charge', 'amount', 'sale_rate', 'charge_amount', 'extra_charges'], 'number'],
+            [['hsn_code', 'item_val_id', 'grn_refrence_no', 'bar_code', 'tally_start_date', 'tally_end_date', 'start_date', 'remarks', 'is_free', 'order', 'margin', 'expiry_date', 'packing_date', 'vendor_id', 'create_time', 'columns', 'igst_amt', 'igst_per', 'update_time', 'discount1', 'discount_amt1', 'start_date', 'approved_qty', 'item_id', 'mrp', 'tax_id', 'other_charge', 'sale_rate', 'discount', 'discount_amt', 'other_charge', 'amount', 'price', 'cgst_per', 'sgst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt', 'end_date', 'min_amt', 'max_amt', 'tax_amount', 'bill_amount', 'vendor'], 'safe'],
+            [['bal_qty', 'status', 'type_id', 'charge_amount', 'extra_charges', 'remarks', 'create_time', 'update_time', 'updated_by', 'end_date', 'outlet_id'], 'default', 'value' => null],
+            [['id', 'req_qty', 'bal_qty', 'approved_qty', 'mrp', 'price', 'discount', 'discount_amt', 'tax_id', 'other_charge', 'amount', 'sale_rate', 'status', 'type_id', 'charge_amount', 'extra_charges', 'remarks', 'create_time', 'update_time', 'create_user_id', 'updated_by', 'item_detail_id', 'purchase_bill_id', 'end_date', 'outlet_id', 'tax_amount', 'bill_amount', 'vendor'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$query = B2bPurchaseBillDetail::find()->alias('t');
+	
+		$purchase_bill_ids = array();
+		$query1 = B2bPurchaseBill::find()->alias('t');
+		$user = Yii::$app->user->model;
+		$role_id = $user->role_id;
+		
+		if($this->start_date != null){
+			Criteria::compare($query1, 'start_date', $this->start_date);
+		}
+		
+		if($this->vendor_id != null){
+			Criteria::compare($query1, 'vendor_id', $this->vendor_id);
+		}
+		
+		//$criteria1->addCondition('status ='.PurchaseBill::STATUS_UNAPPROVED);
+		$query1->andWhere('status !='.B2bPurchaseBill::STATUS_APPROVED);
+		$purchasebills= $query1->all();
+		
+		
+		
+		//Yii::warning( var_export($purchasebills, true), '$mrss');
+		if($purchasebills){
+			foreach($purchasebills as $purchasebill){
+				$purchase_bill_ids[] = $purchasebill->id;
+			}
+		
+		}
+		
+		$query->andWhere(['purchase_bill_id' => $purchase_bill_ids]);
+		Criteria::compare($query, 't.id', $this->id);
+		Criteria::compare($query, 't.req_qty', $this->req_qty);
+		Criteria::compare($query, 't.bal_qty', $this->bal_qty);
+		Criteria::compare($query, 't.approved_qty', $this->approved_qty);
+		Criteria::compare($query, 't.mrp', $this->mrp);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount', $this->discount);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.other_charge', $this->other_charge);
+		Criteria::compare($query, 't.amount', $this->amount);
+		Criteria::compare($query, 't.sale_rate', $this->sale_rate);
+		Criteria::compare($query, 't.status', $this->status);
+		Criteria::compare($query, 't.type_id', $this->type_id);
+		Criteria::compare($query, 't.charge_amount', $this->charge_amount);
+		Criteria::compare($query, 't.extra_charges', $this->extra_charges);
+		Criteria::compare($query, 't.remarks', $this->remarks, true);
+		Criteria::compare($query, 't.create_time', $this->create_time, true);
+		Criteria::compare($query, 't.update_time', $this->update_time, true);
+		Criteria::compare($query, 't.create_user_id', $this->create_user_id);
+		Criteria::compare($query, 't.updated_by', $this->updated_by);
+		Criteria::compare($query, 't.item_detail_id', $this->item_detail_id);
+		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
+		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
+		
+		$query->orderBy(['order' => SORT_ASC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => false,
+		]);
+    }
+
+    public function getTotalItemB2bTaxableAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            $order_ids = [];
+            $query1 = B2bPurchaseBill::find()->alias('t');
+            $orders = $query1->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            $query = B2bPurchaseBillDetail::find()->alias('t');
+            $query->joinWith(['purchaseBill' => function ($q) { $q->alias('purchaseBill'); }]);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere(['t.purchase_bill_id' => $order_ids]);
+            // $criteria->compare ( 'date(create_time)', $this->start_date );
+            $query->select('sum(price*approved_qty) as price');
+            $query->groupBy('purchaseBill.vendor_id,t.tax_id');
+            // $criteria->addInCondition('purchase_bill_id',$order_ids);
+            $order = $query->one();
+
+            $amount = $order->price ;
+            // echo"<pre>"; print_r($amount); die;
+            // $refund_price = '0.00';
+            // $criteria3 = new CDbCriteria ();
+            // $criteria3->addCondition ( 't.tax_id =' . $this->tax_id );
+            // $criteria3->compare ( 'date(orderRefund.create_time)', $this->create_date );
+            // $criteria3->select = 'sum(t.price*t.qty) as qty';
+            // $criteria3->with = 'orderRefund';
+            // $criteria3->addInCondition('orderRefund.order_id',$order_ids);
+
+            // $orderRefundItem = OrderRefundItem::model ()->find ( $criteria3 );
+            // if($orderRefundItem){
+            // $refund_price = $orderRefundItem->qty;
+            // }
+
+            $amount = $amount ;
+
+            return $amount;
+        }
+
+    public function getB2BGroupTaxOrderTotalAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            $order_ids = [];
+            $query1 = B2bPurchaseBill::find();
+
+                $orders = $query1->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+
+            $query = B2bPurchaseBillDetail::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            // $criteria->compare ( 'date(create_time)', $this->start_date );
+            $query->andWhere(['purchase_bill_id' => $order_ids]);
+            $orders = $query->all();
+
+
+
+            if($orders){
+                foreach($orders as $order){
+                    $oamount = $oamount + (($order->amount));
+                }
+            }
+            //$amount = $oamount;
+
+
+
+
+            // $criteria3 = new CDbCriteria ();
+
+            // $criteria3->addCondition ( 't.tax_id =' . $this->tax_id );
+            // $criteria3->with = 'orderRefund';
+                // $criteria3->compare ( 'date(orderRefund.create_time)', $this->create_date );
+            // $criteria3->addInCondition('orderRefund.order_id',$order_ids);
+            // $orderRefundItems = OrderRefundItem::model ()->findAll( $criteria3 );
+            // if($orderRefundItems){
+
+                // foreach($orderRefundItems as $orderRefundItem){
+                    // $refund = $refund + ((($orderRefundItem->price) * ($orderRefundItem->qty)) + ($orderRefundItem->tax_amt));
+
+                // }
+            // }
+            $amount = $oamount ;
+
+
+            return round ( $amount, 2 );
+        }
+
+    /**
+     * Yii 1's b2bsearch(): a listing of its own, converted as written.
+     */
+    public function b2bsearch()
+    {
+
+		$order_ids = [];
+		if(Yii::$app->session['order_item_item_id'] != ''){
+			$this->item_id = Yii::$app->session['order_item_item_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_customer_id'] != ''){
+			$this->customer_id = Yii::$app->session['order_item_customer_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_create_user_id'] != ''){
+			$this->create_user_id = Yii::$app->session['order_item_create_user_id'];
+		}
+		
+	
+		Yii::warning( var_export(Yii::$app->session['order_item_item_id'], true), '$orderItems');
+		$query1 = B2bPurchaseBill::find()->alias('t');
+		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
+			$query1->andWhere(['between', 't.start_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
+		}
+		if ((Yii::$app->session ['order_item_min_amt'] != '') && (Yii::$app->session ['order_item_max_amt'] != '')) {
+			$query1->andWhere(['between', 't.total_Amt', Yii::$app->session ['order_item_min_amt'], Yii::$app->session ['order_item_max_amt']]);
+		}
+		// $criteria1->addCondition('t.status','1');
+		$query1->andWhere('status ='.B2bPurchaseBill::STATUS_APPROVED);
+		$orders = $query1->all();
+		Yii::warning( var_export(Yii::$app->session['order_item_start_date'], true), '$order_item_start_date');
+		Yii::warning( var_export(Yii::$app->session['order_item_end_date'], true), '$order_item_end_date');
+		if($orders){
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+		Yii::warning( var_export($order_ids, true), '$order_ids');
+		$query = B2bPurchaseBillDetail::find()->alias('t');
+		$query->andWhere(['t.purchase_bill_id' => $order_ids]);
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }]);
+		
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+		
+		// $criteria->compare('B2bPurchaseBill.id', $this->purchase_bill_id);
+	
+		// $criteria->compare('B2bPurchaseBill.create_user_id', $this->create_user_id);
+		// $criteria->compare('b2bpurchase_bill.total_amount', $this->total_amount);
+		Criteria::compare($query, 'item.mrp', $this->mrp);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+		
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+		
+		// $criteria->compare('t.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		// $criteria->compare('t.discount_id', $this->discount_id);
+		// $criteria->compare('t.discount_amt', $this->discount_amt);
+	
+		
+
+		$query->orderBy(['id' => SORT_DESC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
+		]);
+    }
+
+    /**
+     * Yii 1's b2bTaxwisesearch(): a listing of its own, converted as written.
+     */
+    public function b2bTaxwisesearch()
+    {
+
+		$order_ids = [];
+		if(Yii::$app->session['order_item_item_id'] != ''){
+			$this->item_id = Yii::$app->session['order_item_item_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_customer_id'] != ''){
+			$this->customer_id = Yii::$app->session['order_item_customer_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_create_user_id'] != ''){
+			$this->create_user_id = Yii::$app->session['order_item_create_user_id'];
+		}
+		
+	
+		Yii::warning( var_export(Yii::$app->session['order_item_item_id'], true), '$orderItems');
+		$query1 = B2bPurchaseBill::find()->alias('t');
+		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
+			$query1->andWhere(['between', 't.start_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
+		}
+		if ((Yii::$app->session ['order_item_min_amt'] != '') && (Yii::$app->session ['order_item_max_amt'] != '')) {
+			$query1->andWhere(['between', 't.total_Amt', Yii::$app->session ['order_item_min_amt'], Yii::$app->session ['order_item_max_amt']]);
+		}
+		$query1->andWhere('status ='.B2bPurchaseBill::STATUS_APPROVED);
+		$orders = $query1->all();
+		Yii::warning( var_export(Yii::$app->session['order_item_start_date'], true), '$order_item_start_date');
+		Yii::warning( var_export(Yii::$app->session['order_item_end_date'], true), '$order_item_end_date');
+		if($orders){
+			// 586
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+		Yii::warning( var_export($order_ids, true), '$order_ids');
+		$query = B2bPurchaseBillDetail::find()->alias('t');
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'b2bPurchaseBill' => function ($q) { $q->alias('b2bPurchaseBill'); }]);
+		$query->andWhere(['purchase_bill_id' => $order_ids]);
+		// $criteria->select ='t.*,SUM(cgst_amt) AS cgst_amt ,SUM(sgst_amt) AS sgst_amt,SUM(igst_amt) AS igst_amt,SUM(cess_amt) AS cess_amt,SUM(cgst_amt) AS cgst_amt';
+		$query->select('t.*, SUM(t.cgst_amt) AS cgst_amt ,SUM(t.sgst_amt) AS sgst_amt,SUM(t.igst_amt) AS igst_amt,SUM(t.cess_amt) AS cess_amt, SUM(t.price * approved_qty) AS price, SUM(t.amount ) AS amount, SUM(t.discount_amt) AS discount_amt,SUM(t.discount_amt1) AS discount_amt1');
+		$query->groupBy('t.tax_id,b2bPurchaseBill.id');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
+		
+		// $criteria->group = 't.tax_id,b2bPurchaseBill.vendor_id';
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+		
+		 Criteria::compare($query, 'b2bPurchaseBill.id', $this->purchase_bill_id);
+	
+		Criteria::compare($query, 'b2bPurchaseBill.create_user_id', $this->create_user_id);
+		// $criteria->compare('purchaseBill.total_amount', $this->total_amount);
+		Criteria::compare($query, 'item.mrp', $this->mrp);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+		
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+		
+		// $criteria->compare('t.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		// $criteria->compare('t.discount_id', $this->discount_id);
+		// $criteria->compare('t.discount_amt', $this->discount_amt);
+	
+		
+
+		$query->orderBy(['tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
 		]);
     }
 }

@@ -77,6 +77,22 @@ abstract class BaseUiController extends Controller
             return false;
         }
 
+        // CController::getPageTitle()'s default, for the actions that never
+        // call processSEO(). Yii 1 computes it lazily from the controller and
+        // action ids - "DASPOS - About Site" for site/about - and the theme
+        // layout prints it. Without this the port's <title> was empty on every
+        // such page, which the UI suite never looks at: it compares grid rows,
+        // detail pairs and form fields, not the head.
+        //
+        // Set before the action runs, so processSEO() still overrides it where
+        // a controller calls it, exactly as Yii 1's setter overrides the
+        // lazily computed default.
+        $name = ucfirst(Ui::toYii1Id($this->id));
+        $act = Ui::toYii1Id($action->id);
+        $this->view->title = strcasecmp($act, $this->defaultAction) !== 0
+            ? Yii::$app->name . ' - ' . ucfirst($act) . ' ' . $name
+            : Yii::$app->name . ' - ' . $name;
+
         // Yii 1's accessRules(), for the actions it refuses outright.
         //
         // The port checks only that someone is signed in, on the reading that

@@ -21,7 +21,7 @@ class LinkPager extends \yii\widgets\LinkPager
     /** CLinkPager's labels. Yii 2 spells them ...PageLabel as well. */
     public $header;
 
-    public $footer;
+    public $footer = '';
 
     public function init()
     {
@@ -29,13 +29,60 @@ class LinkPager extends \yii\widgets\LinkPager
             $this->options = array_merge($this->options, $this->htmlOptions);
         }
 
-        // Yii 1 prints a header above the links - "Go to page:" by default -
-        // and Yii 2 has no equivalent. An empty one is the common case in
-        // these views and means the same thing on both.
-        if ($this->header !== null && $this->header !== '') {
-            $this->options['data-header'] = $this->header;
-        }
+        // CLinkPager's own defaults, which the two frameworks do not share:
+        // Yii 2 shows `« 1 2 3 »` and hides the first and last buttons
+        // altogether, where Yii 1 writes "Go to page: << First < Previous 1 2
+        // 3 Next > Last >>". 57 ported views ask for the default pager, so
+        // every paginated grid in the port had the wrong one - the UI suite
+        // compares the rows of a grid, not the pager under it, which is why
+        // this survived 319 green comparisons.
+        //
+        // The entities are written as Yii 1 writes them, and rendered raw by
+        // both, so the reader sees `<< First` on either stack.
+        $this->applyDefaults();
 
         parent::init();
+    }
+
+    /**
+     * CLinkPager's defaults, for a subclass to replace.
+     *
+     * The sentinels are Yii 2's own defaults for these properties, so a value
+     * the view set explicitly is left alone.
+     */
+    protected function applyDefaults()
+    {
+        if ($this->firstPageLabel === false) {
+            $this->firstPageLabel = '&lt;&lt; First';
+        }
+        if ($this->lastPageLabel === false) {
+            $this->lastPageLabel = 'Last &gt;&gt;';
+        }
+        if ($this->prevPageLabel === '&laquo;') {
+            $this->prevPageLabel = '&lt; Previous';
+        }
+        if ($this->nextPageLabel === '&raquo;') {
+            $this->nextPageLabel = 'Next &gt;';
+        }
+        if ($this->header === null) {
+            $this->header = 'Go to page: ';
+        }
+    }
+
+    /**
+     * CLinkPager prints a header before the links and a footer after them,
+     * and prints neither when there is only one page. Yii 2 has no such
+     * properties, so the header was being dropped.
+     */
+    public function run()
+    {
+        $buttons = $this->renderPageButtons();
+        if ($buttons === '') {
+            return;
+        }
+        if ($this->registerLinkTags) {
+            $this->registerLinkTags();
+        }
+        echo $this->header . $buttons . $this->footer;
     }
 }

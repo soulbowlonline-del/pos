@@ -261,7 +261,7 @@ class Vendor extends ActiveRecord
             'parent_id' => 'Parent Vendor',
             'acc_no' => 'Account Number',
             'country_id' => 'Country',
-            'outlet_id' => 'Outlet',
+            'outlet_id' => 'Outlet Id',
             'create_user_id' => 'User',
             'updated_by' => 'User',
             'itemVendors' => 'ItemVendors',
@@ -882,11 +882,6 @@ class Vendor extends ActiveRecord
     public function rules()
     {
         return [
-            [['username', 'email'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['columns', 'start_date', 'end_date'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['username', 'email'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['columns', 'start_date', 'end_date'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['username', 'email'], 'safe'],  // form-only, declared on the Yii 1 model
             [['columns', 'start_date', 'end_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['username', 'email'], 'safe'],  // form-only, declared on the Yii 1 model
             [['name', 'primary_address', 'create_time', 'city_id', 'state_id', 'country_id', 'outlet_id', 'create_user_id'], 'required'],

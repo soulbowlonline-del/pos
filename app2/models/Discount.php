@@ -534,11 +534,6 @@ class Discount extends ActiveRecord
     public function rules()
     {
         return [
-            [['is_time_dependent'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['item_detail_id'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['is_time_dependent'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['item_detail_id'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['is_time_dependent'], 'safe'],  // form-only, declared on the Yii 1 model
             [['item_detail_id'], 'safe'],  // form-only, declared on the Yii 1 model
             [['is_time_dependent'], 'safe'],  // form-only, declared on the Yii 1 model
             [['title', 'amount', 'applicable_amt', 'start_date', 'end_date', 'create_user_id', 'discount_type'], 'required'],

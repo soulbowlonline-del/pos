@@ -223,14 +223,14 @@ class StockLog extends ActiveRecord
     {
         return [
             'id' => 'ID',
-            'item_detail_id' => 'ItemDetail',
-            'item_id' => 'Item',
+            'item_detail_id' => 'Item Detail Id',
+            'item_id' => 'Item Id',
             'batch_no' => 'Batch No',
             'Qty' => 'Qty',
             'current_qty' => 'Current Qty',
             'previous_qty' => 'Previous Qty',
-            'outlet_id' => 'Outlet',
-            'vendor_id' => 'Vendor',
+            'outlet_id' => 'Outlet Id',
+            'vendor_id' => 'Vendor Id',
             'type_id' => 'Type',
             'status' => 'Status',
             'create_time' => 'Create Time',
@@ -255,17 +255,26 @@ class StockLog extends ActiveRecord
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-        foreach (['id', 'item_detail_id', 'item_id', 'Qty', 'outlet_id', 'vendor_id', 'type_id', 'status'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['item_detail_id', 'item_detail_id'], ['item_id', 'item_id'], ['Qty', 'Qty'], ['outlet_id', 'outlet_id'], ['vendor_id', 'vendor_id'], ['type_id', 'type_id'], ['status', 'status']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['batch_no', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['batch_no', 'batch_no'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

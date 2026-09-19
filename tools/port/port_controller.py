@@ -11,12 +11,13 @@ unconverted Yii 1 call then fails loudly on the first request, which is the
 intended outcome: a translator that guesses produces a page that renders and is
 quietly wrong.
 """
+import os
 import re, sys, os, subprocess
 
 ROOT = '/root/pos/pos83'
 sys.path.insert(0, '/root/pos')
 from port_views import arrays_to_brackets
-from port_model import dump_as_string, global_classes
+from port_model import dump_as_string, global_classes, resolve_path, finder_idioms, dao_idioms
 
 
 def lcfirst(s):
@@ -139,6 +140,10 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r"request\s*->\s*getQuery\s*\(", 'request->get(', body)
     body = re.sub(r"request\s*->\s*getParam\s*\(", 'request->get(', body)
     body = re.sub(r"request\s*->\s*getPost\s*\(", 'request->post(', body)
+    # Yii 1's error handler hands the view an array; Yii 2's holds the
+    # exception. site/error is the only place that reads it.
+    body = re.sub(r'Yii::app\s*\(\s*\)\s*->\s*errorHandler\s*->\s*error',
+                  'Ui::errorArray()', body)
     body = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', body)
     body = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', body)
 
@@ -196,7 +201,7 @@ def translate(src, model, ctrl, warn):
     # anything else - new DateTime('now') - it is not.
     def scenario(m):
         cls, arg = m.group(1), m.group(2)
-        if not os.path.exists(f'{ROOT}/protected/models/{cls}.php'):
+        if not os.path.exists(resolve_path(f'{ROOT}/protected/models/{cls}.php')):
             return m.group(0)
         return "new %s(['scenario' => '%s'])" % (cls, arg)
 
@@ -243,6 +248,17 @@ def translate(src, model, ctrl, warn):
 
     # Yii 1's logger. Yii 2 splits the level into the method name, and
     # CVarDumper::dumpAsString is var_export.
+    # The framework actions a controller declares in actions(). Yii 2 has
+    # both, under different names, and left alone they are classes that do not
+    # exist - site/contact died on the captcha.
+    body = re.sub(r"'class'\s*=>\s*'CCaptchaAction'",
+                  lambda m: "'class' => \\yii\\captcha\\CaptchaAction::class", body)
+    body = re.sub(r"'class'\s*=>\s*'CViewAction'",
+                  lambda m: "'class' => \\yii\\web\\ViewAction::class", body)
+
+    body = dao_idioms(body)
+
+    body = finder_idioms(body)
     body = dump_as_string(body)
     body = global_classes(body)
     # Only the level marker; the second argument is dump_as_string's job. This
@@ -332,7 +348,7 @@ def drop_method(src, name):
 def main():
     model = sys.argv[1]
     ctrl = lcfirst(model)
-    src = open(f'{ROOT}/protected/controllers/{model}Controller.php',
+    src = open(resolve_path(f'{ROOT}/protected/controllers/{model}Controller.php'),
                encoding='utf-8', errors='replace').read()
     warn = []
     body = translate(src, model, ctrl, warn)
@@ -377,14 +393,41 @@ use yii\\web\\NotFoundHttpException;
     named = set(re.findall(r'\b([A-Z]\w+)::', body))
     named |= set(re.findall(r'\bnew\s+([A-Z]\w+)\s*[(;]', body))
     named |= set(re.findall(r'\binstanceof\s+([A-Z]\w+)', body))
-    others = sorted({c for c in named
-                     if c != model
-                     and c not in ('Yii', 'Ui', 'Html', 'ActiveDataProvider', 'SORT_DESC')
-                     and os.path.exists(f'{ROOT}/protected/models/_base/Base{c}.php')})
-    if others:
-        header = header.replace('use app\\models\\' + model + ';',
-                                '\n'.join(['use app\\models\\' + c + ';' for c in
-                                           sorted(others + [model])]))
+    # Spelled as the model file is, and deduplicated case-insensitively. This
+    # application writes the same class both ways - B2BPurchaseBill:: in one
+    # place and B2bPurchaseBill:: in another - and importing both is a fatal:
+    # "Cannot use app\models\B2bPurchaseBill as B2bPurchaseBill because the
+    # name is already in use". PHP resolves the reference either way once one
+    # import is there, since class names are case-insensitive.
+    canonical = {}
+    for c in named:
+        if c == model or c in ('Yii', 'Ui', 'Html', 'ActiveDataProvider', 'SORT_DESC'):
+            continue
+        base = resolve_path(f'{ROOT}/protected/models/_base/Base{c}.php')
+        if os.path.exists(base):
+            # Base<Name>.php -> <Name>, as the file spells it
+            real = os.path.basename(base)[4:-4]
+            canonical[real.lower()] = real
+            continue
+        # A model with no generated base: the form models, CFormModel in
+        # Yii 1. ContactForm is one, and site/contact died looking for it in
+        # app\controllers because the scan only knew about ActiveRecords.
+        plain = resolve_path(f'{ROOT}/protected/models/{c}.php')
+        if os.path.exists(plain):
+            real = os.path.basename(plain)[:-4]
+            canonical[real.lower()] = real
+    others = sorted(canonical.values())
+    keep = {c.lower(): c for c in others}
+    # The controller's own model, but only if it has one. LoyaltyAdmin is a
+    # controller with no model behind it, and importing app\models\LoyaltyAdmin
+    # named a class that does not exist - harmless while nothing referenced it,
+    # and a fatal the moment something did.
+    if os.path.exists(resolve_path(f'{ROOT}/protected/models/{model}.php')):
+        keep.setdefault(model.lower(), model)
+    header = header.replace(
+        'use app\\models\\' + model + ';',
+        '\n'.join(['use app\\models\\' + c + ';' for c in sorted(keep.values())])
+        if keep else '')
 
     # Yii 1's accessRules(), as a list the base controller enforces. The port
     # checks only that someone is signed in, which is what Yii 1's rules amount
@@ -415,7 +458,13 @@ use yii\\web\\NotFoundHttpException;
     cls = model + ('Ui' if model in API_NAMES else '')
     body = re.sub(r'\bclass\s+' + model + r'Controller\b', 'class ' + cls + 'Controller', body)
 
-    out = f'{ROOT}/app2/controllers/{cls}Controller.php'
+    # Case-insensitively, like the read above. A controller generated under
+    # the wrong spelling of its own name - loyaltyAdmin for LoyaltyAdmin -
+    # wrote a second file beside the real one, and PSR-4 went on loading the
+    # stale one: the port looked regenerated and was not.
+    out = resolve_path(f'{ROOT}/app2/controllers/{cls}Controller.php')
+    if os.path.basename(out) != f'{cls}Controller.php':
+        cls = os.path.basename(out)[:-len('Controller.php')]
 
     # Refuse to overwrite a controller this pipeline did not write.
     #
@@ -451,7 +500,11 @@ use yii\\web\\NotFoundHttpException;
             os.remove(out)
         else:
             open(out, 'w', encoding='utf-8').write(previous)
+        # Keep what it produced. Two lines of php -l and no file to read
+        # is not enough to fix the rule that produced it.
+        open(out + '.bad', 'w', encoding='utf-8').write(header + body)
         print('REFUSED to write app2/controllers/%sController.php: it does not parse' % cls)
+        print('  the output is at %s.bad' % out)
         for line in (check.stdout or check.stderr).splitlines()[:2]:
             if line.strip():
                 print('  ' + line.strip())

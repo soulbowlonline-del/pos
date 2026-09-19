@@ -1,6 +1,8 @@
 <?php
 namespace app\components;
 
+use Yii;
+
 use yii\helpers\Url;
 
 /**
@@ -73,12 +75,42 @@ class Ui
         'purchaseBillDetail',
         'onlineOrder',
         'purchaseOrderDetail',
+        'site',
+        'b2bPurchaseBillDetail',
+        'loyaltyAdmin',
     ];
 
     /**
      * @param string $route 'controller/action', as Yii 1 spells it
      * @param array  $params query parameters
      */
+    /**
+     * Yii 1's `Yii::app()->errorHandler->error`.
+     *
+     * Yii 1 hands the error view an array - code, message, type, file, line;
+     * Yii 2's handler holds the exception object instead. site/error reads the
+     * array, so it is rebuilt here rather than the view being rewritten, and
+     * the view stays the shape Yii 1 wrote it.
+     *
+     * Null when nothing failed, as in Yii 1, so `if ($error = ...)` still
+     * reads the same.
+     */
+    public static function errorArray()
+    {
+        $e = Yii::$app->errorHandler->exception ?? null;
+        if ($e === null) {
+            return null;
+        }
+
+        return [
+            'code' => $e instanceof \yii\web\HttpException ? $e->statusCode : 500,
+            'type' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ];
+    }
+
     public static function to($route, $params = [])
     {
         // Some call sites put the query in the route itself -

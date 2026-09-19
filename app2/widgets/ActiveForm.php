@@ -274,8 +274,36 @@ class ActiveForm extends \yii\widgets\ActiveForm
 
     public function errorSummary($models, $header = null, $footer = null, $htmlOptions = [])
     {
-        return Html::errorSummary($models, ArrayHelper::merge(
+        // CActiveForm's wording, which differs from Yii 2's by one word:
+        // "Please fix the following input errors:" against "Please fix the
+        // following errors:". Every form in the application shows this the
+        // moment a field fails, and the UI suite does not see it - it compares
+        // the fields, not the summary above them.
+        if ($header === null) {
+            $header = '<p>Please fix the following input errors:</p>';
+        }
+
+        $html = Html::errorSummary($models, ArrayHelper::merge(
             ['header' => $header, 'footer' => $footer], $htmlOptions));
+
+        // CActiveForm emits a hidden placeholder when there is nothing to
+        // report and validation runs in the browser: the container has to
+        // exist for the client script to fill it, and its list carries a
+        // single `dummy` item. Yii 2 renders an empty summary instead, so a
+        // form that failed validation in the browser had nowhere to show it.
+        if (($this->enableClientValidation || $this->enableAjaxValidation)
+                && strpos($html, '<li>') === false) {
+            $options = $htmlOptions;
+            $options['class'] = $options['class'] ?? 'errorSummary';
+            $options['style'] = isset($options['style'])
+                ? rtrim($options['style'], ';') . ';display:none'
+                : 'display:none';
+
+            return Html::tag('div', $header . "\n<ul><li>dummy</li></ul>" . $footer,
+                             $options);
+        }
+
+        return $html;
     }
 
     /**

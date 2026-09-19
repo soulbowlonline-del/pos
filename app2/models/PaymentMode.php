@@ -28,13 +28,10 @@ class PaymentMode extends ActiveRecord
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
-        return $n == 1 ? 'Payment Mode' : 'Payment Modes';
+        return $n == 1 ? 'PaymentMode' : 'PaymentModes';
     }
 
-    /**
-     * The column that stands for the whole row in a link or a breadcrumb -
-     * Yii 1's representingColumn(), used by __toString().
-     */
+    /** The column that stands for the whole row in a link or a breadcrumb. */
     public static function representingColumn()
     {
         return 'title';

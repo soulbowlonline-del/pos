@@ -230,25 +230,93 @@ found, not fixed.
 
 ## Where the port has got to
 
-45 of the 59 controllers:
+56 of the 59 controllers:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
-`bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
-`state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
-`mrs`, `organization`, `rolePermission`, `itemTax`, `tax`, `customer`, `emp`,
-`orderRefund`, `stockAdjustLog`, `item`, `itemCompany`, `discount`,
-`itemCategory`, `itemExpire`, `itemReturn`, `itemReturnItem`, `itemStock`,
-`mrn`, `b2bPurchaseBill`, `itemDetail`, `mrnDetail`, `mrsDetail`.
+`bill`, `session`, `itemVendor`, `notification`, `creditNote`, `state`,
+`city`, `stockLog`, `permission`, `country`, `designation`, `outlet`,
+`freeItem`, `mrs`, `organization`, `rolePermission`, `itemTax`, `tax`,
+`customer`, `emp`, `orderRefund`, `stockAdjustLog`, `item`, `itemCompany`,
+`discount`, `itemCategory`, `itemExpire`, `itemReturn`, `itemReturnItem`,
+`itemStock`, `mrn`, `b2bPurchaseBill`, `itemDetail`, `mrnDetail`,
+`mrsDetail`, `vendorSchemes`, `orderRefundItem`, `vendor`, `user`,
+`purchaseOrder`, `purchaseBillDetail`, `onlineOrder`, `purchaseOrderDetail`,
+`site`, `b2bPurchaseBillDetail`, `loyaltyAdmin`.
 
-14 remain: `purchaseOrderDetail`, `b2BPurchaseBillDetail`, `loyaltyAdmin`,
-`onlineOrder`, `order`, `orderItem`, `orderRefundItem`, `purchaseBill`,
-`purchaseBillDetail`, `purchaseOrder`, `site`, `user`, `vendor`,
-`vendorSchemes`.
+Three remain, and none of the three is blocked on the port:
 
-`purchaseOrderDetail` is held back rather than unattempted: its admin grid
-renders four more columns than Yii 1's and three fewer rows, and neither
-difference is explained yet. It stays on Yii 1 until it is.
+- **`order`** - `order/create` does not finish on *either* stack. It renders a
+  checkbox list over the whole of `tbl_order_item`, 4,976,355 rows, and both
+  the 5.6 baseline and the port give up at 40 seconds. Broken upstream, and
+  porting it would only reproduce that.
+- **`purchaseBill`** - `purchaseBill/view` answers 200 on PHP 5.6 and 500 on
+  PHP 8.3 *in the Yii 1 tree*. Until that is fixed there is nothing to compare
+  the port against.
+- **`orderItem`** - one cell. The detail view's label for `discount_id` is
+  "Discount Id" on Yii 1 and "Discount" here. Explained below, under
+  *A label can depend on the database*, and not yet fixed.
+
+`loyaltyAdmin` and `site` have no model, so none of the six page types the UI
+suite is built around exist for them. They are compared as page text instead,
+by `tests/port/pagecompare.py`, which the `pages_difftest` suite runs as part
+of the regression.
+
+## Two pagers, and which one a grid gets
+
+Every paginated grid in the port had the wrong pager, and 319 green
+comparisons said nothing about it: the UI suite compares the rows of a grid,
+not the controls under it.
+
+There are two, and the application uses both.
+
+- **CLinkPager** - Yii 1's own. `Go to page: << First < Previous 1 2 3 Next >
+  Last >>`, with a header above the list.
+- **TbPager** - YiiBooster's, and `TbGridView`'s declared default. No header,
+  arrows instead of words, and `displayFirstAndLast = false`, so no First or
+  Last button is rendered at all.
+
+Which one a page gets does not follow from the widget it uses. It turns on a
+detail of `CGridView::renderPager()`:
+
+```php
+$class = 'CLinkPager';
+if (is_string($this->pager))     $class = $this->pager;
+elseif (is_array($this->pager))  { ... }
+```
+
+A `pager` that is neither a string nor an array falls through to **CLinkPager**
+- so the 57 views that write `'pager' => true` get CLinkPager even though they
+are all TbGridViews, and only the views that say nothing about the pager keep
+TbPager. `app\widgets\GridView` reproduces both, defaulting `$pager` to
+`TbPager::class` so that "the view said nothing" stays distinguishable from
+"the view asked for the framework default".
+
+`CBaseListView::$summaryText` was being swallowed silently by
+`IgnoresLegacyOptions` in the same way, so `loyaltyAdmin/customers` printed
+nothing where Yii 1 prints "Showing 1-20 of 5141 customers". Its placeholders
+are not Yii 2's, and the one that matters is `{count}`: in Yii 1 it is the
+total row count, which Yii 2 spells `{totalCount}` - Yii 2's own `{count}` is
+how many rows the current page shows, so passing the string through unchanged
+would have printed "of 20".
+
+## A label can depend on the database
+
+`GxActiveRecord::getAttributeLabel()` hands everything to `getRelationLabel()`,
+which for a column with no explicit label asks `findRelation()` whether the
+column is a foreign key - and `findRelation()` answers from
+`$column->isForeignKey`, which is the *schema's* declared constraint, not the
+model's `relations()`.
+
+So `BaseOrderItem` declaring `'discount' => array(BELONGS_TO, 'Discount',
+'discount_id')` is not enough. If `tbl_order_item` carries no FOREIGN KEY on
+`discount_id`, Yii 1 falls through to `generateAttributeLabel()` and prints
+"Discount Id"; where the constraint exists it prints the related model's
+label, "Discount". The generator reads `relations()` and so always produces
+the second.
+
+This is the last difference in `orderItem`, and it is a reminder that a label
+in this application is not always a property of the code.
 
 ## The cases the UI suite does not count as passes
 
@@ -375,6 +443,25 @@ credentials.
 So the checksum is not decoration: every table is checksummed before and after
 and any change is reported. It has been zero on every run, which is the only
 reason to trust the static judgement above it.
+
+## Grid headings are compared, and were not
+
+Both of the defects above - the labels and the pager - lived on pages whose
+rows matched Yii 1 to the character, through hundreds of green comparisons.
+They were in the parts of a grid the suite never read.
+
+`grid_rows()` skips any row containing a `<th>`, which is the heading row and
+the filter row both. So a column *heading* had never been compared, and
+headings are exactly where a generated label appears. `grid_headers()` now
+compares them, one case per ported controller, and found a difference on the
+first run it made.
+
+The pager is still not compared by that suite. It is compared for the
+model-less controllers, by `pages_difftest`, which reduces a whole page to its
+visible text - which is how it was noticed at all.
+
+The general lesson is the one this file keeps relearning: a suite that passes
+tells you about the things it looks at, and nothing whatever about the rest.
 
 ## What "verified" covers, and what it does not
 

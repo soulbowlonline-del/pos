@@ -167,6 +167,36 @@ def grid_rows(html, grid_id):
     return rows
 
 
+def grid_headers(html, grid_id):
+    """
+    The column headings of the named grid.
+
+    grid_rows() drops every row containing a <th>, so a heading has never been
+    compared - and headings are where the generated labels show. Eleven models
+    were printing the related model's label where Yii 1 prints the column's
+    own: "Item" against Yii 1's "Item Id", on grids whose rows matched to the
+    character. The suite was green throughout.
+
+    The filter row is a <th> row as well, and holds inputs rather than text,
+    so the first heading row with any text in it is the one taken.
+    """
+    html = strip(html)
+    m = re.search(r'id="' + re.escape(grid_id) + r'"(.*?)(?:</table>)', html, re.S)
+    if not m:
+        return None
+    for tr in re.findall(r'(?is)<tr[^>]*>(.*?)</tr>', m.group(1)):
+        cells = re.findall(r'(?is)<th[^>]*>(.*?)</th>', tr)
+        if not cells:
+            continue
+        out = []
+        for th in cells:
+            text = re.sub(r'(?is)<[^>]+>', ' ', th).replace('&nbsp;', ' ')
+            out.append(' '.join(text.split()))
+        if any(out):
+            return out
+    return None
+
+
 def detail_pairs(html):
     """label/value pairs of a detail table."""
     pairs = []
@@ -311,6 +341,10 @@ def main():
     print(f'{ctrl}/admin  - grid rows')
     check_pair('admin rows', y1 + '/admin', y2 + '/admin',
                lambda h: grid_rows(h, grid), 'notnone')
+
+    print(f'{ctrl}/admin  - grid headings')
+    check_pair('admin headings', y1 + '/admin', y2 + '/admin',
+               lambda h: grid_headers(h, grid), 'notnone')
 
     # Page 2 is where an ordering difference shows that page 1 hides: with no
     # ORDER BY the two stacks can agree on the first ten rows and still

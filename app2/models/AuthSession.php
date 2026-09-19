@@ -14,6 +14,10 @@ use yii\helpers\Html;
  */
 class AuthSession extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
@@ -368,7 +372,7 @@ class AuthSession extends ActiveRecord
             'auth_code' => 'Auth Code',
             'device_token' => 'Device Token',
             'type_id' => 'Type',
-            'create_user_id' => 'User',
+            'create_user_id' => 'Create User Id',
             'create_time' => 'Create Time',
             'update_time' => 'Update Time',
             'createUser' => 'User',
@@ -397,4 +401,193 @@ class AuthSession extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'create_user_id']);
     }
+
+    public static function tableName()
+    {
+        return '{{%auth_session}}';
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['device_token', 'auth_code', 'create_user_id', 'create_time', 'update_time'], 'required'],
+            [['type_id', 'create_user_id'], 'integer'],
+            [['device_token', 'auth_code'], 'string', 'max' => 256],
+            [['type_id'], 'default', 'value' => null],
+            [['id', 'auth_code', 'device_token', 'type_id', 'create_user_id', 'create_time', 'update_time'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
+        $this->load($params, $this->formName());
+
+        foreach ([['id', 'id'], ['type_id', 'type_id'], ['create_user_id', 'create_user_id']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['auth_code', 'auth_code'], ['device_token', 'device_token'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
+
+        return $provider;
+    }
+
+    public static function newSession($model)
+        {
+            //    self::logoutSession();
+            self::deleteSession($model);
+            self::deleteOldSession();
+            $auth_session = new AuthSession();
+            $auth_session->auth_code = self::randomCode();
+            $auth_session->device_token = $model->device_token;
+            $auth_session->type_id = $model->device_type;
+            $auth_session->save();
+
+            return $auth_session;
+        }
+
+    public static function deleteSession($model)
+        {
+            $auth_sessions = AuthSession::find()->where([ 'device_token' => $model->device_token])->all();
+            foreach ( $auth_sessions as $session)
+            $session->delete();
+        }
+
+    public static function deleteOldSession()
+        {
+        /*     $old = AuthSession::find()->andWhere('update_time < \''.date('Y-m-d H:i:s')->all();
+            foreach ( $old as $session)
+            $session->delete(); */
+        }
+
+    public static function authenticateSession($auth_code = null)
+        {
+
+            // just exit if login is not required.
+            //$auth_code = 'UM2KdkCgZdEhtFatRB7ApoQXC67Ldk3Z';
+            if ( !Yii::$app->user->isGuest ) return;
+
+            if ( $auth_code == null)
+            {
+                $headers = getallheaders();
+                $auth_code = isset($headers['auth_code']) ? $headers['auth_code'] : null;
+                if ( $auth_code == null ) $auth_code = Yii::$app->request->getQuery('auth_code');
+                // just exit if auth code is null
+                if (  $auth_code == null ) return;
+
+            }
+
+
+            Yii::warning( var_export($auth_code, true), '$$auth_code');
+            $auth_session = AuthSession::find()->where([ 'auth_code'=>$auth_code])->one();
+            Yii::warning( var_export($auth_session, true), '$auth_session');
+
+            if ($auth_session)
+            {
+                $user = $auth_session->createUser;
+                //Yii::warning( var_export($user, true), '$$user');
+                $identity = new UserIdentity($user, $user);
+                $identity->authenticateSession($user);
+
+                switch($identity->errorCode) {
+                    case UserIdentity::ERROR_NONE:
+                        $duration = 3600*24*30; // 30 days
+                        Yii::$app->user->login($identity,$duration);
+                        Yii::warning( var_export(Yii::$app->user->model, true), '$$user');
+                        $auth_session->save(); // update time is changed here
+                        return true;
+                        break;
+                    case UserIdentity::ERROR_STATUS_USER_DOES_NOT_EXIST:
+                        $user->addError('status', Yii::t('app','User doesnt exists.'));
+                        break;
+                }
+            }
+
+    /*        //if ( Yii::$app->module != null && Yii::$app->module->id == 'api')
+            {
+                $controller = Yii::$app->controller;
+                $arr = array('controller'=>$controller->id, 'action'=>$controller->action->id,'status' =>'NOK');
+
+                header('Content-type: application/json');
+                echo json_encode($arr);
+                Yii::$app->end();
+            }*/
+            return false;
+        }
+
+    public static function logoutSession()
+        {
+            // just exit if login is not required.
+            /* if ( Yii::$app->user->isGuest ) return;
+
+            foreach (Yii::$app->user->model->authSessions as $session)
+            $session->delete(); */
+        }
 }

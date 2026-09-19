@@ -432,14 +432,14 @@ class OrderItem extends ActiveRecord
             'price' => 'Price',
             'min_amt' => 'Minimum Total Amount',
             'max_amt' => 'Maximum Total Amount',
-            'discount_id' => 'Discount',
+            'discount_id' => 'Discount Id',
             'discount_amt' => 'Discount Amt',
             'status' => 'Status',
             'type_id' => 'Type',
             'create_time' => 'Create Time',
             'update_time' => 'Update Time',
             'item_id' => 'Item',
-            'create_user_id' => 'User',
+            'create_user_id' => 'Create User Id',
             'updated_by' => 'User',
             'createUser' => 'User',
             'discount' => 'Discount',
@@ -3572,16 +3572,8 @@ class OrderItem extends ActiveRecord
     public function rules()
     {
         return [
-            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
             [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['mode_of_payment', 'columns', 'start_date', 'end_date', 'customer_id', 'min_amt', 'max_amt'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['refund_qty', 'bill_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['create_user_id'], 'required'],
             [['order_id', 'item_detail_id', 'discount_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['price', 'discount_amt'], 'number'],
