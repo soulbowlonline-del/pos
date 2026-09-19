@@ -16,7 +16,7 @@ use app\widgets\CJuiRadioButtonList;
 <div class="wide form">
 
 <?php 	$form = ActiveForm::begin([
-	'action' => Ui::to($this->route),
+	'action' => Ui::to($this->context->route),
 	'method' => 'get',
 	'id' => 'purchase-bill-detail-form',
 	'type'=>'horizontal',		

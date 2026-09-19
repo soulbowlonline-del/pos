@@ -131,7 +131,7 @@ class LoyaltyService
             return [
                 'success' => true,
                 // Yii 1 returned this as a string, because it came straight from
-                // PDO::lastInsertId(). Yii 2's ActiveRecord casts the primary key
+                // \PDO::lastInsertId(). Yii 2's ActiveRecord casts the primary key
                 // to int, which would change the JSON type for every existing
                 // client. Cast back so the payload is unchanged.
                 'redemption_id' => (string)$trans->id,

@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\B2bPurchaseBill;
 use app\models\B2bPurchaseBillDetail;

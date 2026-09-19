@@ -115,8 +115,8 @@ src="<?php  echo '/themes/bar'; ?>/js/jQuery.print.js"
 	$list = Yii::$app->session['date_list'];
 	$packing = Yii::$app->session['packing_date_list'];
 	$idlist = Yii::$app->session['idList'];
-	Yii::warning( var_export( $idlist , true), '$idlist');
-	Yii::warning( var_export( $list , true), '$list');
+	Yii::warning( var_export($idlist, true), '$idlist');
+	Yii::warning( var_export($list, true), '$list');
 	$expiry_val = Yii::$app->session['expiry_val'];
 	if(!empty($list)){
 		$result = array_combine($idlist, $list);

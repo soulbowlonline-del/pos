@@ -882,7 +882,7 @@ class PurchaseBillDetailController extends BaseUiController {
 						else {
 							Yii::warning( var_export( $model->getErrors() , true), 'error3');
 							$set = false;
-							throw new Exception ( "Something went wrong", 500 );
+							throw new \Exception ( "Something went wrong", 500 );
 						}
 					}
 					}
@@ -899,7 +899,7 @@ class PurchaseBillDetailController extends BaseUiController {
 				$transaction->rollback ();
 					
 			}
-			} catch ( Exception $e ) {
+			} catch ( \Exception $e ) {
 				$transaction->rollback ();
 			}
 			}

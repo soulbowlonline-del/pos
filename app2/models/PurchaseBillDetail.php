@@ -461,7 +461,7 @@ class PurchaseBillDetail extends ActiveRecord
             $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
             $mrss = $query->all();
-            Yii::warning( var_export( $mrss , true), '$mrss');
+            Yii::warning( var_export($mrss, true), '$mrss');
             if($mrss){
                 foreach($mrss as $mrs){
                     $create_time = date('d-m-Y',strtotime($mrs->create_time));

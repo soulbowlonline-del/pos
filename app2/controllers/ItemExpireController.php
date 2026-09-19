@@ -109,7 +109,7 @@ class ItemExpireController extends BaseUiController {
 			}else{
 				print_r($model->getErrors());exit;
 			}
-		 	} catch ( Exception $e ) {
+		 	} catch ( \Exception $e ) {
 				$transaction->rollback ();
 			} 
 			

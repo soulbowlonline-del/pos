@@ -474,7 +474,7 @@ class OrderItem extends ActiveRecord
 
                 $connection = Yii::$app->db;
                 $command = $connection->createCommand($sql);
-                $command->bindParam(':itemId', $itemId, PDO::PARAM_INT);
+                $command->bindParam(':itemId', $itemId, \PDO::PARAM_INT);
                 return $command->queryRow();
         }
 
@@ -952,7 +952,7 @@ class OrderItem extends ActiveRecord
     $csv = [];
     $tank = Tank::findOne($tank_id);
       $a_date = $year."-".$selmonth."-01";
-      $date = new DateTime($a_date);
+      $date = new \DateTime($a_date);
       $date->modify('last day of this month');
       $months = ['01'=>'Jan','02'=>'Feb','03'=>'March','04'=>'April',
         '05'=>'May','06'=>'June','07'=>'July','08'=>'August',

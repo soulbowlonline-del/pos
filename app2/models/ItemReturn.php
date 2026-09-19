@@ -584,4 +584,33 @@ class ItemReturn extends ActiveRecord
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
     }
+
+    /**
+     * Yii 1's listsearch(): a listing of its own, converted as written.
+     */
+    public function listsearch()
+    {
+
+		$query = self::find();
+        $query->orderBy(['id' => SORT_DESC]);
+		$query->andWhere(['status' => [ItemReturn::STATUS_DONE,PurchaseBill::STATUS_RECEIVED]]);
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'discount_amt', $this->discount_amt);
+		Criteria::compare($query, 'other_charge', $this->other_charge);
+		Criteria::compare($query, 'total_amt', $this->total_amt, true);
+		Criteria::compare($query, 'vendor_id', $this->vendor_id);
+		Criteria::compare($query, 'outlet_id', $this->outlet_id);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'credit_note_id', $this->credit_note_id);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
 }

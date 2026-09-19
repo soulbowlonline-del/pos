@@ -1,6 +1,8 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
+
 use Yii;
 use app\models\Order;
 use app\models\PaymentMode;

@@ -75,7 +75,7 @@ class OnlineOrder extends ActiveRecord
     }
 
     /**
-     * Yii 1 reads this table with PDO::ATTR_STRINGIFY_FETCHES and does no type
+     * Yii 1 reads this table with \PDO::ATTR_STRINGIFY_FETCHES and does no type
      * casting of its own, so every column arrives as a string. Yii 2 sets the
      * same PDO attribute but then casts int and float columns back to PHP
      * types in ActiveRecord::populateRecord(), which shows up directly in the
@@ -141,7 +141,7 @@ class OnlineOrder extends ActiveRecord
 
     /**
      * No casts here on purpose. The connection sets
-     * PDO::ATTR_STRINGIFY_FETCHES, as the Yii 1 one does, so anything read
+     * \PDO::ATTR_STRINGIFY_FETCHES, as the Yii 1 one does, so anything read
      * from the database is already a string - and a write path that has just
      * assigned an int (cancelOrder setting order_status, say) should report
      * that int, which is what Yii 1 does. Casting broke exactly those cases.

@@ -16,7 +16,7 @@ import re, sys, os, subprocess
 ROOT = '/root/pos/pos83'
 sys.path.insert(0, '/root/pos')
 from port_views import arrays_to_brackets
-from port_model import dump_as_string
+from port_model import dump_as_string, global_classes
 
 
 def lcfirst(s):
@@ -62,6 +62,12 @@ def translate(src, model, ctrl, warn):
     body = re.sub(A + r'end\s*\(\s*\)', 'Yii::$app->end()', body)
     body = re.sub(A + r'createUrl\s*\(', 'Ui::to(', body)
     # whatever else is left has the same shape in Yii 2
+    # Yii 1's request getters. getQuery('term') is get('term') in Yii 2, and
+    # leaving it produced "Calling unknown method: yii\\web\\Request::getQuery()"
+    # on the three item-lookup endpoints the autocomplete fields call.
+    body = re.sub(r"request\s*->\s*getQuery\s*\(", 'request->get(', body)
+    body = re.sub(r"request\s*->\s*getParam\s*\(", 'request->get(', body)
+    body = re.sub(r"request\s*->\s*getPost\s*\(", 'request->post(', body)
     body = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', body)
     body = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', body)
 
@@ -167,6 +173,7 @@ def translate(src, model, ctrl, warn):
     # Yii 1's logger. Yii 2 splits the level into the method name, and
     # CVarDumper::dumpAsString is var_export.
     body = dump_as_string(body)
+    body = global_classes(body)
     body = re.sub(r"(var_export\([^;]*?)\)(\s*),(\s*)CLogger::LEVEL_\w+",
                   lambda m: m.group(1) + ', true)' + m.group(2) + ',' + m.group(3) + 'LEVEL', body)
     body = re.sub(r"Yii::log\s*\(([^;]*?),\s*LEVEL\s*,\s*('[^']*')\s*\)",
@@ -281,6 +288,16 @@ use yii\\web\\NotFoundHttpException;
     # Every way a controller can name a model: a static call, `new X`, a type
     # hint, instanceof. Matching only `X::` missed `new ItemExpireItem` and the
     # action died looking for it in app\controllers.
+    # The port's own components, which are not models and so are not picked up
+    # by the model scan below. The criteria converter emits Criteria::compare()
+    # into controller bodies as readily as into models, and without the import
+    # PHP looked for app\controllers\Criteria - freeItem/itemList died on it,
+    # on a page the CRUD suite does not reach.
+    for cls in ('Criteria', 'Gx', 'Access'):
+        if re.search(r'\b' + cls + r'::', body) and 'use app\\components\\%s;' % cls not in header:
+            header = header.replace('use app\\components\\Ui;',
+                                    'use app\\components\\%s;\nuse app\\components\\Ui;' % cls, 1)
+
     named = set(re.findall(r'\b([A-Z]\w+)::', body))
     named |= set(re.findall(r'\bnew\s+([A-Z]\w+)\s*[(;]', body))
     named |= set(re.findall(r'\binstanceof\s+([A-Z]\w+)', body))

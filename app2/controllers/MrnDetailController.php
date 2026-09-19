@@ -472,7 +472,7 @@ class MrnDetailController extends BaseUiController {
 	
 							}else{
 								
-								throw new Exception("Something went wrong",500);
+								throw new \Exception("Something went wrong",500);
 							}
 								
 						} */
@@ -550,7 +550,7 @@ class MrnDetailController extends BaseUiController {
 						if($podetailmodel->save()){
 	
 						}else{
-							throw new Exception("Something went wrong",500);
+							throw new \Exception("Something went wrong",500);
 						}
 							
 					}
@@ -1062,14 +1062,14 @@ class MrnDetailController extends BaseUiController {
 					
 					}else{
 						$set = false;
-						throw new Exception("Something went wrong",500);
+						throw new \Exception("Something went wrong",500);
 					}
 						}
 					}
 					
 					else{
 						$set = false;
-						throw new Exception("Something went wrong",500);
+						throw new \Exception("Something went wrong",500);
 					}
 					
 				}
@@ -1089,7 +1089,7 @@ class MrnDetailController extends BaseUiController {
 				}
 
 				
-				} catch ( Exception $e ) {
+				} catch ( \Exception $e ) {
 					$transaction->rollback ();
 				}
 			}

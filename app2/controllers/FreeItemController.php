@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\FreeItem;
 use app\models\Item;
@@ -30,25 +31,26 @@ class FreeItemController extends BaseUiController {
 		
 		$exist = [];
 		$lists = [];
-		$term = Yii::$app->request->getQuery ( 'term' );
+		$term = Yii::$app->request->get( 'term' );
 		
-		$criteria = new CDbCriteria ();
+		$query = ItemDetail::find();
 		if($user->role_id != 1){
-			$criteria1 = new CDbCriteria ();
-			$criteria1->addCondition ( 'vendor_id =' . $user->id );
-			$itemvendors = ItemVendor::model ()->findAll ( $criteria1 );
+			$query1 = ItemVendor::find();
+        $query1->orderBy(['id' => SORT_DESC]);
+			$query1->andWhere('vendor_id =' . $user->id);
+			$itemvendors = $query1->all();
 			if($itemvendors){
 				foreach($itemvendors as $itemvendor){
 				$exist[] = $itemvendor->item_detail_id;
 				}
 			}
-			$criteria->addInCondition('id', $exist);
+			$query->andWhere(['id' => $exist]);
 		}
-		$criteria->compare ( 'bar_code', $term, true );
-		$criteria->limit = '100';
+		Criteria::compare($query, 'bar_code', $term, true);
+		$query->limit(100);
 	
-		$criteria->addCondition ( 'status =' . Item::STATUS_ACTIVE );
-		$itemdetails = ItemDetail::model ()->findAll ( $criteria );
+		$query->andWhere('status =' . Item::STATUS_ACTIVE);
+		$itemdetails = $query->all();
 		if ($itemdetails != null) {
 			foreach ( $itemdetails as $itemdetail ) {
 				$item = Item::findOne($itemdetail->item_id);
@@ -92,8 +94,8 @@ class FreeItemController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'free-item-form');
 
-		if (Yii::$app->request->post('FreeItem') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['FreeItem'])) {
+			$model->load($_POST, 'FreeItem');
             if(isset($_POST['FreeItem']['item_detail_id'])){
             	$item_detail = ItemDetail::findOne($_POST['FreeItem']['item_detail_id']);
             	if($item_detail){
@@ -125,8 +127,8 @@ class FreeItemController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'free-item-form');
 
-		if (Yii::$app->request->post('FreeItem') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['FreeItem'])) {
+			$model->load($_POST, 'FreeItem');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -175,9 +177,9 @@ class FreeItemController extends BaseUiController {
 		$model = new FreeItem(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('FreeItem') !== null)
+		if (isset($_GET['FreeItem']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'FreeItem');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -195,8 +197,8 @@ class FreeItemController extends BaseUiController {
 	    if($id != null){
 	    	$_GET['FreeItem']['item_id'] = $id;
 	    }
-		if (Yii::$app->request->get('FreeItem') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['FreeItem']))
+			$model->load($_GET, 'FreeItem');
 
 		return $this->render('admin', [
 			'model' => $model,

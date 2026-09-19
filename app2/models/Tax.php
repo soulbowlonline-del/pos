@@ -519,7 +519,7 @@ class Tax extends ActiveRecord
                         $transaction->commit();
                         return 1;
                     }
-                } catch (Exception $e) {
+                } catch (\Exception $e) {
                     $transaction->rollback();
                 }
             }

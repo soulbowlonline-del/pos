@@ -688,7 +688,11 @@ def region_edits(text, start, end, var, name, cls, kind):
             cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
         return Q + '->orderBy([%s]);' % ', '.join(cols)
 
-    for m in re.finditer(V + r"\s*->\s*order\s*=\s*'([^']+)'\s*;", region):
+    # The value may be parenthesised - BaseItemReturn writes
+    #  - and without allowing for that
+    # the statement was left behind, the conversion refused the whole
+    # method, and itemReturn/list died on a missing listsearch().
+    for m in re.finditer(V + r"\s*->\s*order\s*=\s*\(?\s*'([^']+)'\s*\)?\s*;", region):
         take(m, order_by(m))
     for m in re.finditer(V + r"\s*->\s*select\s*=\s*([^;]+);", region):
         take(m, Q + '->select(%s);' % m.group(1).strip())
@@ -872,6 +876,31 @@ def dump_as_string(text):
 
     return ''.join(out)
 
+
+GLOBAL_CLASSES = ('Exception', 'PDO', 'PDOException', 'DateTime', 'DateTimeZone', 'DateInterval', 'ZipArchive', 'SoapClient', 'DOMDocument', 'SimpleXMLElement', 'ReflectionClass', 'NumberFormatter', 'ArrayObject', 'mPDF', 'PHPExcel', 'PHPExcel_IOFactory')
+
+
+def global_classes(text):
+    """
+    Put a leading backslash on the global classes a namespaced file names.
+
+    `throw new Exception(...)` inside `namespace app\\controllers` means
+    app\\controllers\\Exception, which does not exist; the same for `new PDO`
+    and `catch (Exception $e)`. The port carried 78 of these, each a fatal on
+    the line that runs it, and none on a page the CRUD suite reaches.
+
+    Only the names below, and only where the reference is not already
+    qualified.
+    """
+    for cls in GLOBAL_CLASSES:
+        text = re.sub(r'(?<![\\$\w>])(new\s+)' + cls + r'\b',
+                      lambda m: m.group(1) + '\\' + cls, text)
+        text = re.sub(r'(?<![\\$\w>])(catch\s*\(\s*)' + cls + r'\b',
+                      lambda m: m.group(1) + '\\' + cls, text)
+        text = re.sub(r'(?<![\\$\w>])' + cls + r'(::)',
+                      lambda m: '\\' + cls + m.group(1), text)
+
+    return text
 
 def yii1_idioms(text):
     """

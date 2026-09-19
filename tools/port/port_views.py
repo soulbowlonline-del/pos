@@ -359,6 +359,13 @@ def rewrite(src, ctrl, unknown):
 
     # Yii 1's logger, which a few views call directly. Same mapping the models
     # and controllers use: the level becomes the method name.
+    # In a Yii 1 view $this is the controller; in Yii 2 it is the View, and
+    # the controller is $this->context. The search partials all read
+    # $this->route for the form's action, which threw "Getting unknown
+    # property: yii\\web\\View::route" on 53 views - and because only
+    # <controller>/search reaches them, the CRUD suite never saw it.
+    src = re.sub(r'\$this\s*->\s*route\b', '$this->context->route', src)
+
     src = dump_as_string(src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', src)

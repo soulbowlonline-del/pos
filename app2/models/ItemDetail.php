@@ -537,7 +537,7 @@ class ItemDetail extends ActiveRecord
         $out['item_name'] = $this->item ? $this->item->title : '';
         $out['item_desc'] = $this->item ? $this->item->short_name : '';
         $out['unit_name'] = $this->item ? Item::getMeasurementTypeOptions($this->item->unit) : '';
-        // Yii 1 reads this through PDO::ATTR_STRINGIFY_FETCHES, so an int
+        // Yii 1 reads this through \PDO::ATTR_STRINGIFY_FETCHES, so an int
         // column comes back as a string; NULL stays NULL.
         $out['is_coupon'] = $this->item
             ? ($this->item->is_coupon === null ? null : (string)$this->item->is_coupon)

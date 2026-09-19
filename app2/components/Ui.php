@@ -65,6 +65,7 @@ class Ui
         'itemDetail',
         'mrnDetail',
         'mrsDetail',
+        'itemReturn',
     ];
 
     /**
@@ -81,6 +82,16 @@ class Ui
             $params = array_merge($inline, $params);
             $route = substr($route, 0, $q);
         }
+
+        // The route may arrive in either spelling. A view asking the
+        // controller for its own route - the search forms all post to
+        // `$this->context->route` - gets Yii 2's, `advance-logs/search`, and
+        // that controller id is not what PORTED lists. Normalising here fixes
+        // every such call site at once, and leaves a route already written the
+        // Yii 1 way untouched: toYii1Id() is idempotent on camelCase.
+        $parts = explode('/', ltrim($route, '/'));
+        $parts = array_map([self::class, 'toYii1Id'], $parts);
+        $route = implode('/', $parts);
 
         $controller = strtok($route, '/');
 

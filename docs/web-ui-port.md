@@ -289,6 +289,37 @@ because the page genuinely was not checked. Adding an `ORDER BY` to settle it
 would be inventing behaviour Yii 1 does not have; doing exactly that earlier in
 this port broke a working Yii 1 page and was reverted in full.
 
+## The action sweep
+
+The UI suite compares six page types per controller. The ported controllers
+hold another 208 actions - PDF generation, barcode printing, CSV import, ajax
+lookups - and until now no test touched any of them. Every serious fault found
+in this port lived there: 142 log lines writing `var_export` output into
+responses, a criteria converter handing a second query the wrong table,
+`::model()` and `unsetAttributes()` left in ported controllers, Yii 1 scenario
+constructors passed to Yii 2 as configuration arrays. The CRUD suite caught
+none of them.
+
+`tests/port/action-sweep.py` asks a weaker question of all of them: does the
+page answer, and does it answer the way Yii 1 does. That is enough. On its
+first run it found 48 actions where the port returned 500 and Yii 1 returned
+200 - most of them one bug, `$this->route` in 53 views, which only
+`<controller>/search` reaches.
+
+**What it will not request.** `tests/port/classify-actions.py` reads each
+action, and the model methods it calls, and holds back anything that writes or
+reaches off the server; 99 of the 208 are held back on that basis. Reading only
+the action body was not enough - `b2bPurchaseBill/checkConsignment` is two
+lines calling a model method that curls a licence server and saves a Setting,
+and `customer/sendEmailCustom` sends mail to a hard-coded customer through a
+method that `POS_STUB_OUTBOUND` does not intercept. Both were requested before
+the classifier followed calls, and the mail attempt reached Gmail with real
+credentials.
+
+So the checksum is not decoration: every table is checksummed before and after
+and any change is reported. It has been zero on every run, which is the only
+reason to trust the static judgement above it.
+
 ## What "verified" covers, and what it does not
 
 Each ported controller is compared on **six page types**: the admin grid, its

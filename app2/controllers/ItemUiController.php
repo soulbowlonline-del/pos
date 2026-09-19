@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\Item;
 use app\models\ItemCategory;
@@ -95,6 +96,7 @@ class ItemUiController extends BaseUiController {
 			foreach ( $items as $item ) {
 				$item_remain_qty = $item->getTotalRemainingQuantity ();
 				$query = StockLog::find();
+        $query->orderBy(['id' => SORT_DESC]);
 				$query->andWhere('item_id =' . $item->id);
 				$query->andWhere('type_id =' . StockLog::TYPE_ADDED);
 				$query->select('sum(Qty) as Qty');
@@ -114,6 +116,7 @@ class ItemUiController extends BaseUiController {
 				$total_added_qty = bcadd ( $added_qty, $detail_added_qty, 3 );
 				
 				$query1 = StockLog::find();
+        $query1->orderBy(['id' => SORT_DESC]);
 				$query1->andWhere('item_id =' . $item->id);
 				$query1->andWhere(['not in', 'type_id', [
 						StockLog::TYPE_ADDED,
@@ -328,7 +331,7 @@ class ItemUiController extends BaseUiController {
 						'item_id' => $item->id,
 						'status' => Mrs::STATUS_PENDING 
 				] );
-				Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
+				Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
 				if ($mrsdetails) {
 					foreach ( $mrsdetails as $mrsdetail ) {
 						$mrs_id = $mrsdetail->mrs_id;
@@ -740,7 +743,7 @@ curl_close($ch);
 									$mrsdetails = MrsDetail::findAll(['item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
 									]);
-									Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
+									Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
 											$mrs_id = $mrsdetail->mrs_id;
@@ -799,12 +802,12 @@ curl_close($ch);
 											$tax = Tax::findOne($itemdetail_->tax_id);
 										$tax_id = $itemdetail_->tax_id;
 										}
-										Yii::warning( var_export($itemStock->vendor_id, true), '$mrs_vendor_id');
+										Yii::warning( var_export($itemStock->vendor_id, true, true), '$mrs_vendor_id');
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
 										]);
-										Yii::warning( var_export($mrs, true), '$mrs_id');
+										Yii::warning( var_export($mrs, true, true), '$mrs_id');
 										
 										if($item->reorder_qty != ''){
 										//$reorder_qty = $item->getReorderQty();
@@ -841,7 +844,7 @@ curl_close($ch);
 										$mrs->outlet_id = $outlet;
 										$mrs->vendor_id = $itemStock->vendor_id;
 									
-										Yii::warning( var_export($mrs->vendor_id, true), '$mrs->vendor_id');
+										Yii::warning( var_export($mrs->vendor_id, true, true), '$mrs->vendor_id');
 										//$mrs->tax_id = $this->tax_id;
  
 										$mrs->organization_id = $organization->id;
@@ -1001,7 +1004,7 @@ curl_close($ch);
 		
 		$exist = [ ];
 		$lists = [ ];
-		$term = Yii::$app->request->getQuery ( 'term' );
+		$term = Yii::$app->request->get( 'term' );
 		
 		/*
 		 * $criteria = new CDbCriteria ();
@@ -1098,7 +1101,7 @@ curl_close($ch);
 		
 		$exist = [ ];
 		$lists = [ ];
-		$term = Yii::$app->request->getQuery ( 'term' );
+		$term = Yii::$app->request->get( 'term' );
 		
 		$query = Item::find();
 		if ($user->role_id != 1) {
@@ -1131,7 +1134,7 @@ curl_close($ch);
 		$id = $_GET ['id'];
 		$exist = [ ];
 		$lists = [ ];
-		$term = Yii::$app->request->getQuery ( 'term' );
+		$term = Yii::$app->request->get( 'term' );
 		if ($id != null) {
 			$query1 = ItemVendor::find();
         $query1->orderBy(['id' => SORT_DESC]);
@@ -1361,7 +1364,7 @@ curl_close($ch);
 		if (isset ( $_POST ['ItemDetail'] ['company_id'] )) {
 			$model->company_id = $_POST ['ItemDetail'] ['company_id'];
 		}
-		Yii::warning( var_export($_POST, true), '$_POST');
+		Yii::warning( var_export($_POST, true, true), '$_POST');
 		if (isset ( $_GET ['id'] )) {
 			$model->item_id = $_GET ['id'];
 		}
@@ -2989,7 +2992,7 @@ curl_close($ch);
 
 			// Execute the query
 			$command = Yii::$app->db->createCommand($sql);
-			$command->bindParam(':date', $date, PDO::PARAM_STR);
+			$command->bindParam(':date', $date, \PDO::PARAM_STR);
 			$items = $command->queryAll();
 
 			// echo "<pre>"; print_r($command); die;
@@ -3287,7 +3290,7 @@ curl_close($ch);
 				$results['continue'] = false;
 			}
 
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			$results['status'] = 'error';
 			$results['message'] = 'Error during batch processing: ' . $e->getMessage();
 			$results['error_details'] = $e->getTraceAsString();
@@ -3384,7 +3387,7 @@ curl_close($ch);
 					}
 				}
 				
-			} catch (Exception $e) {
+			} catch (\Exception $e) {
 				$results['errors']++;
 				$results['details'][] = "Error processing item ID: {$item->id} - " . $e->getMessage();
 			}
@@ -3471,7 +3474,7 @@ curl_close($ch);
 				}
 			}
 				
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			// Log error but continue processing
 			Yii::log('Error calculating updates for item ID ' . $item->id . ': ' . $e->getMessage(), CLogger::LEVEL_ERROR);
 		}
@@ -3493,7 +3496,7 @@ curl_close($ch);
 				$item->sale_price = $updateData['new_sale_price'];
 				
 				if (!$item->save(false)) {
-					throw new Exception('Failed to update item: ' . implode(', ', $item->getErrors()));
+					throw new \Exception('Failed to update item: ' . implode(', ', $item->getErrors()));
 				}
 			}
 
@@ -3505,7 +3508,7 @@ curl_close($ch);
 					$itemDetail->tax_id = $detailUpdate['new_tax_id'];
 					
 					if (!$itemDetail->save(false)) {
-						throw new Exception('Failed to update item detail ID ' . $detailUpdate['id']);
+						throw new \Exception('Failed to update item detail ID ' . $detailUpdate['id']);
 					}
 
 					// Update item tax table if exists and tax_id is available
@@ -3534,7 +3537,7 @@ curl_close($ch);
 			$transaction->commit();
 			return true;
 			
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			$transaction->rollback();
 			throw $e;
 		}

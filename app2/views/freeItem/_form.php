@@ -97,19 +97,19 @@ Title
 <?php echo $form->dropDownListRow($model, 'item_detail_id',$model->getItemOptions(),['class'=>'form-control']); ?>
 
 
-<?php echo $form->dropDownListRow($model, 'item_category_id', Gx::listData(ItemCategory::findAll(['status'=>ItemCategory::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'item_category_id', Gx::listData(ItemCategory::find()->where(['status'=>ItemCategory::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
 
 
 </div>
 <div class="col-md-6">
-<?php echo $form->dropDownListRow($model, 'item_company_id', Gx::listData(ItemCompany::findAll(['status'=>ItemCompany::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropDownListRow($model, 'item_company_id', Gx::listData(ItemCompany::find()->where(['status'=>ItemCompany::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
 
 <?php echo $form->textFieldRow($model,'qty',['class'=>'form-control']); ?>
 
 
 <?php echo $form->textFieldRow($model,'stock_qty',['class'=>'form-control']); ?>
 <?php  $user = Yii::$app->user->model;
-            $role = UserRole::findOne(['title'=>'Admin']);
+            $role = UserRole::find()->where(['title'=>'Admin'])->one();
             if($user->role_id == $role->id ){?>
             <?php echo $form->dropDownListRow($model, 'status',$model->getStatusOptions(),['class'=>'form-control']); ?>
             <?php }?>

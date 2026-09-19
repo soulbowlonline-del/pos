@@ -357,7 +357,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 							}else{
 								 print_r($billdetailmodel->getErrors());exit;
-								throw new Exception("Something went wrong",500); 
+								throw new \Exception("Something went wrong",500); 
 							}
 								
 						} */
@@ -437,7 +437,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 						}else{
 							print_r($billdetailmodel->getErrors());exit;
-							throw new Exception("Something went wrong",500);
+							throw new \Exception("Something went wrong",500);
 						}
 							
 					}
@@ -977,14 +977,14 @@ class PurchaseOrderDetailController extends BaseUiController {
 									
 							}else{
 								$set = false;
-								throw new Exception("Something went wrong",500);
+								throw new \Exception("Something went wrong",500);
 							}
 						}
 					}
 						
 					else{
 						$set = false;
-						throw new Exception("Something went wrong",500);
+						throw new \Exception("Something went wrong",500);
 					}
 						
 				}
@@ -1004,7 +1004,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 				}
 			}
 			
-			} catch ( Exception $e ) {
+			} catch ( \Exception $e ) {
 				$transaction->rollback ();
 			}
 		}

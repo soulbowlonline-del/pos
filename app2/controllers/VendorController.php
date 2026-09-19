@@ -188,7 +188,7 @@ class VendorController extends BaseUiController {
 				//print_r($usermodel->getErrors());exit;
 				$transaction->rollback();
 			}
-			  } catch (Exception $e) {
+			  } catch (\Exception $e) {
 				 $transaction->rollback();
 				 } 
 		}

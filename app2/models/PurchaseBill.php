@@ -180,12 +180,13 @@ class PurchaseBill extends ActiveRecord
             $model = new PurchaseBill ();
             $model->getConsignmentData ();
             $query = PurchaseBill::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('is_consignment =' . PurchaseBill::IS_CONSIGNMENT);
             $query->andWhere('is_consignment_checked !=' . PurchaseBill::IS_CONSIGNMENT_CHECK);
             $query->andWhere('status =' . PurchaseBill::STATUS_APPROVED);
             $purchaseBills = $query->all();
 
-            Yii::warning( var_export( $purchaseBills , true), '$purchaseBills');
+            Yii::warning( var_export($purchaseBills, true), '$purchaseBills');
             if ($purchaseBills) {
                 foreach ( $purchaseBills as $purchaseBill ) {
 
@@ -194,7 +195,7 @@ class PurchaseBill extends ActiveRecord
                     $query1->andWhere('purchase_bill_id =' . $purchaseBill->id);
                     $purchaseBillDetails = $query1->all();
 
-                    Yii::warning( var_export( $purchaseBillDetails , true), '$purchaseBillDetails');
+                    Yii::warning( var_export($purchaseBillDetails, true), '$purchaseBillDetails');
                     if ($purchaseBillDetails) {
                         foreach ( $purchaseBillDetails as $purchaseBillDetail ) {
                             $date = $purchaseBill->end_date;
@@ -204,7 +205,7 @@ class PurchaseBill extends ActiveRecord
                             $query2->andWhere('item_detail_id =' . $purchaseBillDetail->item_detail_id);
                             $orderitems = $query2->all();
 
-                            Yii::warning( var_export( $orderitems , true), '$orderitems');
+                            Yii::warning( var_export($orderitems, true), '$orderitems');
                             if ($orderitems) {
                                 $qty = 0;
                                 foreach ( $orderitems as $orderitem ) {
@@ -219,7 +220,7 @@ class PurchaseBill extends ActiveRecord
                                         $query2->andWhere('item_id =' . $orderitem->item_id);
                                         $query3->andWhere('item_detail_id =' . $orderitem->item_detail_id);
                                         $orderrefunditems = $query3->all();
-                                        Yii::warning( var_export( $orderrefunditems , true), '$orderrefunditems');
+                                        Yii::warning( var_export($orderrefunditems, true), '$orderrefunditems');
                                         if ($orderrefunditems) {
                                             $refundqty = 0;
                                             foreach ( $orderrefunditems as $orderrefunditem ) {
@@ -235,7 +236,7 @@ class PurchaseBill extends ActiveRecord
                                     $qty = $qty + $addqty;
                                 }
 
-                                Yii::warning( var_export( $addqty , true), '$addqty');
+                                Yii::warning( var_export($addqty, true), '$addqty');
 
                                 if ($qty > $purchaseBillDetail->approved_qty || $qty = $purchaseBillDetail->approved_qty) {
                                     $purchaseBillDetail->is_consignment_checked = PurchaseBill::IS_CONSIGNMENT_CHECK;

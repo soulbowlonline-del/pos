@@ -567,7 +567,7 @@ class MrsDetail extends ActiveRecord
 
                 $connection = Yii::$app->db;
                 $command = $connection->createCommand($sql);
-                $command->bindParam(':itemId', $itemId, PDO::PARAM_INT);
+                $command->bindParam(':itemId', $itemId, \PDO::PARAM_INT);
                 return $command->queryRow();
         }
 
@@ -642,7 +642,7 @@ class MrsDetail extends ActiveRecord
 
             $connection = Yii::$app->db;
             $command = $connection->createCommand($sql);
-            $command->bindParam(':item_id', $itemId, PDO::PARAM_INT);
+            $command->bindParam(':item_id', $itemId, \PDO::PARAM_INT);
             $result = $command->queryRow();
 
             if ($result) {
@@ -690,7 +690,7 @@ class MrsDetail extends ActiveRecord
 
             $connection = Yii::$app->db;
             $command = $connection->createCommand($sql);
-            $command->bindParam(':item_id', $itemId, PDO::PARAM_INT);
+            $command->bindParam(':item_id', $itemId, \PDO::PARAM_INT);
             $result = $command->queryRow();
 
             if ($result && $result['mrs_count'] >= 2) {
@@ -1008,9 +1008,9 @@ class MrsDetail extends ActiveRecord
 
             $connection = Yii::$app->db;
             $command = $connection->createCommand($sql);
-            $command->bindParam(':start_date', $startDate, PDO::PARAM_STR);
-            $command->bindParam(':end_date', $endDate, PDO::PARAM_STR);
-            $command->bindParam(':limit', $limit, PDO::PARAM_INT);
+            $command->bindParam(':start_date', $startDate, \PDO::PARAM_STR);
+            $command->bindParam(':end_date', $endDate, \PDO::PARAM_STR);
+            $command->bindParam(':limit', $limit, \PDO::PARAM_INT);
 
             return $command->queryAll();
         }

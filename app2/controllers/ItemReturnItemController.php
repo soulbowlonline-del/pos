@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\CreditNote;
 use app\models\Item;
@@ -644,7 +645,7 @@ public function actionReport($id = null) {
   				}else{
   					$transaction->rollback ();
   				}
-  				} catch ( Exception $e ) {
+  				} catch ( \Exception $e ) {
   					$transaction->rollback ();
   				}
   		}
@@ -1217,7 +1218,7 @@ public function actionReport($id = null) {
                         } else {
                             $transaction->rollback();
                         }
-                    } catch (Exception $e) {
+                    } catch (\Exception $e) {
                         $transaction->rollback();
                     }
                 }

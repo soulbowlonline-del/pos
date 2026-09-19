@@ -23,22 +23,22 @@ echo GridView::widget([
 		'title',
 		[
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>Gx::listData(Item::class),
 			],
 		[
 			'attribute' =>'item_detail_id',
-			'value' => function ($data) { return Gx::str($data->itemDetail); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 			'filter'=>Gx::listData(ItemDetail::class),
 			],
 		[
 			'attribute' =>'item_category_id',
-			'value' => function ($data) { return Gx::str($data->itemCategory); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemCategory); },
 			'filter'=>Gx::listData(ItemCategory::class),
 			],
 		[
 			'attribute' =>'item_company_id',
-			'value' => function ($data) { return Gx::str($data->itemCompany); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemCompany); },
 			'filter'=>Gx::listData(ItemCompany::class),
 			],
 		/*
@@ -46,18 +46,18 @@ echo GridView::widget([
 		'stock_qty',
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>FreeItem::getTypeOptions(),
 				),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>FreeItem::getStatusOptions(),
 				),
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

@@ -338,7 +338,7 @@ class MrsDetailController extends BaseUiController {
 						$mrndetailmodel->outlet_id = $model->outlet_id;
 						/* if ($mrndetailmodel->save ()) {
 						} else {
-							throw new Exception ( "Something went wrong", 500 );
+							throw new \Exception ( "Something went wrong", 500 );
 						} 
 					} */
 				}
@@ -423,7 +423,7 @@ class MrsDetailController extends BaseUiController {
 						$mrndetailmodel->outlet_id = $model->outlet_id;
 						if ($mrndetailmodel->save ()) {
 						} else {
-							throw new Exception ( "Something went wrong", 500 );
+							throw new \Exception ( "Something went wrong", 500 );
 						}
 					}
 				}
@@ -1116,14 +1116,14 @@ class MrsDetailController extends BaseUiController {
 								if ($mrndetailmodel->save ()) {
 								} else {
 									$set = false;
-									throw new Exception ( "Something went wrong", 500 );
+									throw new \Exception ( "Something went wrong", 500 );
 								}
 							}
 						} 
 
 						else {
 							$set = false;
-							throw new Exception ( "Something went wrong", 500 );
+							throw new \Exception ( "Something went wrong", 500 );
 						}
 					}else{
 						
@@ -1184,7 +1184,7 @@ class MrsDetailController extends BaseUiController {
 				$transaction->rollback ();
 				
 			}
-			} catch ( Exception $e ) {
+			} catch ( \Exception $e ) {
 				$transaction->rollback ();
 			}
 			
