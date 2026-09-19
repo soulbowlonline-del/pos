@@ -370,6 +370,19 @@ def rewrite(src, ctrl, unknown):
     # <controller>/search reaches them, the CRUD suite never saw it.
     src = re.sub(r'\$this\s*->\s*route\b', '$this->context->route', src)
 
+    # Yii 1's pager, in both shapes the views use it: as a widget call and as
+    # a 'class' entry in a grid's pager configuration. Left alone it is a class
+    # that does not exist, and user/admin died on it. app\widgets\LinkPager
+    # takes CLinkPager's option names.
+    #
+    # Through a lambda, not a replacement string: a backslash in the second
+    # argument to re.sub is an escape, and \a in a class name is a bell.
+    pager = '\\app\\widgets\\LinkPager'
+    src = re.sub(r"'class'\s*=>\s*'CLinkPager'",
+                 lambda m: "'class' => %s::class" % pager, src)
+    src = re.sub(r"\$this\s*->\s*widget\s*\(\s*'CLinkPager'\s*,\s*",
+                 lambda m: 'echo %s::widget(' % pager, src)
+
     src = dump_as_string(src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', src)
@@ -507,10 +520,13 @@ def port_file(path, ctrl):
 
     header = ('<?php\n/**\n * Ported from protected/views/%s/%s.\n */\n\n%s\n?>\n'
               % (ctrl, os.path.basename(path), '\n'.join(uses)))
-    # drop the original leading <?php if the file opened with one
-    out = re.sub(r'^\s*<\?php\s*', '', out, count=1) if out.lstrip().startswith('<?php') else out
-    if not out.lstrip().startswith('<?') and not out.lstrip().startswith('<'):
-        out = '<?php\n' + out
+    # The header has already closed PHP, so the tag is re-opened only for a
+    # file that opened with one itself. Deciding by "it does not start with
+    # markup" instead wrapped a view that is plain text in <?php and made it
+    # code: protected/views/user/driver.php is the six bytes "Driver", and the
+    # port of it would not parse.
+    if out.lstrip().startswith('<?php'):
+        out = '<?php\n' + re.sub(r'^\s*<\?php\s*', '', out, count=1)
     return header + out, unknown
 
 

@@ -28,20 +28,22 @@ class MrsController extends BaseUiController {
 	}
 	public function actionMerge(){
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
-			$criteria = new CDbCriteria();
-			$criteria->addInCondition('id', $_POST['idList']);
-			$criteria->addCondition('vendor_id ='.$_POST['vendor_id']);
-			$mrs = Mrs::model()->find($criteria);
+			$query = Mrs::find();
+        $query->orderBy(['id' => SORT_DESC]);
+			$query->andWhere(['id' => $_POST['idList']]);
+			$query->andWhere('vendor_id ='.$_POST['vendor_id']);
+			$mrs = $query->one();
 			if($mrs){
-				$criteria = new CDbCriteria();
-				$criteria->addInCondition('id', $_POST['idList']);
-				$criteria->addCondition('id !='.$mrs->id);
-				$mrss = Mrs::model()->findAll($criteria);
+				$query_2 = Mrs::find();
+        $query_2->orderBy(['id' => SORT_DESC]);
+				$query_2->andWhere(['id' => $_POST['idList']]);
+				$query_2->andWhere('id !='.$mrs->id);
+				$mrss = $query_2->all();
 				if($mrss){
 					foreach($mrss as $delmrs){
-						$criteria1 = new CDbCriteria();
-						$criteria1->addCondition('mrs_id ='.$delmrs->id);
-						$mrsdetails = MrsDetail::model()->findAll($criteria1);
+						$query1 = MrsDetail::find();
+						$query1->andWhere('mrs_id ='.$delmrs->id);
+						$mrsdetails = $query1->all();
 						if($mrsdetails){
 							foreach($mrsdetails as $mrsdetail){
 								$mrsdetail->mrs_id = $mrs->id;
@@ -60,7 +62,8 @@ class MrsController extends BaseUiController {
 			}
 		}
 		
-	}
+	
+    }
 	public function actionView($id) 
 	{
 		$model = $this->loadModel($id);

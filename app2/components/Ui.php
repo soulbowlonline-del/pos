@@ -65,7 +65,6 @@ class Ui
         'itemDetail',
         'mrnDetail',
         'mrsDetail',
-        'itemReturn',
         'vendorSchemes',
         'orderRefundItem',
         'vendor',

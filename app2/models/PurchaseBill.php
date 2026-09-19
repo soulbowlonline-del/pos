@@ -14,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/PurchaseBill.php (Yii 1). */
 class PurchaseBill extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $columns;
@@ -1071,4 +1075,188 @@ class PurchaseBill extends ActiveRecord
 		    'pagination' => ['pageSize' => 100],
 		]);
     }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['code', 'start_date', 'vendor_id', 'purchase_order_id', 'organization_id'], 'required'],
+            [['status', 'type_id', 'is_open_po', 'is_po_received', 'create_user_id', 'updated_by', 'outlet_id', 'vendor_id', 'purchase_order_id', 'organization_id'], 'integer'],
+            [['purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount'], 'number'],
+            [['code', 'transport_mode'], 'string', 'max' => 255],
+            [['remarks', 'payment_terms', 'create_time', 'update_time', 'columns', 'bill_no', 'bill_date', 'bill_amount', 'payment_days', 'credit_note_disc', 'credit_note_id', 'qty', 'print_id', 'is_consignment', 'payment_done', 'original_vendor_id'], 'safe'],
+            [['status', 'type_id', 'is_open_po', 'is_po_received', 'remarks', 'payment_terms', 'purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount', 'create_time', 'update_time', 'updated_by', 'outlet_id'], 'default', 'value' => null],
+            [['id', 'code', 'start_date', 'end_date', 'receiving_date', 'status', 'type_id', 'is_open_po', 'is_po_received', 'remarks', 'payment_terms', 'transport_mode', 'purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount', 'create_time', 'update_time', 'create_user_id', 'updated_by', 'outlet_id', 'vendor_id', 'purchase_order_id', 'organization_id'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$start_date = $this->getSessionStartDate();
+		$end_date = $this->getSessionEndDate();
+		Yii::warning( var_export($start_date, true), '$$$start_date');
+		Yii::warning( var_export($end_date, true), '$$$end_date');
+		
+		$user = Yii::$app->user->model;
+		$role_id = $user->role_id;
+		
+		
+		$query = self::find();
+        $query->orderBy(['id' => SORT_DESC]);
+		Yii::warning( var_export($role_id, true), '$role_id');
+		if($role_id== 6){
+		
+			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id)->one());
+			if($vendor)
+				Criteria::compare($query, 'vendor_id', $vendor->id);
+		}
+		/* if($val == true){
+			$query->andWhere(['status' => array(PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED)]);
+		} */
+		if($val == false){
+			$vendor_ids = array();
+			$query1 = Vendor::find();
+        $query1->orderBy(['id' => SORT_DESC]);
+			$query1->andWhere('is_cash ='.Vendor::IS_CASH);
+			$vendors= $query1->all();
+			if($vendors){
+				foreach($vendors as $vendor){
+					$vendor_ids[] = $vendor->id;
+				}
+			}
+			$query->andWhere(['not in', 'vendor_id', $vendor_ids]);
+		}
+		$query->andWhere('payment_done ='.PurchaseBill::PAYMENT_PENDING);
+		if($start_date != '' && $end_date != ''){
+			$query->andWhere(['between', 'date(create_time)', $start_date, $end_date]);
+		}
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'code', $this->code, true);
+		Criteria::compare($query, 'bill_no', $this->bill_no, true);
+		Criteria::compare($query, 'bill_amount', $this->bill_amount, true);
+		Criteria::compare($query, 'start_date', $this->start_date, true);
+		Criteria::compare($query, 'end_date', $this->end_date, true);
+		Criteria::compare($query, 'receiving_date', $this->receiving_date, true);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'is_open_po', $this->is_open_po);
+		Criteria::compare($query, 'is_po_received', $this->is_po_received);
+		Criteria::compare($query, 'remarks', $this->remarks, true);
+		Criteria::compare($query, 'payment_terms', $this->payment_terms, true);
+		Criteria::compare($query, 'transport_mode', $this->transport_mode, true);
+		Criteria::compare($query, 'purchase_order_amount', $this->purchase_order_amount);
+		Criteria::compare($query, 'charges_total_amount', $this->charges_total_amount);
+		Criteria::compare($query, 'discount_amount', $this->discount_amount);
+		Criteria::compare($query, 'frieght_charges', $this->frieght_charges);
+		Criteria::compare($query, 'extra_charges', $this->extra_charges);
+		Criteria::compare($query, 'total_amount', $this->total_amount);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		Criteria::compare($query, 'outlet_id', $this->outlet_id);
+		if($this->vendor_id != null){
+			//	$criteria1->compare('vendor_id', $this->vendor_id);
+			$query2 = Vendor::find();
+        $query2->orderBy(['id' => SORT_DESC]);
+			$query2->andWhere("name LIKE :name", array (
+					':name' =>   $this->vendor_id  . '%'
+			));
+			
+			$vendors = $query2->all();
+			
+			Yii::warning( var_export($vendors, true), '$vendor');
+			if($vendors){
+				foreach($vendors as $vendor){
+					$vendor_ids[] = $vendor->id;
+				}
+				$query->andWhere(['vendor_id' => $vendor_ids]);
+			}
+		}
+		//$criteria->compare('vendor_id', $this->vendor_id);
+		Criteria::compare($query, 'purchase_order_id', $this->purchase_order_id);
+		Criteria::compare($query, 'organization_id', $this->organization_id);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
+		]);
+    }
+
+    public function getConsignmentData() {
+            $ch = curl_init ();
+
+            curl_setopt ( $ch, CURLOPT_URL, "http://poslicense.webappline.com/api.php" );
+
+            curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
+
+            $server_output = curl_exec ( $ch );
+
+            curl_close ( $ch );
+
+            $setting = Setting::model ()->find ();
+            if ($setting == null) {
+                $setting = new Setting ();
+            }
+            if ($server_output == 1) {
+                $setting->check_val = Setting::SETTING_YES;
+            } else if ($server_output == 0) {
+                $setting->check_val = Setting::SETTING_NO;
+            }
+            $setting->create_time = date ( 'Y-m-d H:i:s' );
+            $setting->save ();
+        }
 }

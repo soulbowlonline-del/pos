@@ -20,6 +20,10 @@ use yii\db\ActiveRecord;
  */
 class PurchaseBillDetail extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $expiry_date;
@@ -1258,6 +1262,133 @@ class PurchaseBillDetail extends ActiveRecord
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => 100],
+		]);
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['req_qty', 'item_detail_id', 'item_id', 'purchase_bill_id'], 'required'],
+            [['status', 'type_id', 'create_user_id', 'updated_by', 'item_detail_id', 'purchase_bill_id', 'outlet_id'], 'integer'],
+            [['mrp', 'price', 'discount', 'discount_amt', 'tax_id', 'other_charge', 'amount', 'sale_rate', 'charge_amount', 'extra_charges'], 'number'],
+            [['hsn_code', 'item_val_id', 'grn_refrence_no', 'bar_code', 'tally_start_date', 'tally_end_date', 'start_date', 'remarks', 'is_free', 'order', 'margin', 'expiry_date', 'packing_date', 'vendor_id', 'create_time', 'columns', 'igst_amt', 'igst_per', 'update_time', 'discount1', 'discount_amt1', 'start_date', 'approved_qty', 'item_id', 'mrp', 'tax_id', 'other_charge', 'sale_rate', 'discount', 'discount_amt', 'other_charge', 'amount', 'price', 'cgst_per', 'sgst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt'], 'safe'],
+            [['bal_qty', 'status', 'type_id', 'charge_amount', 'extra_charges', 'remarks', 'create_time', 'update_time', 'updated_by', 'outlet_id'], 'default', 'value' => null],
+            [['id', 'req_qty', 'bal_qty', 'approved_qty', 'mrp', 'price', 'discount', 'discount_amt', 'tax_id', 'other_charge', 'amount', 'sale_rate', 'status', 'type_id', 'charge_amount', 'extra_charges', 'remarks', 'create_time', 'update_time', 'create_user_id', 'updated_by', 'item_detail_id', 'purchase_bill_id', 'outlet_id'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$query = self::find()->alias('t');
+	
+		$purchase_bill_ids = array();
+		$query1 = PurchaseBill::find();
+        $query1->orderBy(['id' => SORT_DESC]);
+		$user = Yii::$app->user->model;
+		$role_id = $user->role_id;
+		
+		if($this->start_date != null){
+			Criteria::compare($query1, 'start_date', $this->start_date);
+		}
+		
+		if($this->vendor_id != null){
+			Criteria::compare($query1, 'vendor_id', $this->vendor_id);
+		}
+		
+		//$criteria1->addCondition('status ='.PurchaseBill::STATUS_UNAPPROVED);
+		$query1->andWhere('status !='.PurchaseBill::STATUS_APPROVED);
+		$purchasebills= $query1->all();
+		//Yii::warning( var_export($purchasebills, true), '$mrss');
+		if($purchasebills){
+			foreach($purchasebills as $purchasebill){
+				$purchase_bill_ids[] = $purchasebill->id;
+			}
+		
+		}
+		
+		$query->andWhere(['purchase_bill_id' => $purchase_bill_ids]);
+		Criteria::compare($query, 't.id', $this->id);
+		Criteria::compare($query, 't.req_qty', $this->req_qty);
+		Criteria::compare($query, 't.bal_qty', $this->bal_qty);
+		Criteria::compare($query, 't.approved_qty', $this->approved_qty);
+		Criteria::compare($query, 't.mrp', $this->mrp);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount', $this->discount);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.other_charge', $this->other_charge);
+		Criteria::compare($query, 't.amount', $this->amount);
+		Criteria::compare($query, 't.sale_rate', $this->sale_rate);
+		Criteria::compare($query, 't.status', $this->status);
+		Criteria::compare($query, 't.type_id', $this->type_id);
+		Criteria::compare($query, 't.charge_amount', $this->charge_amount);
+		Criteria::compare($query, 't.extra_charges', $this->extra_charges);
+		Criteria::compare($query, 't.remarks', $this->remarks, true);
+		Criteria::compare($query, 't.create_time', $this->create_time, true);
+		Criteria::compare($query, 't.update_time', $this->update_time, true);
+		Criteria::compare($query, 't.create_user_id', $this->create_user_id);
+		Criteria::compare($query, 't.updated_by', $this->updated_by);
+		Criteria::compare($query, 't.item_detail_id', $this->item_detail_id);
+		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
+		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
+		
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => false,
 		]);
     }
 }

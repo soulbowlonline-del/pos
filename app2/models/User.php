@@ -23,6 +23,10 @@ use yii\helpers\Url;
  */
 class User extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $session_id;
@@ -1032,4 +1036,316 @@ class User extends ActiveRecord
 
         return $list;
     }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['username', 'email'], 'required'],
+            [['password', 'username', 'email'], 'required'],
+            [['password', 'password_2'], 'required'],
+            [['postal_code', 'role_id', 'state_id', 'type_id', 'is_active', 'login_error_count'], 'integer'],
+            [['full_name', 'username', 'email'], 'string', 'max' => 256],
+            [['password', 'address', 'image_file', 'activation_key'], 'string', 'max' => 512],
+            [['lat', 'long'], 'string', 'max' => 32],
+            [['username'], 'unique'],
+            [['email'], 'unique'],
+            [['email'], 'email'],
+            [['contact_no'], 'string', 'max' => 255],
+            [['country', 'city', 'state'], 'string', 'max' => 128],
+            [['lang'], 'string', 'max' => 8],
+            [['date_of_birth', 'question_id', 'answer', 'about_me', 'username', 'category_id', 'last_visit_time', 'last_action_time', 'last_password_change', 'create_time', 'store_id', 'provider', 'device_token', 'device_type', 'session_id', 'device_token', 'api_key', 'ivr_username'], 'safe'],
+            [['lat', 'long', 'contact_no', 'username', 'date_of_birth', 'gender', 'about_me', 'address', 'postal_code', 'country', 'city', 'state', 'lang', 'role_id', 'state_id', 'type_id', 'last_visit_time', 'last_action_time', 'last_password_change', 'activation_key', 'is_active', 'login_error_count', 'create_time'], 'default', 'value' => null],
+            [['id', 'full_name', 'email', 'username', 'password', 'lat', 'long', 'contact_no', 'date_of_birth', 'gender', 'about_me', 'address', 'postal_code', 'country', 'city', 'state', 'lang', 'image_file', 'role_id', 'state_id', 'type_id', 'last_visit_time', 'last_action_time', 'last_password_change', 'activation_key', 'is_active', 'login_error_count', 'create_time'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$query = self::find();
+        $query->orderBy(['id' => SORT_DESC]);
+		$alreadyroles = array('6,7');
+		Criteria::compare($query, 'id', $this->id);
+		$query->andWhere(['not in', 'role_id', $alreadyroles]);
+		Criteria::compare($query, 'full_name', $this->full_name, true);
+		Criteria::compare($query, 'username', $this->username, true);
+		Criteria::compare($query, 'email', $this->email, true);
+		Criteria::compare($query, 'password', $this->password, true);
+		Criteria::compare($query, 'lat', $this->lat, true);
+		Criteria::compare($query, 'long', $this->long, true);
+		Criteria::compare($query, 'contact_no', $this->contact_no, true);
+		Criteria::compare($query, 'date_of_birth', $this->date_of_birth, true);
+		Criteria::compare($query, 'gender', $this->gender, true);
+		Criteria::compare($query, 'about_me', $this->about_me, true);
+		Criteria::compare($query, 'address', $this->address, true);
+		Criteria::compare($query, 'postal_code', $this->postal_code);
+		Criteria::compare($query, 'country', $this->country, true);
+		Criteria::compare($query, 'city', $this->city, true);
+		Criteria::compare($query, 'state', $this->state, true);
+		Criteria::compare($query, 'lang', $this->lang, true);
+		Criteria::compare($query, 'image_file', $this->image_file, true);
+		
+		Criteria::compare($query, 'role_id', $this->role_id);
+		Criteria::compare($query, 'state_id', $this->state_id);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'last_visit_time', $this->last_visit_time, true);
+		Criteria::compare($query, 'last_a ction_time', $this->last_action_time, true);
+		Criteria::compare($query, 'last_password_change', $this->last_password_change, true);
+		Criteria::compare($query, 'activation_key', $this->activation_key, true);
+		Criteria::compare($query, 'is_active', $this->is_active);
+		Criteria::compare($query, 'login_error_count', $this->login_error_count);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    public function logout()
+        {
+            if ( !Yii::$app->user->isGuest) {
+                $this->last_action_time = date( 'Y-m-d H:i:s');
+                $this->saveAttributes(['last_action_time']);
+            }
+        }
+
+    public function after_login()
+        {
+            $driver = Driver::find()->where(['user_id'=>Yii::$app->user->id])->one();
+            if(!$driver)
+            {
+                $driver = new Driver();
+                $driver->user_id = Yii::$app->user->id;
+                $driver->no_of_riders = 8;
+                $driver->rider_rating = 0;
+                $driver->receive_notification = 0;
+                $driver->rider_reviews = 0;
+                $driver->sex = 2;
+                $driver->distance_from_you = 10;
+                if($driver->save())
+                return true;
+                else
+                return false;
+            }
+        }
+
+    public function updateLastActionTime()
+        {
+            $this->last_action_time = date( 'Y-m-d H:i:s');
+            $this->saveAttributes(['last_action_time']);
+        }
+
+    public function updateLastVisit()
+        {
+            $this->last_visit_time = date( 'Y-m-d H:i:s');
+            $this->saveAttributes(['last_visit_time']);
+        }
+
+    public static function searchByName($keyword, $limit = 20)
+        {
+            $list = [];
+            $chars = str_split($keyword);
+            {
+                $criteria = new CDbCriteria;
+                $criteria->addSearchCondition('username', $keyword, true);
+                $criteria->addSearchCondition('full_name', $keyword, true);
+                $criteria->scopes = 'active';
+                $criteria->order = 'username';
+                $criteria->limit = $limit;
+                $list = self::model()->findAll($criteria);
+            }
+            return $list;
+        }
+
+    public function recover()
+        {
+            $password = self::randomPassword();
+            $this->setPassword($password,$password);
+            if( $this->save('password') )
+            {
+                $to      = $this->email;
+
+                $subject = 'Your new password: ';
+
+                $body     = 'Dear '. $this->full_name ."\r\n";
+                $body     .=' ' ."\r\n";
+                $body     .= 'In order to login, please use following credentials. '."\r\n";;
+                $body     .=' ' ."\r\n";
+                $body     .= 'Email ID: ' . $this->email . "\r\n";
+                $body     .= 'Password: ' . $password . "\r\n";
+                $body     .= ' ' ."\r\n";
+                $body     .= 'Thanks' ."\r\n";
+                $body     .= 'Admin' ."\r\n";
+
+                $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
+                        'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+                //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+
+                (class_exists('PosOutbound') && PosOutbound::isStubbed())
+                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                    : @mail($to, $subject, $body, $headers);
+
+                //if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
+                //exit();
+            }
+        }
+
+    public function sendPassword()
+        {
+            $password = self::randomPassword();
+            $this->setPassword($password,$password);
+            if( $this->save('password') )
+            {
+                $to      = $this->email;
+                $subject = 'Your new password: ';
+
+                $body     = 'Dear '. $this->full_name ."\r\n";
+                $body     .=' ' ."\r\n";
+                $body     .= 'In order to login, please use following credentials. '."\r\n";;
+                $body     .=' ' ."\r\n";
+                $body     .= 'Email ID: ' . $this->email . "\r\n";
+                $body     .= 'Password: ' . $password . "\r\n";
+                $body     .= ' ' ."\r\n";
+                $body     .= 'Thanks' ."\r\n";
+                $body     .= 'Admin' ."\r\n";
+
+                $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
+                        'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+                //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+
+                (class_exists('PosOutbound') && PosOutbound::isStubbed())
+                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                    : @mail($to, $subject, $body, $headers);
+
+                //if ( YII_ENV == 'dev' )
+                return $password;
+            }
+        }
+
+    public function generateActivationKey($activate = false)
+        {
+            $this->activation_key = $activate? User::encrypt(microtime()): User::encrypt(microtime() . $this->password);
+            $this->saveAttributes(['activation_key']);
+            return $this->activation_key;
+        }
+
+    public function activate($email, $key)
+        {
+
+            if ($this->email == $email)
+            {
+                if ($this->state_id != self::STATUS_INACTIVE)
+                return -1;
+                if ($this->activation_key == $key)
+                {
+                    $this->state_id = self::STATUS_ACTIVE;
+                    if ($this->saveAttributes([ 'state_id']))
+                    {
+                        return 1;
+                    }
+                } else return -2;
+            }
+            return false;
+        }
+
+    public function setPassword($password,$password_2)
+        {
+            if ($password != '' && $password == $password_2 ) {
+                $this->password = User::encrypt2($password);
+                return $this->save(false,'password');
+            }
+            return false;
+        }
+
+    public static function encrypt($string = "")
+        {
+            $salt = self::$salt1;
+            $hashFunc = self::$hashFunc;
+            $string = sprintf("%s%s%s", $salt, $string, $salt);
+
+            if (!function_exists($hashFunc))
+            throw new CException('Function `' . $hashFunc . '` is not a valid callback for hashing algorithm.');
+
+            return $hashFunc($string);
+        }
+
+    public function addNewSessionName(){
+            $current_date = date('Y-m-d');
+            $date = date('Y').'-04-01';
+            $month = date('m');
+
+            if($month > 3){
+                $year = date('Y');
+                $yearadd = $year + 1;
+            }else{
+                $yearadd = date('Y');
+                $year = $yearadd - 1;
+            }
+            if($current_date == $date){
+            $name = $year.'-'.$yearadd;
+            $session = Session::find()->where(['name'=>$name])->one();
+            if($session == null){
+                $session = new Session();
+            }
+            $session->name = $name;
+            $session->create_time = date('Y-m-d H:i:s');
+
+            Yii::warning( var_export($session, true), 'timer is working');
+            $session->save();
+            }
+        }
 }

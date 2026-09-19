@@ -284,7 +284,7 @@ if(isset(Yii::$app->session['item_qty']) && (Yii::$app->session['item_qty']!= ''
 <?php }?>
 </div>
 <?php 
-  $this->widget('CLinkPager',[
+  echo \app\widgets\LinkPager::widget([
     'pages'=>$dataProvider->pagination,
   	//	'htmlOptions'=>array('class'=>''),
   		

@@ -25,7 +25,7 @@ $total_sgst = '0.00';
 $total_cess = '0.00';
 $total_igst = '0.00';
 ?>
-<?php $taxes = Tax::findAll(['status'=>MrsDetail::STATUS_PENDING]);?>
+<?php $taxes = Tax::find()->where(['status'=>MrsDetail::STATUS_PENDING])->all();?>
 <?php foreach($taxes as $tax){
 	$total_cgst = $total_cgst + $tax->getChangePBillCgstAmount($poid,$tax->id,'cgst_amt',$detailid,$tax_id,$purchase_bill_ids);
 	$total_sgst = $total_sgst + $tax->getChangePBillCgstAmount($poid,$tax->id,'sgst_amt',$detailid,$tax_id,$purchase_bill_ids);

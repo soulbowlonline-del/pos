@@ -1,6 +1,7 @@
 <?php
 namespace app\controllers;
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\CreditNote;
 use app\models\Item;
@@ -37,7 +38,7 @@ use yii\web\NotFoundHttpException;
 class PurchaseBillDetailController extends BaseUiController {
 	
 	public function actionUpdateMRP($id){
-		$purchasebill = $this->loadModel($id);
+		$purchasebill = $this->loadModel($id, PurchaseBill::class);
 		if($purchasebill){
 			$purchaseBillDetails = PurchaseBillDetail::findAll(['purchase_bill_id'=>$purchasebill->id]);
 			if($purchaseBillDetails){
@@ -53,14 +54,14 @@ class PurchaseBillDetailController extends BaseUiController {
 	}
 	public function actionAjaxCreate($id = null)
 	{
-		$existpo = $this->loadModel($id);
+		$existpo = $this->loadModel($id, PurchaseBill::class);
 		$model = new PurchaseBillDetail;
 	
 		//$this->performAjaxValidation($model, 'purchase-order-detail-form');
 	
-		if (Yii::$app->request->post('PurchaseBillDetail') !== null) {
+		if (isset($_POST['PurchaseBillDetail'])) {
 				
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'PurchaseBillDetail');
 			$model->outlet_id = $existpo->outlet_id;
 			if($model->approved_qty != '')
 				$model->bal_qty = ($model->req_qty - $model->approved_qty);
@@ -100,10 +101,10 @@ class PurchaseBillDetailController extends BaseUiController {
 					
 				$item = Item::findOne( $itemdetail->item_id);
 					
-				$criteria = new CDbCriteria();
-				$criteria->order = 'id desc';
-				$criteria->addCondition('item_detail_id ='.$item->id);
-				$vendor =  ItemVendor::model()->find($criteria);
+				$query = ItemVendor::find();
+				$query->orderBy(['id' => SORT_DESC]);
+				$query->andWhere('item_detail_id ='.$item->id);
+				$vendor =  $query->one();
 				if($vendor->vendor_id == $_POST ['vendor_id'] ){
 					$msg = 'success';
 				}else{
@@ -134,10 +135,10 @@ class PurchaseBillDetailController extends BaseUiController {
 					$attr = $itemdetail->getCompanyBarcode($itemdetail->id);
 				}
 
-				$criteria = new CDbCriteria ();
-				$criteria->order = 'id asc';
-				$criteria->limit = 1;
-				$outlet_model = Outlet::model ()->find ( $criteria );
+				$query_2 = Outlet::find();
+				$query_2->orderBy(['id' => SORT_ASC]);
+				$query_2->limit(1);
+				$outlet_model = $query_2->one();
 
 				$tax_type = 0;  // 0 => gst, 1 => igst
 				if ($outlet_model) {
@@ -147,9 +148,9 @@ class PurchaseBillDetailController extends BaseUiController {
 					}
 				}
 				
-				$taxCriteria = new CDbCriteria ();
-				$taxCriteria->addCondition('type_id ='.$tax_type);
-				$taxes = Tax::model ()->findAll ($taxCriteria);
+				$taxQuery = Tax::find();
+				$taxQuery->andWhere('type_id ='.$tax_type);
+				$taxes = $taxQuery->all();
 				$option .= '<select class="form-control" id="PurchaseBillDetail_item_detaill_list_id" name="PurchaseBillDetail[tax_id]"><option value="" id="ckbCheckAll">-Select-</option>';
 				if ($taxes) {
 					foreach ( $taxes as $taxx ) {
@@ -201,11 +202,11 @@ class PurchaseBillDetailController extends BaseUiController {
 		$alreadypermissions = [];
 		if (isset ( $_POST ['item_id'] )) {
 			
-			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
-			$criteria->order = 'id desc';
-			$itemdetail = ItemDetail::model ()->find( $criteria );
+			$query = ItemDetail::find();
+			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
+			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->orderBy(['id' => SORT_DESC]);
+			$itemdetail = $query->one();
 			if ($itemdetail) {
 				$bar_code = $itemdetail->bar_code;
 			}
@@ -220,7 +221,7 @@ class PurchaseBillDetailController extends BaseUiController {
 	}
 	public function actionAjaxTax() {
 		if (isset ( $_POST ['tax_id'] )) {
-			$model = $this->loadModel($_POST ['tax_id']);
+			$model = $this->loadModel($_POST ['tax_id'], Tax::class);
 			
 			$data ['cgst'] = $model->tax_val1;
 			$data ['sgst'] = $model->tax_val2;
@@ -236,9 +237,10 @@ class PurchaseBillDetailController extends BaseUiController {
 		$noteid = '';
 		if ($bill) {
 			if (isset ( $_POST ['credit_note'] ) && isset ( $_POST ['bill_amount'] )) {
-				$criteria = new CDbCriteria ();
-				$criteria->compare ( 'credit_number', $_POST ['credit_note'] );
-				$model = CreditNote::model ()->find ( $criteria );
+				$query = CreditNote::find();
+        $query->orderBy(['id' => SORT_DESC]);
+				Criteria::compare($query, 'credit_number', $_POST ['credit_note']);
+				$model = $query->one();
 				if ($model) {
 				
 						$noteid = $model->id;
@@ -269,7 +271,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			$purchase_bill_ids = $_POST ['purchase_ids'];
 			$model = $this->loadModel($_POST ['id']);
 			if ($model) {
-				$purchaseBill = $this->loadModel($model->purchase_bill_id);
+				$purchaseBill = $this->loadModel($model->purchase_bill_id, PurchaseBill::class);
 			}
 			
 			
@@ -308,14 +310,15 @@ class PurchaseBillDetailController extends BaseUiController {
 				$start_date = $yearlast.'-04-01';
 				$end_date = $year.'-03-31';
 			}
-			$criteria = new CDbCriteria ();
+			$query = PurchaseBill::find();
+        $query->orderBy(['id' => SORT_DESC]);
 			// $criteria->addCondition ( 'vendor_id =' . $bill->vendor_id );
 			if($start_date != '' && $end_date != ''){
-				$criteria->addBetweenCondition('date(create_time)', $start_date, $end_date);
+				$query->andWhere(['between', 'date(create_time)', $start_date, $end_date]);
 			}
-			$criteria->addCondition ( 'id !=' . $id );
-			$criteria->compare ( 'bill_no', $_POST ['bill_no'] );
-			$bill = PurchaseBill::model ()->findAll ( $criteria );
+			$query->andWhere('id !=' . $id);
+			Criteria::compare($query, 'bill_no', $_POST ['bill_no']);
+			$bill = $query->all();
 			if (! $bill) {
 				echo 'Success';
 			} else {
@@ -342,10 +345,11 @@ class PurchaseBillDetailController extends BaseUiController {
 		}
 		if (isset ( $_POST ['vendor_id'] )) {
 			
-			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'vendor_id =' . $_POST ['vendor_id'] );
-			$criteria->addCondition ( 'status !=' . PurchaseBill::STATUS_APPROVED );
-			$mrslist = PurchaseBill::model ()->findAll ( $criteria );
+			$query = PurchaseBill::find();
+        $query->orderBy(['id' => SORT_DESC]);
+			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere('status !=' . PurchaseBill::STATUS_APPROVED);
+			$mrslist = $query->all();
 			
 			$option .= '<select class="form-control"  id="PurchaseBillDetail_purchase_bill_id" name="PurchaseBillDetail[purchase_bill_id]"><option value="" id="ckbCheckAll">-Select-</option>';
 			if ($mrslist) {
@@ -367,8 +371,8 @@ class PurchaseBillDetailController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'purchase-bill-detail-form' );
 		
-		if (Yii::$app->request->post('PurchaseBillDetail') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['PurchaseBillDetail'] )) {
+			$model->load($_POST, 'PurchaseBillDetail');
 			
 			if ($model->save ()) {
 				if (Yii::$app->request->isAjax)
@@ -392,8 +396,8 @@ class PurchaseBillDetailController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'purchase-bill-detail-form' );
 		
-		if (Yii::$app->request->post('PurchaseBillDetail') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['PurchaseBillDetail'] )) {
+			$model->load($_POST, 'PurchaseBillDetail');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -427,8 +431,8 @@ class PurchaseBillDetailController extends BaseUiController {
 		$model = new PurchaseBillDetail(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('PurchaseBillDetail') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['PurchaseBillDetail'] )) {
+			$model->load($_GET, 'PurchaseBillDetail');
 			
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
@@ -441,7 +445,7 @@ class PurchaseBillDetailController extends BaseUiController {
 		] );
 	}
 	public function actionList($id = null, $poid = null) {
-		$model = new PurchaseBill ( 'search' );
+		$model = new PurchaseBill(['scenario' => 'search']);
 		
 		$this->updateMenuItems ( $model );
 		$columns = [];
@@ -450,7 +454,7 @@ class PurchaseBillDetailController extends BaseUiController {
 		}
 		$_GET ['PurchaseBill']['status'] = PurchaseBill::STATUS_APPROVED;
 		if (isset ( $_GET ['PurchaseBill'] ))
-			$model->setAttributes ( $_GET ['PurchaseBill'] );
+			$model->load($_GET, 'PurchaseBill');
 		
 		return $this->render( 'list', [
 				'model' => $model 
@@ -461,7 +465,7 @@ class PurchaseBillDetailController extends BaseUiController {
 		
 		$this->updateMenuItems ( $model );
 		$columns = [];
-		Yii::warning( var_export( $_POST , true), '$_POST');
+		Yii::warning( var_export($_POST, true, true), '$_POST');
 		if (isset ( $_POST ['PurchaseBillDetail'] ['tally_start_date'] ) && ($_POST ['PurchaseBillDetail'] ['tally_start_date'] != '') && (isset ( $_POST ['PurchaseBillDetail'] ['tally_end_date'] )) && ($_POST ['PurchaseBillDetail'] ['tally_end_date'] != '')) {
 			$_GET ['PurchaseBillDetail'] ['tally_start_date'] = $_POST ['PurchaseBillDetail'] ['tally_start_date'];
 			$_GET ['PurchaseBillDetail'] ['tally_end_date'] = $_POST ['PurchaseBillDetail'] ['tally_end_date'];
@@ -471,8 +475,8 @@ class PurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['PurchaseBillDetail'] ['columns'] )) {
 			$columns = $_POST ['PurchaseBillDetail'] ['columns'];
 		}
-		if (Yii::$app->request->get('PurchaseBillDetail') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['PurchaseBillDetail'] ))
+			$model->load($_GET, 'PurchaseBillDetail');
 		$columns = $model->getColumns ( $columns );
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->reportsearch (), $columns );
@@ -532,7 +536,7 @@ class PurchaseBillDetailController extends BaseUiController {
 				}else{
 					$advancepay = true;
 				}
-				Yii::warning( var_export( $advancepay , true), '$$advancepay');
+				Yii::warning( var_export($advancepay, true, true), '$$advancepay');
 				$set = true;
 				$transaction = Yii::$app->db->beginTransaction ();
 				try {
@@ -576,9 +580,9 @@ class PurchaseBillDetailController extends BaseUiController {
 							 	if ($billstock->save ()) {
 								$billstock->createMrs();
 							 	}else{
-							 		Yii::warning( var_export( $billstock->getErrors() , true), 'error1');
+							 		Yii::warning( var_export($billstock->getErrors(), true, true), 'error1');
 							 	}
-								Yii::warning( var_export( $billstock , true), '$billstock');
+								Yii::warning( var_export($billstock, true, true), '$billstock');
 							}else{ 
 							    if($billstock == null){
 							    	$billstock = new ItemStock ();
@@ -594,9 +598,9 @@ class PurchaseBillDetailController extends BaseUiController {
 							    	$billstock->item_detail_id = $itemdetail->id;
 							    	if ($billstock->save ()) {
 							    		$billstock->createMrs();
-							    		Yii::warning( var_export( $billstock , true), '$billstock1');
+							    		Yii::warning( var_export($billstock, true, true), '$billstock1');
 							    	}else{
-							    		Yii::warning( var_export( $billstock->getErrors() , true), 'error2');
+							    		Yii::warning( var_export($billstock->getErrors(), true, true), 'error2');
 							    	}
 							    }
 								
@@ -627,9 +631,9 @@ class PurchaseBillDetailController extends BaseUiController {
 							$model->discount_amt1 = $poIdAll ['discount_amt1'] [$key];
 						}
 						if (isset ( $poIdAll ['taxselectData'] )) {
-							$criteria = new CDbCriteria ();
-							$criteria->addCondition ( 'item_detail_id =' . $itemdetail->id );
-							$itemtax = ItemTax::model ()->find ( $criteria );
+							$query = ItemTax::find();
+							$query->andWhere('item_detail_id =' . $itemdetail->id);
+							$itemtax = $query->one();
 							if ($itemtax) {
 								$itemtax->tax_id = $poIdAll ['taxselectData'] [$key];
 								$itemtax->saveAttributes ( [
@@ -644,9 +648,9 @@ class PurchaseBillDetailController extends BaseUiController {
 						}
 						// sale_tax_id
 						if (isset ( $poIdAll ['saletaxselectData'] ) && $poIdAll ['saletaxselectData'] [$key]) {
-							$criteria = new CDbCriteria ();
-							$criteria->addCondition ( 'item_detail_id =' . $itemdetail->id );
-							$itemtax = ItemTax::model ()->find ( $criteria );
+							$query_2 = ItemTax::find();
+							$query_2->andWhere('item_detail_id =' . $itemdetail->id);
+							$itemtax = $query_2->one();
 							if ($itemtax) {
 								$itemtax->tax_id = $poIdAll ['saletaxselectData'] [$key];
 								$itemtax->saveAttributes ( [
@@ -807,15 +811,15 @@ class PurchaseBillDetailController extends BaseUiController {
 									$mrsdetails = MrsDetail::findAll(['item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
 									]);
-									Yii::warning( var_export( $mrsdetails , true), '$mrsdetails');
+									Yii::warning( var_export($mrsdetails, true, true), '$mrsdetails');
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
 											$mrs_id = $mrsdetail->mrs_id;
-											$criteria1 = new CDbCriteria ();
+											$query1 = MrsDetail::find();
 											
-											$criteria1->compare ( "mrs_id ", $mrsdetail->mrs_id );
+											Criteria::compare($query1, "mrs_id ", $mrsdetail->mrs_id);
 												
-											$mrsItems = MrsDetail::model ()->count ( $criteria1 );
+											$mrsItems = $query1->count();
 											$mrs = Mrs::findOne($mrs_id);
 											if(($mrs) && ($mrsdetail) && ($item->id == $mrsdetail->item_id) && 
 											($mrs->status != Mrs::STATUS_DONE)){
@@ -870,17 +874,17 @@ class PurchaseBillDetailController extends BaseUiController {
 								if($stocklog->save ()){
 								}else{
 									$set = false;
-									Yii::warning( var_export( $stocklog->getErrors() , true), 'error5');
+									Yii::warning( var_export($stocklog->getErrors(), true, true), 'error5');
 								}
 							}else{
 								$set = false;
-								Yii::warning( var_export( $itemstock->getErrors() , true), 'error4');
+								Yii::warning( var_export($itemstock->getErrors(), true, true), 'error4');
 							}
 							}
 						} 
 
 						else {
-							Yii::warning( var_export( $model->getErrors() , true), 'error3');
+							Yii::warning( var_export($model->getErrors(), true, true), 'error3');
 							$set = false;
 							throw new \Exception ( "Something went wrong", 500 );
 						}
@@ -947,7 +951,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			}
 		}
 		
-		if (Yii::$app->request->post('PurchaseBillDetail') !== null) {
+		if (isset ( $_POST ['PurchaseBillDetail'] )) {
 			if (isset ( $_POST ['PurchaseBillDetail'] ['outlet_id'] )) {
 				$_GET ['PurchaseBillDetail'] ['outlet_id'] = $_POST ['PurchaseBillDetail'] ['outlet_id'];
 			}
@@ -987,8 +991,8 @@ class PurchaseBillDetailController extends BaseUiController {
 			$_GET ['PurchaseBillDetail'] ['purchase_bill_id'] = $poid;
 		}
 		
-		if (Yii::$app->request->get('PurchaseBillDetail') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['PurchaseBillDetail'] ))
+			$model->load($_GET, 'PurchaseBillDetail');
 		if($vid == null){
 			$vid = $vendor_id;
 		}
@@ -1029,7 +1033,7 @@ class PurchaseBillDetailController extends BaseUiController {
 		$_GET ['poid'] = $poid;
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->post('PurchaseBillDetail') !== null) {
+		if (isset ( $_POST ['PurchaseBillDetail'] )) {
 			if (isset ( $_POST ['PurchaseBillDetail'] ['outlet_id'] )) {
 				$_GET ['PurchaseBillDetail'] ['outlet_id'] = $_POST ['PurchaseBillDetail'] ['outlet_id'];
 			}
@@ -1047,8 +1051,8 @@ class PurchaseBillDetailController extends BaseUiController {
 				$poid = 0;
 			$_GET ['PurchaseBillDetail'] ['purchase_bill_id'] = $poid;
 		}
-		if (Yii::$app->request->get('PurchaseBillDetail') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['PurchaseBillDetail'] ))
+			$model->load($_GET, 'PurchaseBillDetail');
 		
 		return $this->render( 'admin', [
 				'model' => $model,

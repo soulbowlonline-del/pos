@@ -23,12 +23,12 @@ use app\widgets\GridView;
 			
 			[
 					'attribute' =>'item_id',
-					'value' => function ($data) { return Gx::str($data->item); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 					'filter'=>Gx::listData(Item::class),
 			],
 			[
 					'attribute' =>'item_detail_id',
-					'value' => function ($data) { return Gx::str($data->itemDetail); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 					'filter'=>Gx::listData(ItemDetail::class),
 			],
 		'req_qty',
@@ -36,7 +36,7 @@ use app\widgets\GridView;
 		'approved_qty',
 // 			array(
 // 					'attribute' => 'status',
-// 					'value' => function ($data) { return $data->getStatusOptions($data->status); },
+// 					'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 // 					'filter'=>PurchaseBillDetail::getStatusOptions(),
 // 			),
 		'mrp',
@@ -48,14 +48,14 @@ use app\widgets\GridView;
 			'discount_amt1',
 			[
 					'attribute' => 'tax_id',
-					'value' => function ($data) { return isset($data->tax)?$data->tax:""; },
+					'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax:""; },
 					
 			],
 			
 [
     				
     				'attribute' =>'cgst_per',
-    				'value' => function ($data) { return $data->cgst_per; },
+    				'value' => function ($data, $key, $index) { return $data->cgst_per; },
 	             	'format' => 'raw',
 		          'visible'=>'$data->purchase_bill_id== 0',
     					
@@ -63,43 +63,43 @@ use app\widgets\GridView;
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->sgst_per; },
+    				'value' => function ($data, $key, $index) { return $data->sgst_per; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->cess_per; },
+    				'value' => function ($data, $key, $index) { return $data->cess_per; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== false',
     				'attribute' =>'igst_per',
-    				'value' => function ($data) { return $data->igst_per; },
+    				'value' => function ($data, $key, $index) { return $data->igst_per; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->cgst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->cgst_amt; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
     				'attribute' =>'sgst_amt',
-    				'value' => function ($data) { return $data->sgst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->sgst_amt; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== true',
     				'attribute' =>'cess_amt',
-    				'value' => function ($data) { return $data->cess_amt; },
+    				'value' => function ($data, $key, $index) { return $data->cess_amt; },
     					
     		],
     		[
     				'visible'=>'$data->getGSTTrue($data->purchase_bill_id)== false',
     				'attribute' =>'igst_amt',
-    				'value' => function ($data) { return $data->igst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->igst_amt; },
     					
     		],
 			'other_charge',
@@ -115,12 +115,12 @@ use app\widgets\GridView;
 		'sale_rate',
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>PurchaseBillDetail::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>PurchaseBillDetail::getTypeOptions(),
 				),
 		'charge_amount',
@@ -129,22 +129,22 @@ use app\widgets\GridView;
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		array(
 			'attribute' =>'item_detail_id',
-			'value' => function ($data) { return Gx::str($data->itemDetail); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 			'filter'=>Gx::listData(ItemDetail::class),
 			),
 		array(
 			'attribute' =>'purchase_bill_id',
-			'value' => function ($data) { return Gx::str($data->purchaseBill); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->purchaseBill); },
 			'filter'=>Gx::listData(PurchaseBill::class),
 			),
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		*/

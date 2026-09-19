@@ -216,12 +216,12 @@ $('.search-form form').submit(function(){
 		'id',
     		[
     				'header'=>'Grn Date',
-    				'value' => function ($data) { return date("Y-m-d",strtotime($data->create_time)); },
+    				'value' => function ($data, $key, $index) { return date("Y-m-d",strtotime($data->create_time)); },
     				],
     		[
     				'header'=>'Date',
     				'attribute' =>'start_date',
-    				'value' => function ($data) { return isset($data->purchaseBill)?$data->purchaseBill->end_date:""; },
+    				'value' => function ($data, $key, $index) { return isset($data->purchaseBill)?$data->purchaseBill->end_date:""; },
     				'filter' => CJuiDatePicker::widget([
     								'model' => $model,
     								'attribute' => 'start_date',
@@ -245,99 +245,99 @@ $('.search-form form').submit(function(){
     		[
     				'header'=>'Vendor',
     				'attribute' =>'vendor_id',
-    				'value' => function ($data) { return Gx::str($data->purchaseBill->vendor); },
+    				'value' => function ($data, $key, $index) { return Gx::str($data->purchaseBill->vendor); },
     				'filter'=>Gx::listData(Vendor::class),
     					
     		],
     		[
     				'header'=>'HSN Code',
     				'attribute' =>'tax_id',
-    				'value' => function ($data) { return isset($data->tax)?$data->tax->hrn_code:""; },
+    				'value' => function ($data, $key, $index) { return isset($data->tax)?$data->tax->hrn_code:""; },
     				'filter'=>Tax::getHsnCodeList(),
     					
     		],
     		[
     				'header'=>'GST NO',
-    				'value' => function ($data) { return $data->getVendorTAXNO(); },
+    				'value' => function ($data, $key, $index) { return $data->getVendorTAXNO(); },
     					
     		],
     		[
     				'header'=>'CGST (%age)',
-    				'value' => function ($data) { return $data->getTaxPercentage("cgst_per"); },
+    				'value' => function ($data, $key, $index) { return $data->getTaxPercentage("cgst_per"); },
     					
     		],
     		[
     				'header'=>'SGST (%age)',
-    				'value' => function ($data) { return $data->getTaxPercentage("sgst_per"); },
+    				'value' => function ($data, $key, $index) { return $data->getTaxPercentage("sgst_per"); },
     					
     		],
     		[
     				'header'=>'CESS (%age)',
-    				'value' => function ($data) { return $data->getTaxPercentage("cess_per"); },
+    				'value' => function ($data, $key, $index) { return $data->getTaxPercentage("cess_per"); },
     					
     		],
     		// array(
     				// 'header'=>'IGST (%age)',
-					// 'value' => function ($data) { return $data->getTaxPercentage("igst_per"); },
+					// 'value' => function ($data, $key, $index) { return $data->getTaxPercentage("igst_per"); },
     			
     		// ),
 			
 				[
     				'header'=>'IGST (%age)',
-					'value' => function ($data) { return $data->getTaxIgstPercentage(); },
+					'value' => function ($data, $key, $index) { return $data->getTaxIgstPercentage(); },
     		],
 			
     		[
     				'header'=>'Net Amount',
     				'attribute' =>'amount',
-    				'value' => function ($data) { return isset ( $data->purchaseBill ) ? $data->purchaseBill->net_bill_amount: ""; },
+    				'value' => function ($data, $key, $index) { return isset ( $data->purchaseBill ) ? $data->purchaseBill->net_bill_amount: ""; },
     					
     		],
     		[
     				'header'=>'Basic Value',
     				'attribute' =>'amount',
-    				'value' => function ($data) { return $data->getBasicAmount(); },
+    				'value' => function ($data, $key, $index) { return $data->getBasicAmount(); },
     					
     		],
     		[
     				'header'=>'Discount',
-    				'value' => function ($data) { return $data->getMainDiscount(); },
+    				'value' => function ($data, $key, $index) { return $data->getMainDiscount(); },
     					
     		],
     		/* array(
     				'header'=>'Scheme Discount',
-    				'value' => function ($data) { return $data->discount_amt1; },
+    				'value' => function ($data, $key, $index) { return $data->discount_amt1; },
     					
     		), */
     		[
     				'header'=>'CGST Amount',
-    				'value' => function ($data) { return $data->getCgstAmount(); },
+    				'value' => function ($data, $key, $index) { return $data->getCgstAmount(); },
     					
     		],
     		[
     				'header'=>'SGST Amount',
-    				'value' => function ($data) { return $data->getSgstAmount(); },
+    				'value' => function ($data, $key, $index) { return $data->getSgstAmount(); },
     					
     		],
     		[
     				'header'=>'CESS Amount',
-    				'value' => function ($data) { return $data->getCessAmount(); },
+    				'value' => function ($data, $key, $index) { return $data->getCessAmount(); },
     					
     		],
     		[
     				'header'=>'IGST Amount',
-    				'value' => function ($data) { return $data->getIgstAmount(); },
+    				'value' => function ($data, $key, $index) { return $data->getIgstAmount(); },
     					
     		],
     		[
     				'header'=>'GRN NUMBER',
     				//'attribute' =>'purchase_bill_id',
-    				'value' => function ($data) { return isset($data->purchaseBill)?$data->purchaseBill->grn_refrence_no:""; },
+    				'value' => function ($data, $key, $index) { return isset($data->purchaseBill)?$data->purchaseBill->grn_refrence_no:""; },
     					
     		],
     		[
     				'header'=>'SCHEME AND DISCOUNT',
-    				'value' => function ($data) { return $data->getSchemeDiscount(); },
+    				'value' => function ($data, $key, $index) { return $data->getSchemeDiscount(); },
     					
     		],
     		

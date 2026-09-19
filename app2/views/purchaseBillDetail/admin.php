@@ -65,7 +65,7 @@ $('.search-form form').submit(function(){
 					'prepend'=>'<i class="icon-calendar"></i>',
 							'options'=>['format'=>'yyyy-mm-dd']])
 ; ?>
-<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::findAll(['status'=>Outlet::STATUS_ACTIVE])),['class'=>'form-control']); ?>
+<?php echo $form->dropdownListRow($model, 'outlet_id', Gx::listData(Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->all()),['class'=>'form-control']); ?>
 <?php $user = Yii::$app->user->model;
 if($user->role_id != 6){?>
 <?php echo $form->dropdownListRow($model, 'vendor_id',$model->getPBillVendorOptions(),['class'=>'form-control']); ?>
@@ -88,12 +88,12 @@ if($user->role_id != 6){?>
 <?php ActiveForm::end(); ?>
 
 <?php $vendor_id = null;
-$role = UserRole::findOne(['title'=>'Vendor']);
+$role = UserRole::find()->where(['title'=>'Vendor'])->one();
 			$loggedinuser = Yii::$app->user->model;
 			if($loggedinuser->role_id == $role->id){
-				$user = Vendor::findOne( [
+				$user = Vendor::find()->where([
 						'create_user_id' => $loggedinuser->id 
-				] );
+				])->one();
 				if($user){
 					$vendor_id = $user->id;
 				}
@@ -120,7 +120,7 @@ $role = UserRole::findOne(['title'=>'Vendor']);
         // ),
         [
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 				//'filter'=>$model->getItemOptions($vendor_id), 
         		'filter'=> false,
 				
@@ -128,23 +128,23 @@ $role = UserRole::findOne(['title'=>'Vendor']);
 			[
 					'header'=>'<a>Bar Code</a>',
 					'attribute' =>'item_detail_id',
-					'value' => function ($data) { return Gx::str($data->itemDetail); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 					//	'filter'=>$model->getItemOptionbarcodes(),
 					'filter'=> false,
 			],
 			[
 					'attribute' =>'outlet_id',
-					'value' => function ($data) { return Gx::str($data->outlet); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 					'filter'=>Gx::listData(Outlet::class),
 			],
 			[
 					'header'=>'vendor',
-					'value' => function ($data) { return Gx::str($data->purchaseBill->vendor); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->purchaseBill->vendor); },
 					
 			],
 			[
 				'attribute' =>'req_qty',
-				'value' => function ($data) { return $data->req_qty; },
+				'value' => function ($data, $key, $index) { return $data->req_qty; },
 				'filter'=>false,
 			],
     		'approved_qty',
@@ -159,56 +159,56 @@ $role = UserRole::findOne(['title'=>'Vendor']);
     	//	'vat',
     		[
     				'header'=>'Tax',
-    				'value' => function ($data) { return Gx::str($data->tax); },
+    				'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
     					
     		],
     		
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'cgst_per',
-    				'value' => function ($data) { return $data->cgst_per; },
+    				'value' => function ($data, $key, $index) { return $data->cgst_per; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->sgst_per; },
+    				'value' => function ($data, $key, $index) { return $data->sgst_per; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->cess_per; },
+    				'value' => function ($data, $key, $index) { return $data->cess_per; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == false,
     				'attribute' =>'igst_per',
-    				'value' => function ($data) { return $data->igst_per; },
+    				'value' => function ($data, $key, $index) { return $data->igst_per; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'sgst_per',
-    				'value' => function ($data) { return $data->cgst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->cgst_amt; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'sgst_amt',
-    				'value' => function ($data) { return $data->sgst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->sgst_amt; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == true,
     				'attribute' =>'cess_amt',
-    				'value' => function ($data) { return $data->cess_amt; },
+    				'value' => function ($data, $key, $index) { return $data->cess_amt; },
     					
     		],
     		[
     				'visible'=>$model->getGSTTrue($poid) == false,
     				'attribute' =>'igst_amt',
-    				'value' => function ($data) { return $data->igst_amt; },
+    				'value' => function ($data, $key, $index) { return $data->igst_amt; },
     					
     		],
     		

@@ -205,9 +205,9 @@ class CustomerUiController extends BaseUiController {
 		$model = new Customer ();
 		$is_email = true;
 		$current_date = date('Y-m-d');
-		$criteria2 = new CDbCriteria();
-		$criteria2->addCondition('email !=""');
-		$countcustomers = Customer::model()->count($criteria2);
+		$query2 = Customer::find();
+		$query2->andWhere('email !=""');
+		$countcustomers = $query2->count();
 		$days = $countcustomers/1900;
 		$remainder = $countcustomers%1900;
 		if($remainder != 0){
@@ -215,10 +215,10 @@ class CustomerUiController extends BaseUiController {
 		}
 		$before_date = date('Y-m-d',(strtotime ( "-2 day" , strtotime ( $current_date) ) ));
 		
-		$criteria3 = new CDbCriteria();
-		$criteria3->addCondition('email_date <="'.$before_date.'"');
-		$criteria3->addCondition('is_email ='.Customer::Is_Email_sent);
-		$oldcustomers = Customer::model()->findAll($criteria3);
+		$query3 = Customer::find();
+		$query3->andWhere('email_date <="'.$before_date.'"');
+		$query3->andWhere('is_email ='.Customer::Is_Email_sent);
+		$oldcustomers = $query3->all();
 		if($oldcustomers){
 			foreach($oldcustomers as $oldcustomer){
 				$oldcustomer->is_email = Customer::Is_Email_pending;
@@ -226,19 +226,19 @@ class CustomerUiController extends BaseUiController {
 			}
 		}
 		
-		$criteria1 = new CDbCriteria();
-		$criteria1->addCondition('email !=""');
-		$criteria1->addCondition('is_email ='.Customer::Is_Email_pending);
-		$emailcustomers = Customer::model()->count($criteria1);
+		$query1 = Customer::find();
+		$query1->andWhere('email !=""');
+		$query1->andWhere('is_email ='.Customer::Is_Email_pending);
+		$emailcustomers = $query1->count();
 		
 		if($emailcustomers == 0){
 			$is_email = false;
 		}else{
-			$criteria1 = new CDbCriteria();
-			$criteria1->addCondition('email !=""');
-			$criteria1->compare('email_date',$current_date);
-			$criteria1->addCondition('is_email ='.Customer::Is_Email_sent);
-			$emailcustomers = Customer::model()->count($criteria1);
+			$query1_2 = Customer::find();
+			$query1_2->andWhere('email !=""');
+			Criteria::compare($query1_2, 'email_date', $current_date);
+			$query1_2->andWhere('is_email ='.Customer::Is_Email_sent);
+			$emailcustomers = $query1_2->count();
 			
 			if($emailcustomers >= 1900){
 				$is_email = false;
@@ -248,9 +248,9 @@ class CustomerUiController extends BaseUiController {
 		
 		
 		
-		$this->performAjaxValidation( $model, 'customer-form' );
+		$this->performAjaxValidation ( $model, 'customer-form' );
 	
-		if (Yii::$app->request->post('Customer') !== null){
+		if (isset ($_POST ['Customer'])){
 		if($is_email == true){
 		if (isset ($_POST ['Customer']['subject'] ) && ($_POST ['Customer']['subject'] != '') &&
 				isset ($_POST ['Customer']['message'] ) && ($_POST ['Customer']['message'] != '')) {
@@ -266,12 +266,12 @@ class CustomerUiController extends BaseUiController {
 				$model->saveUploadedFile($model, 'attach_file');
 				$attachment = $model->attach_file;
 			}
-			$criteria = new CDbCriteria();
-			$criteria->addCondition('email !=""');
-			$criteria->addCondition('is_email ='.Customer::Is_Email_pending);
-			$criteria->order = 'id desc';
-			$criteria->limit = '1900';
-			$customers = Customer::model()->findAll($criteria);
+			$query = Customer::find();
+			$query->andWhere('email !=""');
+			$query->andWhere('is_email ='.Customer::Is_Email_pending);
+			$query->orderBy(['id' => SORT_DESC]);
+			$query->limit(1900);
+			$customers = $query->all();
 			
 			if($customers){
 				foreach($customers as $customer){
@@ -309,10 +309,11 @@ class CustomerUiController extends BaseUiController {
 		}
 		}
 		$this->updateMenuItems ( $model );
-		return $this->render( 'sendemail', [
+		$this->render ( 'sendemail', [
 				'model' => $model 
 		] );
-	}
+	
+    }
 	public function actionCreate() {
 		$model = new Customer();
 		if( !($model->checkPermission ('customer/update')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
