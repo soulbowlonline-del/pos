@@ -31,42 +31,42 @@ echo GridView::widget([
 		'tax_no',
 		array(
 				'attribute' => 'is_local_vendor',
-				'value' => function ($data) { return ($data->is_local_vendor === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
+				'value' => function ($data, $key, $index) { return ($data->is_local_vendor === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
 				'filter' => array('0' => 'No', '1' => 'Yes'),
 				),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Vendor::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Vendor::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'city_id',
-			'value' => function ($data) { return Gx::str($data->city); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->city); },
 			'filter'=>Gx::listData(City::class),
 			),
 		array(
 			'attribute' =>'state_id',
-			'value' => function ($data) { return Gx::str($data->state); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->state); },
 			'filter'=>Gx::listData(State::class),
 			),
 		array(
 			'attribute' =>'country_id',
-			'value' => function ($data) { return Gx::str($data->country); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->country); },
 			'filter'=>Gx::listData(Country::class),
 			),
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

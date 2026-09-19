@@ -2,19 +2,31 @@
 namespace app\models;
 
 use app\components\Criteria;
+use app\components\Gx;
 use app\components\Ui;
 use Yii;
 use yii\data\ActiveDataProvider;
 use yii\db\ActiveRecord;
+use yii\helpers\Html;
 
 /**
  * Ported from protected/models/PurchaseOrder.php and its giix base class.
  */
 class PurchaseOrder extends ActiveRecord
 {
-    public const STATUS_REJECT = 2;
-    public const STATUS_APPROVED = 1;
+    // Yii 1 hands out column values as strings; the option helpers below
+    // compare them loosely and give the wrong answer for an integer 0.
+    use LegacyColumnTypes;
+
     public const STATUS_UNAPPROVED = 0;
+    public const STATUS_APPROVED = 1;
+    public const STATUS_REJECT = 2;
+
+    public static function tableName()
+    {
+        return '{{%purchase_order}}';
+    }
+
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
@@ -27,28 +39,20 @@ class PurchaseOrder extends ActiveRecord
         return 'code';
     }
 
-    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    /**
+     * GxActiveRecord::__toString(): the representing column's value.
+     *
+     * Empty when that value is null. Yii 1 falls back to the primary key
+     * when representingColumn() itself is empty - which the generator
+     * has already done above, by naming 'id' - and never because the
+     * column happens to be null on this row. Falling back on the value
+     * put an id in every grid cell where Yii 1 shows nothing.
+     */
     public function __toString()
     {
         $value = $this->hasAttribute('code') ? $this->code : null;
 
-        return (string) ($value === null || $value === '' ? $this->id : $value);
-    }
-
-    /** Views ask the model whether the current role may reach a route. */
-    public function checkPermission($url)
-    {
-        return \app\components\Access::check($url);
-    }
-
-    /**
-     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()
-     * above already resolves a relation or foreign key to the related
-     * model's label, so this is the attribute label.
-     */
-    public function getRelationLabel($name, $n = null)
-    {
-        return $this->getAttributeLabel($name);
+        return $value === null ? '' : (string) $value;
     }
 
     /**
@@ -59,6 +63,25 @@ class PurchaseOrder extends ActiveRecord
     public static function defaultOrder()
     {
         return ['id' => SORT_DESC];
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
     }
 
     /**
@@ -92,145 +115,6 @@ class PurchaseOrder extends ActiveRecord
     }
 
     /**
-     * GxActiveRecord::getTotals(): the SUM of one column over a set of
-     * ids, which the grids use for a footer row.
-     *
-     * The column and table names are interpolated, as in Yii 1 - the
-     * call sites pass literals. The ids are bound, which Yii 1 did not:
-     * they come from the data provider rather than the request, so this
-     * is not a fix for anything, only a refusal to build the same hole
-     * again.
-     */
-    public function getTotals($ids, $columnname, $tablename)
-    {
-        if (empty($ids)) {
-            return null;
-        }
-
-        $placeholders = [];
-        $params = [];
-        foreach (array_values($ids) as $i => $id) {
-            $placeholders[] = ':id' . $i;
-            $params[':id' . $i] = $id;
-        }
-
-        return Yii::$app->db->createCommand(
-            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
-            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
-            ->queryScalar();
-    }
-
-    public static function getStatusOptions($id = null)
-    {
-		$list = ["UnApproved","Approved","Rejected"];
-		if ($id === null || $id === '' )	return $list;
-		if ( is_numeric( $id )) return $list [ $id ];
-		return $id;
-    }
-
-    public static function getTypeOptions($id = null)
-    {
-		$list = ["TYPE1","TYPE2","TYPE3"];
-		if ($id === null || $id === '' )	return $list;
-		if ( is_numeric( $id )) return $list [ $id ];
-		return $id;
-    }
-
-    public function getPurchaseBills()
-    {
-        return $this->hasMany(PurchaseBill::class, ['purchase_order_id' => 'id']);
-    }
-
-    public function getCreateUser()
-    {
-        return $this->hasOne(User::class, ['id' => 'create_user_id']);
-    }
-
-    public function getMrn()
-    {
-        return $this->hasOne(Mrn::class, ['id' => 'mrn_id']);
-    }
-
-    public function getOrganization()
-    {
-        return $this->hasOne(Organization::class, ['id' => 'organization_id']);
-    }
-
-    public function getOutlet()
-    {
-        return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
-    }
-
-    public function getUpdatedBy()
-    {
-        return $this->hasOne(User::class, ['id' => 'updated_by']);
-    }
-
-    public function getVendor()
-    {
-        return $this->hasOne(Vendor::class, ['id' => 'vendor_id']);
-    }
-
-    public function getPurchaseOrderDetails()
-    {
-        return $this->hasMany(PurchaseOrderDetail::class, ['purchase_order_id' => 'id']);
-    }
-
-    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
-    public function getRelatedDataProvider($relation, $config = [])
-    {
-        $getter = 'get' . ucfirst($relation);
-        if (!method_exists($this, $getter)) {
-            throw new \yii\base\InvalidArgumentException(
-                get_class($this) . ' does not have relation "' . $relation . '".');
-        }
-
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
-    }
-
-    public function attributeLabels()
-    {
-        return [
-            'id' => 'ID',
-            'code' => 'Code',
-            'start_date' => 'Start Date',
-            'end_date' => 'End Date',
-            'receiving_date' => 'Receiving Date',
-            'status' => 'Status',
-            'type_id' => 'Type',
-            'is_open_po' => 'Is Open Po',
-            'is_po_received' => 'Is Po Received',
-            'remarks' => 'Remarks',
-            'payment_terms' => 'Payment Terms',
-            'transport_mode' => 'Transport Mode',
-            'purchase_order_amount' => 'Purchase Order Amount',
-            'charges_total_amount' => 'Charges Total Amount',
-            'discount_amount' => 'Discount Amount',
-            'frieght_charges' => 'Frieght Charges',
-            'extra_charges' => 'Extra Charges',
-            'total_amount' => 'Total Amount',
-            'create_time' => 'Create Time',
-            'update_time' => 'Update Time',
-            'create_user_id' => 'User',
-            'updated_by' => 'User',
-            'outlet_id' => 'Outlet',
-            'vendor_id' => 'Vendor',
-            'mrn_id' => 'Mrn',
-            'organization_id' => 'Organization',
-            'purchaseBills' => 'PurchaseBills',
-            'createUser' => 'User',
-            'mrn' => 'Mrn',
-            'organization' => 'Organization',
-            'outlet' => 'Outlet',
-            'updatedBy' => 'User',
-            'vendor' => 'Vendor',
-            'purchaseOrderDetails' => 'PurchaseOrderDetails',
-        ];
-    }
-
-    /**
      * The order this model's listings use.
      *
      * The grid's own sort when search() names one, otherwise whatever
@@ -242,20 +126,12 @@ class PurchaseOrder extends ActiveRecord
         return self::defaultOrder();
     }
 
-    /**
-     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
-     * detail's bar code is the company's own, and an empty string
-     * otherwise. The grids use the result as an html attribute, so a
-     * barcode belonging to the company cannot be edited in place.
-     */
-    public function getCompanyBarcode($id)
+    /** Views ask the model whether the current role may reach a route. */
+    public function checkPermission($url)
     {
-        $itemDetail = ItemDetail::findOne($id);
-
-        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
-            ? 'readOnly'
-            : '';
+        return \app\components\Access::check($url);
     }
+
 
     /**
      * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
@@ -334,18 +210,6 @@ class PurchaseOrder extends ActiveRecord
         }
 
         return $query->select('id')->column();
-    }
-
-    /** The item_detail_ids ItemVendor holds for the matching vendor. */
-    private static function vendorItemDetailIds($condition)
-    {
-        $vendor = Vendor::findOne($condition);
-        if ($vendor === null) {
-            return [];
-        }
-
-        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
-            ->select('item_detail_id')->column();
     }
 
     /**
@@ -440,5 +304,256 @@ class PurchaseOrder extends ActiveRecord
         }
 
         return $list;
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()
+     * above already resolves a relation or foreign key to the related
+     * model's label, so this is the attribute label.
+     */
+    public function getRelationLabel($name, $n = null)
+    {
+        return $this->getAttributeLabel($name);
+    }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * GxActiveRecord::getTotals(): the SUM of one column over a set of
+     * ids, which the grids use for a footer row.
+     *
+     * The column and table names are interpolated, as in Yii 1 - the
+     * call sites pass literals. The ids are bound, which Yii 1 did not:
+     * they come from the data provider rather than the request, so this
+     * is not a fix for anything, only a refusal to build the same hole
+     * again.
+     */
+    public function getTotals($ids, $columnname, $tablename)
+    {
+        if (empty($ids)) {
+            return null;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $i => $id) {
+            $placeholders[] = ':id' . $i;
+            $params[':id' . $i] = $id;
+        }
+
+        return Yii::$app->db->createCommand(
+            'SELECT SUM(' . $columnname . ') FROM ' . $tablename
+            . ' WHERE id IN (' . implode(',', $placeholders) . ')', $params)
+            ->queryScalar();
+    }
+
+    /** GxActiveRecord::getRelatedDataProvider(): the rows of a relation. */
+    public function getRelatedDataProvider($relation, $config = [])
+    {
+        $getter = 'get' . ucfirst($relation);
+        if (!method_exists($this, $getter)) {
+            throw new \yii\base\InvalidArgumentException(
+                get_class($this) . ' does not have relation "' . $relation . '".');
+        }
+
+        return new ActiveDataProvider(array_merge(
+            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
+            $config));
+    }
+
+    public static function getStatusOptions($id = null)
+    {
+		$list = ["UnApproved","Approved","Rejected"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    public static function getTypeOptions($id = null)
+    {
+		$list = ["TYPE1","TYPE2","TYPE3"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['code', 'start_date', 'vendor_id', 'mrn_id', 'organization_id'], 'required'],
+            [['status', 'type_id', 'is_open_po', 'is_po_received', 'create_user_id', 'updated_by', 'outlet_id', 'vendor_id', 'mrn_id', 'organization_id'], 'integer'],
+            [['purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount'], 'number'],
+            [['code', 'transport_mode'], 'string', 'max' => 255],
+            [['remarks', 'payment_terms', 'create_time', 'update_time'], 'safe'],
+            [['status', 'type_id', 'is_open_po', 'is_po_received', 'remarks', 'payment_terms', 'purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount', 'create_time', 'update_time', 'updated_by', 'outlet_id'], 'default', 'value' => null],
+            [['id', 'code', 'start_date', 'end_date', 'receiving_date', 'status', 'type_id', 'is_open_po', 'is_po_received', 'remarks', 'payment_terms', 'transport_mode', 'purchase_order_amount', 'charges_total_amount', 'discount_amount', 'frieght_charges', 'extra_charges', 'total_amount', 'create_time', 'update_time', 'create_user_id', 'updated_by', 'outlet_id', 'vendor_id', 'mrn_id', 'organization_id'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'code' => 'Code',
+            'start_date' => 'Start Date',
+            'end_date' => 'End Date',
+            'receiving_date' => 'Receiving Date',
+            'status' => 'Status',
+            'type_id' => 'Type',
+            'is_open_po' => 'Is Open Po',
+            'is_po_received' => 'Is Po Received',
+            'remarks' => 'Remarks',
+            'payment_terms' => 'Payment Terms',
+            'transport_mode' => 'Transport Mode',
+            'purchase_order_amount' => 'Purchase Order Amount',
+            'charges_total_amount' => 'Charges Total Amount',
+            'discount_amount' => 'Discount Amount',
+            'frieght_charges' => 'Frieght Charges',
+            'extra_charges' => 'Extra Charges',
+            'total_amount' => 'Total Amount',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'outlet_id' => 'Outlet',
+            'vendor_id' => 'Vendor',
+            'mrn_id' => 'Mrn',
+            'organization_id' => 'Organization',
+            'purchaseBills' => 'PurchaseBills',
+            'createUser' => 'User',
+            'mrn' => 'Mrn',
+            'organization' => 'Organization',
+            'outlet' => 'Outlet',
+            'updatedBy' => 'User',
+            'vendor' => 'Vendor',
+            'purchaseOrderDetails' => 'PurchaseOrderDetails',
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
+        $this->load($params, $this->formName());
+
+        foreach ([['id', 'id'], ['status', 'status'], ['type_id', 'type_id'], ['is_open_po', 'is_open_po'], ['is_po_received', 'is_po_received'], ['purchase_order_amount', 'purchase_order_amount'], ['charges_total_amount', 'charges_total_amount'], ['discount_amount', 'discount_amount'], ['frieght_charges', 'frieght_charges'], ['extra_charges', 'extra_charges'], ['total_amount', 'total_amount'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by'], ['outlet_id', 'outlet_id'], ['vendor_id', 'vendor_id'], ['mrn_id', 'mrn_id'], ['organization_id', 'organization_id']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['code', 'code'], ['start_date', 'start_date'], ['end_date', 'end_date'], ['receiving_date', 'receiving_date'], ['remarks', 'remarks'], ['payment_terms', 'payment_terms'], ['transport_mode', 'transport_mode'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
+
+        return $provider;
+    }
+
+    public function getPurchaseBills()
+    {
+        return $this->hasMany(PurchaseBill::class, ['purchase_order_id' => 'id']);
+    }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getMrn()
+    {
+        return $this->hasOne(Mrn::class, ['id' => 'mrn_id']);
+    }
+
+    public function getOrganization()
+    {
+        return $this->hasOne(Organization::class, ['id' => 'organization_id']);
+    }
+
+    public function getOutlet()
+    {
+        return $this->hasOne(Outlet::class, ['id' => 'outlet_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function getVendor()
+    {
+        return $this->hasOne(Vendor::class, ['id' => 'vendor_id']);
+    }
+
+    public function getPurchaseOrderDetails()
+    {
+        return $this->hasMany(PurchaseOrderDetail::class, ['purchase_order_id' => 'id']);
     }
 }

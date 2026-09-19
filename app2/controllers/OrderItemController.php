@@ -2,6 +2,7 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\models\B2bPurchaseBillDetail;
 use app\models\OrderItem;
 use app\models\PurchaseBill;
 use Yii;
@@ -38,8 +39,8 @@ class OrderItemController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'order-item-form' );
 		
-		if (Yii::$app->request->post('OrderItem') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['OrderItem'] )) {
+			$model->load($_POST, 'OrderItem');
 			
 			if ($model->save ()) {
 				if (Yii::$app->request->isAjax)
@@ -63,8 +64,8 @@ class OrderItemController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'order-item-form' );
 		
-		if (Yii::$app->request->post('OrderItem') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['OrderItem'] )) {
+			$model->load($_POST, 'OrderItem');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -99,6 +100,9 @@ class OrderItemController extends BaseUiController {
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => OrderItem::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render( 'index', array (
@@ -112,8 +116,8 @@ class OrderItemController extends BaseUiController {
 	  if($id != null){
 	  	$_GET ['OrderItem']['item_id'] = $id;
 	  }
-		if (Yii::$app->request->get('OrderItem') !== null)
-		$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['OrderItem'] ))
+		$model->load($_GET, 'OrderItem');
 			
 	
 			return $this->render( 'index', [
@@ -124,8 +128,8 @@ class OrderItemController extends BaseUiController {
 		$model = new OrderItem(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('OrderItem') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['OrderItem'] )) {
+			$model->load($_GET, 'OrderItem');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -221,8 +225,8 @@ class OrderItemController extends BaseUiController {
 			$columns = $_POST ['OrderItem']['columns'];
 		}
 		
-		if (Yii::$app->request->get('OrderItem') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['OrderItem'] ))
+			$model->load($_GET, 'OrderItem');
 			
 			$columns = $model->getColumns($columns);
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
@@ -362,7 +366,7 @@ class OrderItemController extends BaseUiController {
 	}
 	
 	public function actionB2bdetail() {
-		$model = new B2bPurchaseBillDetail ( 'b2bsearch' );
+		$model = new B2bPurchaseBillDetail(['scenario' => 'b2bsearch']);
 		$this->updateMenuItems ( $model );
 		$columns = [];
 		if (isset ( $_POST ['B2bPurchaseBillDetail']['start_date'] ) &&( $_POST ['B2bPurchaseBillDetail']['start_date'] !='')&& (isset ( $_POST ['B2bPurchaseBillDetail']['end_date'] ))
@@ -446,7 +450,7 @@ class OrderItemController extends BaseUiController {
 		}
 		
 		if (isset ( $_GET ['B2bPurchaseBillDetail'] ))
-			$model->setAttributes ( $_GET ['B2bPurchaseBillDetail'] );
+			$model->load($_GET, 'B2bPurchaseBillDetail');
 			
 			$columns = $model->getColumns($columns);
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
@@ -459,7 +463,7 @@ class OrderItemController extends BaseUiController {
 		] );
 	}
 public function actionB2bsales() {
-		$model = new B2bPurchaseBillDetail ( 'b2bsearch' );
+		$model = new B2bPurchaseBillDetail(['scenario' => 'b2bsearch']);
 		$this->updateMenuItems ( $model );
 		$columns = [];
 	//	$_GET['B2bPurchaseBillDetail']['status'] = PurchaseBill::STATUS_APPROVED;
@@ -544,7 +548,7 @@ public function actionB2bsales() {
 		}
 		
 		if (isset ( $_GET ['B2bPurchaseBillDetail'] ))
-			$model->setAttributes ( $_GET ['B2bPurchaseBillDetail'] );
+			$model->load($_GET, 'B2bPurchaseBillDetail');
 			
 			$columns = $model->getSalesColumns($columns);
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]

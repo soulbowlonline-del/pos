@@ -81,6 +81,39 @@ class ActionColumn extends \yii\grid\ActionColumn
         parent::init();
     }
 
+    /**
+     * Yii 2 substitutes `{name}` placeholders matching [\w\-\/] only, so a
+     * button whose name has a space in it is never replaced and the template
+     * is printed as written: vendor's admin grid showed the literal
+     * `{Mrs Details}` in every row where Yii 1 shows the button.
+     *
+     * Yii 1's CButtonColumn puts no such restriction on a button name, so the
+     * pattern is widened rather than the application's names changed.
+     */
+    protected function renderDataCellContent($model, $key, $index)
+    {
+        return preg_replace_callback('/\\{([\\w\\-\\/ ]+)\\}/', function ($matches)
+            use ($model, $key, $index) {
+            $name = $matches[1];
+
+            if (isset($this->visibleButtons[$name])) {
+                $isVisible = $this->visibleButtons[$name] instanceof \Closure
+                    ? call_user_func($this->visibleButtons[$name], $model, $key, $index)
+                    : $this->visibleButtons[$name];
+            } else {
+                $isVisible = true;
+            }
+
+            if ($isVisible && isset($this->buttons[$name])) {
+                $url = $this->createUrl($name, $model, $key, $index);
+
+                return call_user_func($this->buttons[$name], $url, $model, $key);
+            }
+
+            return '';
+        }, $this->template);
+    }
+
     private function resolve($url, $model, $key)
     {
         return $url instanceof Closure ? call_user_func($url, $model, $key) : $url;

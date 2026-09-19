@@ -6,6 +6,7 @@
 use app\models\Item;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
+use app\widgets\EChosenWidget;
 use yii\helpers\Html;
 ?>
 <script src="<?php  echo '/themes/bar'; ?>/js/jquery-ui.js"></script>
@@ -51,15 +52,15 @@ use yii\helpers\Html;
 Item
 </label>
 <div class="col-md-9">
-<?php echo CHtml::activeListBox($model, 'item_id',Item::getActiveItems(), ['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select Item']) ?>
+<?php echo Html::activeListBox($model, 'item_id',Item::getActiveItems(), ActiveForm::noUnselect(['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select Item'])) ?>
 </div>
 </div>	
 
 
-<?php Yii::import('application.extensions.widgets.yii-chosen.EChosenWidget');
+<?php 
    
 ?>
- <?php $this->widget('EChosenWidget',[
+ <?php echo EChosenWidget::widget([
     // the select selector
     'selector'=>'.chosen',
     // Chosen options

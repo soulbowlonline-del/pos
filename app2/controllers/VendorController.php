@@ -3,6 +3,8 @@ namespace app\controllers;
 
 use app\components\Ui;
 use app\models\Item;
+use app\models\ItemVendor;
+use app\models\User;
 use app\models\UserRole;
 use app\models\Vendor;
 use Yii;
@@ -78,7 +80,7 @@ class VendorController extends BaseUiController {
 		$password = '';
 		if ($id != null) {
 			$model = $this->loadModel($id);
-			$usermodel = $this->loadModel($model->create_user_id);
+			$usermodel = $this->loadModel($model->create_user_id, User::class);
 			$password = $usermodel->password;
 		} else {
 			$model = new Vendor ();
@@ -90,12 +92,12 @@ class VendorController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'vendor-form' );
 		
-		if (Yii::$app->request->post('Vendor') !== null) {
+		if (isset ( $_POST ['Vendor'] )) {
 			$role = UserRole::findOne( [
 					'title' => 'Vendor' 
 			] );
 			
-			$usermodel->setAttributes ( $_POST ['User'] );
+			$usermodel->load($_POST, 'User');
 
 			if(isset($_POST ['Vendor'] ['name'])){
 			$usermodel->full_name = $_POST ['Vendor'] ['name'];
@@ -133,7 +135,7 @@ class VendorController extends BaseUiController {
 				
 				// echo "<pre>";print_r($_POST['Vendor']);die;
 				
-				$model->load(Yii::$app->request->post());
+				$model->load($_POST, 'Vendor');
 				if (isset ( $_POST ['Vendor']['is_cash'] )) {
 					$model->is_cash = $_POST ['Vendor']['is_cash'];
 				}
@@ -214,7 +216,7 @@ class VendorController extends BaseUiController {
 		if (isset ( $_POST ['ItemVendor'] )) {
 			if ($id != null) {
 				// Item::RemoveVendors($model->id);
-				$itemvendor->setAttributes ( $_POST ['ItemVendor'] );
+				$itemvendor->load($_POST, 'ItemVendor');
 				
 				$itemvendor->vendor_id = $id;
 				if ($itemvendor->save ()) {
@@ -243,8 +245,8 @@ class VendorController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'vendor-form' );
 		
-		if (Yii::$app->request->post('Vendor') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['Vendor'] )) {
+			$model->load($_POST, 'Vendor');
 			if (isset ( $_POST ['Vendor']['is_cash'] )) {
 				$model->is_cash = $_POST ['Vendor']['is_cash'];
 			}
@@ -282,6 +284,9 @@ class VendorController extends BaseUiController {
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => Vendor::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render( 'index', [
@@ -292,8 +297,8 @@ class VendorController extends BaseUiController {
 		$model = new Vendor(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('Vendor') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Vendor'] )) {
+			$model->load($_GET, 'Vendor');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -310,8 +315,8 @@ class VendorController extends BaseUiController {
 			throw new ForbiddenHttpException(Yii::t ( 'app', 'You are not allowed to access this page.' ) );
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('Vendor') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Vendor'] ))
+			$model->load($_GET, 'Vendor');
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->search (), [
 					

@@ -37,12 +37,20 @@ class OrderRefundItem extends ActiveRecord
         return 'create_time';
     }
 
-    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    /**
+     * GxActiveRecord::__toString(): the representing column's value.
+     *
+     * Empty when that value is null. Yii 1 falls back to the primary key when
+     * representingColumn() itself is empty - which is why 'id' is named above
+     * for the models that have no other - and never because the column happens
+     * to be null on this row. Falling back on the value put an id in every grid
+     * cell where Yii 1 shows nothing.
+     */
     public function __toString()
     {
         $value = $this->hasAttribute('create_time') ? $this->create_time : null;
 
-        return (string) ($value === null || $value === '' ? $this->id : $value);
+        return $value === null ? '' : (string) $value;
     }
 
     /**
@@ -400,37 +408,58 @@ class OrderRefundItem extends ActiveRecord
      */
     public function search($params = [])
     {
-        $query = self::find();
-        // Yii 1 eager-loads these, by JOIN, in the same query. That is
-        // part of the result and not just an optimisation: where the
-        // listing has no ORDER BY, the join decides which rows the
-        // first page shows.
-        $query->joinWith(['itemDetail', 'item', 'orderRefund']);
-        $provider = new ActiveDataProvider([
-            'query' => $query,
-            // The order goes on the query, not on the provider's sort.
-            // Yii 1 sets it on the criteria, and three of these listings
-            // order by a joined column - 'item.title' - which Yii 2's Sort
-            // rejects as a key unless it is declared as a sortable
-            // attribute. orderBy takes it as written.
-            'sort' => ['defaultOrder' => []],
-            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
-        ]);
-
-        if (self::listingOrder()) {
-            $query->orderBy(self::listingOrder());
-        }
-
         $this->load($params, $this->formName());
 
-        foreach (['t.id', 't.order_refund_id', 't.item_detail_id', 't.item_id', 't.qty', 't.price', 't.discount_id', 't.discount_amt', 't.tax_id', 't.tax_amt', 't.order_discount', 't.status', 't.type_id', 't.create_user_id', 't.updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
-        }
-        foreach (['item.title', 'orderRefund.total_amt', 't.create_time', 't.update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
-        }
-
-        return $provider;
+		$query = self::find()->alias('t');
+		if(isset($this->bill_no) && ($this->bill_no != '')){
+			$refund_ids = array();
+			$order = Order::find()->where(array('bill_no'=>$this->bill_no)->one());
+			if($order){
+		$query1 = OrderRefund::find();
+		Criteria::compare($query1, 'order_id', $order->id);
+		$orders = $query1->all();
+		if($orders){
+			foreach($orders as $orderrefund){
+				$refund_ids[] = $orderrefund->id;
+			}
+		}
+			}
+			$query->andWhere(['order_refund_id' => $refund_ids]);
+		}
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+		Criteria::compare($query, 't.id', $this->id);
+		Criteria::compare($query, 't.order_refund_id', $this->order_refund_id);
+		Criteria::compare($query, 't.item_detail_id', $this->item_detail_id);
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+		Criteria::compare($query, 'orderRefund.total_amt', $this->total_amt, true);
+		//$criteria->compare('t.item_id', $this->item_id);
+		Criteria::compare($query, 't.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount_id', $this->discount_id);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amt', $this->tax_amt);
+		Criteria::compare($query, 't.order_discount', $this->order_discount);
+		Criteria::compare($query, 't.status', $this->status);
+		Criteria::compare($query, 't.type_id', $this->type_id);
+		Criteria::compare($query, 't.create_time', $this->create_time, true);
+		Criteria::compare($query, 't.update_time', $this->update_time, true);
+		Criteria::compare($query, 't.create_user_id', $this->create_user_id);
+		Criteria::compare($query, 't.updated_by', $this->updated_by);
+		$query->orderBy(['id' => SORT_DESC]);
+		$refundItems = $query->all();
+		if($refundItems){
+		$total = 0;
+			foreach($refundItems as $refundItem){
+				$total = $total + $refundItem->total_amt;
+			}
+			Yii::$app->session ['refund_total']=number_format($total,2);
+		}
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
     }
 
     /**

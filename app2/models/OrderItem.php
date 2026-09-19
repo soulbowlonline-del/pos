@@ -20,6 +20,10 @@ use yii\db\ActiveRecord;
  */
 class OrderItem extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $mode_of_payment;
@@ -275,12 +279,20 @@ class OrderItem extends ActiveRecord
         return 'create_time';
     }
 
-    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    /**
+     * GxActiveRecord::__toString(): the representing column's value.
+     *
+     * Empty when that value is null. Yii 1 falls back to the primary key when
+     * representingColumn() itself is empty - which is why 'id' is named above
+     * for the models that have no other - and never because the column happens
+     * to be null on this row. Falling back on the value put an id in every grid
+     * cell where Yii 1 shows nothing.
+     */
     public function __toString()
     {
         $value = $this->hasAttribute('create_time') ? $this->create_time : null;
 
-        return (string) ($value === null || $value === '' ? $this->id : $value);
+        return $value === null ? '' : (string) $value;
     }
 
     /**
@@ -3513,4 +3525,155 @@ class OrderItem extends ActiveRecord
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
     }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['create_user_id'], 'required'],
+            [['order_id', 'item_detail_id', 'discount_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
+            [['price', 'discount_amt'], 'number'],
+            [['create_time', 'update_time', 'columns', 'order_discount', 'item_id', 'tax_id', 'customer_id', 'mrp', 'total_amt', 'start_date', 'end_date', 'min_amt', 'max_amt', 'create_date', 'req_qty', 'qty', 'cgst_per', 'sgst_per', 'igst_per', 'cess_per', 'cgst_amt', 'sgst_amt', 'cess_amt', 'igst_amt', 'sale_rate', 'total_amt', 'mrp', 'mode_of_payment', 'original_tax', 'start_date', 'end_date', 'customer_id', 'order_id'], 'safe'],
+            [['order_id', 'item_detail_id', 'qty', 'price', 'discount_id', 'discount_amt', 'status', 'type_id', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
+            [['tax_amount', 'id', 'order_id', 'item_detail_id', 'qty', 'customer_id', 'mrp', 'total_amt', 'price', 'discount_id', 'discount_amt', 'status', 'type_id', 'create_time', 'update_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$order_ids = array();
+		if(Yii::$app->session['order_item_item_id'] != ''){
+			$this->item_id = Yii::$app->session['order_item_item_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_customer_id'] != ''){
+			$this->customer_id = Yii::$app->session['order_item_customer_id'];
+		}
+		
+		
+		if(Yii::$app->session['order_item_create_user_id'] != ''){
+			$this->create_user_id = Yii::$app->session['order_item_create_user_id'];
+		}
+		
+		
+		Yii::warning( var_export(Yii::$app->session['order_item_item_id'], true), '$orderItems');
+		$query1 = Order::find();
+		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
+			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
+		}
+		if ((Yii::$app->session ['order_item_min_amt'] != '') && (Yii::$app->session ['order_item_max_amt'] != '')) {
+			$query1->andWhere(['between', 't.total_Amt', Yii::$app->session ['order_item_min_amt'], Yii::$app->session ['order_item_max_amt']]);
+		}
+		
+		$orders = $query1->all();
+		Yii::warning( var_export(Yii::$app->session['order_item_start_date'], true), '$order_item_start_date');
+		Yii::warning( var_export(Yii::$app->session['order_item_end_date'], true), '$order_item_end_date');
+		if($orders){
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+		Yii::warning( var_export($order_ids, true), '$order_ids');
+		$query = self::find()->alias('t');
+		$query->andWhere(['t.order_id' => $order_ids]);
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+		
+		Criteria::compare($query, 'order.bill_no', $this->order_id);
+		Criteria::compare($query, 'order.customer_id', $this->customer_id);
+		Criteria::compare($query, 'order.create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'order.total_amt', $this->total_amt);
+		Criteria::compare($query, 'item.mrp', $this->mrp);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+		
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+		
+		Criteria::compare($query, 't.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount_id', $this->discount_id);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+	
+		
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
+		]);
+    }
+
+    private function updateItemVelocity($itemId, $velocityChangePercent)
+        {
+            $sql = "
+                    INSERT INTO tbl_item_velocity (item_id, velocity_change_percent, update_time)
+                    VALUES (:itemId, :velocityChangePercent, NOW())
+            ";
+
+                $connection = Yii::$app->db;
+                $command = $connection->createCommand($sql);
+                $command->bindParam(':itemId', $itemId, PDO::PARAM_INT);
+                $command->bindParam(':velocityChangePercent', $velocityChangePercent, PDO::PARAM_STR);
+
+                try {
+                        $command->execute();
+                        Yii::log("Updated tbl_item_velocity for item $itemId: $velocityChangePercent", 'info');
+                } catch (Exception $e) {
+                        Yii::log("Failed to update tbl_item_velocity for item $itemId: " . $e->getMessage(), 'error');
+                        throw $e; // Re-throw for transaction handling
+                }
+        }
 }

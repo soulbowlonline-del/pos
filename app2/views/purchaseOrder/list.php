@@ -72,7 +72,7 @@ $('.search-form form').submit(function(){
 			'id',
 		
 			['attribute' =>'start_date',
-					'value' => function ($data) { return $data->start_date; },
+					'value' => function ($data, $key, $index) { return $data->start_date; },
 					'filter' => CJuiDatePicker::widget([
 									'model' => $model,
 									'attribute' => 'start_date',
@@ -96,13 +96,13 @@ $('.search-form form').submit(function(){
 			'end_date',
 			/* array(
 					'attribute' => 'total_amount',
-					'value' => function ($data) { return isset($data->total_amount)?$data->total_amount:""; },
+					'value' => function ($data, $key, $index) { return isset($data->total_amount)?$data->total_amount:""; },
 			
 			), */
 			
 		/* 	array(
 					'attribute' =>'outlet_id',
-					'value' => function ($data) { return Gx::str($data->outlet); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 					'filter'=>Gx::listData(Outlet::class),
 			), */
 			'gross_amt',

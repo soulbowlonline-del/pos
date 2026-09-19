@@ -47,8 +47,8 @@ class VendorSchemesController extends BaseUiController {
 			$model->item_id =$id;
 		}
 		
-		if (Yii::$app->request->post('VendorSchemes') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['VendorSchemes'])) {
+			$model->load($_POST, 'VendorSchemes');
 			if(isset($_POST['VendorSchemes']['item_id'])){
 				$model->item_id = implode(',',$_POST['VendorSchemes']['item_id']);
 			}
@@ -76,8 +76,8 @@ class VendorSchemesController extends BaseUiController {
 			}
 		}
 		$model->item_id = $list;
-		if (Yii::$app->request->post('VendorSchemes') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['VendorSchemes'])) {
+			$model->load($_POST, 'VendorSchemes');
 if(isset($_POST['VendorSchemes']['item_id'])){
 	$model->item_id = implode(',',$_POST['VendorSchemes']['item_id']);
 }
@@ -101,8 +101,8 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 		
 		$this->performAjaxValidation($model, 'vendor-schemes-form');
 
-		if (Yii::$app->request->post('VendorSchemes') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['VendorSchemes'])) {
+			$model->load($_POST, 'VendorSchemes');
 			if(isset($_POST['VendorSchemes']['item_id'])){
 				$model->item_id = implode(',',$_POST['VendorSchemes']['item_id']);
 			}
@@ -140,6 +140,9 @@ if(isset($_POST['VendorSchemes']['item_id'])){
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => VendorSchemes::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render('index', [
@@ -152,9 +155,9 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 		$model = new VendorSchemes(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('VendorSchemes') !== null)
+		if (isset($_GET['VendorSchemes']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'VendorSchemes');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -170,8 +173,8 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 		$model = new VendorSchemes(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('VendorSchemes') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['VendorSchemes']))
+			$model->load($_GET, 'VendorSchemes');
 
 		return $this->render('admin', [
 			'model' => $model,

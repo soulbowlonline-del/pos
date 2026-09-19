@@ -26,23 +26,23 @@ echo GridView::widget([
 		'receiving_date',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>PurchaseOrder::getStatusOptions(),
 				],
 		/*
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>PurchaseOrder::getTypeOptions(),
 				),
 		array(
 				'attribute' => 'is_open_po',
-				'value' => function ($data) { return ($data->is_open_po === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
+				'value' => function ($data, $key, $index) { return ($data->is_open_po === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
 				'filter' => array('0' => 'No', '1' => 'Yes'),
 				),
 		array(
 				'attribute' => 'is_po_received',
-				'value' => function ($data) { return ($data->is_po_received === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
+				'value' => function ($data, $key, $index) { return ($data->is_po_received === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
 				'filter' => array('0' => 'No', '1' => 'Yes'),
 				),
 		'remarks:html',
@@ -57,27 +57,27 @@ echo GridView::widget([
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 			'attribute' =>'vendor_id',
-			'value' => function ($data) { return Gx::str($data->vendor); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 			'filter'=>Gx::listData(Vendor::class),
 			),
 		array(
 			'attribute' =>'mrn_id',
-			'value' => function ($data) { return Gx::str($data->mrn); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->mrn); },
 			'filter'=>Gx::listData(Mrn::class),
 			),
 		array(
 			'attribute' =>'organization_id',
-			'value' => function ($data) { return Gx::str($data->organization); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->organization); },
 			'filter'=>Gx::listData(Organization::class),
 			),
 		*/

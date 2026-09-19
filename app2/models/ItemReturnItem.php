@@ -182,12 +182,20 @@ class ItemReturnItem extends ActiveRecord
         return 'create_time';
     }
 
-    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    /**
+     * GxActiveRecord::__toString(): the representing column's value.
+     *
+     * Empty when that value is null. Yii 1 falls back to the primary key when
+     * representingColumn() itself is empty - which is why 'id' is named above
+     * for the models that have no other - and never because the column happens
+     * to be null on this row. Falling back on the value put an id in every grid
+     * cell where Yii 1 shows nothing.
+     */
     public function __toString()
     {
         $value = $this->hasAttribute('create_time') ? $this->create_time : null;
 
-        return (string) ($value === null || $value === '' ? $this->id : $value);
+        return $value === null ? '' : (string) $value;
     }
 
     /**

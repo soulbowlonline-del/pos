@@ -228,39 +228,39 @@ echo GridView::widget([
 					[
 						'header' => 'Bill No',
 							'attribute' =>'order_id',
-						'value' => function ($data) { return $data->order->getOrderBillNo(); } 
+						'value' => function ($data, $key, $index) { return $data->order->getOrderBillNo(); } 
 				],
 				[
 						'header' => 'Bill Date',
 						'attribute' =>'bill_date',
-						'value' => function ($data) { return isset($data->order)?$data->order->bill_date:""; }
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->bill_date:""; }
 				],
 				[
 						'header' => 'Barcode',
 						'attribute' =>'item_detail_id',
-						'value' => function ($data) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
+						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; },
 						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
 				]
 				,
 				[
 						'header' => 'Item',
 						'attribute' =>'item_id',
-						'value' => function ($data) { return $data->getItemName(); },
+						'value' => function ($data, $key, $index) { return $data->getItemName(); },
 						'filterInputOptions' =>['class'=>'item_detail_bar_code'],
 				]
 				,
 				[
 						'header' => 'Customer',
 						'attribute' =>'customer_id',
-						'value' => function ($data) { return isset($data->order)?$data->order->customer:""; },
-						'filter' => Gx::listData( Customer::findAll( [], ['order'=>'name ASC'] ) )
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->customer:""; },
+						'filter' => Gx::listData( Customer::find()->orderBy(['attribute' => SORT_ASC])->all())
 				]
 				,
 				[
 						'header' => 'Employee',
 						'attribute' =>'create_user_id',
-						'value' => function ($data) { return isset($data->order)?$data->order->createUser:""; },
-						'filter' => Gx::listData( User::findAll( ['role_id'=>7] ,['order'=>'full_name ASC'] ) )
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->createUser:""; },
+						'filter' => Gx::listData( User::find()->where(['role_id'=>7])->orderBy(['full_name' => SORT_ASC])->all())
 				]
 				,
 				// 'item_detail_id',
@@ -268,14 +268,14 @@ echo GridView::widget([
 				[
 						'header' => 'Refund Qty',
 					//	'attribute' =>'refund_qty',
-						'value' => function ($data) { return $data->getOrderRefundQty(); }
+						'value' => function ($data, $key, $index) { return $data->getOrderRefundQty(); }
 				
 				]
 				,
 				[
 						'header' => 'Mrp',
 						'attribute' =>'mrp',
-						'value' => function ($data) { return $data->getItemOrderMrp(); },
+						'value' => function ($data, $key, $index) { return $data->getItemOrderMrp(); },
 						
 				]
 				,
@@ -285,7 +285,7 @@ echo GridView::widget([
 				[
 						'header' => 'Total Amt',
 						'attribute' =>'total_amt',
-						'value' => function ($data) { return $data->total_amt; }
+						'value' => function ($data, $key, $index) { return $data->total_amt; }
 				
 				]
 				,
@@ -295,12 +295,12 @@ echo GridView::widget([
 		'tax_amount',
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>OrderItem::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>OrderItem::getTypeOptions(),
 				),
 		'update_time',

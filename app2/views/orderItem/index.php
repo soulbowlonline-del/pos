@@ -106,16 +106,16 @@ echo GridView::widget([
 				// 'id',
 					[
 						'header' => 'Bill No',
-						'value' => function ($data) { return isset($data->order)?$data->order->getOrderBillNo():""; } 
+						'value' => function ($data, $key, $index) { return isset($data->order)?$data->order->getOrderBillNo():""; } 
 				],
 				[
 						'header' => 'Barcode',
-						'value' => function ($data) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; } 
+						'value' => function ($data, $key, $index) { return isset($data->itemDetail)?$data->itemDetail->bar_code:""; } 
 				]
 				,
 				[
 						'attribute' => 'item_id',
-						'value' => function ($data) { return $data->getItemName(); } ,
+						'value' => function ($data, $key, $index) { return $data->getItemName(); } ,
 						'filter'=>Gx::listData(Item::class),
 				]
 				,
@@ -130,12 +130,12 @@ echo GridView::widget([
 		'tax_amount',
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>OrderItem::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>OrderItem::getTypeOptions(),
 				),
 		'update_time',

@@ -52,12 +52,20 @@ class PurchaseOrderDetail extends ActiveRecord
         return 'remarks';
     }
 
-    /** GxActiveRecord::__toString(): the representing column, or the id. */
+    /**
+     * GxActiveRecord::__toString(): the representing column's value.
+     *
+     * Empty when that value is null. Yii 1 falls back to the primary key when
+     * representingColumn() itself is empty - which is why 'id' is named above
+     * for the models that have no other - and never because the column happens
+     * to be null on this row. Falling back on the value put an id in every grid
+     * cell where Yii 1 shows nothing.
+     */
     public function __toString()
     {
         $value = $this->hasAttribute('remarks') ? $this->remarks : null;
 
-        return (string) ($value === null || $value === '' ? $this->id : $value);
+        return $value === null ? '' : (string) $value;
     }
 
     /**
@@ -535,6 +543,7 @@ class PurchaseOrderDetail extends ActiveRecord
     public function getPOVendorOptions(){
             $list = [];
             $query = PurchaseOrder::find();
+            $query->orderBy(['id' => SORT_DESC]);
             $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
             $mrss = $query->all();
             if($mrss){
@@ -563,11 +572,13 @@ class PurchaseOrderDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                     $query = PurchaseOrder::find();
+            $query->orderBy(['id' => SORT_DESC]);
                     $query->andWhere('vendor_id ='.$id);
                     $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
                     $polist = $query->all();
                 }else{
                     $query_2 = PurchaseOrder::find();
+            $query_2->orderBy(['id' => SORT_DESC]);
 
                     $query_2->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
                     $polist = $query_2->all();
@@ -592,11 +603,13 @@ class PurchaseOrderDetail extends ActiveRecord
                 if ($id != null) {
                     if ($role_id == $role->id) {
                 $query = PurchaseOrder::find();
+            $query->orderBy(['id' => SORT_DESC]);
                 $query->andWhere('vendor_id ='.$id);
                 $query->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
                 $polist = $query->all();
                 }else{
                     $query_2 = PurchaseOrder::find();
+            $query_2->orderBy(['id' => SORT_DESC]);
 
                     $query_2->andWhere('status ='.PurchaseOrder::STATUS_UNAPPROVED);
                     $polist = $query_2->all();

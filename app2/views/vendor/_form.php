@@ -12,6 +12,7 @@ use app\models\State;
 use app\models\Vendor;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
+use app\widgets\EChosenWidget;
 use yii\helpers\Html;
 ?>
 <section class="content">
@@ -64,7 +65,7 @@ $form = ActiveForm::begin([
 									<label for="inputEmail3" class="control-label col-md-3"> Outlet
 									</label>
 									<div class="col-md-9">
-<?php echo CHtml::activeListBox($model, 'outlet_id', Item::getAllOutlets(), ['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select Outlet'])?>
+<?php echo Html::activeListBox($model, 'outlet_id', Item::getAllOutlets(), ActiveForm::noUnselect(['class'=>'chosen', 'multiple'=>true, 'data-placeholder'=>'Select Outlet']))?>
 </div>
 								</div>
 <?php echo $form->checkBoxRow($model, 'is_local_vendor'); ?>
@@ -111,24 +112,24 @@ $form = ActiveForm::begin([
 
 
 if ($model->country_id == null) {
-	$country = Country::findOne( [
+	$country = Country::find()->where([
 			'title' => 'India' 
-	] );
+	])->one();
 	if ($country) {
 		$model->country_id = $country->id;
 	}
 }
 ?>
-<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::findAll(['status'=>Country::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select Country']); ?>
-<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::findAll(['status'=>State::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select State']); ?>
+<?php echo $form->dropDownListRow($model, 'country_id', Gx::listData(Country::find()->where(['status'=>Country::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select Country']); ?>
+<?php echo $form->dropDownListRow($model, 'state_id', Gx::listData(State::find()->where(['status'=>State::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select State']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::findAll(['status'=>City::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Select City']); ?>
+<?php echo $form->dropDownListRow($model, 'city_id', Gx::listData(City::find()->where(['status'=>City::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Select City']); ?>
 
 
 
-<?php echo $form->dropDownListRow($model, 'parent_id', Gx::listData(Vendor::findAll(['status'=>Vendor::STATUS_ACTIVE])),['class'=>'form-control','empty'=>'Parent Vendor']); ?>
+<?php echo $form->dropDownListRow($model, 'parent_id', Gx::listData(Vendor::find()->where(['status'=>Vendor::STATUS_ACTIVE])->all()),['class'=>'form-control','empty'=>'Parent Vendor']); ?>
 
 
 <?php
@@ -145,12 +146,11 @@ echo $form->dropDownListRow ( $model, 'status', $model->getStatusOptions (), [
 </div>
 <?php
 
-Yii::import ( 'application.extensions.widgets.yii-chosen.EChosenWidget' );
 
 ?>
  <?php
 	
-$this->widget ( 'EChosenWidget', [
+echo EChosenWidget::widget([
 			// the select selector
 			'selector' => '.chosen' 
 	]

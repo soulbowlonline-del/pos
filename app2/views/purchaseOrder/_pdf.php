@@ -108,11 +108,11 @@ $vendor = Vendor::findOne( $po->vendor_id );
    
       
         <table border="1" cellspacing="0" cellpadding="0" width="100%"  class="print-friendly" >
-        <?php  $criteria4 = new CDbCriteria;
-        $criteria4->with = 'item';
-        $criteria4->order = 'item.title asc';
-        $criteria4->addCondition('purchase_order_id ='.$po->id);
-        $details = PurchaseOrderDetail::model()->findAll($criteria4);
+        <?php  $query4 = PurchaseOrderDetail::find();
+        $query4->joinWith(['item' => function ($q) { $q->alias('item'); }]);
+        $query4->orderBy(['item.title' => SORT_ASC]);
+        $query4->andWhere('purchase_order_id ='.$po->id);
+        $details = $query4->all();
           if($details){
           	$i =0;?>
           		
