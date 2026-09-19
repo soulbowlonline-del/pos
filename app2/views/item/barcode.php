@@ -101,7 +101,7 @@ $('.search-form form').submit(function(){
 			[
 					'class' => CheckboxColumn::class,
 					'selectableRows'  => 100,
-					'value' => function ($data) { return $data["id"]; },
+					'value' => function ($data, $key, $index) { return $data["id"]; },
 					'checkBoxHtmlOptions' => ["name" =>"idList[]"],
 			
 			],
@@ -110,27 +110,27 @@ $('.search-form form').submit(function(){
 				
 	[
 					'attribute' =>'item_id',
-					'value' => function ($data) { return Gx::str($data->item); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 				//	'filter'=>$model->getItemOptions(),
 			],
 		'bar_code',
 			[
 					'header'=>'MRP',
 					'attribute' =>'mrp',
-					'value' => function ($data) { return $data->getItemDetailMrp(); },
+					'value' => function ($data, $key, $index) { return $data->getItemDetailMrp(); },
 					
 			],
 			[
 					'header'=>'Purchase Price',
 					'attribute' =>'purchase_price',
-					'value' => function ($data) { return isset($data->item)?$data->item->purchase_price:""; },
+					'value' => function ($data, $key, $index) { return isset($data->item)?$data->item->purchase_price:""; },
 					'filterInputOptions' =>['class'=>'item_purchase_price_field'],
 						
 			],
 			[
 					'header'=>'HSN Code',
 					'attribute' =>'hsn_code',
-					'value' => function ($data) { return isset($data->item)?$data->item->hsn_code:""; },
+					'value' => function ($data, $key, $index) { return isset($data->item)?$data->item->hsn_code:""; },
 					'filterInputOptions' =>['class'=>'item_hsn_code_field'],
 						
 			],
@@ -138,7 +138,7 @@ $('.search-form form').submit(function(){
 			[
 					'header'=>'Product Code',
 					'attribute' =>'product_code',
-					'value' => function ($data) { return isset($data->item)?$data->item->item_code:""; },
+					'value' => function ($data, $key, $index) { return isset($data->item)?$data->item->item_code:""; },
 					'filterInputOptions' =>['class'=>'item_item_code_field'],
 			
 			],
@@ -189,34 +189,34 @@ $('.search-form form').submit(function(){
 			],
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemDetail::getStatusOptions(),
 				],
 			[
 					'attribute' =>'tax_id',
-					'value' => function ($data) { return Gx::str($data->tax); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
 					'filter'=>Gx::listData(Tax::class),
 			],
 			
 		/* 	array(
 					'attribute' =>'item_id',
-					'value' => function ($data) { return Gx::str($data->item); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 					'filter'=>$model->getItemOptions(),
 			), */
 		/*'reorder_qty',
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemDetail::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'tax_id',
-			'value' => function ($data) { return Gx::str($data->tax); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
 			'filter'=>Gx::listData(Tax::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

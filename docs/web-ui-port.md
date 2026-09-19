@@ -132,6 +132,77 @@ Each was found by the comparison suite, not by reading the code.
   each filtered request failed validation and quietly returned the *unfiltered*
   list with "Title cannot be blank" in the filter row.
 
+- **`var_export($x)` prints.** `CVarDumper::dumpAsString($x)` returns a
+  string; `var_export` only does so when passed `true` as its second argument,
+  and without it writes to the output. The conversion dropped the argument, so
+  all 142 of the application's debug log lines echoed their argument into the
+  response. On a page that was invisible among the markup; anywhere a header
+  followed it was fatal - "Headers already sent, output started at
+  MrsDetail.php:813" cost four API suites a case each.
+- **`use Yii;` in a view is a warning, and OPcache hides it.** Views are not
+  namespaced, so the import does nothing and PHP says so: *The use statement
+  with non-compound name 'Yii' has no effect*. Yii 2's error handler turns that
+  E_WARNING into an exception. It is raised at compile time, so OPcache emits
+  it once and never again: each regenerated view 500s on its first request and
+  looks healthy afterwards, and in production the first visitor after a deploy
+  gets the 500.
+- **`Yii::$app->request` caches the query string.** `getQueryParams()` copies
+  `$_GET` on first read and answers from the copy afterwards. Three admin
+  actions write the selected parent id into `$_GET` and *then* read the model
+  out of it, which through the cached copy filters nothing: the grid returned
+  every row in the table where Yii 1 shows none. These read the superglobal
+  directly, which is not a step back from the framework - Yii 2 merges the
+  parsed route parameters into `$_GET` itself, in `Request::resolve()`.
+- **`'pagination' => false` is an answer.** Reading it as "no page size given"
+  put 10 rows on a page where Yii 1 shows all 19.
+- **A criteria's column carries the table alias and its attribute does not.**
+  Yii 1 writes `$criteria->compare('t.mrs_id', $this->mrs_id)`. Keeping only
+  the column and reading `$this->{'t.mrs_id'}` gives null - through the
+  `LegacyColumnTypes` trait, silently - so every filter on those grids was
+  dead. And because Yii 2 aliases the primary table by its table name, the
+  column needs `->alias('t')` on the query before `t.` resolves at all.
+- **`CGridColumn::visible` has no Yii 2 equivalent.** A column Yii 1 hides was
+  rendered anyway. The `GridView` shim drops them before Yii 2 builds the
+  columns, because Yii 2's `DataColumn` rejects the key.
+- **A column's `value` is an expression, not an attribute name.** Yii 1
+  evaluates it with `$data` and `$row` in scope; a serial-number column is
+  `'value' => '++$row'`. Yii 2 reads a string `value` as an attribute name, so
+  the serial numbers came out blank.
+- **`loadModel($id, 'Other')` means load an Other.** Yii 1's
+  `GxController::loadModel` takes the class. Dropping it looked the row up in
+  the controller's own table, which usually has no such id: the page answered
+  404 where Yii 1 answers 403.
+
+## How CDbCriteria is converted
+
+Per **declaration**, not per variable name, and not once per method. Both
+shortcuts produced code that looked converted and was not:
+
+- Keying on the name gave every criteria in a method the same `$query`.
+  `FreeItemController::actionItemList()` builds `$criteria` for the item
+  details and `$criteria1` for the vendor's items; the second assignment
+  overwrote the first, and the page listed `ItemVendor` rows where Yii 1 lists
+  `ItemDetail` rows.
+- Converting a name once was worse.
+  `CustomerController::actionGetCustomerAddress()` writes
+  `$criteria = new CDbCriteria` twice - the first consumed by
+  `Customer::model()->findAll()`, the second by `City::model()->find()` - and
+  the single conversion gave the city lookup `Customer::find()` and `->all()`,
+  so `$city->id` ran against an array.
+
+Each `new CDbCriteria` now gets its own region, from the declaration to the
+next declaration of the same variable, its own class and finder read from
+inside that region, and its own variable. A name the application already uses
+is skipped: that same action has its own `$query`, a query string for a curl
+call.
+
+`search()` is **rebuilt** from its compares for most models and **converted
+whole** where rebuilding would lose something. `MrnDetail::search()` drops
+every row whose status is `STATUS_DONE` and, when the date or vendor filter is
+set, first resolves those to a set of mrn ids and restricts the grid to them.
+None of that is a compare, so the rebuilt method returned rows Yii 1 does not
+show - and with pagination off, that was the whole table.
+
 ## Access control
 
 Worth stating plainly, because the first version of this port got it wrong.
@@ -159,16 +230,55 @@ found, not fixed.
 
 ## Where the port has got to
 
-33 of the 59 controllers, 200 comparison cases:
+45 of the 59 controllers:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
 `bill`, `session`, `itemVendor`, `permission`, `notification`, `creditNote`,
 `state`, `city`, `stockLog`, `country`, `designation`, `outlet`, `freeItem`,
 `mrs`, `organization`, `rolePermission`, `itemTax`, `tax`, `customer`, `emp`,
-`orderRefund`, `stockAdjustLog`, `item`.
+`orderRefund`, `stockAdjustLog`, `item`, `itemCompany`, `discount`,
+`itemCategory`, `itemExpire`, `itemReturn`, `itemReturnItem`, `itemStock`,
+`mrn`, `b2bPurchaseBill`, `itemDetail`, `mrnDetail`, `mrsDetail`.
 
-26 remain: 363 actions, 283 view files, ~42,800 view lines.
+14 remain: `purchaseOrderDetail`, `b2BPurchaseBillDetail`, `loyaltyAdmin`,
+`onlineOrder`, `order`, `orderItem`, `orderRefundItem`, `purchaseBill`,
+`purchaseBillDetail`, `purchaseOrder`, `site`, `user`, `vendor`,
+`vendorSchemes`.
+
+`purchaseOrderDetail` is held back rather than unattempted: its admin grid
+renders four more columns than Yii 1's and three fewer rows, and neither
+difference is explained yet. It stays on Yii 1 until it is.
+
+## The nine cases the UI suite still reports
+
+257 of 266 compare clean. The nine that do not are worth reading, because only
+three of them are the port's fault.
+
+**Yii 1 answers 500 and the port answers 200** - `itemExpire/update`,
+`itemStock/admin` and its second page, `mrn/update`. The port is healthier
+than the original here. These were hidden until tonight: the port used to fail
+too, on the output that `var_export` was writing into the response, so the two
+statuses matched and the case passed. Fixing the port revealed that Yii 1 was
+broken all along. They need checking against the 5.6 baseline and then listing
+in `known-yii1-failures.txt`.
+
+**Yii 1 renders nothing to compare** - `itemReturnItem/create`. Same family,
+not yet diagnosed.
+
+**Neither side orders the rows** - `stockAdjustLog/admin` and its second page.
+`defaultScope()` returns an empty array and `search()` sets no order, so both
+engines return storage order and the two disagree. This one passed before and
+fails now precisely because the port got *more* correct: the search used to
+drop its `addBetweenCondition`, and the different result set happened to come
+back in the same order. Adding an `ORDER BY` here would be inventing behaviour
+Yii 1 does not have - an earlier attempt to do exactly that broke a working
+Yii 1 page and was reverted in full.
+
+**The port's fault** - `discount/create` and `discount/update` render thirteen
+form fields where Yii 1 renders twelve: `item_detail_id` comes out as a scalar
+where Yii 1 emits `Discount[item_detail_id][]`, a multiple select, and a
+`type_id` field appears that Yii 1 does not show.
 
 ## What "verified" covers, and what it does not
 

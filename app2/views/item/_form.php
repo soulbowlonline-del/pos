@@ -3,7 +3,6 @@
  * Ported from protected/views/item/_form.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\models\Item;
 use app\models\User;

@@ -192,7 +192,7 @@ def wrap_urls(src):
 
 # --- everything else ----------------------------------------------------------
 
-from port_model import split_args_php
+from port_model import split_args_php, dump_as_string
 
 
 def rewrite(src, ctrl, unknown):
@@ -359,7 +359,7 @@ def rewrite(src, ctrl, unknown):
 
     # Yii 1's logger, which a few views call directly. Same mapping the models
     # and controllers use: the level becomes the method name.
-    src = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', src)
+    src = dump_as_string(src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                  lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', src)
     src = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
@@ -391,11 +391,21 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(r"'footerHtmlOptions'\s*=>", "'footerOptions' =>", src)
     src = re.sub(r"'type'\s*=>\s*'raw'", "'format' => 'raw'", src)
 
-    # 'value' => '$data->foo' - a string expression evaluated per row in Yii 1
+    # 'value' => '$data->foo' - a string expression evaluated per row in Yii 1.
+    #
+    # $row as well as $data. Yii 1 evaluates the expression with both in
+    # scope, and a serial-number column is written `'value' => '++$row''.
+    # Matching only $data left that one a plain string, which Yii 2 reads as an
+    # attribute name: every serial number came out blank, which is the single
+    # cell that stopped mrsDetail's grid from matching.
     def value_expr(m):
         expr = arrays_to_brackets(m.group(1).replace("\\'", "'"))
-        return "'value' => function ($data) { return " + expr + '; }'
-    src = re.sub(r"'value'\s*=>\s*'((?:[^'\\]|\\.)*\$data(?:[^'\\]|\\.)*)'", value_expr, src)
+        # Yii 2 hands the closure the row index; Yii 1's $row is the same
+        # number, and `++$row` on a parameter reads the same either way.
+        expr = re.sub(r'\$row\b', '$index', expr)
+        return "'value' => function ($data, $key, $index) { return " + expr + '; }'
+    src = re.sub(r"'value'\s*=>\s*'((?:[^'\\]|\\.)*\$(?:data|row)(?:[^'\\]|\\.)*)'",
+                 value_expr, src)
 
     # 'url' => 'Yii::app()->controller->createUrl(...)' - a PHP expression that
     # Yii 1 evaluated once per row with $data in scope. The same per-row
@@ -434,8 +444,13 @@ def imports(src, ctrl):
         need.append('use app\\components\\Gx;')
     if 'Html::' in src:
         need.append('use yii\\helpers\\Html;')
-    if 'Yii::' in src:
-        need.append('use Yii;')
+    # Deliberately no `use Yii;`. Views are not namespaced, so the import is a
+    # no-op - and PHP says so, with "The use statement with non-compound name
+    # 'Yii' has no effect", which is an E_WARNING that Yii 2's error handler
+    # turns into an exception. It is a compile-time warning, so OPcache hides
+    # it after the first request: every regenerated view 500s once and then
+    # looks fine, and in production the first visitor after a deploy gets the
+    # 500.
     for w in set(BOOSTER.values()):
         if re.search(r'\b' + w + r'::', src):
             need.append('use app\\widgets\\' + w + ';')

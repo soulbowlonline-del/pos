@@ -44,8 +44,8 @@ class StockAdjustLogController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'stock-adjust-log-form');
 
-		if (Yii::$app->request->post('StockAdjustLog') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['StockAdjustLog'])) {
+			$model->load($_POST, 'StockAdjustLog');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class StockAdjustLogController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'stock-adjust-log-form');
 
-		if (Yii::$app->request->post('StockAdjustLog') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['StockAdjustLog'])) {
+			$model->load($_POST, 'StockAdjustLog');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class StockAdjustLogController extends BaseUiController {
 		$model = new StockAdjustLog(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('StockAdjustLog') !== null)
+		if (isset($_GET['StockAdjustLog']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'StockAdjustLog');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -146,14 +146,14 @@ class StockAdjustLogController extends BaseUiController {
 		if (isset ( $_GET ['StockAdjustLog'] ['create_user_id'] ) ) {
 			$model->create_user_id = $_GET ['StockAdjustLog'] ['create_user_id'];
 		}
-		Yii::warning( var_export( 	Yii::$app->session['adjust_start_date']  , true), 'start_date');
-		Yii::warning( var_export( 	Yii::$app->session['adjust_end_date']  , true), 'endd_date');
+		Yii::warning( var_export(Yii::$app->session['adjust_start_date'], true), 'start_date');
+		Yii::warning( var_export(Yii::$app->session['adjust_end_date'], true), 'endd_date');
 		
 		if (isset ( $_POST ['StockAdjustLog']['columns'] )){
 			$columns = $_POST ['StockAdjustLog']['columns'];
 		}
-		if (Yii::$app->request->get('StockAdjustLog') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['StockAdjustLog']))
+			$model->load($_GET, 'StockAdjustLog');
 			$columns = $model->getColumns($columns);
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), $columns

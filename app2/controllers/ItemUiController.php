@@ -103,43 +103,43 @@ class ItemUiController extends BaseUiController {
 					$added_qty = $log_added_qty->Qty;
 				}
 				
-				$query = ItemDetail::find();
-				$query->andWhere('item_id =' . $item->id);
-				$query->select('sum(open_stock_qty) as open_stock_qty');
-				$detail_qty = $query->one();
+				$query_new = ItemDetail::find();
+				$query_new->andWhere('item_id =' . $item->id);
+				$query_new->select('sum(open_stock_qty) as open_stock_qty');
+				$detail_qty = $query_new->one();
 				if ($detail_qty) {
 					$detail_added_qty = $detail_qty->open_stock_qty;
 				}
 				
 				$total_added_qty = bcadd ( $added_qty, $detail_added_qty, 3 );
 				
-				$query = StockLog::find();
-				$query->andWhere('item_id =' . $item->id);
-				$query->andWhere(['not in', 'type_id', [
+				$query1 = StockLog::find();
+				$query1->andWhere('item_id =' . $item->id);
+				$query1->andWhere(['not in', 'type_id', [
 						StockLog::TYPE_ADDED,
 						StockLog::TYPE_ORDER 
 				]]);
-				$query->select('sum(Qty) as Qty');
-				$log_subtracted_qty = $query->one();
+				$query1->select('sum(Qty) as Qty');
+				$log_subtracted_qty = $query1->one();
 				if ($log_subtracted_qty) {
 					$subtracted_qty = $log_subtracted_qty->Qty;
 				}
 				
 				$remaining_quantity = bcsub ( $total_added_qty, $subtracted_qty, 3 );
 				
-				$query = OrderItem::find();
-				$query->andWhere('item_id =' . $item->id);
-				$query->select('sum(qty) as qty');
-				$order = $query->one();
+				$query2 = OrderItem::find();
+				$query2->andWhere('item_id =' . $item->id);
+				$query2->select('sum(qty) as qty');
+				$order = $query2->one();
 				
 				if ($order) {
 					$ordered_qty = $order->qty;
 				}
 				
-				$query = OrderRefundItem::find();
-				$query->andWhere('item_id =' . $item->id);
-				$query->select('sum(qty) as qty');
-				$order_refund = $query->one();
+				$query3 = OrderRefundItem::find();
+				$query3->andWhere('item_id =' . $item->id);
+				$query3->select('sum(qty) as qty');
+				$order_refund = $query3->one();
 				
 				if ($order_refund) {
 					$ordered_refund_qty = $order_refund->qty;
@@ -149,10 +149,10 @@ class ItemUiController extends BaseUiController {
 				
 				$remain_quantity = bcsub ( $remaining_quantity, $final_ordered_quantity, 3 );
 				
-				$query = StockAdjustLog::find();
-				$query->andWhere('item_id =' . $item->id);
-				$query->select('sum(adjusted) as adjusted');
-				$adjust_log = $query->one();
+				$query4 = StockAdjustLog::find();
+				$query4->andWhere('item_id =' . $item->id);
+				$query4->select('sum(adjusted) as adjusted');
+				$adjust_log = $query4->one();
 				
 				if ($adjust_log) {
 					$adjusted_qty = $adjust_log->adjusted;
@@ -328,16 +328,16 @@ class ItemUiController extends BaseUiController {
 						'item_id' => $item->id,
 						'status' => Mrs::STATUS_PENDING 
 				] );
-				Yii::warning( var_export( $mrsdetails , true), '$mrsdetails');
+				Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
 				if ($mrsdetails) {
 					foreach ( $mrsdetails as $mrsdetail ) {
 						$mrs_id = $mrsdetail->mrs_id;
 						$mrs_item_id = $mrsdetail->item_id;
-						$query = MrsDetail::find();
+						$query1 = MrsDetail::find();
 						
-						Criteria::compare($query, "mrs_id ", $mrsdetail->mrs_id);
+						Criteria::compare($query1, "mrs_id ", $mrsdetail->mrs_id);
 						
-						$mrsItems = $query->count();
+						$mrsItems = $query1->count();
 						if ($mrsdetail && $item->id == $mrsdetail->item_id) {
 							$mrsdetail->delete ();
 						}
@@ -531,24 +531,24 @@ curl_close($ch);
 				$remaining_quantity = '0.000';
 				$add_quantity = '0.000';
 				$sub_quantity = '0.000';
-				$query = ItemDetail::find();
-				$query->andWhere('item_detail_id =' . $item_detail->id);
-				$query->orderBy(['id' => SORT_ASC]);
-				$query->andWhere("balance_qty > 0.000");
-				$query->andWhere('item_detail_id IS NOT NULL');
-				$stocks = $query->one();
+				$query_2 = ItemStock::find();
+				$query_2->andWhere('item_detail_id =' . $item_detail->id);
+				$query_2->orderBy(['id' => SORT_ASC]);
+				$query_2->andWhere("balance_qty > 0.000");
+				$query_2->andWhere('item_detail_id IS NOT NULL');
+				$stocks = $query_2->all();
 				
 				if (! empty ( $stocks )) {
 					foreach ( $stocks as $stock ) {
 						$add_quantity = ($add_quantity) + ($stock->balance_qty);
 					}
 				}
-				$query = ItemStock::find();
-				$query->andWhere('item_detail_id =' . $item_detail->id);
-				$query->orderBy(['id' => SORT_ASC]);
-				$query->andWhere("balance_qty < 0.000");
-				$query->andWhere('item_detail_id IS NOT NULL');
-				$stocks = $query->all();
+				$query1 = ItemStock::find();
+				$query1->andWhere('item_detail_id =' . $item_detail->id);
+				$query1->orderBy(['id' => SORT_ASC]);
+				$query1->andWhere("balance_qty < 0.000");
+				$query1->andWhere('item_detail_id IS NOT NULL');
+				$stocks = $query1->all();
 				
 				if (! empty ( $stocks )) {
 					foreach ( $stocks as $stock ) {
@@ -679,11 +679,11 @@ curl_close($ch);
 							}
 						
 							if ($itemStock->save ()) {
-								$query = Outlet::find();
-								Criteria::compare($query, 'status', MrsAdjust::STATUS_PENDING);
-								Criteria::compare($query, 'item_id', $itemStock->item_id);
-								$query->orderBy(['id' => SORT_DESC]);
-								$mrsadjust = $query->one();
+								$query_2 = MrsAdjust::find();
+								Criteria::compare($query_2, 'status', MrsAdjust::STATUS_PENDING);
+								Criteria::compare($query_2, 'item_id', $itemStock->item_id);
+								$query_2->orderBy(['id' => SORT_DESC]);
+								$mrsadjust = $query_2->one();
 								if($mrsadjust){
 									$mrsadjust->status = MrsAdjust::STATUS_DONE;
 									$mrsadjust->saveAttributes(['status']);
@@ -726,11 +726,11 @@ curl_close($ch);
 									$stocklog->type_id = StockLog::TYPE_ADJUSTED;
 									if ($stocklog->save ()) {
 										
-										$query = ItemStock::find();
-										Criteria::compare($query, 'item_id', $itemDetail->item_id);
-										$query->select('SUM(balance_qty) AS balance_qty');
-										$query->groupBy('item_id');
-										$mrsItemStock = $query->one();	
+										$queryItemStock = ItemStock::find();
+										Criteria::compare($queryItemStock, 'item_id', $itemDetail->item_id);
+										$queryItemStock->select('SUM(balance_qty) AS balance_qty');
+										$queryItemStock->groupBy('item_id');
+										$mrsItemStock = $queryItemStock->one();	
 										
 										
 										$remain = $item->getTotalRemainingQuantity();
@@ -740,15 +740,15 @@ curl_close($ch);
 									$mrsdetails = MrsDetail::findAll(['item_id'=>$item->id,
 											'status'=>Mrs::STATUS_PENDING
 									]);
-									Yii::warning( var_export( $mrsdetails , true), '$mrsdetails');
+									Yii::warning( var_export($mrsdetails, true), '$mrsdetails');
 									if($mrsdetails){
 										foreach($mrsdetails as $mrsdetail){
 											$mrs_id = $mrsdetail->mrs_id;
-											$query = MrsDetail::find();
+											$query1 = MrsDetail::find();
 											
-											Criteria::compare($query, "mrs_id ", $mrsdetail->mrs_id);
+											Criteria::compare($query1, "mrs_id ", $mrsdetail->mrs_id);
 												
-											$mrsItems = $query->count();
+											$mrsItems = $query1->count();
 											$mrs = Mrs::findOne($mrs_id);
 											if(($mrs) && ($mrsdetail) && ($item->id == $mrsdetail->item_id) && 
 											($mrs->status != Mrs::STATUS_DONE)){
@@ -771,21 +771,21 @@ curl_close($ch);
 								}else{
 									
 										/*Create MRS section*/
-										$query = Mrs::find();
-										$query->orderBy(['id' => SORT_DESC]);
-										$query->limit(1);
-										$query->andWhere('vendor_id ='.$itemStock->vendor_id);
-										$vendorMRS = $query->one();
+										$queryMrs = Mrs::find();
+										$queryMrs->orderBy(['id' => SORT_DESC]);
+										$queryMrs->limit(1);
+										$queryMrs->andWhere('vendor_id ='.$itemStock->vendor_id);
+										$vendorMRS = $queryMrs->one();
 								
 								// echo"<pre>"; print_r($vendorMRS); die;
 									if($vendorMRS->id){
 									$item = Item::findOne($item->id);
-									$query = MrsDetail::find();
-									$query->orderBy(['id' => SORT_DESC]);
-									$query->limit(1);
-									$query->andWhere('mrs_id ='.$vendorMRS->id);
-									$query->andWhere('item_id ='.$item->id);
-									$vendorMRSD = $query->one();
+									$queryMrsD = MrsDetail::find();
+									$queryMrsD->orderBy(['id' => SORT_DESC]);
+									$queryMrsD->limit(1);
+									$queryMrsD->andWhere('mrs_id ='.$vendorMRS->id);
+									$queryMrsD->andWhere('item_id ='.$item->id);
+									$vendorMRSD = $queryMrsD->one();
 									// echo"<pre>"; print_r($vendorMRSD); die;
 									if(empty($vendorMRSD)){
 									
@@ -799,12 +799,12 @@ curl_close($ch);
 											$tax = Tax::findOne($itemdetail_->tax_id);
 										$tax_id = $itemdetail_->tax_id;
 										}
-										Yii::warning( var_export( $itemStock->vendor_id , true), '$mrs_vendor_id');
+										Yii::warning( var_export($itemStock->vendor_id, true), '$mrs_vendor_id');
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
 										]);
-										Yii::warning( var_export( $mrs , true), '$mrs_id');
+										Yii::warning( var_export($mrs, true), '$mrs_id');
 										
 										if($item->reorder_qty != ''){
 										//$reorder_qty = $item->getReorderQty();
@@ -841,7 +841,7 @@ curl_close($ch);
 										$mrs->outlet_id = $outlet;
 										$mrs->vendor_id = $itemStock->vendor_id;
 									
-										Yii::warning( var_export( $mrs->vendor_id , true), '$mrs->vendor_id');
+										Yii::warning( var_export($mrs->vendor_id, true), '$mrs->vendor_id');
 										//$mrs->tax_id = $this->tax_id;
  
 										$mrs->organization_id = $organization->id;
@@ -1133,10 +1133,10 @@ curl_close($ch);
 		$lists = [ ];
 		$term = Yii::$app->request->getQuery ( 'term' );
 		if ($id != null) {
-			$query = ItemVendor::find();
-        $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('item_detail_id =' . $id);
-			$itemvendors = $query->all();
+			$query1 = ItemVendor::find();
+        $query1->orderBy(['id' => SORT_DESC]);
+			$query1->andWhere('item_detail_id =' . $id);
+			$itemvendors = $query1->all();
 			if ($itemvendors) {
 				foreach ( $itemvendors as $itemvendor ) {
 					$exist [] = $itemvendor->vendor_id;
@@ -1144,6 +1144,7 @@ curl_close($ch);
 			}
 		}
 		$query = Vendor::find();
+        $query->orderBy(['id' => SORT_DESC]);
 		if ($user->role_id == 1) {
 			$query->andWhere(['not in', 'id', $exist]);
 		} else {
@@ -1349,18 +1350,18 @@ curl_close($ch);
 		] );
 	}
 	public function actionBarCode() {
-		$model = new ItemDetail ( 'search' );
+		$model = new ItemDetail(['scenario' => 'search']);
 		// $this->updateMenuItems ( $model );
 		Yii::$app->session ['idList'] = '';
 		Yii::$app->session ['date_list'] = '';
 		Yii::$app->session ['packing_date_list'] = '';
 		Yii::$app->session ['expiry_val'] = '';
 		if (isset ( $_GET ['ItemDetail'] ))
-			$model->setAttributes ( $_GET ['ItemDetail'] );
+			$model->load($_GET, 'ItemDetail');
 		if (isset ( $_POST ['ItemDetail'] ['company_id'] )) {
 			$model->company_id = $_POST ['ItemDetail'] ['company_id'];
 		}
-		Yii::warning( var_export( $_POST , true), '$_POST');
+		Yii::warning( var_export($_POST, true), '$_POST');
 		if (isset ( $_GET ['id'] )) {
 			$model->item_id = $_GET ['id'];
 		}
@@ -1397,7 +1398,7 @@ curl_close($ch);
 	 * }
 	 */
 	public function actionPrintBarcode() {
-		$model = new ItemDetail ( 'search' );
+		$model = new ItemDetail(['scenario' => 'search']);
 		$criteria = new CDbCriteria ();
 		$item_detail_ids = [];
 		if ((isset ( $_POST ['ItemDetail'] ['item_print_id'] )) && ($_POST ['ItemDetail'] ['item_print_id'] != '') && ((isset ( $_POST ['ItemDetail'] ['item_qty'] )) && ($_POST ['ItemDetail'] ['item_qty'] != ''))) {
@@ -1470,9 +1471,9 @@ curl_close($ch);
 		
 		$this->performAjaxValidation( $model, 'item-form' );
 		
-		if (Yii::$app->request->post('Item') !== null) {
+		if (isset ( $_POST ['Item'] )) {
 			
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'Item');
 			$model->status = Item::STATUS_INACTIVE;
 			
 			if ($model->save ()) {
@@ -1523,9 +1524,9 @@ curl_close($ch);
 		
 		$this->performAjaxValidation( $model, 'item-form' );
 		
-		if (Yii::$app->request->post('Item') !== null) {
+		if (isset ( $_POST ['Item'] )) {
 			
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'Item');
 			$role = UserRole::findOne( [
 					'title' => 'Vendor' 
 			] );
@@ -1606,12 +1607,12 @@ curl_close($ch);
 	public function actionExtra($id = null) {
 		if ($id != null) {
 			$model = $this->loadModel($id);
-			$query = ItemDetail::find();
-			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $id);
-			$query->orderBy(['id' => SORT_ASC]);
-			$query->limit(1);
-			$itemdetail = $query->one();
+			$query1 = ItemDetail::find();
+			$query1->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
+			$query1->andWhere('item_id =' . $id);
+			$query1->orderBy(['id' => SORT_ASC]);
+			$query1->limit(1);
+			$itemdetail = $query1->one();
 			
 			if (! $itemdetail) {
 				$itemdetail = new ItemDetail ();
@@ -1629,9 +1630,9 @@ curl_close($ch);
 		
 		$this->performAjaxValidation( $model, 'item-extra-form' );
 		
-		if (Yii::$app->request->post('Item') !== null) {
+		if (isset ( $_POST ['Item'] )) {
 			if ($id != null) {
-				$model->load(Yii::$app->request->post());
+				$model->load($_POST, 'Item');
 				$model->update_time = date ( 'Y-m-d H:i:s' );
 				if ($model->save ()) {
 					if (isset ( $_POST ['ItemDetail'] ['outlet_id'] )) {
@@ -1645,7 +1646,7 @@ curl_close($ch);
 							 * $itemdetail = new ItemDetail ();
 							 * }
 							 */
-							$itemdetail->setAttributes ( $_POST ['ItemDetail'] );
+							$itemdetail->load($_POST, 'ItemDetail');
 							$itemdetail->mrp = $model->mrp;
 							$itemdetail->item_id = $model->id;
 							$itemdetail->open_stock_qty = $model->opening_stock;
@@ -1766,7 +1767,7 @@ curl_close($ch);
 				}
 				
 				// Item::RemoveVendors($model->id);
-				$itemvendor->setAttributes ( $_POST ['ItemVendor'] );
+				$itemvendor->load($_POST, 'ItemVendor');
 				
 				$itemvendor->item_detail_id = $id;
 				if ($itemvendor->save ()) {
@@ -1794,9 +1795,9 @@ curl_close($ch);
 		
 		$this->performAjaxValidation( $model, 'item-form' );
 		
-		if (Yii::$app->request->post('Item') !== null) {
+		if (isset ( $_POST ['Item'] )) {
 			
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'Item');
 			$model->update_time = date ( 'Y-m-d H:i:s' );
 			if ($model->save ()) {
 				if (isset ( $_POST ['Item'] ['vendor_id'] )) {
@@ -1846,11 +1847,11 @@ curl_close($ch);
 			Yii::$app->session ['item_name'] = $_POST ['Item'] ['name'];
 		}
 		
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Item');
 		}
 		
 		return $this->render( 'index', [
@@ -1862,8 +1863,8 @@ curl_close($ch);
 		$model = new Item(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('Item') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Item'] )) {
+			$model->load($_GET, 'Item');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -1915,11 +1916,11 @@ curl_close($ch);
 			
 			
 		}
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Item');
 		}
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 		
@@ -2023,11 +2024,11 @@ curl_close($ch);
 			Yii::$app->session ['item_name'] = $_POST ['Item'] ['name'];
 		}
 		
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Item');
 		}
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->search (), [
@@ -2138,11 +2139,11 @@ curl_close($ch);
 			Yii::$app->session ['item_name'] = $_POST ['Item'] ['name'];
 		}
 		
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Item');
 		}
 		if ($this->isExportRequest()) {
 			$this->exportCSV( $model->search (), [
@@ -2264,11 +2265,11 @@ curl_close($ch);
 			Yii::$app->session ['item_name'] = $_POST ['Item'] ['name'];
 		}
 		
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Item');
 		}
 		if ($this->isExportRequest()) {
 			$this->exportCSV( $model->search (), [
@@ -2427,7 +2428,7 @@ curl_close($ch);
 		
 		}
 		
-		if (Yii::$app->request->get('Item') !== null) {
+		if (isset ( $_GET ['Item'] )) {
 			if (Yii::$app->session ['item_name'] != '') {
 				$model->name = Yii::$app->session ['item_name'];
 			}
@@ -2441,8 +2442,8 @@ curl_close($ch);
 			$model->company_id = Yii::$app->session ['company_id'];
 		}
 		
-		if (Yii::$app->request->get('Item') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Item'] ))
+			$model->load($_GET, 'Item');
 		
 		return $this->render( 'adjuststock', [
 				'model' => $model 
@@ -2597,7 +2598,7 @@ curl_close($ch);
 		echo json_encode ( $data );
 	}
 	public function actionExpireStock($vendor_id = null, $outlet_id = null, $set = true) {
-		$model = new ItemExpireItem ( 'search' );
+		$model = new ItemExpireItem(['scenario' => 'search']);
 		
 		$this->updateMenuItems ( $model );
 		
@@ -2619,7 +2620,7 @@ curl_close($ch);
 		}
 		$_GET ['ItemExpireItem'] ['status'] = ItemExpire::STATUS_PENDING;
 		if (isset ( $_GET ['ItemExpireItem'] ))
-			$model->setAttributes ( $_GET ['ItemExpireItem'] );
+			$model->load($_GET, 'ItemExpireItem');
 		
 		return $this->render( 'expirestock', [
 				'model' => $model,
@@ -2885,7 +2886,7 @@ curl_close($ch);
 	}
 
 	public function actionScannedItems() {
-		$model = new ScannedItems ( 'search' );
+		$model = new ScannedItems(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		$columns = [];
 		if (isset ( $_POST ['ScannedItems'] ['columns'] )) {
@@ -2918,7 +2919,7 @@ curl_close($ch);
 		}
 
 		if (isset ( $_GET ['ScannedItems'] )) {
-			$model->setAttributes ( $_GET ['ScannedItems'] );
+			$model->load($_GET, 'ScannedItems');
 		}
 		$columns = $model->getScannedItemsColumns ( $columns );
 		// echo "<pre>"; print_r($columns); die;
@@ -3328,12 +3329,12 @@ curl_close($ch);
 		];
 
 		// Get items that need updating
-		$criteria = new CDbCriteria();
-		$criteria->addCondition('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0 AND new_gst=40');
-		$criteria->limit = $batchSize;
-		$criteria->order = 'id ASC';
+		$query = Item::find();
+		$query->andWhere('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0 AND new_gst=40');
+		$query->limit($batchSize);
+		$query->orderBy(['id' => SORT_ASC]);
 		
-		$items = Item::model()->findAll($criteria);
+		$items = $query->all();
 
 		foreach ($items as $item) {
 			$results['processed']++;
@@ -3432,21 +3433,21 @@ curl_close($ch);
 
 				
 			// Prepare item detail updates
-			$criteria = new CDbCriteria();
-			$criteria->addCondition('item_id = :item_id');
-			$criteria->params = [':item_id' => $item->id];
-			$detail = ItemDetail::model()->find($criteria);
+			$query = ItemDetail::find();
+			$query->andWhere('item_id = :item_id');
+			$query->addParams([':item_id' => $item->id]);
+			$detail = $query->one();
 			
 			if ($detail) {
 				
 				$tax = null;
 			
-				$criteria = new CDbCriteria();
-				$criteria->addCondition('(tax_val1 + tax_val2 + tax_val4) = :total_tax');
-				$criteria->addCondition('status = :status');
-				$criteria->addCondition('type_id = :type_id');
-				$criteria->params = [':total_tax' => $taxPercentage, ':status' => Tax::STATUS_ACTIVE, ':type_id' => $detail->tax->type_id];
-				$tax = Tax::model()->find($criteria);
+				$query_2 = Tax::find();
+				$query_2->andWhere('(tax_val1 + tax_val2 + tax_val4) = :total_tax');
+				$query_2->andWhere('status = :status');
+				$query_2->andWhere('type_id = :type_id');
+				$query_2->addParams([':total_tax' => $taxPercentage, ':status' => Tax::STATUS_ACTIVE, ':type_id' => $detail->tax->type_id]);
+				$tax = $query_2->one();
 				
 				if ($tax) {
 					$updateData['tax_info']['tax_id'] = $tax->id;
@@ -3511,10 +3512,10 @@ curl_close($ch);
 					try {
 					
 						if (isset($updateData['tax_info']['tax_id'])) {
-							$criteria = new CDbCriteria();
-							$criteria->addCondition('item_detail_id = :item_detail_id');
-							$criteria->params = [':item_detail_id' => $itemDetail->id];
-							$itemTax = ItemTax::model()->find($criteria);
+							$query = ItemTax::find();
+							$query->andWhere('item_detail_id = :item_detail_id');
+							$query->addParams([':item_detail_id' => $itemDetail->id]);
+							$itemTax = $query->one();
 							
 							if ($itemTax && $itemTax->tax_id != $updateData['tax_info']['tax_id']) {
 								$itemTax->tax_id = $updateData['tax_info']['tax_id'];

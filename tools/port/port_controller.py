@@ -16,6 +16,7 @@ import re, sys, os, subprocess
 ROOT = '/root/pos/pos83'
 sys.path.insert(0, '/root/pos')
 from port_views import arrays_to_brackets
+from port_model import dump_as_string
 
 
 def lcfirst(s):
@@ -37,7 +38,16 @@ def translate(src, model, ctrl, warn):
     # Yii 1 is written with a space before the paren in places -
     # `$model->unsetAttributes ()`, `new CActiveDataProvider ( 'ItemTax' )` -
     # so every one of these patterns has to tolerate it.
-    body = re.sub(r"\$this->loadModel\s*\(\s*([^,]+?)\s*,\s*'\w+'\s*\)", r'$this->loadModel(\1)', body)
+    #
+    # The class is kept, not stripped: `loadModel($model->item_id, 'Item')`
+    # means load an Item, and without it the base method loads the
+    # controller's own model by that id - a row that usually does not exist,
+    # so the page answered 404 where Yii 1 answers 403. Only the controller's
+    # own class is dropped, where the argument says nothing.
+    body = re.sub(r"\$this->loadModel\s*\(\s*([^,]+?)\s*,\s*'(\w+)'\s*\)",
+                  lambda m: ('$this->loadModel(%s)' % m.group(1)) if m.group(2) == model
+                  else ('$this->loadModel(%s, %s::class)' % (m.group(1), m.group(2))),
+                  body)
 
     # request
     # These files are written both `Yii::app()->x` and `Yii::app ()->x`, so
@@ -55,15 +65,28 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', body)
     body = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', body)
 
-    # form input
-    body = re.sub(r"isset\s*\(\s*\$_POST\s*\[\s*'" + model + r"'\s*\]\s*\)",
-                  "Yii::$app->request->post('" + model + "') !== null", body)
-    body = re.sub(r"isset\s*\(\s*\$_GET\s*\[\s*'" + model + r"'\s*\]\s*\)",
-                  "Yii::$app->request->get('" + model + "') !== null", body)
-    body = re.sub(r"\$model\s*->\s*setAttributes\s*\(\s*\$_POST\s*\[\s*'" + model + r"'\s*\]\s*\)",
-                  "$model->load(Yii::$app->request->post())", body)
-    body = re.sub(r"\$model\s*->\s*setAttributes\s*\(\s*\$_GET\s*\[\s*'" + model + r"'\s*\]\s*\)",
-                  "$model->load(Yii::$app->request->queryParams)", body)
+    # form input.
+    #
+    # Through $_GET and $_POST, not Yii::$app->request. yii\web\Request caches
+    # the query and body params the first time they are read, and three admin
+    # actions - MrnDetail's, MrsDetail's, PurchaseOrderDetail's - write the
+    # selected parent id into $_GET and then read the model out of it. Against
+    # the cached copy those writes are invisible, and the grid came back with
+    # every row in the table where Yii 1 correctly shows none.
+    #
+    # Reading the superglobal is not a step back from the framework: Yii 2
+    # merges the parsed route parameters into $_GET itself, in
+    # Request::resolve(), before the action runs.
+    #
+    # The isset() tests are left exactly as Yii 1 writes them, for the same
+    # reason.
+    #
+    # Any variable and any form name, not just $model and this controller's
+    # own. ItemReturn's view action builds an $itemReturnItem and fills it
+    # from $_GET['ItemReturnItem'], and a rule that only knew $model left that
+    # one as Yii 1 code.
+    body = re.sub(r"\$(\w+)\s*->\s*setAttributes\s*\(\s*\$_(GET|POST)\s*\[\s*'(\w+)'\s*\]\s*\)",
+                  r"$\1->load($_\2, '\3')", body)
 
     # data provider
     # Both `new CActiveDataProvider('X')` and the two-argument form that
@@ -85,12 +108,28 @@ def translate(src, model, ctrl, warn):
                    "            'sort' => ['defaultOrder' => " + model + "::defaultOrder() ?: []],\n"
                    "            'pagination' => ['pageSize' => Ui::PAGE_SIZE]])"), body)
 
-    # the search scenario
-    body = re.sub(r"new\s+" + model + r"\s*\(\s*'search'\s*\)",
-                  "new " + model + "(['scenario' => 'search'])", body)
+    # The search scenario, for any model the action builds - not only the
+    # controller's own. ItemReturn's view action builds an ItemReturnItem for
+    # the related grid, and leaving that one alone gave Yii 2 a string where it
+    # expects a configuration array: "foreach() argument must be of type
+    # array|object, string given", from inside Yii::configure().
+    #
+    # Restricted to real model classes. Yii 1's CModel takes the scenario as
+    # its constructor argument, so for those a bare string is always one; for
+    # anything else - new DateTime('now') - it is not.
+    def scenario(m):
+        cls, arg = m.group(1), m.group(2)
+        if not os.path.exists(f'{ROOT}/protected/models/{cls}.php'):
+            return m.group(0)
+        return "new %s(['scenario' => '%s'])" % (cls, arg)
+
+    body = re.sub(r"new\s+(\w+)\s*\(\s*'(\w+)'\s*\)", scenario, body)
     # unsetAttributes() cleared the defaults a new record starts with; a Yii 2
     # model built for a scenario has no defaults to clear.
-    body = re.sub(r"\s*\$model->unsetAttributes\s*\(\s*\)\s*;", '', body)
+    # Any variable, for the same reason: `$itemReturnItem->unsetAttributes()`
+    # is a Yii 1 method that does not exist in Yii 2, and leaving it in is a
+    # fatal on a page that otherwise works.
+    body = re.sub(r"\s*\$\w+->unsetAttributes\s*\(\s*\)\s*;", '', body)
 
     # exceptions
     body = re.sub(r"throw\s+new\s+CHttpException\s*\(\s*400\s*,\s*([^)]+)\)",
@@ -127,7 +166,7 @@ def translate(src, model, ctrl, warn):
 
     # Yii 1's logger. Yii 2 splits the level into the method name, and
     # CVarDumper::dumpAsString is var_export.
-    body = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', body)
+    body = dump_as_string(body)
     body = re.sub(r"(var_export\([^;]*?)\)(\s*),(\s*)CLogger::LEVEL_\w+",
                   lambda m: m.group(1) + ', true)' + m.group(2) + ',' + m.group(3) + 'LEVEL', body)
     body = re.sub(r"Yii::log\s*\(([^;]*?),\s*LEVEL\s*,\s*('[^']*')\s*\)",

@@ -3,7 +3,6 @@
  * Ported from protected/views/rolePermission/admin.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\models\Permission;
 use app\models\RolePermission;

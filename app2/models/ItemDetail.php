@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use app\components\Criteria;
+
 use app\components\Ui;
 
 use yii\data\ActiveDataProvider;
@@ -12,6 +14,21 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/ItemDetail.php (Yii 1). */
 class ItemDetail extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
+    // Declared on the Yii 1 model and not columns: the forms post
+    // to these and the actions assign them.
+    public $item_print_id;
+    public $item_qty;
+    public $company_id;
+    public $expiry_date;
+    public $packing_date;
+
+    public $purchase_price;
+    public $product_code;
+    public $hsn_code;
     public const STATUS_INACTIVE = 1;
     public const IS_COMPANY = 1;
     public const IS_NOT_COMPANY = 0;
@@ -1368,4 +1385,457 @@ class ItemDetail extends ActiveRecord
             }
             return $json_entry;
         }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['bar_code', 'mrp', 'open_stock_qty', 'outlet_id', 'create_time', 'create_user_id'], 'required'],
+            [['item_id', 'status', 'type_id', 'tax_id', 'create_user_id', 'updated_by'], 'integer'],
+            [['bar_code'], 'string', 'max' => 255],
+            [['bar_code'], 'unique'],
+            [['company_bar_code', 'update_time', 'outlet_id', 'mrp', 'company_id', 'packing_date', 'expiry_date', 'company_bar_code', 'item_qty', 'item_print_id'], 'safe'],
+            [['item_id', 'status', 'type_id', 'tax_id', 'updated_by'], 'default', 'value' => null],
+            [['hsn_code', 'product_code', 'purchase_price', 'mrp', 'id', 'item_id', 'bar_code', 'open_stock_qty', 'reorder_qty', 'status', 'type_id', 'create_time', 'tax_id', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		$item_ids = array ();
+		$query = self::find();
+		$item_list_ids = array ();
+		
+		$match_purchase_price = null;
+		$match_mrp = null;
+		$match_item_id = null;
+		$match_hsn_code = null;
+		$match_product_code = null;
+		
+		if ($this->item_id != null) {
+			/* Yii::warning( var_export( $this->item_id , true), '$this->item_id');
+			$query2 = Item::find();
+			
+				$query2->andWhere("title LIKE :title", array (
+						':title' => trim (  $this->item_id ) . '%'
+				));
+				
+			
+			//$criteria2->compare ( 'title', $this->item_id );
+			$getitem = $query2->one();
+			if($getitem){
+			$query1 = ItemDetail::find();
+			$query1->orderBy(['id' => SORT_ASC]);
+			$query1->andWhere('item_id ='.$getitem->id);
+			$itemDetail = $query1->one();
+			if($itemDetail){
+				$query->andWhere('id !='. $itemDetail->id);
+			}
+			} */
+			$match_item_id = $this->item_id;
+			Yii::warning( var_export( $match_item_id , true), '$match_item_id');
+		}
+		if ($this->mrp != null) {
+			$match_mrp = $this->mrp;
+		}
+		
+		if ($this->purchase_price != null) {
+			$match_purchase_price = $this->purchase_price;
+		}
+		if ($this->hsn_code != null) {
+			$match_hsn_code = $this->hsn_code;
+		}
+		
+		if ($this->product_code != null) {
+			$match_product_code = $this->product_code;
+		}
+		if ($this->company_id != null) {
+			$match_company_id = $this->company_id;
+		}else{
+			$match_company_id = null;
+		}
+		
+		
+		$is_vendor = 0;
+		$query->orderBy(['id' => SORT_DESC]);
+		Criteria::compare($query, 'id', $this->id);
+		
+		$role = UserRole::find()->where(array (
+				'title' => 'Vendor')->one());
+		$user = Yii::$app->user->model;
+		if ($user->role_id == $role->id) {
+			$is_vendor = 1;
+		} 
+		
+		if($match_item_id != null || $match_mrp !=null ||$match_hsn_code !=null || $match_product_code != null ||
+				$match_purchase_price != null || $match_company_id !=null || $is_vendor == 1	)
+		{
+		$item_ids = $this->getItemOptionIdsInBarcode ($match_item_id ,$match_mrp,$match_hsn_code,$match_product_code,
+				$match_purchase_price,$match_company_id,$is_vendor);
+		$query->andWhere(['item_id' => $item_ids]);
+		}
+			
+	
+		Criteria::compare($query, 'bar_code', $this->bar_code, true);
+		Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);
+		//$criteria->compare ( 'mrp', $this->mrp );
+		Criteria::compare($query, 'reorder_qty', $this->reorder_qty);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'tax_id', $this->tax_id);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 10],
+		]);
+    }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    /**
+     * BaseItemDetail::adminsearch(): the provider behind itemDetail/admin.
+     *
+     * Not search(), and not a variant of it. Four of this grid's filters -
+     * item title, mrp, hsn code, product code - are columns of Item, not of
+     * item_detail, so they are resolved to a set of item ids first and the
+     * grid is then filtered by item_id. The generator builds search() out of
+     * its compares; this one is not a list of compares, so it is written out.
+     *
+     * Takes no parameters: the action loads the model from the query string
+     * and the view calls this on the loaded model, as Yii 1 does.
+     */
+    public function adminsearch()
+    {
+        $query = self::find();
+
+        $match_mrp = null;
+        $match_purchase_price = null;
+        $match_item_id = null;
+        $match_hsn_code = null;
+        $match_product_code = null;
+
+        if ($this->item_id != null) {
+            // item_id holds a title here, not an id: the action puts the
+            // Item's title in it, and the filter box is a title box.
+            $item = Item::find()
+                ->where('title LIKE :title', [':title' => trim($this->item_id) . '%'])
+                ->one();
+            if ($item) {
+                $first = ItemDetail::find()
+                    ->where('item_id = ' . $item->id)
+                    ->orderBy('id asc')
+                    ->one();
+                if ($first) {
+                    // The first detail row of a matched item is the item
+                    // itself, and the admin grid hides it.
+                    $query->andWhere('id != ' . $first->id);
+                }
+            }
+            $match_item_id = $this->item_id;
+        }
+        if ($this->mrp != null) {
+            $match_mrp = $this->mrp;
+        }
+        if ($this->purchase_price != null) {
+            $match_purchase_price = $this->purchase_price;
+        }
+        if ($this->hsn_code != null) {
+            $match_hsn_code = $this->hsn_code;
+        }
+        if ($this->product_code != null) {
+            $match_product_code = $this->product_code;
+        }
+        $match_company_id = $this->company_id != null ? $this->company_id : null;
+
+        $is_vendor = 0;
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $is_vendor = 1;
+        }
+
+        if ($match_item_id != null || $match_mrp != null || $match_hsn_code != null
+            || $match_product_code != null || $match_purchase_price != null
+            || $match_company_id != null || $is_vendor == 1) {
+            $query->andWhere(['item_id' => $this->getItemOptionIdsInBarcode(
+                $match_item_id, $match_mrp, $match_hsn_code, $match_product_code,
+                $match_purchase_price, $match_company_id, $is_vendor)]);
+        }
+
+        Criteria::compare($query, 'id', $this->id);
+        Criteria::compare($query, 'bar_code', $this->bar_code, true);
+        Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);
+        Criteria::compare($query, 'reorder_qty', $this->reorder_qty);
+        Criteria::compare($query, 'status', $this->status);
+        Criteria::compare($query, 'type_id', $this->type_id);
+        Criteria::compare($query, 'create_time', $this->create_time, true);
+        Criteria::compare($query, 'tax_id', $this->tax_id);
+        Criteria::compare($query, 'create_user_id', $this->create_user_id);
+        Criteria::compare($query, 'updated_by', $this->updated_by);
+
+        // Yii 1 puts 't.id desc' on the criteria and 'id DESC' on the sort,
+        // and CSort::applyOrder appends one to the other. Both name the same
+        // column in the same direction, so one of them says it.
+        $query->orderBy('id desc');
+
+        return new ActiveDataProvider([
+            'query' => $query,
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => 10],
+        ]);
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in
+     * user may see.
+     *
+     * getItemOptions() filters on status and this does not, because Yii 1
+     * does not: the barcode dropdown this feeds lists inactive items too.
+     */
+    public function getItemOptionIds()
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for
+     * the items getItemOptionIds() allows.
+     */
+    public function getItemOptionbarcodes()
+    {
+        $list = [];
+        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])
+                     ->all() as $itemDetail) {
+            $list[$itemDetail->id] = $itemDetail->bar_code;
+        }
+
+        return $list;
+    }
+
+    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */
+    public function getItemCustomerName()
+    {
+        $customer = Customer::findOne($this->order->customer_id);
+
+        return $customer ? $customer->name : '';
+    }
+
+    /**
+     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's
+     * opening year, or '' when no session is selected.
+     */
+    public function getSessionStartDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[0]) ? $years[0] . '-04-01' : '';
+    }
+
+    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */
+    public function getSessionEndDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[1]) ? $years[1] . '-03-31' : '';
+    }
+
+    /**
+     * The two years in the selected session's name, which is '<from>-<to>'.
+     * The financial year runs 1 April to 31 March, which is where the two
+     * dates above come from.
+     */
+    private static function selectedSessionYears()
+    {
+        $id = Yii::$app->session['select_session_id'];
+        if ($id === null || $id === '') {
+            return [];
+        }
+        $session = Session::findOne($id);
+
+        return $session ? explode('-', $session->name) : [];
+    }
+
+    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */
+    public function getVendorDataOptions()
+    {
+        $list = [];
+        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);
+        // Yii 1 reaches these through findAllByAttributes(), which applies the
+        // model's defaultScope; the order is what the dropdown shows.
+        $query->orderBy(Vendor::defaultOrder() ?: []);
+        foreach ($query->all() as $vendor) {
+            $list[$vendor->id] = $vendor->name;
+        }
+
+        return $list;
+    }
 }

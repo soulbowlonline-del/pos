@@ -3,7 +3,6 @@
  * Ported from protected/views/vendor/admin.php.
  */
 
-use Yii;
 use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;

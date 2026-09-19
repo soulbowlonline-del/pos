@@ -158,23 +158,23 @@ Selected Barcode has less quantity in stock then added.
 			[
 					'attribute' =>'item_id',
 					'header'=>'Item',
-					'value' => function ($data) { return Gx::str($data->item); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 					//	'filter'=>Gx::listData(Item::class),
 			],
 			[
 					'attribute' =>'item_detail_id',
 					'header'=>'Barcode',
-					'value' => function ($data) { return Gx::str($data->itemDetail); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 					//	'filter'=>Gx::listData(ItemDetail::class),
 			],
 			[
 					'attribute' =>'vendor_id',
-					'value' => function ($data) { return Gx::str($data->vendor); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 					'filter'=>Gx::listData(Vendor::class),
 			],
 			[
 					'attribute' =>'outlet_id',
-					'value' => function ($data) { return Gx::str($data->outlet); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 					'filter'=>Gx::listData(Outlet::class),
 			],
 			'qty',
@@ -183,14 +183,14 @@ Selected Barcode has less quantity in stock then added.
 	//	'free',
 			[
 					'attribute' =>'total_amt',
-					'value' => function ($data) { return $data->total_amt; },
+					'value' => function ($data, $key, $index) { return $data->total_amt; },
 					'footer'=>$model->getTotals($model->search()->getKeys(),'total_amt','tbl_item_expire_item'),
 			],
 			
 // 			array(
 // 					'header' => '<a>Create Time</a>',
 // 					'attribute' => 'create_time',
-// 					'value' => function ($data) { return date("Y-m-d",strtotime($data->create_time)); },
+// 					'value' => function ($data, $key, $index) { return date("Y-m-d",strtotime($data->create_time)); },
 // 					'filter' => CJuiDatePicker::widget(// 							array(
 // 									'model' => $model,
 // 									'attribute' => 'create_time',
@@ -217,22 +217,22 @@ Selected Barcode has less quantity in stock then added.
 		'vendor_id',
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemExpire::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemExpire::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

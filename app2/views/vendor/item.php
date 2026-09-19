@@ -3,7 +3,6 @@
  * Ported from protected/views/vendor/item.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\models\Vendor;
 use app\widgets\ActiveForm;

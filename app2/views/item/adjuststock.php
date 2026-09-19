@@ -3,7 +3,6 @@
  * Ported from protected/views/item/adjuststock.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -107,15 +106,15 @@ $this->params['breadcrumbs'] = [
     						'header'=>'Remaining Quantity',
 							'attribute' =>'remaining_quan',
     						'format' => 'raw',
-    						'value' => function ($data) { return Html::activeTextInput($data,'qty',["id"=>"remain_input$data->id","class"=>"remain_input","value"=>$data->getAscBarCodeTotalRemainingQuantity(),"readOnly"=>"readOnly"]); },
-    					//	'value' => function ($data) { return $data->getBarCodeTotalRemainingQuantity(); },
+    						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'qty',["id"=>"remain_input$data->id","class"=>"remain_input","value"=>$data->getAscBarCodeTotalRemainingQuantity(),"readOnly"=>"readOnly"]); },
+    					//	'value' => function ($data, $key, $index) { return $data->getBarCodeTotalRemainingQuantity(); },
     	                 'htmlOptions'=>['class'=>'remain'],
     				],
     				[
     						'header'=>'Remarks',
     						'format' => 'raw',
-    						'value' => function ($data) { return Html::activeTextInput($data,'remarks',["id"=>"remarks_input$data->id","class"=>"remarks_input","value"=>""]); },
-    						//	'value' => function ($data) { return $data->getBarCodeTotalRemainingQuantity(); },
+    						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'remarks',["id"=>"remarks_input$data->id","class"=>"remarks_input","value"=>""]); },
+    						//	'value' => function ($data, $key, $index) { return $data->getBarCodeTotalRemainingQuantity(); },
     						'htmlOptions'=>['class'=>'remarks'],
     				],
     				/* array(
@@ -139,7 +138,7 @@ $this->params['breadcrumbs'] = [
     				[
     							
     						'header'=>'Shelf Stock',
-    						'value' => function ($data) { return Html::activeTextInput($data,'qty',["id"=>"qty_input$data->id","class"=>"qty_input","value"=>$data->getItemAdjustedStock()]); },
+    						'value' => function ($data, $key, $index) { return Html::activeTextInput($data,'qty',["id"=>"qty_input$data->id","class"=>"qty_input","value"=>$data->getItemAdjustedStock()]); },
     						'format' => 'raw',
     						'htmlOptions'=>['class'=>'qty'],
     							
@@ -150,7 +149,7 @@ $this->params['breadcrumbs'] = [
     						//  'data_demanded_quantity' => '$data->demanded_quantity',
     						//  'data-state_id' => '$data->state_id',
     						//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-    						'value' => function ($data) { return $data->getLatestVendorName(); },
+    						'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },
     						'headerOptions' => ['style' => 'width: 110px'],
     				
     						'filter'=>Gx::listData(Vendor::class),
@@ -158,7 +157,7 @@ $this->params['breadcrumbs'] = [
     				],
     				[
     						'attribute' =>'company_id',
-    						'value' => function ($data) { return isset($data->company)?$data->company:""; },
+    						'value' => function ($data, $key, $index) { return isset($data->company)?$data->company:""; },
     						'filter'=>$model->getParentCompanys(),
     				],
         

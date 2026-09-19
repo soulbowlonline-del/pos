@@ -19,24 +19,24 @@ echo GridView::widget([
 		'title',
 		/* array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemCompanyCategory::getTypeOptions(),
 				), */
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemCompanyCategory::getStatusOptions(),
 				], 
 		/* 'update_time',
 		array(
 			'attribute' =>'company_id',
-			'value' => function ($data) { return Gx::str($data->company); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->company); },
 			'filter'=>Gx::listData(Company::class),
 			), */
 		/*
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

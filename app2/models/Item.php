@@ -18,6 +18,11 @@ class Item extends ActiveRecord
     // compare them loosely and answer wrongly for an integer 0.
     use LegacyColumnTypes;
 
+    // Declared on the Yii 1 model and not columns: the forms post
+    // to these and the actions assign them.
+    public $tax_id;
+    public $remaining_quan;
+
     public $outlet_id;
     public $name;
     public $bar_code;
@@ -586,7 +591,7 @@ class Item extends ActiveRecord
             $query->andWhere('date(create_time) <="'.Yii::$app->session ['stock_end_date'].'"');
             $query->orderBy(['id' => SORT_DESC]);
             $stock = $query->one();
-            Yii::warning( var_export( $stock ), '$stock');
+            Yii::warning( var_export( $stock , true), '$stock');
             if($stock){
                 $qty = $stock->current_qty;
             }
@@ -1013,7 +1018,7 @@ class Item extends ActiveRecord
             $purchase_qty = $this->getPurchaseQty();
             $per_purchase_qty = (($this->getPurchaseQty()) - (10/100) * ($this->getPurchaseQty()));
             $sale_qty = $this->getSaleQty();
-            Yii::warning( var_export( $this ), '$mrs');
+            Yii::warning( var_export( $this , true), '$mrs');
              if($sale_qty < $per_purchase_qty){
                 $cssClass='mrsred';
             }
@@ -1053,8 +1058,8 @@ class Item extends ActiveRecord
             if($qty == ''){
                 $qty = '0';
             }
-            Yii::warning( var_export( $this->id ), '$this->item_id');
-            Yii::warning( var_export( $qty ), '$purqty');
+            Yii::warning( var_export( $this->id , true), '$this->item_id');
+            Yii::warning( var_export( $qty , true), '$purqty');
             return $qty;
         }
 
@@ -1070,8 +1075,8 @@ class Item extends ActiveRecord
             if($qty == ''){
                 $qty = '0';
             }
-            Yii::warning( var_export( $this->id ), '$this->item_id');
-            Yii::warning( var_export( $qty ), '$saleqty');
+            Yii::warning( var_export( $this->id , true), '$this->item_id');
+            Yii::warning( var_export( $qty , true), '$saleqty');
             return $qty;
         }
 
@@ -1088,8 +1093,8 @@ class Item extends ActiveRecord
             if($qty == ''){
                 $qty = '0';
             }
-            Yii::warning( var_export( $this->id ), '$this->item_id');
-            Yii::warning( var_export( $qty ), '$saleqty');
+            Yii::warning( var_export( $this->id , true), '$this->item_id');
+            Yii::warning( var_export( $qty , true), '$saleqty');
             return $qty;
         }
 
@@ -1179,11 +1184,11 @@ class Item extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'item_type', 'status', 'type_id', 'mrp', 'is_tax', 'is_discount', 'sale_price', 'purchase_price', 'sub_category_id', 'opening_stock', 'weight', 'sub_category_id', 'category_id', 'sub_company_id', 'company_id', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['item_type', 'item_type'], ['status', 'status'], ['type_id', 'type_id'], ['mrp', 'mrp'], ['is_tax', 'is_tax'], ['is_discount', 'is_discount'], ['sale_price', 'sale_price'], ['purchase_price', 'purchase_price'], ['sub_category_id', 'sub_category_id'], ['opening_stock', 'opening_stock'], ['weight', 'weight'], ['sub_category_id', 'sub_category_id'], ['category_id', 'category_id'], ['sub_company_id', 'sub_company_id'], ['company_id', 'company_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['short_name', 'item_code', 'description', 'image_file', 'hsn_code', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['short_name', 'short_name'], ['item_code', 'item_code'], ['description', 'description'], ['image_file', 'image_file'], ['hsn_code', 'hsn_code'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;
@@ -1586,7 +1591,7 @@ class Item extends ActiveRecord
                     $new = false;
                     for ($i = 1; $i < $count; $i++) {
                         $itemcat_values = explode(',', $rows[$i]);
-                        Yii::warning( var_export( $itemcat_values ), 'item_values');
+                        Yii::warning( var_export( $itemcat_values , true), 'item_values');
 
                         if (isset($arrays['Title']) || isset($arrays['﻿"Title"']) || isset($arrays['���"Title"'])) {
                             $query = Item::find();
@@ -1608,7 +1613,7 @@ class Item extends ActiveRecord
 
                             $item = $query->one();
                         }
-                        Yii::warning( var_export( $item ), '$alreadyitem');
+                        Yii::warning( var_export( $item , true), '$alreadyitem');
 
                         if($item == null){
                             $new = true;
@@ -1755,7 +1760,7 @@ class Item extends ActiveRecord
                         if($user->role_id != $role->id ){
                             $item->state_id = Item::STATUS_INACTIVE;
                         }
-                        Yii::warning( var_export( $item ), '$item');
+                        Yii::warning( var_export( $item , true), '$item');
                         if ($item->save()) {
                             /* $itemDetailoldbars = ItemDetail::find()->where(array (
                                     'item_id' =>  $item->id)->all());
@@ -1780,7 +1785,7 @@ class Item extends ActiveRecord
                                 }
                                 $itemDetail = new ItemDetail();
 
-                                Yii::warning( var_export( $itemDetail ), '$itemDetail');
+                                Yii::warning( var_export( $itemDetail , true), '$itemDetail');
                                 $barcodestr = $itemcat_values[$arrays['Barcode']];
                                 $stringlength = strlen($barcodestr);
                                 if($stringlength < 9){
@@ -1895,7 +1900,7 @@ class Item extends ActiveRecord
                                 $query = Item::find();
                                 Criteria::compare($query, 'title', $item_values[$arrays['Title']]);
                                 $item = $query->one();
-                                Yii::warning( var_export( $item ), '$$$$item');
+                                Yii::warning( var_export( $item , true), '$$$$item');
                                 if($item){
                                     $itemvendor->item_detail_id = $item->id;
                                 }
@@ -1924,7 +1929,7 @@ class Item extends ActiveRecord
                             $query = Item::find();
                             Criteria::compare($query, 'name', $item_values[$arrays['Vendor']]);
                             $vendor = $query->one();
-                            Yii::warning( var_export( $vendor ), '$$vendor');
+                            Yii::warning( var_export( $vendor , true), '$$vendor');
                             if($vendor){
                                 $itemvendor->vendor_id = $vendor->id;
                             }
@@ -1932,7 +1937,7 @@ class Item extends ActiveRecord
                         $Alreadyitemvendor = ItemVendor::find()->where(['item_detail_id'=>$itemvendor->item_detail_id,
                                 'vendor_id'=>$itemvendor->vendor_id
                         ])->one();
-                        Yii::warning( var_export( $Alreadyitemvendor ), '$Alreadyitemvendor');
+                        Yii::warning( var_export( $Alreadyitemvendor , true), '$Alreadyitemvendor');
                         if($Alreadyitemvendor == null && $itemvendor->vendor_id != null && $itemvendor->item_detail_id != null){
                         if ($itemvendor->save()) {
 
@@ -1996,7 +2001,7 @@ class Item extends ActiveRecord
                         Criteria::compare($query, 'title', $product_title);
                         //$criteria->compare('item_code',$product_code);
                         $getItem = $query->one();
-                        Yii::warning( var_export( $getItem ), '$getItem');
+                        Yii::warning( var_export( $getItem , true), '$getItem');
                         if($getItem){
                             $stocks = ItemStock::model()->deleteAllByAttributes(['item_id'=>$getItem->id]);
                             $barcode = $getItem->getItemBarcodes();
@@ -2005,7 +2010,7 @@ class Item extends ActiveRecord
                                 Criteria::compare($query, 'item_id', $getItem->id);
                                 Criteria::compare($query, 'bar_code', $barcode);
                                 $getItemDetail = $query->one();
-                                Yii::warning( var_export( $getItemDetail ), '$getItemDetail');
+                                Yii::warning( var_export( $getItemDetail , true), '$getItemDetail');
                                 if($getItemDetail){
                                     $batch_no =  User::randomBarcode('5');
                             $itemstock = new ItemStock();
@@ -2069,14 +2074,14 @@ class Item extends ActiveRecord
             $query->andWhere('status ='.MrsDetail::STATUS_DONE);
             $query->orderBy(['id' => SORT_DESC]);
             $last_mrs_detail = $query->one();
-            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+            Yii::warning( var_export( $last_mrs_detail , true), '$last_mrs_detail');
 
             if($last_mrs_detail){
                 $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
                 $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
                 $curent_date = date('Y-m-d');
                 $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
-                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+                Yii::warning( var_export( $sale_qty_till_date , true), '$sale_qty_till_date');
 
                 $lastsale_qty_till_date = 0;
                 $query = MrsDetail::find();
@@ -2085,26 +2090,26 @@ class Item extends ActiveRecord
                 $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
                 $query->orderBy(['id' => SORT_DESC]);
                 $seclast_mrs_detail = $query->one();
-                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+                Yii::warning( var_export( $seclast_mrs_detail , true), '$$seclast_mrs_detail');
 
                 if($seclast_mrs_detail){
                     $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
                     $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
                     $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
                 }
-                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+                Yii::warning( var_export( $lastsale_qty_till_date , true), '$lastsale_qty_till_date');
 
                 if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
                     $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
                     $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
-                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+                    Yii::warning( var_export( $inc_sale_per , true), '$inc_sale_per');
 
                     if($inc_sale_per > 0){
                         $get_inc = $max_qty *($inc_sale_per/100);
                         $max_qty = $max_qty + $get_inc;
                         $max_qty = round($max_qty);
-                        Yii::warning( var_export( $get_inc ), '$get_inc');
-                        Yii::warning( var_export( $max_qty ), '$max_qty');
+                        Yii::warning( var_export( $get_inc , true), '$get_inc');
+                        Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                     }
 
@@ -2112,14 +2117,14 @@ class Item extends ActiveRecord
                     if($lastsale_qty_till_date > $sale_qty_till_date){
                     $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
                     $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
-                    Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+                    Yii::warning( var_export( $dec_sale_per , true), '$dec_sale_per');
 
                     if($dec_sale_per > 0){
                         $get_inc = $max_qty *($dec_sale_per/100);
                         $max_qty = $max_qty - $get_inc;
                         $max_qty = round($max_qty);
-                        Yii::warning( var_export( $get_inc ), '$get_inc');
-                        Yii::warning( var_export( $max_qty ), '$max_qty');
+                        Yii::warning( var_export( $get_inc , true), '$get_inc');
+                        Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                     }
                 }
@@ -2140,14 +2145,14 @@ class Item extends ActiveRecord
             $query->andWhere('status ='.MrsDetail::STATUS_DONE);
             $query->orderBy(['id' => SORT_DESC]);
             $last_mrs_detail = $query->one();
-            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+            Yii::warning( var_export( $last_mrs_detail , true), '$last_mrs_detail');
 
             if($last_mrs_detail){
                 $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
                 $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
                 $curent_date = date('Y-m-d');
                 $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
-                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+                Yii::warning( var_export( $sale_qty_till_date , true), '$sale_qty_till_date');
 
                 $lastsale_qty_till_date = 0;
                 $query = MrsDetail::find();
@@ -2156,26 +2161,26 @@ class Item extends ActiveRecord
                 $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
                 $query->orderBy(['id' => SORT_DESC]);
                 $seclast_mrs_detail = $query->one();
-                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+                Yii::warning( var_export( $seclast_mrs_detail , true), '$$seclast_mrs_detail');
 
                 if($seclast_mrs_detail){
                     $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
                     $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
                     $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
                 }
-                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+                Yii::warning( var_export( $lastsale_qty_till_date , true), '$lastsale_qty_till_date');
 
                 if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
                     $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
                     $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
-                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+                    Yii::warning( var_export( $inc_sale_per , true), '$inc_sale_per');
 
                     if($inc_sale_per > 0){
                         $get_inc = $max_qty *($inc_sale_per/100);
                         $max_qty = $max_qty + $get_inc;
                         $max_qty = round($max_qty);
-                        Yii::warning( var_export( $get_inc ), '$get_inc');
-                        Yii::warning( var_export( $max_qty ), '$max_qty');
+                        Yii::warning( var_export( $get_inc , true), '$get_inc');
+                        Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                     }
 
@@ -2183,14 +2188,14 @@ class Item extends ActiveRecord
                     if($lastsale_qty_till_date > $sale_qty_till_date){
                         $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
                         $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
-                        Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+                        Yii::warning( var_export( $dec_sale_per , true), '$dec_sale_per');
 
                         if($dec_sale_per > 0){
                             $get_inc = $max_qty *($dec_sale_per/100);
                             $max_qty = $max_qty - $get_inc;
                             $max_qty = round($max_qty);
-                            Yii::warning( var_export( $get_inc ), '$get_inc');
-                            Yii::warning( var_export( $max_qty ), '$max_qty');
+                            Yii::warning( var_export( $get_inc , true), '$get_inc');
+                            Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                         }
                     }
@@ -2208,14 +2213,14 @@ class Item extends ActiveRecord
             $query->andWhere('status ='.MrsDetail::STATUS_DONE);
             $query->orderBy(['id' => SORT_DESC]);
             $last_mrs_detail = $query->one();
-            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+            Yii::warning( var_export( $last_mrs_detail , true), '$last_mrs_detail');
 
             if($last_mrs_detail){
                 $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
                 $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
                 $curent_date = date('Y-m-d');
                 $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
-                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+                Yii::warning( var_export( $sale_qty_till_date , true), '$sale_qty_till_date');
 
                 $lastsale_qty_till_date = 0;
                 $query = MrsDetail::find();
@@ -2224,26 +2229,26 @@ class Item extends ActiveRecord
                 $query->andWhere('mrs_id !='.$last_mrs_detail->mrs_id);
                 $query->orderBy(['id' => SORT_DESC]);
                 $seclast_mrs_detail = $query->one();
-                Yii::warning( var_export( $seclast_mrs_detail ), '$$seclast_mrs_detail');
+                Yii::warning( var_export( $seclast_mrs_detail , true), '$$seclast_mrs_detail');
 
                 if($seclast_mrs_detail){
                     $lastmrs = Mrs::findOne($seclast_mrs_detail->mrs_id);
                     $lastmrs_date = date('Y-m-d',strtotime($lastmrs->mrs_date));
                     $lastsale_qty_till_date = $this->getItemSaleQty($lastmrs_date,$mrs_date);
                 }
-                Yii::warning( var_export( $lastsale_qty_till_date ), '$lastsale_qty_till_date');
+                Yii::warning( var_export( $lastsale_qty_till_date , true), '$lastsale_qty_till_date');
 
                 if($sale_qty_till_date >$lastsale_qty_till_date && $lastsale_qty_till_date != 0){
                     $inc_sale = $sale_qty_till_date - $lastsale_qty_till_date;
                     $inc_sale_per = ($inc_sale/$lastsale_qty_till_date)*100;
-                    Yii::warning( var_export( $inc_sale_per ), '$inc_sale_per');
+                    Yii::warning( var_export( $inc_sale_per , true), '$inc_sale_per');
 
                     if($inc_sale_per > 0){
                         $get_inc = $max_qty *($inc_sale_per/100);
                         $max_qty = $max_qty + $get_inc;
                         $max_qty = round($max_qty);
-                        Yii::warning( var_export( $get_inc ), '$get_inc');
-                        Yii::warning( var_export( $max_qty ), '$max_qty');
+                        Yii::warning( var_export( $get_inc , true), '$get_inc');
+                        Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                     }
 
@@ -2251,14 +2256,14 @@ class Item extends ActiveRecord
                     if($lastsale_qty_till_date > $sale_qty_till_date){
                         $dec_sale = $lastsale_qty_till_date - $sale_qty_till_date;
                         $dec_sale_per = ($dec_sale/$lastsale_qty_till_date)*100;
-                        Yii::warning( var_export( $dec_sale_per ), '$dec_sale_per');
+                        Yii::warning( var_export( $dec_sale_per , true), '$dec_sale_per');
 
                         if($dec_sale_per > 0){
                             $get_inc = $max_qty *($dec_sale_per/100);
                             $max_qty = $max_qty - $get_inc;
                             $max_qty = round($max_qty);
-                            Yii::warning( var_export( $get_inc ), '$get_inc');
-                            Yii::warning( var_export( $max_qty ), '$max_qty');
+                            Yii::warning( var_export( $get_inc , true), '$get_inc');
+                            Yii::warning( var_export( $max_qty , true), '$max_qty');
 
                         }
                     }
@@ -2279,20 +2284,20 @@ class Item extends ActiveRecord
             $query->andWhere('status ='.MrsDetail::STATUS_DONE);
             $query->orderBy(['id' => SORT_DESC]);
             $last_mrs_detail = $query->one();
-            Yii::warning( var_export( $last_mrs_detail ), '$last_mrs_detail');
+            Yii::warning( var_export( $last_mrs_detail , true), '$last_mrs_detail');
 
             if($last_mrs_detail){
                 $mrs = Mrs::findOne($last_mrs_detail->mrs_id);
                 $mrs_date = date('Y-m-d',strtotime($mrs->mrs_date));
                 $curent_date = date('Y-m-d');
                 $sale_qty_till_date = $this->getItemSaleQty($mrs_date,$curent_date);
-                Yii::warning( var_export( $sale_qty_till_date ), '$sale_qty_till_date');
+                Yii::warning( var_export( $sale_qty_till_date , true), '$sale_qty_till_date');
 
                 $mrsBetweenDays = $this->daysBetweenTwoDays($curent_date, $mrs_date);
-                Yii::warning( var_export( $mrsBetweenDays ), '$mrsBetweenDays');
+                Yii::warning( var_export( $mrsBetweenDays , true), '$mrsBetweenDays');
 
                 $avgDailySales = round($sale_qty_till_date / $mrsBetweenDays, 2);
-                Yii::warning( var_export( $avgDailySales ), '$avgDailySales');
+                Yii::warning( var_export( $avgDailySales , true), '$avgDailySales');
 
                 $avgDeliveryTime = 0;
 
@@ -2322,18 +2327,18 @@ class Item extends ActiveRecord
                         }
                         $endDate = $mrsCreateDate;
                     }
-                    Yii::warning( var_export( $deliveryDays ), '$deliveryDays');
-                    Yii::warning( var_export( count($mrs_details) ), 'count($mrs_details)');
+                    Yii::warning( var_export( $deliveryDays , true), '$deliveryDays');
+                    Yii::warning( var_export( count($mrs_details) , true), 'count($mrs_details)');
                     if ($deliveryDays > 0) {
                         $avgDeliveryTime = round($deliveryDays / count($mrs_details));
                     }
                 }
 
-                Yii::warning( var_export( $avgDeliveryTime ), '$avgDeliveryTime');
+                Yii::warning( var_export( $avgDeliveryTime , true), '$avgDeliveryTime');
 
                 if ($avgDailySales > 0 && $avgDeliveryTime > 0) {
                     $rop = ($avgDailySales * $avgDeliveryTime) + $safetyStock;
-                    Yii::warning( var_export( $rop ), '$rop');
+                    Yii::warning( var_export( $rop , true), '$rop');
                 }
             }
             if($rop > 0){
@@ -2405,4 +2410,204 @@ class Item extends ActiveRecord
 
            return $item_detail_ids;
         }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in
+     * user may see.
+     *
+     * getItemOptions() filters on status and this does not, because Yii 1
+     * does not: the barcode dropdown this feeds lists inactive items too.
+     */
+    public function getItemOptionIds()
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for
+     * the items getItemOptionIds() allows.
+     */
+    public function getItemOptionbarcodes()
+    {
+        $list = [];
+        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])
+                     ->all() as $itemDetail) {
+            $list[$itemDetail->id] = $itemDetail->bar_code;
+        }
+
+        return $list;
+    }
+
+    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */
+    public function getItemCustomerName()
+    {
+        $customer = Customer::findOne($this->order->customer_id);
+
+        return $customer ? $customer->name : '';
+    }
+
+    /**
+     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's
+     * opening year, or '' when no session is selected.
+     */
+    public function getSessionStartDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[0]) ? $years[0] . '-04-01' : '';
+    }
+
+    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */
+    public function getSessionEndDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[1]) ? $years[1] . '-03-31' : '';
+    }
+
+    /**
+     * The two years in the selected session's name, which is '<from>-<to>'.
+     * The financial year runs 1 April to 31 March, which is where the two
+     * dates above come from.
+     */
+    private static function selectedSessionYears()
+    {
+        $id = Yii::$app->session['select_session_id'];
+        if ($id === null || $id === '') {
+            return [];
+        }
+        $session = Session::findOne($id);
+
+        return $session ? explode('-', $session->name) : [];
+    }
+
+    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */
+    public function getVendorDataOptions()
+    {
+        $list = [];
+        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);
+        // Yii 1 reaches these through findAllByAttributes(), which applies the
+        // model's defaultScope; the order is what the dropdown shows.
+        $query->orderBy(Vendor::defaultOrder() ?: []);
+        foreach ($query->all() as $vendor) {
+            $list[$vendor->id] = $vendor->name;
+        }
+
+        return $list;
+    }
 }

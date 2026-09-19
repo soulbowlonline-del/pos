@@ -55,6 +55,23 @@ class GridView extends \yii\grid\GridView
             $this->pager = $this->pager ? [] : ['class' => \yii\widgets\LinkPager::class, 'options' => ['style' => 'display:none']];
         }
 
+        // CGridColumn::$visible. Yii 2 has no such property, so a column
+        // Yii 1 hides was rendered anyway - purchaseOrderDetail's grid shows
+        // six tax columns for a GST order and two for an IGST one, and the
+        // port showed all eight. Dropped here rather than passed on, because
+        // Yii 2's DataColumn would reject the key.
+        $visible = [];
+        foreach ($this->columns as $column) {
+            if (is_array($column) && array_key_exists('visible', $column)) {
+                if (!$column['visible']) {
+                    continue;
+                }
+                unset($column['visible']);
+            }
+            $visible[] = $column;
+        }
+        $this->columns = $visible;
+
         // A column carrying a 'footer' means the grid has a totals row. Yii 1
         // renders it whenever any column defines one; Yii 2 needs to be told,
         // and without it the table is one row shorter than the original.

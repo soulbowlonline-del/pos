@@ -3,7 +3,6 @@
  * Ported from protected/views/customer/admin.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\City;

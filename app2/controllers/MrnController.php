@@ -4,6 +4,8 @@ namespace app\controllers;
 use app\components\Ui;
 use app\models\Mrn;
 use app\models\MrnDetail;
+use app\models\PurchaseOrder;
+use app\models\PurchaseOrderDetail;
 use app\models\User;
 use app\models\UserRole;
 use app\models\Vendor;
@@ -81,8 +83,8 @@ class MrnController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'mrn-form');
 
-		if (Yii::$app->request->post('Mrn') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Mrn'])) {
+			$model->load($_POST, 'Mrn');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -103,8 +105,8 @@ class MrnController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'mrn-form');
 
-		if (Yii::$app->request->post('Mrn') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Mrn'])) {
+			$model->load($_POST, 'Mrn');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -138,6 +140,9 @@ class MrnController extends BaseUiController {
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => Mrn::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render('index', [
@@ -150,9 +155,9 @@ class MrnController extends BaseUiController {
 		$model = new Mrn(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Mrn') !== null)
+		if (isset($_GET['Mrn']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Mrn');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -169,8 +174,8 @@ class MrnController extends BaseUiController {
 		if( !($model->checkPermission ('mrn/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Mrn') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Mrn']))
+			$model->load($_GET, 'Mrn');
 
 		return $this->render('admin', [
 			'model' => $model,
@@ -201,10 +206,10 @@ class MrnController extends BaseUiController {
 
 		
 		if($set == true){
-		$model = new MrnDetail('search');
+		$model = new MrnDetail(['scenario' => 'search']);
 		$_GET['PurchaseOrderDetail']['purchase_order_id'] = $id;
 		if (isset($_GET['PurchaseOrderDetail']))
-			$model->setAttributes($_GET['PurchaseOrderDetail']);
+			$model->load($_GET, 'PurchaseOrderDetail');
 			$vendor = Vendor::findOne( $po->vendor_id );
 			$email = '' ;
 			// if($vendor){

@@ -86,9 +86,9 @@ class DiscountController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'discount-form');
 	
-		if (Yii::$app->request->post('Discount') !== null) {
+		if (isset($_POST['Discount'])) {
 			
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'Discount');
            $model->start_date = date('Y-m-d',strtotime($model->start_date));
            $model->end_date = date('Y-m-d',strtotime($model->end_date));
            if(isset($_POST['Discount']['is_time_dependent'] ) && ($_POST['Discount']['is_time_dependent'] == Discount::TIME_DEPENDENT)){
@@ -134,8 +134,8 @@ class DiscountController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'discount-form');
 
-		if (Yii::$app->request->post('Discount') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Discount'])) {
+			$model->load($_POST, 'Discount');
 			$model->start_date = date('Y-m-d',strtotime($model->start_date));
 			$model->end_date = date('Y-m-d',strtotime($model->end_date));
 			
@@ -198,6 +198,9 @@ class DiscountController extends BaseUiController {
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => Discount::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render('index', [
@@ -210,9 +213,9 @@ class DiscountController extends BaseUiController {
 		$model = new Discount(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Discount') !== null)
+		if (isset($_GET['Discount']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Discount');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -229,8 +232,8 @@ class DiscountController extends BaseUiController {
 		if( !($model->checkPermission ('discount/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Discount') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Discount']))
+			$model->load($_GET, 'Discount');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 						//'id',

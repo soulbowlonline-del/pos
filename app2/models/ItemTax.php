@@ -538,4 +538,110 @@ class ItemTax extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
 }

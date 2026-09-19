@@ -21,29 +21,29 @@ echo GridView::widget([
 		'id',
 		 [
 			'attribute' =>'item_detail_id',
-			'value' => function ($data) { return Gx::str($data->itemDetail); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->itemDetail); },
 			'filter'=>Gx::listData(Item::class),
 			], 
 		[
 			'attribute' =>'vendor_id',
-			'value' => function ($data) { return Gx::str($data->vendor); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->vendor); },
 			'filter'=>Gx::listData(Vendor::class),
 			],
 			'item_code',
 			'vendor_price',
 		/* array(
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemVendor::getStatusOptions(),
 				),
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemVendor::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			), */
 		[

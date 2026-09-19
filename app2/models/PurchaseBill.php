@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use app\components\Criteria;
+
 use app\components\Ui;
 
 use yii\data\ActiveDataProvider;
@@ -12,6 +14,12 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/PurchaseBill.php (Yii 1). */
 class PurchaseBill extends ActiveRecord
 {
+    // Declared on the Yii 1 model and not columns: the forms post
+    // to these and the actions assign them.
+    public $columns;
+    public $qty;
+    public $print_id;
+
     public const IS_CONSIGNMENT_CHECK = 1;
     public const IS_CONSIGNMENT = 1;
     public const PAYMENT_DONE = 1;
@@ -171,47 +179,47 @@ class PurchaseBill extends ActiveRecord
     public function getConsignmentOptions() {
             $model = new PurchaseBill ();
             $model->getConsignmentData ();
-            $criteria = new CDbCriteria ();
-            $criteria->addCondition ( 'is_consignment =' . PurchaseBill::IS_CONSIGNMENT );
-            $criteria->addCondition ( 'is_consignment_checked !=' . PurchaseBill::IS_CONSIGNMENT_CHECK );
-            $criteria->addCondition ( 'status =' . PurchaseBill::STATUS_APPROVED );
-            $purchaseBills = PurchaseBill::model ()->findAll ( $criteria );
+            $query = PurchaseBill::find();
+            $query->andWhere('is_consignment =' . PurchaseBill::IS_CONSIGNMENT);
+            $query->andWhere('is_consignment_checked !=' . PurchaseBill::IS_CONSIGNMENT_CHECK);
+            $query->andWhere('status =' . PurchaseBill::STATUS_APPROVED);
+            $purchaseBills = $query->all();
 
-            Yii::log ( CVarDumper::dumpAsString ( $purchaseBills ), CLogger::LEVEL_WARNING, '$purchaseBills' );
+            Yii::warning( var_export( $purchaseBills , true), '$purchaseBills');
             if ($purchaseBills) {
                 foreach ( $purchaseBills as $purchaseBill ) {
 
-                    $criteria1 = new CDbCriteria ();
-                    $criteria1->addCondition ( 'is_consignment_checked !=' . PurchaseBill::IS_CONSIGNMENT_CHECK );
-                    $criteria1->addCondition ( 'purchase_bill_id =' . $purchaseBill->id );
-                    $purchaseBillDetails = PurchaseBillDetail::model ()->findAll ( $criteria1 );
+                    $query1 = PurchaseBillDetail::find();
+                    $query1->andWhere('is_consignment_checked !=' . PurchaseBill::IS_CONSIGNMENT_CHECK);
+                    $query1->andWhere('purchase_bill_id =' . $purchaseBill->id);
+                    $purchaseBillDetails = $query1->all();
 
-                    Yii::log ( CVarDumper::dumpAsString ( $purchaseBillDetails ), CLogger::LEVEL_WARNING, '$purchaseBillDetails' );
+                    Yii::warning( var_export( $purchaseBillDetails , true), '$purchaseBillDetails');
                     if ($purchaseBillDetails) {
                         foreach ( $purchaseBillDetails as $purchaseBillDetail ) {
                             $date = $purchaseBill->end_date;
-                            $criteria2 = new CDbCriteria ();
-                            $criteria2->addCondition ( 'item_id =' . $purchaseBillDetail->item_id );
-                            $criteria2->addCondition ( 'date(create_time) >=' . "'" . $date . "'" );
-                            $criteria2->addCondition ( 'item_detail_id =' . $purchaseBillDetail->item_detail_id );
-                            $orderitems = OrderItem::model ()->findAll ( $criteria2 );
+                            $query2 = OrderItem::find();
+                            $query2->andWhere('item_id =' . $purchaseBillDetail->item_id);
+                            $query2->andWhere('date(create_time) >=' . "'" . $date . "'");
+                            $query2->andWhere('item_detail_id =' . $purchaseBillDetail->item_detail_id);
+                            $orderitems = $query2->all();
 
-                            Yii::log ( CVarDumper::dumpAsString ( $orderitems ), CLogger::LEVEL_WARNING, '$orderitems' );
+                            Yii::warning( var_export( $orderitems , true), '$orderitems');
                             if ($orderitems) {
                                 $qty = 0;
                                 foreach ( $orderitems as $orderitem ) {
                                     $addqty = $orderitem->qty;
-                                    $orderrefund = OrderRefund::findOne( [
+                                    $orderrefund = OrderRefund::find()->where([
                                             'order_id' => $orderitem->order_id
-                                    ] );
+                                    ])->one();
                                     if ($orderrefund) {
 
-                                        $criteria3 = new CDbCriteria ();
-                                        $criteria3->addCondition ( 'order_refund_id =' . $orderrefund->id );
-                                        $criteria2->addCondition ( 'item_id =' . $orderitem->item_id );
-                                        $criteria3->addCondition ( 'item_detail_id =' . $orderitem->item_detail_id );
-                                        $orderrefunditems = OrderRefundItem::model ()->findAll ( $criteria3 );
-                                        Yii::log ( CVarDumper::dumpAsString ( $orderrefunditems ), CLogger::LEVEL_WARNING, '$orderrefunditems' );
+                                        $query3 = OrderRefundItem::find();
+                                        $query3->andWhere('order_refund_id =' . $orderrefund->id);
+                                        $query2->andWhere('item_id =' . $orderitem->item_id);
+                                        $query3->andWhere('item_detail_id =' . $orderitem->item_detail_id);
+                                        $orderrefunditems = $query3->all();
+                                        Yii::warning( var_export( $orderrefunditems , true), '$orderrefunditems');
                                         if ($orderrefunditems) {
                                             $refundqty = 0;
                                             foreach ( $orderrefunditems as $orderrefunditem ) {
@@ -227,7 +235,7 @@ class PurchaseBill extends ActiveRecord
                                     $qty = $qty + $addqty;
                                 }
 
-                                Yii::log ( CVarDumper::dumpAsString ( $addqty ), CLogger::LEVEL_WARNING, '$addqty' );
+                                Yii::warning( var_export( $addqty , true), '$addqty');
 
                                 if ($qty > $purchaseBillDetail->approved_qty || $qty = $purchaseBillDetail->approved_qty) {
                                     $purchaseBillDetail->is_consignment_checked = PurchaseBill::IS_CONSIGNMENT_CHECK;
@@ -772,5 +780,286 @@ class PurchaseBill extends ActiveRecord
     public static function listingOrder()
     {
         return ['id' => SORT_DESC];
+    }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in
+     * user may see.
+     *
+     * getItemOptions() filters on status and this does not, because Yii 1
+     * does not: the barcode dropdown this feeds lists inactive items too.
+     */
+    public function getItemOptionIds()
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for
+     * the items getItemOptionIds() allows.
+     */
+    public function getItemOptionbarcodes()
+    {
+        $list = [];
+        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])
+                     ->all() as $itemDetail) {
+            $list[$itemDetail->id] = $itemDetail->bar_code;
+        }
+
+        return $list;
+    }
+
+    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */
+    public function getItemCustomerName()
+    {
+        $customer = Customer::findOne($this->order->customer_id);
+
+        return $customer ? $customer->name : '';
+    }
+
+    /**
+     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's
+     * opening year, or '' when no session is selected.
+     */
+    public function getSessionStartDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[0]) ? $years[0] . '-04-01' : '';
+    }
+
+    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */
+    public function getSessionEndDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[1]) ? $years[1] . '-03-31' : '';
+    }
+
+    /**
+     * The two years in the selected session's name, which is '<from>-<to>'.
+     * The financial year runs 1 April to 31 March, which is where the two
+     * dates above come from.
+     */
+    private static function selectedSessionYears()
+    {
+        $id = Yii::$app->session['select_session_id'];
+        if ($id === null || $id === '') {
+            return [];
+        }
+        $session = Session::findOne($id);
+
+        return $session ? explode('-', $session->name) : [];
+    }
+
+    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */
+    public function getVendorDataOptions()
+    {
+        $list = [];
+        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);
+        // Yii 1 reaches these through findAllByAttributes(), which applies the
+        // model's defaultScope; the order is what the dropdown shows.
+        $query->orderBy(Vendor::defaultOrder() ?: []);
+        foreach ($query->all() as $vendor) {
+            $list[$vendor->id] = $vendor->name;
+        }
+
+        return $list;
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * Yii 1's listsearch(): a listing of its own, converted as written.
+     */
+    public function listsearch($val = false)
+    {
+
+		$start_date = $this->getSessionStartDate();
+		$end_date = $this->getSessionEndDate();
+		Yii::warning( var_export( $start_date , true), '$$$start_date');
+		Yii::warning( var_export( $end_date , true), '$$$end_date');
+		$user = Yii::$app->user->model;
+		$role_id = $user->role_id;
+	
+	
+		$query = self::find();
+		Yii::warning( var_export( $role_id , true), '$role_id');
+		if($role_id== 6){
+	
+			$vendor = Vendor::find()->where(['create_user_id'=>$user->id])->one();
+			if($vendor)
+				Criteria::compare($query, 'vendor_id', $vendor->id);
+		}else{
+			if($this->vendor_id != null){
+				Criteria::compare($query, 'vendor_id', $this->vendor_id);
+			}
+		}
+		
+			$query->andWhere(['status' => [PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED]]);
+		
+		/* if($val == false){
+			$vendor_ids = array();
+			$query1 = Vendor::find();
+			$query1->andWhere('is_cash ='.Vendor::IS_CASH);
+			$vendors= $query1->all();
+			if($vendors){
+				foreach($vendors as $vendor){
+					$vendor_ids[] = $vendor->id;
+				}
+			}
+			$query->andWhere(['not in', 'vendor_id', $vendor_ids]);
+		} */
+		$query->andWhere('payment_done ='.PurchaseBill::PAYMENT_PENDING);
+		if($start_date != '' && $end_date != ''){
+			$query->andWhere(['between', 'date(create_time)', $start_date, $end_date]);
+		}
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'code', $this->code, true);
+		Criteria::compare($query, 'bill_no', $this->bill_no, true);
+		Criteria::compare($query, 'bill_amount', $this->bill_amount, true);
+		Criteria::compare($query, 'start_date', $this->start_date, true);
+		Criteria::compare($query, 'end_date', $this->end_date, true);
+		Criteria::compare($query, 'receiving_date', $this->receiving_date, true);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'is_open_po', $this->is_open_po);
+		Criteria::compare($query, 'is_po_received', $this->is_po_received);
+		Criteria::compare($query, 'remarks', $this->remarks, true);
+		Criteria::compare($query, 'payment_terms', $this->payment_terms, true);
+		Criteria::compare($query, 'transport_mode', $this->transport_mode, true);
+		Criteria::compare($query, 'purchase_order_amount', $this->purchase_order_amount);
+		Criteria::compare($query, 'charges_total_amount', $this->charges_total_amount);
+		Criteria::compare($query, 'discount_amount', $this->discount_amount);
+		Criteria::compare($query, 'frieght_charges', $this->frieght_charges);
+		Criteria::compare($query, 'extra_charges', $this->extra_charges);
+		Criteria::compare($query, 'total_amount', $this->total_amount);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		Criteria::compare($query, 'outlet_id', $this->outlet_id);
+		//$criteria->compare('vendor_id', $this->vendor_id);
+		Criteria::compare($query, 'purchase_order_id', $this->purchase_order_id);
+		Criteria::compare($query, 'organization_id', $this->organization_id);
+	
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 100],
+		]);
     }
 }

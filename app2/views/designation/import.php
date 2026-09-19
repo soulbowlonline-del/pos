@@ -3,7 +3,6 @@
  * Ported from protected/views/designation/import.php.
  */
 
-use Yii;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 use yii\helpers\Html;

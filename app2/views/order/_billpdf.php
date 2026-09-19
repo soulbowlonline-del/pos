@@ -3,7 +3,6 @@
  * Ported from protected/views/order/_billpdf.php.
  */
 
-use Yii;
 use app\models\Customer;
 use app\models\Item;
 use app\models\OrderItem;
@@ -157,7 +156,7 @@ table {
 			$query->andWhere('order_id =' . $order->id);
 			$query->andWhere('tax_id =' . $item->tax_id);
 			$taxes = $query->all();
-			// Yii::warning( var_export( $taxes ), '$ordertaxes');
+			// Yii::warning( var_export( $taxes , true), '$ordertaxes');
 			
 			if ($taxes) {
 				$cgst = 0;

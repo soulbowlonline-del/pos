@@ -3,7 +3,6 @@
  * Ported from protected/views/order/_pdf.php.
  */
 
-use Yii;
 use app\models\Order;
 ?>
 <style>

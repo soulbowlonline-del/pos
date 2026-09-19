@@ -3,7 +3,6 @@
  * Ported from protected/views/item/index.php.
  */
 
-use Yii;
 use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
@@ -144,26 +143,26 @@ $('.search-form form').submit(function(){
 		//'item_code',
 			[
 					'attribute' =>'mrp',
-					'value' => function ($data) { return $data->mrp; },
+					'value' => function ($data, $key, $index) { return $data->mrp; },
 					'filterInputOptions' =>['class'=>'item_mrp_field'],
 			
 			],
 			[
 					'attribute' =>'purchase_price',
-					'value' => function ($data) { return $data->purchase_price; },
+					'value' => function ($data, $key, $index) { return $data->purchase_price; },
 					'filterInputOptions' =>['class'=>'item_purchase_price_field'],
 						
 			],
 			[
 					'header'=>'Bar Code',
 					'attribute' =>'bar_code',
-					'value' => function ($data) { return $data->getItemBarcodes(); },
+					'value' => function ($data, $key, $index) { return $data->getItemBarcodes(); },
 			
 			],
 			/* array(
 					'header'=>'Tax',
 					'attribute' =>'tax_id',
-					'value' => function ($data) { return $data->getMainItemTax(); },
+					'value' => function ($data, $key, $index) { return $data->getMainItemTax(); },
 					'filter'=>Gx::listData(Tax::class),
 						
 			), */
@@ -173,7 +172,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-					'value' => function ($data) { return $data->getMainItemTax(); },
+					'value' => function ($data, $key, $index) { return $data->getMainItemTax(); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
 				//	'filter'=>$model->getTaxList(),
@@ -181,13 +180,13 @@ $('.search-form form').submit(function(){
 			],
 			[
 					'attribute' =>'hsn_code',
-					'value' => function ($data) { return $data->hsn_code; },
+					'value' => function ($data, $key, $index) { return $data->hsn_code; },
 					'filterInputOptions' =>['class'=>'item_hsn_code_field'],
 						
 			],
 			[
 					'attribute' =>'item_code',
-					'value' => function ($data) { return $data->item_code; },
+					'value' => function ($data, $key, $index) { return $data->item_code; },
 					'filterInputOptions' =>['class'=>'item_item_code_field'],
 			
 			],
@@ -195,13 +194,13 @@ $('.search-form form').submit(function(){
 			//'purchase_price',
 			[
 						'header'=>'Total Remain Qty',
-					'value' => function ($data) { return $data->getTotalRemainingQuantity(); },
+					'value' => function ($data, $key, $index) { return $data->getTotalRemainingQuantity(); },
 					'htmlOptions'=>['class'=>'item_qty_field'],
 						
 			],
 			/* array(
 					'attribute' =>'category_id',
-					'value' => function ($data) { return Gx::str($data->category); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->category); },
 					'filter'=>$model->getParentCategorys(),
 			), */
 			[
@@ -210,7 +209,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-					'value' => function ($data) { return Gx::str($data->category); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->category); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
 					'filter'=>$model->getParentCategorys(),
@@ -218,7 +217,7 @@ $('.search-form form').submit(function(){
 			],
 			/* array(
 					'attribute' =>'sub_category_id',
-					'value' => function ($data) { return Gx::str($data->subcategory); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->subcategory); },
 					'filter'=>$model->getSubCategorys(),
 			), */
 			[
@@ -227,7 +226,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-					'value' => function ($data) { return Gx::str($data->subcategory); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->subcategory); },
 					'headerOptions' => ['style' => 'width: 110px'],
 				
 					'filter'=>$model->getSubCategorys(),
@@ -239,7 +238,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-					'value' => function ($data) { return Gx::str($data->company); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->company); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
 					'filter'=>$model->getParentCompanys(),
@@ -247,18 +246,18 @@ $('.search-form form').submit(function(){
 			],
 		/* 	array(
 					'attribute' =>'company_id',
-					'value' => function ($data) { return Gx::str($data->company); },
+					'value' => function ($data, $key, $index) { return Gx::str($data->company); },
 					'filter'=>$model->getParentCompanys(),
 			), */
 		/* 	array(
 					'attribute' =>'opening_stock',
-					'value' => function ($data) { return $data->opening_stock; },
+					'value' => function ($data, $key, $index) { return $data->opening_stock; },
 					'filterInputOptions' =>array('class'=>'item_opening_stock_field'),
 						
 			),
 			array(
 					'attribute' =>'weight',
-					'value' => function ($data) { return $data->weight; },
+					'value' => function ($data, $key, $index) { return $data->weight; },
 					'filterInputOptions' =>array('class'=>'item_weight_field'),
 						
 			), */
@@ -266,7 +265,7 @@ $('.search-form form').submit(function(){
 	//	'image_file:html',
 	/* 	array(
 				'attribute' => 'item_type',
-				'value' => function ($data) { return $data->getTypeOptions($data->item_type); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->item_type); },
 				'filter'=>Item::getTypeOptions(),
 				), */
 		
@@ -277,7 +276,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible'=>'$data->getStateValue('.$model->id.') == 0',
-					'value' => function ($data) { return Item::getStatusOptions($data->status); },
+					'value' => function ($data, $key, $index) { return Item::getStatusOptions($data->status); },
 					'headerOptions' => ['style' => 'width: 110px'],
 					
 					'filter'=>Item::getStatusOptions(),
@@ -309,33 +308,33 @@ $('.search-form form').submit(function(){
 		/*
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Item::getTypeOptions(),
 				),
 		array(
 				'attribute' => 'is_tax',
-				'value' => function ($data) { return ($data->is_tax === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
+				'value' => function ($data, $key, $index) { return ($data->is_tax === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
 				'filter' => array('0' => 'No', '1' => 'Yes'),
 				),
 		array(
 				'attribute' => 'is_discount',
-				'value' => function ($data) { return ($data->is_discount === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
+				'value' => function ($data, $key, $index) { return ($data->is_discount === 0) ? Yii::t('app', 'No') : Yii::t('app', 'Yes'); },
 				'filter' => array('0' => 'No', '1' => 'Yes'),
 				),
 		array(
 			'attribute' =>'category_id',
-			'value' => function ($data) { return Gx::str($data->category); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->category); },
 			'filter'=>Gx::listData(ItemCategory::class),
 			),
 		array(
 			'attribute' =>'sub_company_id',
-			'value' => function ($data) { return Gx::str($data->subCompany); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->subCompany); },
 			'filter'=>Gx::listData(ItemCompanyCategory::class),
 			),
 		
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/
@@ -344,7 +343,7 @@ $('.search-form form').submit(function(){
 				'visible' => Access::check('itemDetail/admin'),
 					'header'=>'Vendor',
 				'attribute' =>'vendor_id',
-					'value' => function ($data) { return $data->getLatestVendorName(); },
+					'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },
 				'filter'=>Gx::listData(Vendor::class),
 						
 			),  */
@@ -368,7 +367,7 @@ $('.search-form form').submit(function(){
 			
 			/* array(
 					'attribute' =>'max_qty',
-					'value' => function ($data) { return $data->max_qty; },
+					'value' => function ($data, $key, $index) { return $data->max_qty; },
 					'filterInputOptions' =>array('class'=>'item_max_qty_field'),
 			
 			), */
@@ -376,21 +375,21 @@ $('.search-form form').submit(function(){
 			
 			/* array(
 					'attribute' =>'min_qty',
-					'value' => function ($data) { return $data->min_qty; },
+					'value' => function ($data, $key, $index) { return $data->min_qty; },
 					'filterInputOptions' =>array('class'=>'item_max_qty_field'),
 			
 			), */
 			
 			/* array(
 					'attribute' =>'reorder_qty',
-					'value' => function ($data) { return $data->reorder_qty; },
+					'value' => function ($data, $key, $index) { return $data->reorder_qty; },
 					'filterInputOptions' =>array('class'=>'item_max_qty_field'),
 			
 			), */
 			
 		/* 	array(
 					'attribute' => 'status',
-					'value' => function ($data) { return $data->getStatusOptions($data->status); },
+					'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 					'filter'=>Item::getStatusOptions(),
 					'filterInputOptions' =>array('class'=>'item_status_field'),
 			), */

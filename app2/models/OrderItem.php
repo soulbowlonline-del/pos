@@ -20,6 +20,18 @@ use yii\db\ActiveRecord;
  */
 class OrderItem extends ActiveRecord
 {
+    // Declared on the Yii 1 model and not columns: the forms post
+    // to these and the actions assign them.
+    public $mode_of_payment;
+    public $refund_qty;
+    public $columns;
+    public $start_date;
+    public $end_date;
+    public $customer_id;
+    public $min_amt;
+    public $max_amt;
+    public $bill_date;
+
     public static function tableName()
     {
         return '{{%order_item}}';
@@ -476,7 +488,7 @@ class OrderItem extends ActiveRecord
                 $query->andWhere('order_id =' . $this->order_id);
                 $query->andWhere('tax_id =' . $this->tax_id);
                 $taxes = $query->all();
-                // Yii::warning( var_export( $taxes ), '$ordertaxes');
+                // Yii::warning( var_export( $taxes , true), '$ordertaxes');
 
                 if ($taxes) {
                     $cgst = 0;
@@ -1585,5 +1597,1920 @@ class OrderItem extends ActiveRecord
     public function getUpdatedBy()
     {
         return $this->hasOne(User::class, ['id' => 'updated_by']);
+    }
+
+    public function toArray1($return = 0) {
+            $model = $this;
+            $json_entry = null;
+            if ($model) {
+                $refundorderitem = null;
+                $query = OrderRefund::find();
+                $query->andWhere('order_id =' . $model->order_id);
+                $refundorder = $query->one();
+                if ($refundorder) {
+                    $query = OrderRefundItem::find();
+                    $query->andWhere('order_refund_id =' . $refundorder->id);
+                    $query->andWhere('item_detail_id =' . $model->item_detail_id);
+                    $query->andWhere('item_id =' . $model->item_id);
+                    $refundorderitem = $query->one();
+                }
+                $json_list = [];
+                $json_entry = [];
+                $item_detail = $model->itemDetail;
+                $json_entry ['item_id'] = $item_detail->id;
+                $json_entry ['bar_code'] = $item_detail->bar_code;
+                $json_entry ['item_name'] = isset ( $item_detail->item ) ? $item_detail->item->title : "";
+                $json_entry ['item_desc'] = isset ( $item_detail->item ) ? $item_detail->item->short_name : "";
+                $json_entry ['unit_name'] = isset ( $model->item ) ? $model->item->getMeasurementTypeOptions ( $model->item->unit ) : "";
+                $json_entry ['is_coupon'] = isset ( $model->item ) ? $model->item->is_coupon : "";
+                if ($return == 0) {
+                    $json_entry ['box'] = 0;
+                } else {
+                    $json_entry ['is_return'] = 0;
+                }
+                // $json_entry ['item_detail_id'] = $model->item_detail_id;
+                if ($refundorderitem == null) {
+                    $json_entry ['qty'] = $model->qty;
+                } else {
+                    $json_entry ['qty'] = ($model->qty) - ($refundorderitem->qty);
+                }
+                $json_entry ['stock_qty'] = $item_detail->getStockQty ();
+                $json_entry ['sale_rate'] = $model->sale_rate;
+                $json_entry ['base_price'] = $model->price;
+                $json_entry ['mrp'] = $model->getItemOrderMrp ();
+                $json_entry ['batch_numbers'] = '';
+                $item_stock = $item_detail->itemStock;
+                if (! empty ( $item_stock )) {
+
+                    $batch_no = $item_stock->batch_number;
+                    $json_entry ['batch_numbers'] = $batch_no;
+                }
+                $json_entry ['discount_id'] = $model->discount_id;
+                $json_entry ['discount_val'] = isset ( $model->discount ) ? $model->discount->amount : "0";
+                $json_entry ['discount_type'] = isset ( $model->discount ) ? $model->discount->type_id : "1";
+                $json_entry ['discount_amt'] = $model->discount_amt;
+                $json_entry ['tax_id'] = $model->tax_id;
+                $json_entry ['tax_percent'] = $item_detail->getItemTaxPercent ();
+                $json_entry ['tax_amt'] = $model->tax_amount;
+                if ($refundorderitem == null) {
+                    $json_entry ['total_amount'] = $model->total_amt;
+                } else {
+                    $json_entry ['total_amount'] = ($model->total_amt) - ($refundorderitem->total_amt);
+                }
+
+                $json_entry ['cgst_per'] = $model->cgst_per;
+                $json_entry ['sgst_per'] = $model->sgst_per;
+                $json_entry ['cess_per'] = $model->cess_per;
+                $json_entry ['igst_per'] = $model->igst_per;
+                $json_entry ['cgst_amt'] = $model->cgst_amt;
+                $json_entry ['sgst_amt'] = $model->sgst_amt;
+                $json_entry ['cess_amount'] = $model->cess_amt;
+                $json_entry ['igst_amount'] = $model->igst_amt;
+                if ($refundorderitem == null) {
+                    $json_entry ['refund_qty'] = 0;
+                    $json_entry ['refund_amount'] = 0;
+                } else {
+                    $json_entry ['refund_qty'] = $refundorderitem->qty;
+                    $json_entry ['refund_amount'] = $refundorderitem->total_amt;
+                }
+            }
+            return $json_entry;
+        }
+
+    public function getItemQuantity() {
+            $order_ids = [];
+            $sum = 0;
+            $order = Order::findOne( $this->order_id );
+            if ($order) {
+                $query = Order::find();
+                $query->andWhere('customer_id =' . $order->customer_id);
+                $orders = $query->all();
+
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+                $query = OrderItem::find();
+                $query->andWhere(['order_id' => $order_ids]);
+                $query->groupBy('item_detail_id');
+                // MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+                // explicitly by the grouped columns to preserve the previous output order.
+                $query->orderBy(['item_detail_id' => SORT_ASC]);
+                $orderitems = $query->all();
+                if ($orderitems) {
+                    foreach ( $orderitems as $orderitem ) {
+                        $sum = $sum + $orderitem->qty;
+                    }
+                }
+            }
+            return $sum;
+        }
+
+    public function getItemTotalQty() {
+            $total = 0;
+            $query = OrderItem::find();
+            if ((Yii::$app->session ['item_id'] != '')) {
+                $query->andWhere(['item_id' => Yii::$app->session ['item_id']]);
+            }
+            if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+            }
+            Yii::warning( var_export( Yii::$app->session ['start_date'] , true), 'start_date');
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderitems = $query->all();
+            Yii::warning( var_export( $orderitems , true), '$orderitems');
+            Yii::warning( var_export( $orderitems , true), '$orderitems');
+            if ($orderitems) {
+
+                foreach ( $orderitems as $orderitem ) {
+                    $qty = $orderitem->qty;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id =' . $orderitem->order_id);
+                    if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        $query->andWhere('item_detail_id =' . $orderitem->item_detail_id);
+                        if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                            $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+                        }
+                        $query->andWhere('item_id =' . $orderitem->item_id);
+                        $orderRefundItems = $query->all();
+                        if ($orderRefundItems) {
+                            $refundqty = 0;
+                            foreach ( $orderRefundItems as $orderRefundItem ) {
+                                $refundqty = $refundqty + ($orderRefundItem->qty);
+                            }
+                            $qty = $qty - $refundqty;
+                            if ($qty < 0) {
+                                $qty = 0;
+                            }
+                        }
+                    }
+                    $total = $total + $qty;
+                }
+            }
+            return $total;
+        }
+
+    public function getItemTotalAmount() {
+            $total = 0;
+            $query = OrderItem::find();
+            if ((Yii::$app->session ['item_id'] != '')) {
+                $query->andWhere(['item_id' => Yii::$app->session ['item_id']]);
+            }
+            // $criteria1->compare('order_id', $this->order_id);
+            if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+            }
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderitems = $query->all();
+            $refund = 0;
+            Yii::warning( var_export( Yii::$app->session ['start_date'] , true), 'start_date');
+            Yii::warning( var_export( Yii::$app->session ['end_date'] , true), 'end_date');
+            Yii::warning( var_export( Yii::$app->session ['item_id'] , true), 'item_id');
+            foreach ( $orderitems as $orderitem ) {
+                $qty = $orderitem->qty;
+                $refund = 0;
+                $query = OrderRefund::find();
+                $query->andWhere('order_id =' . $orderitem->order_id);
+                if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                    $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+                }
+                $orderRefund = $query->one();
+                if ($orderRefund) {
+                    $query = OrderRefundItem::find();
+                    $query->andWhere('order_refund_id =' . $orderRefund->id);
+                    $query->andWhere('item_detail_id =' . $orderitem->item_detail_id);
+                    if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+                    }
+                    $query->andWhere('item_id =' . $orderitem->item_id);
+                    $orderRefundItems = $query->all();
+                    if ($orderRefundItems) {
+
+                        foreach ( $orderRefundItems as $orderRefundItem ) {
+                            $refund = $refund + ($orderRefundItem->total_amt);
+                        }
+                        /*
+                         * $qty = $qty - $refundqty;
+                         * if($qty <0){
+                         * $qty = 0;
+                         * }
+                         */
+                    }
+                }
+                $amt = ($orderitem->total_amt) - ($refund);
+                $total = $total + $amt;
+            }
+            return $total;
+        }
+
+    public function getTotalHsnItemTaxableAmount() {
+            $amount = 0;
+            $eamount = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('item_id =' . $this->item_id);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(price*qty) as price');
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $query->andWhere(['order_id' => $order_ids]);
+            }
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->price;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(price*qty) as qty');
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderRefundItem = $query->one();
+
+            $refund_price = $orderRefundItem->qty;
+
+            $amount = $order_price - $refund_price;
+
+            /*
+             * if($this->tax_id == '10'){
+             * Yii::warning( var_export( $orderRefundItems , true), '$orderRefundItemsss');
+             * Yii::warning( var_export( Yii::$app->session ['order_mode_payment'] , true), 'sessionn');
+             * Yii::warning( var_export( $this->create_date , true), '$this->create_date');
+             * Yii::warning( var_export( $eamount , true), '$eamount');
+             * Yii::warning( var_export( $refund , true), '$eerefund');
+             * }
+             */
+            return $amount;
+        }
+
+    public function getTotalItemTaxableAmount() {
+            $amount = 0;
+            $eamount = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(price*qty) as price');
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $query->andWhere(['order_id' => $order_ids]);
+            }
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->price;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(price*qty) as qty');
+            $orderRefundItem = $query->one();
+            $refund_price = $orderRefundItem->qty;
+
+            $amount = $order_price - $refund_price;
+
+            /*
+             * if($this->tax_id == '10'){
+             * Yii::warning( var_export( $orderRefundItems , true), '$orderRefundItemsss');
+             * Yii::warning( var_export( Yii::$app->session ['order_mode_payment'] , true), 'sessionn');
+             * Yii::warning( var_export( $this->create_date , true), '$this->create_date');
+             * Yii::warning( var_export( $eamount , true), '$eamount');
+             * Yii::warning( var_export( $refund , true), '$eerefund');
+             * }
+             */
+            return $amount;
+        }
+
+    public function getItemTaxableAmount() {
+            $amount = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+
+            $qty = $this->qty;
+            $refund = 0;
+            $query = OrderRefund::find();
+            $query->andWhere('order_id =' . $this->order_id);
+            Criteria::compare($query, 'date(create_time)', $date);
+            $orderRefund = $query->one();
+            if ($orderRefund) {
+                $query = OrderRefundItem::find();
+                $query->andWhere('order_refund_id =' . $orderRefund->id);
+                $query->andWhere('item_detail_id =' . $this->item_detail_id);
+                Criteria::compare($query, 'date(create_time)', $date);
+                $query->andWhere('item_id =' . $this->item_id);
+                $orderRefundItems = $query->all();
+
+                foreach ( $orderRefundItems as $orderRefundItem ) {
+                    $refund = $refund + ($orderRefundItem->total_amt);
+                }
+            }
+            $amount = $amount + ((($this->total_amt + $this->discount_amt) - ($this->tax_amount)) - $refund);
+
+            return $amount;
+        }
+
+    public function getOrderTaxableAmount() {
+            $amount = 0;
+            $refund = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+            $query = OrderItem::find();
+            Criteria::compare($query, 'date(create_time)', $date);
+            $query->andWhere('order_id =' . $this->order_id);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orders = $query->all();
+            if ($orders) {
+                foreach ( $orders as $order ) {
+                    $qty = $order->qty;
+                    $refund = 0;
+                    $query = OrderItem::find();
+                    $query->andWhere('order_id =' . $order->order_id);
+                    Criteria::compare($query, 'date(create_time)', $date);
+                    $orderRefund = $query->all();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        $query->andWhere('item_detail_id =' . $order->item_detail_id);
+                        Criteria::compare($query, 'date(create_time)', $date);
+                        $query->andWhere('item_id =' . $order->item_id);
+                        $orderRefundItems = $query->all();
+
+                        foreach ( $orderRefundItems as $orderRefundItem ) {
+                            $refund = $refund + ($orderRefundItem->total_amt);
+                        }
+                    }
+                    $amount = $amount + ((($order->total_amt) - ($order->tax_amount)) - $refund);
+                }
+            }
+            return $amount;
+        }
+
+    public function getOrderCgstAmount() {
+            $amount = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+            $query = OrderItem::find();
+            Criteria::compare($query, 'date(create_time)', $date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orders = $query->all();
+            if ($orders) {
+                foreach ( $orders as $order ) {
+                    $qty = $order->qty;
+                    $query = OrderItem::find();
+                    $query->andWhere('order_id =' . $order->order_id);
+                    Criteria::compare($query, 'date(create_time)', $date);
+                    $orderRefund = $query->all();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        Criteria::compare($query, 'date(create_time)', $date);
+                        $query->andWhere('item_detail_id =' . $order->item_detail_id);
+                        $query->andWhere('item_id =' . $order->item_id);
+                        $orderRefundItems = $query->all();
+                        if ($orderRefundItems) {
+                            $refundqty = 0;
+                            foreach ( $orderRefundItems as $orderRefundItem ) {
+                                $refundqty = $refundqty + ($orderRefundItem->qty);
+                            }
+                            $qty = $qty - $refundqty;
+                            if ($qty < 0) {
+                                $qty = 0;
+                            }
+                        }
+                    }
+                    $cgst = ($qty) * ($order->getCgstAmount ());
+                    $amount = $amount + $cgst;
+                }
+            }
+            return $amount;
+        }
+
+    public function getOrderSgstAmount() {
+            $amount = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+            $query = OrderItem::find();
+            Criteria::compare($query, 'date(create_time)', $date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orders = $query->all();
+            if ($orders) {
+                foreach ( $orders as $order ) {
+                    $qty = $order->qty;
+                    $query = OrderItem::find();
+                    $query->andWhere('order_id =' . $order->order_id);
+                    Criteria::compare($query, 'date(create_time)', $date);
+                    $orderRefund = $query->all();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        $query->andWhere('item_detail_id =' . $order->item_detail_id);
+                        Criteria::compare($query, 'date(create_time)', $date);
+                        $query->andWhere('item_id =' . $order->item_id);
+                        $orderRefundItems = $query->all();
+                        if ($orderRefundItems) {
+                            $refundqty = 0;
+                            foreach ( $orderRefundItems as $orderRefundItem ) {
+                                $refundqty = $refundqty + ($orderRefundItem->qty);
+                            }
+                            $qty = $qty - $refundqty;
+                            if ($qty < 0) {
+                                $qty = 0;
+                            }
+                        }
+                    }
+                    $cgst = ($qty) * ($order->getSgstAmount ());
+                    $amount = $amount + $cgst;
+                }
+            }
+            return $amount;
+        }
+
+    public function getOrderCessAmount() {
+            $amount = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+            $query = OrderItem::find();
+            Criteria::compare($query, 'date(create_time)', $date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orders = $query->all();
+            if ($orders) {
+                foreach ( $orders as $order ) {
+                    $qty = $order->qty;
+                    $query = OrderItem::find();
+                    $query->andWhere('order_id =' . $order->order_id);
+                    Criteria::compare($query, 'date(create_time)', $date);
+                    $orderRefund = $query->all();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        $query->andWhere('item_detail_id =' . $order->item_detail_id);
+                        Criteria::compare($query, 'date(create_time)', $date);
+                        $query->andWhere('item_id =' . $order->item_id);
+                        $orderRefundItems = $query->all();
+                        if ($orderRefundItems) {
+                            $refundqty = 0;
+                            foreach ( $orderRefundItems as $orderRefundItem ) {
+                                $refundqty = $refundqty + ($orderRefundItem->qty);
+                            }
+                            $qty = $qty - $refundqty;
+                            if ($qty < 0) {
+                                $qty = 0;
+                            }
+                        }
+                    }
+                    $cgst = ($qty) * ($order->getCessAmount ());
+                    $amount = $amount + $cgst;
+                }
+            }
+            return $amount;
+        }
+
+    public function getOrderIgstAmount() {
+            $amount = 0;
+            $date = date ( 'Y-m-d', strtotime ( $this->create_time ) );
+            $query = OrderItem::find();
+            Criteria::compare($query, 'date(create_time)', $date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orders = $query->all();
+            if ($orders) {
+                foreach ( $orders as $order ) {
+                    $qty = $order->qty;
+                    $query = OrderItem::find();
+                    $query->andWhere('order_id =' . $order->order_id);
+                    Criteria::compare($query, 'date(create_time)', $date);
+                    $orderRefund = $query->all();
+                    if ($orderRefund) {
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_refund_id =' . $orderRefund->id);
+                        $query->andWhere('item_detail_id =' . $order->item_detail_id);
+                        Criteria::compare($query, 'date(create_time)', $date);
+                        $query->andWhere('item_id =' . $order->item_id);
+                        $orderRefundItems = $query->all();
+                        if ($orderRefundItems) {
+                            $refundqty = 0;
+                            foreach ( $orderRefundItems as $orderRefundItem ) {
+                                $refundqty = $refundqty + ($orderRefundItem->qty);
+                            }
+                            $qty = $qty - $refundqty;
+                            if ($qty < 0) {
+                                $qty = 0;
+                            }
+                        }
+                    }
+                    $cgst = ($qty) * ($order->getIgstAmount ());
+                    $amount = $amount + $cgst;
+                }
+            }
+            return $amount;
+        }
+
+    public function getOrdertotalHsngstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(tax_amount) as tax_amount');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+                $query->andWhere(['order_id' => $order_ids]);
+            } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->tax_amount;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            $query->select('sum(tax_amt) as tax_amt');
+            $orderRefundItem = $query->one();
+            $refund_price = $orderRefundItem->tax_amt;
+
+            $amount = $order_price - $refund_price;
+
+            /*
+             * if ($orders) {
+             *
+             * foreach ( $orders as $order ) {
+             * $amount = $amount + $order->tax_amount;
+             * }
+             * }
+             */
+            return $amount;
+        }
+
+    public function getOrdertotalgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(tax_amount) as tax_amount');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+                $query->andWhere(['order_id' => $order_ids]);
+            } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->tax_amount;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(tax_amt) as tax_amt');
+            $orderRefundItem = $query->one();
+            $refund_price = $orderRefundItem->tax_amt;
+
+            $amount = $order_price - $refund_price;
+
+            /*
+             * if ($orders) {
+             *
+             * foreach ( $orders as $order ) {
+             * $amount = $amount + $order->tax_amount;
+             * }
+             * }
+             */
+            return $amount;
+        }
+
+    public function getGroupTaxCgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(cgst_amt) as cgst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->cgst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                    $order = $query->all();
+                    if($order){
+                        $ordercgst = $order->cgst_amt / $order->qty;
+                        $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                    }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupTaxSgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(sgst_amt) as sgst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->sgst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->sgst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+
+
+
+        }
+
+    public function getGroupTaxIgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(igst_amt) as igst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->igst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->igst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupTaxCessAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(cess_amt) as cess_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->cess_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->cess_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupTaxOrderTotalAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+
+                $query = Order::find();
+                $query->andWhere('mode_of_payment =' . $this->order->mode_of_payment);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+
+            $orders = $query->all();
+            if($orders){
+                foreach($orders as $order){
+                    $oamount = $oamount + ((($order->price) * ($order->qty)) + ($order->tax_amount));
+                }
+            }
+
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+
+                foreach($orderRefundItems as $orderRefundItem){
+                    $refund = $refund + ((($orderRefundItem->price) * ($orderRefundItem->qty)) + ($orderRefundItem->tax_amt));
+
+                }
+            }
+            $amount = $oamount - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupHsnTaxCgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(cgst_amt) as cgst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->cgst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                    $order = $query->all();
+                    if($order){
+                        $ordercgst = $order->cgst_amt / $order->qty;
+                        $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                    }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupHsnTaxSgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(sgst_amt) as sgst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->sgst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->sgst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+
+
+
+        }
+
+    public function getGroupTaxHsnIgstAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(igst_amt) as igst_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->igst_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('item_id =' . $this->item_id);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->igst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupHsnTaxCessAmount() {
+            $amount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+                $query = Order::find();
+
+                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(cess_amt) as cess_amt');
+            /* if (Yii::$app->session ['order_mode_payment'] != '') {
+             $query->andWhere(['order_id' => $order_ids]);
+             } */
+            // $criteria->addCondition ( 'order_id =' . $this->order_id );
+            $order = $query->one();
+
+            $order_price = $order->cess_amt;
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query = OrderRefundItem::find();
+                        $query->andWhere('order_id =' . $orderRefund->order_id);
+                        $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query->all();
+                        if($order){
+                            $ordercgst = $order->cess_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    public function getGroupHsnTaxOrderTotalAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            if (Yii::$app->session ['order_mode_payment'] != '') {
+                $order_ids = [];
+
+                $query = Order::find();
+                $query->andWhere('mode_of_payment =' . $this->order->mode_of_payment);
+
+                $orders = $query->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+
+            $orders = $query->all();
+            if($orders){
+                foreach($orders as $order){
+                    $oamount = $oamount + ((($order->price) * ($order->qty)) + ($order->tax_amount));
+                }
+            }
+
+
+            $query = OrderRefundItem::find();
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->andWhere('item_id =' . $this->item_id);
+            $orderRefundItems = $query->all();
+            if($orderRefundItems){
+
+                foreach($orderRefundItems as $orderRefundItem){
+                    $refund = $refund + ((($orderRefundItem->price) * ($orderRefundItem->qty)) + ($orderRefundItem->tax_amt));
+
+                }
+            }
+            $amount = $oamount - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    public function getTotalItemB2bTaxableAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            $order_ids = [];
+            $query1 = PaymentMode::find();
+            $query1->orderBy(['id' => SORT_DESC]);
+                $query1->andWhere('title = "B2B"');
+
+                $paymentmode = $query1->one();
+
+            if ($paymentmode) {
+
+
+                $query1_2 = Order::find();
+                $query1_2->andWhere('mode_of_payment =' . $paymentmode->id);
+
+                $orders = $query1_2->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->select('sum(price*qty) as price');
+            $query->andWhere(['order_id' => $order_ids]);
+            $order = $query->one();
+
+
+
+
+            $amount = $order->price ;
+
+
+
+
+            $refund_price = '0.00';
+            $query3 = OrderRefundItem::find();
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            Criteria::compare($query3, 'date(orderRefund.create_time)', $this->create_date);
+            $query3->select('sum(t.price*t.qty) as qty');
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere(['orderRefund.order_id' => $order_ids]);
+
+            $orderRefundItem = $query3->one();
+            if($orderRefundItem){
+            $refund_price = $orderRefundItem->qty;
+            }
+
+            $amount = $amount - $refund_price;
+
+            return $amount;
+        }
+
+    public function getB2BOrdertotalgstAmount() {
+            $tax =  $this->getB2BGroupTaxCgstAmount() + $this->getB2BGroupTaxSgstAmount()+$this->getB2BGroupTaxIgstAmount() + $this->getB2BGroupTaxCessAmount();
+            return round ( $tax, 2 );
+            /*$amount = 0;
+            $refund = 0;
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(tax_amount) as tax_amount');
+            $query->andWhere('order_id =' . $this->order_id);
+            $order = $query->one();
+
+            $order_price = $order->tax_amount;
+            $refund_price = '0.00';
+            $query3 = OrderRefundItem::find();
+
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->select('sum(t.tax_amt) as tax_amt');
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere('orderRefund.order_id ='.$this->order_id);
+            $orderRefundItem = $query3->one();
+            if($orderRefundItem){
+            //$refund_price = $orderRefundItem->tax_amt;
+            }
+            $amount = $order_price - $refund_price;
+
+            return $amount;*/
+        }
+
+    public function getB2BGroupTaxCgstAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            $taxable = $this->getTotalItemB2bTaxableAmount();
+            $cgst_per = $this->cgst_per;
+
+
+
+
+
+            $amount = $taxable * $cgst_per/100;
+
+
+            return round ( $amount, 2 );
+            /*$amount = 0;
+            $refund = 0;
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(cgst_amt) as cgst_amt');
+            $query->andWhere('order_id =' . $this->order_id);
+            $order = $query->one();
+
+            $order_price = $order->cgst_amt;
+
+            $query3 = OrderRefundItem::find();
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere('orderRefund.order_id ='.$this->order_id);
+            $orderRefundItems = $query3->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query3_2 = OrderItem::find();
+                        $query3_2->andWhere('order_id =' . $orderRefund->order_id);
+                        $query3_2->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query3_2->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query3_2->one();
+                        if($order){
+                            $ordercgst = $order->cgst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );*/
+        }
+
+    public function getB2BGroupTaxSgstAmount() {
+            $taxable = $this->getTotalItemB2bTaxableAmount();
+            $sgst_per = $this->sgst_per;
+
+
+
+
+
+            $amount = $taxable * $sgst_per/100;
+
+
+            return round ( $amount, 2 );
+            /*$amount = 0;
+            $refund = 0;
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(sgst_amt) as sgst_amt');
+            $query->andWhere('order_id =' . $this->order_id);
+            $order = $query->one();
+
+            $order_price = $order->sgst_amt;
+
+            $query3 = OrderRefundItem::find();
+
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere('order_id =' . $this->order_id);
+            $orderRefundItems = $query3->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query3_2 = OrderItem::find();
+                        $query3_2->andWhere('order_id =' . $orderRefund->order_id);
+                        $query3_2->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query3_2->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query3_2->one();
+                        if($order){
+                            $ordercgst = $order->sgst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );*/
+
+
+
+        }
+
+    public function getB2BGroupTaxIgstAmount() {
+            $taxable = $this->getTotalItemB2bTaxableAmount();
+            $igst_per = $this->igst_per;
+
+
+
+
+
+            $amount = $taxable * $igst_per/100;
+
+
+            return round ( $amount, 2 );
+            /*$amount = 0;
+            $refund = 0;
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(igst_amt) as igst_amt');
+            $query->andWhere('order_id =' . $this->order_id);
+            $order = $query->one();
+
+            $order_price = $order->igst_amt;
+
+            $query3 = OrderRefundItem::find();
+
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere('orderRefund.order_id =' . $this->order_id);
+            $orderRefundItems = $query3->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query3_2 = OrderItem::find();
+                        $query3_2->andWhere('order_id =' . $orderRefund->order_id);
+                        $query3_2->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query3_2->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query3_2->one();
+                        if($order){
+                            $ordercgst = $order->igst_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );*/
+        }
+
+    public function getB2BGroupTaxCessAmount() {
+            $taxable = $this->getTotalItemB2bTaxableAmount();
+            $cess_per = $this->cess_per;
+
+
+
+
+
+            $amount = $taxable * $cess_per/100;
+
+
+            return round ( $amount, 2 );
+            /*$amount = 0;
+            $refund = 0;
+
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            $query->select('sum(cess_amt) as cess_amt');
+            $query->andWhere('order_id =' . $this->order_id);
+            $order = $query->one();
+
+            $order_price = $order->cess_amt;
+
+            $query3 = OrderRefundItem::find();
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+            $query3->andWhere('orderRefund.order_id =' . $this->order_id);
+            $orderRefundItems = $query3->all();
+            if($orderRefundItems){
+                $refund = 0;
+                foreach($orderRefundItems as $orderRefundItem){
+                    $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
+                    if($orderRefund){
+                        $query3_2 = OrderItem::find();
+                        $query3_2->andWhere('order_id =' . $orderRefund->order_id);
+                        $query3_2->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
+                        $query3_2->andWhere('item_id =' . $orderRefundItem->item_id);
+                        $order = $query3_2->one();
+                        if($order){
+                            $ordercgst = $order->cess_amt / $order->qty;
+                            $refund = $refund + ($ordercgst * $orderRefundItem->qty);
+                        }
+                    }
+                }
+            }
+            $amount = $order_price - $refund;
+
+
+            return round ( $amount, 2 );*/
+        }
+
+    public function getB2BGroupTaxOrderTotalAmount() {
+            $amount = 0;
+            $oamount = 0;
+            $refund = 0;
+            $order_ids = [];
+            $query1 = PaymentMode::find();
+            $query1->orderBy(['id' => SORT_DESC]);
+                $query1->andWhere('title = "B2B"');
+
+                $paymentmode = $query1->one();
+
+            if ($paymentmode) {
+
+
+                $query1_2 = Order::find();
+                $query1_2->andWhere('mode_of_payment =' . $paymentmode->id);
+
+                $orders = $query1_2->all();
+                if ($orders) {
+                    foreach ( $orders as $order ) {
+                        $order_ids [] = $order->id;
+                    }
+                }
+            }
+            $query = OrderItem::find();
+            $query->andWhere('tax_id =' . $this->tax_id);
+            Criteria::compare($query, 'date(create_time)', $this->create_date);
+            $query->andWhere(['order_id' => $order_ids]);
+            $orders = $query->all();
+
+
+
+            if($orders){
+                foreach($orders as $order){
+                    $oamount = $oamount + (($order->total_amt));
+                }
+            }
+            //$amount = $oamount;
+
+
+
+
+            $query3 = OrderRefundItem::find();
+
+            $query3->andWhere('t.tax_id =' . $this->tax_id);
+            $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
+                Criteria::compare($query3, 'date(orderRefund.create_time)', $this->create_date);
+            $query3->andWhere(['orderRefund.order_id' => $order_ids]);
+            $orderRefundItems = $query3->all();
+            if($orderRefundItems){
+
+                foreach($orderRefundItems as $orderRefundItem){
+                    $refund = $refund + ((($orderRefundItem->price) * ($orderRefundItem->qty)) + ($orderRefundItem->tax_amt));
+
+                }
+            }
+            $amount = $oamount - $refund;
+
+
+            return round ( $amount, 2 );
+        }
+
+    /**
+     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in
+     * user may see.
+     *
+     * getItemOptions() filters on status and this does not, because Yii 1
+     * does not: the barcode dropdown this feeds lists inactive items too.
+     */
+    public function getItemOptionIds()
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for
+     * the items getItemOptionIds() allows.
+     */
+    public function getItemOptionbarcodes()
+    {
+        $list = [];
+        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])
+                     ->all() as $itemDetail) {
+            $list[$itemDetail->id] = $itemDetail->bar_code;
+        }
+
+        return $list;
+    }
+
+    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */
+    public function getItemCustomerName()
+    {
+        $customer = Customer::findOne($this->order->customer_id);
+
+        return $customer ? $customer->name : '';
+    }
+
+    /**
+     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's
+     * opening year, or '' when no session is selected.
+     */
+    public function getSessionStartDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[0]) ? $years[0] . '-04-01' : '';
+    }
+
+    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */
+    public function getSessionEndDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[1]) ? $years[1] . '-03-31' : '';
+    }
+
+    /**
+     * The two years in the selected session's name, which is '<from>-<to>'.
+     * The financial year runs 1 April to 31 March, which is where the two
+     * dates above come from.
+     */
+    private static function selectedSessionYears()
+    {
+        $id = Yii::$app->session['select_session_id'];
+        if ($id === null || $id === '') {
+            return [];
+        }
+        $session = Session::findOne($id);
+
+        return $session ? explode('-', $session->name) : [];
+    }
+
+    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */
+    public function getVendorDataOptions()
+    {
+        $list = [];
+        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);
+        // Yii 1 reaches these through findAllByAttributes(), which applies the
+        // model's defaultScope; the order is what the dropdown shows.
+        $query->orderBy(Vendor::defaultOrder() ?: []);
+        foreach ($query->all() as $vendor) {
+            $list[$vendor->id] = $vendor->name;
+        }
+
+        return $list;
+    }
+
+    /**
+     * Yii 1's itemsearch(): a listing of its own, converted as written.
+     */
+    public function itemsearch($id)
+    {
+
+		$query = self::find();
+	   if($id == null){
+	   	$ids = [];
+	   	$query->andWhere(['id' => $ids]);
+	   }
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'order_id', $this->order_id);
+		Criteria::compare($query, 'item_detail_id', $this->item_detail_id);
+		Criteria::compare($query, 'item_id', $this->item_id);
+		Criteria::compare($query, 'qty', $this->qty);
+		Criteria::compare($query, 'tax_id', $this->tax_id);
+		Criteria::compare($query, 'tax_amount', $this->tax_amount);
+		Criteria::compare($query, 'price', $this->price);
+		Criteria::compare($query, 'discount_id', $this->discount_id);
+		Criteria::compare($query, 'discount_amt', $this->discount_amt);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+	
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    /**
+     * Yii 1's b2bTaxsearch(): a listing of its own, converted as written.
+     */
+    public function b2bTaxsearch()
+    {
+
+	
+		$order_ids = [];
+		$query1 = Order::find();
+		if ((Yii::$app->session ['order_b2b_start_date'] != '') && (Yii::$app->session ['order_b2b_end_date'] != '')) {
+			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_b2b_start_date'], Yii::$app->session ['order_b2b_end_date']]);
+		}else{
+			$query1->andWhere(['between', 't.bill_date', $this->start_date, $this->end_date]);
+		}
+		if(Yii::$app->session ['order_mode_payment'] != ''){
+		$query1->andWhere('t.mode_of_payment ='.Yii::$app->session ['order_mode_payment']);
+		}
+		$orders = $query1->all();
+		if($orders){
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+	Yii::warning( var_export( $order_ids , true), '$order_ids_b2b');
+		$query = self::find()->alias('t');
+		$query->andWhere(['order_id' => $order_ids]);
+	
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
+		$query->groupBy('t.tax_id,t.create_date');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['tax_id' => SORT_ASC, 'create_date' => SORT_ASC]);
+		//$criteria->group = 't.tax_id,t.order_id';
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+	
+		Criteria::compare($query, 'order.bill_no', $this->order_id);
+		Criteria::compare($query, 'order.bill_date', $this->bill_date);
+		Criteria::compare($query, 'order.customer_id', $this->customer_id);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+	
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+		//$criteria->compare ('tax_id', $this->tax_id );
+		Criteria::compare($query, 't.date(create_date)', $this->create_date);
+		Criteria::compare($query, 't.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount_id', $this->discount_id);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+		
+	
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    /**
+     * Yii 1's groupHSNTaxsearch(): a listing of its own, converted as written.
+     */
+    public function groupHSNTaxsearch()
+    {
+
+	
+		$order_ids = [];
+		$query1 = Order::find();
+		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
+			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
+		}else{
+			$query1->andWhere(['between', 't.bill_date', $this->start_date, $this->end_date]);
+		}
+		if ( $this->mode_of_payment != null) {
+			$query1->andWhere('t.mode_of_payment ='.$this->mode_of_payment);
+		}
+		Yii::warning( var_export( Yii::$app->session ['order_item_start_date'] , true), 'start_date');
+		Yii::warning( var_export( Yii::$app->session ['order_item_end_date'] , true), 'end_date');
+		$orders = $query1->all();
+		if($orders){
+			foreach($orders as $order){
+				$order_ids[] = $order->id;
+			}
+		}
+		
+		$query = self::find()->alias('t');
+		$query->andWhere(['order_id' => $order_ids]);
+	
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
+		$query->groupBy('t.item_id,t.tax_id,t.create_date');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['item_id' => SORT_ASC, 'tax_id' => SORT_ASC, 'create_date' => SORT_ASC]);
+		Criteria::compare($query, 'item.title', $this->item_id, true);
+	
+		Criteria::compare($query, 'order.bill_no', $this->order_id);
+		Criteria::compare($query, 'order.bill_date', $this->bill_date);
+		Criteria::compare($query, 'order.customer_id', $this->customer_id);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+	
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+		//$criteria->compare ('tax_id', $this->tax_id );
+		Criteria::compare($query, 't.date(create_date)', $this->create_date);
+		Criteria::compare($query, 't.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price);
+		Criteria::compare($query, 't.discount_id', $this->discount_id);
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+	//    $orderItems = OrderItem::model()->findAll($criteria);
+	   // Yii::warning( var_export( $orderItems , true), '$orderItems');
+	   /*   if($orderItems){
+	     	$gst = 0;
+	     	$cgst = 0;
+	     	$sgst = 0;
+	     	$cess = 0;
+	     	$igst = 0;
+	     	$total = 0;
+	     	$taxable = 0;
+	     	foreach($orderItems as $orderItem){
+	     		$gst = $gst + $orderItem->getOrderTotalgstAmount();
+	     		$cgst = $cgst + $orderItem->getGroupTaxCgstAmount();
+	     		//Yii::warning( var_export( $orderItem->getGroupTaxCgstAmount() , true), '$cgst');
+	     		$sgst = $sgst + $orderItem->getGroupTaxSgstAmount();
+	     		$cess = $cess + $orderItem->getGroupTaxCessAmount();
+	     		$igst = $igst + $orderItem->getGroupTaxIgstAmount();
+	     		$total = $total + $orderItem->getGroupTaxOrderTotalAmount();
+	     		$taxable = $taxable + $orderItem->getTotalItemTaxableAmount();
+	     	}
+	     	Yii::$app->session ['group_tax_gst'] = number_format($gst,2);
+	     	Yii::$app->session ['group_tax_cgst']= number_format($cgst,2);
+	     	Yii::$app->session ['group_tax_sgst']= number_format($sgst,2);
+	     	Yii::$app->session ['group_tax_cess']= number_format($cess,2);
+	     	Yii::$app->session ['group_tax_igst']= number_format($igst,2);
+	     	Yii::$app->session ['group_tax_total']=number_format($total,2);
+	     	Yii::$app->session ['group_taxable_total']=number_format($taxable,2);
+	     } */
+	
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
     }
 }

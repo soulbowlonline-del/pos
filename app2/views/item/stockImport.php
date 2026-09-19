@@ -3,7 +3,6 @@
  * Ported from protected/views/item/stockImport.php.
  */
 
-use Yii;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 ?>

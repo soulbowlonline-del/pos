@@ -3,7 +3,6 @@
  * Ported from protected/views/purchaseOrder/_list.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\models\Mrn;
 use app\models\Organization;

@@ -19,7 +19,7 @@ def read(p):
 def arrays(src):
     """array(...) -> [...] using the view transformer's scanner."""
     sys.path.insert(0, '/root/pos')
-    from port_views import arrays_to_brackets
+    from port_views import arrays_to_brackets, dump_as_string
     return arrays_to_brackets(src)
 
 
@@ -273,16 +273,31 @@ def port_with(body):
     Yii 2's with() runs a second query and would not reproduce that; joinWith()
     does. Nested `'a' => ['with' => ['b']]` becomes the path 'a.b'.
     """
-    m = re.search(r"\$criteria->with\s*=\s*array\s*\(", body)
+    # Both `array(...)` and `[...]`. Only the first was matched, so a search()
+    # that wrote `$criteria->with = ['item', 'itemDetail']` produced no join at
+    # all - and its `$criteria->order = 'item.title asc'` then referred to a
+    # table that was not in the query: "Unknown column 'item.title' in 'order
+    # clause'".
+    m = re.search(r"\$criteria\s*->\s*with\s*=\s*(array\s*\(|\[)", body)
     if not m:
+        # A bare string is legal too: `$criteria->with = 'item';`. CDbCriteria's
+        # setter splits it on commas, so 'a, b' means two relations. BaseMrnDetail
+        # writes exactly that form, and while it went unhandled the join was
+        # dropped - and the `$criteria->order = 'item.title asc'` on the next
+        # line then named a table that was not in the query.
+        s = re.search(r"\$criteria\s*->\s*with\s*=\s*([\x27\x22])(.*?)\1\s*;", body)
+        if s:
+            return [x.strip() for x in s.group(2).split(",") if x.strip()]
         return []
 
+    opener = '(' if m.group(1).strip().startswith('array') else '['
+    closer = ')' if opener == '(' else ']'
     i = m.end()
     depth = 1
     while i < len(body) and depth:
-        if body[i] == '(':
+        if body[i] == opener:
             depth += 1
-        elif body[i] == ')':
+        elif body[i] == closer:
             depth -= 1
         i += 1
     block = body[m.end():i - 1]
@@ -291,8 +306,8 @@ def port_with(body):
 
     def walk(text, prefix):
         # 'name' => array('with' => array(...))   - a nested eager load
-        for nm in re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*'with'\s*=>\s*array\s*\(([^)]*)\)",
-                              text, re.S):
+        for nm in re.finditer(r"'(\w+)'\s*=>\s*(?:array\s*\(|\[)\s*'with'\s*=>\s*"
+                              r"(?:array\s*\(|\[)([^)\]]*)[)\]]", text, re.S):
             base = prefix + nm.group(1)
             inner = re.findall(r"'(\w+)'", nm.group(2))
             if inner:
@@ -305,8 +320,8 @@ def port_with(body):
         # 'itemDetail' => ['with' => ['item']] is that relation, not a second
         # one on the root model.
         consumed = set(re.findall(r"'(\w+)'\s*=>", text))
-        for nested in re.finditer(r"'(\w+)'\s*=>\s*array\s*\(\s*'with'\s*=>\s*array\s*\(([^)]*)\)",
-                                  text, re.S):
+        for nested in re.finditer(r"'(\w+)'\s*=>\s*(?:array\s*\(|\[)\s*'with'\s*=>\s*"
+                                  r"(?:array\s*\(|\[)([^)\]]*)[)\]]", text, re.S):
             consumed.update(re.findall(r"'(\w+)'", nested.group(2)))
         for nm in re.findall(r"'(\w+)'", text):
             if nm in consumed or nm == 'with':
@@ -388,6 +403,14 @@ def port_page_size(body):
         nxt = stripped.find('return new CActiveDataProvider', cut + 1)
         if nxt >= 0:
             stripped = stripped[:nxt]
+    # `'pagination' => false` is a third answer, not the absence of one: Yii 1
+    # then returns every matching row and the grid has no pager at all.
+    # MrnDetail, MrsDetail and PurchaseOrderDetail all switch it off, and
+    # reading that as "no page size given" put 10 rows on a page where Yii 1
+    # shows 19.
+    if re.search(r"'pagination'\s*=>\s*false", stripped):
+        return False
+
     m = re.search(r"'pageSize'\s*=>\s*'?(\d+)'?", stripped)
 
     return m.group(1) if m else None
@@ -395,10 +418,17 @@ def port_page_size(body):
 
 def port_search(body, warn):
     """The compare() calls that back the admin grid."""
+    # Both halves of the compare, not just the column. Yii 1 writes
+    # `$criteria->compare('t.mrs_id', $this->mrs_id)`: the column carries the
+    # table alias and the attribute does not. Keeping only the column and
+    # reading `$this->{'t.mrs_id'}` gave null for every filter - and because
+    # these three detail grids also turn pagination off, an unfiltered page
+    # meant the whole table, which is why mrsDetail's comparison sat for
+    # fifteen minutes before anyone looked at it.
     exact, partial = [], []
     for m in re.finditer(r"\$criteria->compare\s*\(\s*'([^']+)'\s*,\s*\$this->(\w+)\s*(,\s*true)?\s*\)", body):
-        col, _, is_partial = m.groups()
-        (partial if is_partial else exact).append(col)
+        col, attr, is_partial = m.groups()
+        (partial if is_partial else exact).append((col, attr))
     if 'addCondition' in body:
         warn.append('search() has conditions beyond compare(); check it by hand')
     return exact, partial
@@ -511,18 +541,45 @@ def default_order_of(cls):
     return "['%s' => %s]" % (col, 'SORT_DESC' if desc else 'SORT_ASC')
 
 
+DECL_RE = r'\$(\w+)\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;'
+
+
+def finder_re(var):
+    return (r"(\w+)\s*::\s*model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*"
+            r"\$" + re.escape(var) + r"\s*\)")
+
+
+def query_var_for(var):
+    """The Yii 2 variable a named criteria becomes."""
+    m = re.match(r'criteria(\w*)$', var)
+    if m:
+        return 'query' + m.group(1)
+    if var.endswith('Criteria'):
+        return var[:-len('Criteria')] + 'Query'
+
+    return var + 'Query'
+
+
 def convert_criteria(text):
     """
     Rewrites a CDbCriteria query as a Yii 2 query, statement by statement.
 
-    The variable is whatever the method calls it. It is $criteria most of the
-    time, but $criteria1 and $criteria2 appear too, and hardcoding the common
-    name meant those methods were reported as having no CDbCriteria at all -
-    then left as Yii 1 code, then excluded from the model, and the page died on
-    a missing method rather than on anything to do with criteria.
+    Per *declaration*, not per variable name, and not once for the method.
 
-    The declaration is also written both `new CDbCriteria()` and
-    `new CDbCriteria;` - 107 of the latter across the models.
+    Both shortcuts produced code that looked converted and was not.
+    Keying on the name gave every criteria in a method the same `$query`, so
+    FreeItemController::actionItemList(), which builds $criteria for the item
+    details and $criteria1 for the vendor's items, had the second assignment
+    overwrite the first and listed ItemVendor rows where Yii 1 lists ItemDetail
+    rows. Converting a name once was worse: CustomerController's
+    actionGetCustomerAddress() writes `$criteria = new CDbCriteria` twice, the
+    first consumed by Customer::model()->findAll() and the second by
+    City::model()->find(), and the single conversion gave the City lookup
+    Customer::find() and ->all(), so `$city->id` ran against an array.
+
+    So each `new CDbCriteria` gets its own region - from the declaration to the
+    next declaration of the same variable - its own class and finder read from
+    inside that region, and its own variable.
 
     In place, not hoisted: the application applies some conditions inside an
     `if`, and a condition built there refers to variables that only exist
@@ -537,51 +594,86 @@ def convert_criteria(text):
     original = text
     text, restore = mask_comments(text)
 
-    decls = re.findall(r'\$(\w+)\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;', text)
+    decls = list(re.finditer(DECL_RE, text))
     if not decls:
         return original, False, 'no CDbCriteria'
 
-    # A method can build more than one query - Item::getAllVendors() uses
-    # $criteria1 for the vendors already attached and $criteria for the rest.
-    # Each has its own declaration and its own finder, so each converts on its
-    # own; the first that cannot is reported and the whole method is left.
-    names = list(dict.fromkeys(decls))
-    if len(names) > 1:
-        out = text
-        for name in names:
-            converted, ok, why = convert_one_criteria(out, name)
-            if not ok:
-                return original, False, why
-            out = converted
-        if re.search(r'\$(?:' + '|'.join(re.escape(n) for n in names) + r')\b', out):
-            return original, False, 'a criteria reference survived the rewrite'
-        return restore(out), True, ''
+    # Plan every region before rewriting any of it, so that a declaration this
+    # cannot read leaves the whole method alone.
+    plans = []
+    seen = {}
+    for i, d in enumerate(decls):
+        var = d.group(1)
+        end = len(text)
+        for later in decls[i + 1:]:
+            if later.group(1) == var:
+                end = later.start()
+                break
+        fm = re.search(finder_re(var), text[d.start():end])
+        if not fm:
+            return original, False, 'the criteria is not passed to a finder this knows'
 
-    var = names[0]
-    converted, ok, why = convert_one_criteria(text, var)
-    if not ok:
-        return original, False, why
+        # A name free in the method as the application wrote it, and not
+        # already handed to another region. actionGetCustomerAddress() has its
+        # own $query - the query string for a curl call - and the converted
+        # criteria overwrote it. Refusing the method over that would leave it
+        # as CDbCriteria, which is a page that dies rather than a page that
+        # lies, but it is still a page that dies.
+        base = query_var_for(var)
+        taken = {pl[3] for pl in plans}
+        name, n = base, 1
+        while name in taken or re.search(r'\$' + re.escape(name) + r'\b', original):
+            n += 1
+            name = '%s_%d' % (base, n)
+        seen[var] = seen.get(var, 0) + 1
 
-    return restore(converted), True, ''
+        plans.append((d.start(), end, var, name, fm.group(1), fm.group(2)))
 
-
-def convert_one_criteria(text, var):
-    """Convert the query built on one named criteria variable."""
-    V = r'\$' + re.escape(var)
-
-    find = re.search(r"(\w+)::model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*" + V + r"\s*\)", text)
-    if not find:
-        return original, False, 'the criteria is not passed to a finder this knows'
-    cls, kind = find.group(1), find.group(2)
+    # Regions of two different criteria interleave, so the edits are collected
+    # against the original offsets and applied back to front rather than each
+    # region being spliced in on its own.
+    edits = []
+    for start, end, var, name, cls, kind in plans:
+        got, ok, why = region_edits(text, start, end, var, name, cls, kind)
+        if not ok:
+            return original, False, why
+        edits.extend(got)
 
     out = text
+    for span, replacement in sorted(edits, key=lambda e: -e[0][0]):
+        out = out[:span[0]] + replacement + out[span[1]:]
 
+    return restore(out), True, ''
+
+
+def region_edits(text, start, end, var, name, cls, kind):
+    """
+    Every edit one criteria's region needs, as (span, replacement) pairs
+    against `text`.
+
+    Returns (edits, ok, reason). Not applied here: the caller holds the edits
+    from every region and applies them in one pass, because two regions can
+    overlap.
+    """
+    V = r'\$' + re.escape(var)
+    Q = '$' + name
+    region = text[start:end]
+    edits = []
+    claimed = []
+
+    def take(m, replacement):
+        edits.append(((start + m.start(), start + m.end()), replacement))
+        claimed.append((m.start(), m.end()))
+
+    decl = re.match(DECL_RE, region)
     scope = default_order_of(cls)
-    start_stmt = '$query = ' + cls + '::find();'
-    if scope and scope != 'null' and 'order' not in text.lower():
-        start_stmt += '\n        $query->orderBy(' + scope + ');'
-    out = re.sub(V + r'\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;',
-                 lambda m: start_stmt, out)
+    stmt = Q + ' = ' + cls + '::find();'
+    # An explicit order on the criteria, not the word 'order' anywhere in
+    # the method. StockAdjustLog's search mentions order_id, which
+    # suppressed the model's own id DESC and listed the oldest first.
+    if scope and scope != 'null' and not re.search(r'->\s*order\s*=', region):
+        stmt += '\n        ' + Q + '->orderBy(' + scope + ');'
+    take(decl, stmt)
 
     def order_by(m):
         cols = []
@@ -594,56 +686,82 @@ def convert_one_criteria(text, var):
                 col = col[2:]
             desc = len(bits) > 1 and bits[1].lower().startswith('desc')
             cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
-        return '$query->orderBy([%s]);' % ', '.join(cols)
+        return Q + '->orderBy([%s]);' % ', '.join(cols)
 
-    out = re.sub(V + r"\s*->\s*order\s*=\s*'([^']+)'\s*;", order_by, out)
-    out = re.sub(V + r"\s*->\s*select\s*=\s*([^;]+);",
-                 lambda m: '$query->select(%s);' % m.group(1).strip(), out)
-    out = re.sub(V + r"\s*->\s*group\s*=\s*([^;]+);",
-                 lambda m: '$query->groupBy(%s);' % m.group(1).strip(), out)
-    out = re.sub(V + r"\s*->\s*limit\s*=\s*'?(\d+)'?\s*;",
-                 lambda m: '$query->limit(%s);' % m.group(1), out)
+    for m in re.finditer(V + r"\s*->\s*order\s*=\s*'([^']+)'\s*;", region):
+        take(m, order_by(m))
+    for m in re.finditer(V + r"\s*->\s*select\s*=\s*([^;]+);", region):
+        take(m, Q + '->select(%s);' % m.group(1).strip())
+    for m in re.finditer(V + r"\s*->\s*group\s*=\s*([^;]+);", region):
+        take(m, Q + '->groupBy(%s);' % m.group(1).strip())
+    for m in re.finditer(V + r"\s*->\s*(?:limit|offset)\s*=\s*([^;]+);", region):
+        which = 'limit' if '->limit' in m.group(0).replace(' ', '') else 'offset'
+        take(m, Q + '->%s(%s);' % (which, m.group(1).strip().strip("'")))
+    for m in re.finditer(V + r"\s*->\s*distinct\s*=\s*([^;]+);", region):
+        take(m, Q + '->distinct(%s);' % m.group(1).strip())
 
-    cond = re.search(V + r"\s*->\s*condition\s*=\s*([^;]+);", out)
+    # `with` is a join, and the relation keeps its name. Yii 1 aliases an
+    # eager-loaded table after the relation, and the order and conditions
+    # around it say `item.title`; Yii 2 would join on the real table name and
+    # that column would resolve to nothing.
+    for m in re.finditer(V + r"\s*->\s*with\s*=\s*([^;]+);", region):
+        paths = port_with('$criteria->with = %s;' % m.group(1).strip())
+        if not paths:
+            return [], False, 'CDbCriteria with a `with` this cannot read'
+        take(m, Q + '->joinWith([%s]);' % ', '.join(
+            "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
+            for x in paths))
+
+    # `condition` plus `params` is one andWhere; `params` on its own adds to
+    # whatever conditions the add* calls have already put on the query.
+    cond = re.search(V + r"\s*->\s*condition\s*=\s*([^;]+);", region)
+    params = re.search(V + r"\s*->\s*params\s*=\s*([^;]+);", region)
     if cond:
-        params = re.search(V + r"\s*->\s*params\s*=\s*([^;]+);", out)
-        out = out.replace(cond.group(0), '$query->andWhere(%s%s);' % (
+        take(cond, Q + '->andWhere(%s%s);' % (
             cond.group(1).strip(), ', ' + params.group(1).strip() if params else ''))
         if params:
-            out = out.replace(params.group(0), '')
+            take(params, '')
+    elif params:
+        take(params, Q + '->addParams(%s);' % params.group(1).strip())
 
     def helper(m):
-        name, args = m.group(1), m.group(2).strip()
-        if name == 'addCondition':
-            return '$query->andWhere(%s);' % args
+        called, args = m.group(1), m.group(2).strip()
+        if called == 'addCondition':
+            return Q + '->andWhere(%s);' % args
         bits = split_args_php(args)
-        if name == 'addInCondition' and len(bits) >= 2:
-            return '$query->andWhere([%s => %s]);' % (bits[0].strip(), bits[1].strip())
-        if name == 'addNotInCondition' and len(bits) >= 2:
-            return "$query->andWhere(['not in', %s, %s]);" % (bits[0].strip(), bits[1].strip())
-        if name == 'addBetweenCondition' and len(bits) >= 3:
-            return "$query->andWhere(['between', %s, %s, %s]);" % tuple(b.strip() for b in bits[:3])
-        if name == 'addSearchCondition' and len(bits) >= 2:
-            return "$query->andWhere(['like', %s, %s]);" % (bits[0].strip(), bits[1].strip())
-        if name == 'compare' and len(bits) >= 2:
+        if called == 'addInCondition' and len(bits) >= 2:
+            return Q + '->andWhere([%s => %s]);' % (bits[0].strip(), bits[1].strip())
+        if called == 'addNotInCondition' and len(bits) >= 2:
+            return Q + "->andWhere(['not in', %s, %s]);" % (bits[0].strip(), bits[1].strip())
+        if called == 'addBetweenCondition' and len(bits) >= 3:
+            return Q + "->andWhere(['between', %s, %s, %s]);" % tuple(b.strip() for b in bits[:3])
+        if called == 'addSearchCondition' and len(bits) >= 2:
+            return Q + "->andWhere(['like', %s, %s]);" % (bits[0].strip(), bits[1].strip())
+        if called == 'compare' and len(bits) >= 2:
             partial = ', true' if len(bits) > 2 and 'true' in bits[2] else ''
-            return 'Criteria::compare($query, %s, %s%s);' % (bits[0].strip(), bits[1].strip(), partial)
-        return m.group(0)
+            return 'Criteria::compare(%s, %s, %s%s);' % (Q, bits[0].strip(), bits[1].strip(), partial)
+        return None
 
-    out = re.sub(V + r"\s*->\s*(addCondition|addInCondition|addNotInCondition|"
-                 r"addBetweenCondition|addSearchCondition|compare)\s*\((.*?)\)\s*;",
-                 helper, out, flags=re.S)
+    for m in re.finditer(V + r"\s*->\s*(addCondition|addInCondition|addNotInCondition|"
+                         r"addBetweenCondition|addSearchCondition|compare)\s*\((.*?)\)\s*;",
+                         region, flags=re.S):
+        rep = helper(m)
+        if rep is None:
+            return [], False, 'CDbCriteria %s() with arguments this cannot read' % m.group(1)
+        take(m, rep)
 
-    tail = {'findAll': '$query->all()', 'find': '$query->one()', 'count': '$query->count()'}[kind]
-    out = re.sub(r"\w+::model\s*\(\s*\)\s*->\s*(?:findAll|find|count)\s*\(\s*" + V + r"\s*\)",
-                 lambda m: tail, out)
+    tail = {'findAll': Q + '->all()', 'find': Q + '->one()', 'count': Q + '->count()'}[kind]
+    for m in re.finditer(finder_re(var), region):
+        take(m, tail)
 
-    if re.search(V + r'\b', out):
-        left = sorted(set(re.findall(V + r'\s*->\s*(\w+)', out))) or ['a bare reference']
-        return text, False, 'CDbCriteria uses ' + ', '.join(left)
+    # Nothing may mention this criteria that has not been rewritten.
+    for m in re.finditer(V + r'\b', region):
+        if not any(a <= m.start() < b for a, b in claimed):
+            rest = re.match(r'\s*->\s*(\w+)', region[m.end():])
+            return [], False, ('CDbCriteria uses ' + rest.group(1) if rest
+                               else 'a bare CDbCriteria reference')
 
-    return out, True, ''
-
+    return edits, True, ''
 
 def split_two(args):
     bits = split_args_php(args)
@@ -714,6 +832,47 @@ def by_attributes_php(m):
     return query + ('->all()' if kind.lower().startswith('findall') else '->one()')
 
 
+def dump_as_string(text):
+    """
+    CVarDumper::dumpAsString($x) is var_export($x, true).
+
+    Without the second argument var_export *prints*. The conversion dropped it,
+    so every `Yii::log(CVarDumper::dumpAsString($x), ...)` the application
+    carries - 136 of them - echoed its argument into the response body. On a
+    page it was cosmetic; anywhere a header followed it was fatal, and the four
+    order suites each lost a case to "Headers already sent, output started at
+    MrsDetail.php:813".
+
+    The argument is found by matching parentheses, not by regex: some of these
+    dump an array literal.
+    """
+    out = []
+    i = 0
+    pattern = re.compile(r'CVarDumper::dumpAsString\s*\(')
+    while True:
+        m = pattern.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        j = m.end()
+        depth = 1
+        while j < len(text) and depth:
+            if text[j] == '(':
+                depth += 1
+            elif text[j] == ')':
+                depth -= 1
+            j += 1
+        # Only the first argument. CVarDumper::dumpAsString($var, $depth,
+        # $highlight) takes three; var_export takes two, and passing the depth
+        # through gave "var_export() expects at most 2 arguments, 3 given".
+        arg = split_args_php(text[m.end():j - 1])
+        out.append('var_export(' + (arg[0].strip() if arg else '') + ', true)')
+        i = j
+
+    return ''.join(out)
+
+
 def yii1_idioms(text):
     """
     The Yii 1 -> Yii 2 conversions any carried-over snippet needs.
@@ -730,7 +889,7 @@ def yii1_idioms(text):
     text = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', text)
     text = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', text)
 
-    text = re.sub(r"CVarDumper::dumpAsString\s*\(", 'var_export(', text)
+    text = dump_as_string(text)
     text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_ERROR\s*,\s*('[^']*')\s*\)",
                   lambda m: 'Yii::error(' + m.group(1) + ', ' + m.group(2) + ')', text)
     text = re.sub(r"Yii::log\s*\(([^;]*?),\s*CLogger::LEVEL_\w+\s*,\s*('[^']*')\s*\)",
@@ -855,6 +1014,160 @@ def port_concrete(src, model):
     return out, notes
 
 
+
+# GxActiveRecord's item dropdown helpers, emitted as text rather than as a
+# hundred A() calls. A model that defines its own - Discount and FreeItem
+# both write a getItemOptions() listing item *detail* ids by bar code - keeps
+# its own and does not get these.
+SHARED_GET_ITEM_OPTIONS = '    /**\n     * GxActiveRecord::getItemOptions(): the active items, as id => \'title(mrp)\',\n     * for the item dropdowns.\n     *\n     * Restricted to a vendor\'s own items when the signed-in user holds the\n     * Vendor role, and again when a vendor id is passed. Both filters compare\n     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It\n     * reads like a mistake, but it is the list these dropdowns have always\n     * shown, so it is ported as it stands rather than corrected here.\n     *\n     * An empty id list is not "no filter": Yii 1\'s addInCondition() degrades to\n     * 0=1 and [\'id\' => []] does the same, so a vendor with no items gets an\n     * empty dropdown rather than every item in the catalogue.\n     */\n    public function getItemOptions($vendor_id = null)\n    {\n        $query = Item::find();\n\n        $role = UserRole::findOne([\'title\' => \'Vendor\']);\n        $user = Yii::$app->user->model;\n        if ($user && $role && $user->role_id == $role->id) {\n            $query->andWhere([\'id\' => self::vendorItemDetailIds(\n                [\'create_user_id\' => $user->id])]);\n        }\n        if ($vendor_id !== null) {\n            $query->andWhere([\'id\' => self::vendorItemDetailIds([\'id\' => $vendor_id])]);\n        }\n        $query->andWhere(\'status = \' . Item::STATUS_ACTIVE);\n        $query->orderBy(\'title asc\');\n\n        $list = [];\n        foreach ($query->all() as $item) {\n            $list[$item->id] = $item->title . \'(\' . $item->mrp . \')\';\n        }\n\n        return $list;\n    }'
+
+SHARED_IDS_IN_BARCODE = "    /**\n     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an\n     * itemDetail admin filter matches, which that grid then filters item_id by.\n     *\n     * The values are bound rather than interpolated into the condition as Yii 1\n     * does. For every value the grid can actually produce the two are the same\n     * query; this is not a fix for a reported problem, only a refusal to build\n     * the same hole again.\n     */\n    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,\n        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)\n    {\n        $query = Item::find();\n\n        if ($match_item_id != null) {\n            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);\n        }\n        if ($is_vendor == 1) {\n            $user = Yii::$app->user->model;\n            $query->andWhere(['id' => self::vendorItemDetailIds(\n                ['create_user_id' => $user->id])]);\n        }\n        if ($match_company_id != null) {\n            Criteria::compare($query, 'company_id', $match_company_id, true);\n        }\n        if ($match_mrp != null) {\n            $query->andWhere(['mrp' => $match_mrp]);\n        }\n        if ($match_hsn_code != null) {\n            $query->andWhere(['hsn_code' => $match_hsn_code]);\n        }\n        if ($match_product_code != null) {\n            $query->andWhere(['item_code' => $match_product_code]);\n        }\n        if ($match_purchase_price != null) {\n            Criteria::compare($query, 'purchase_price', $match_purchase_price);\n        }\n\n        return $query->select('id')->column();\n    }"
+
+SHARED_MORE_GX = "    /**\n     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in\n     * user may see.\n     *\n     * getItemOptions() filters on status and this does not, because Yii 1\n     * does not: the barcode dropdown this feeds lists inactive items too.\n     */\n    public function getItemOptionIds()\n    {\n        $query = Item::find();\n\n        $role = UserRole::findOne(['title' => 'Vendor']);\n        $user = Yii::$app->user->model;\n        if ($user && $role && $user->role_id == $role->id) {\n            $query->andWhere(['id' => self::vendorItemDetailIds(\n                ['create_user_id' => $user->id])]);\n        }\n\n        return $query->select('id')->column();\n    }\n\n    /**\n     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for\n     * the items getItemOptionIds() allows.\n     */\n    public function getItemOptionbarcodes()\n    {\n        $list = [];\n        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])\n                     ->all() as $itemDetail) {\n            $list[$itemDetail->id] = $itemDetail->bar_code;\n        }\n\n        return $list;\n    }\n\n    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */\n    public function getItemCustomerName()\n    {\n        $customer = Customer::findOne($this->order->customer_id);\n\n        return $customer ? $customer->name : '';\n    }\n\n    /**\n     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's\n     * opening year, or '' when no session is selected.\n     */\n    public function getSessionStartDate()\n    {\n        $years = self::selectedSessionYears();\n\n        return isset($years[0]) ? $years[0] . '-04-01' : '';\n    }\n\n    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */\n    public function getSessionEndDate()\n    {\n        $years = self::selectedSessionYears();\n\n        return isset($years[1]) ? $years[1] . '-03-31' : '';\n    }\n\n    /**\n     * The two years in the selected session's name, which is '<from>-<to>'.\n     * The financial year runs 1 April to 31 March, which is where the two\n     * dates above come from.\n     */\n    private static function selectedSessionYears()\n    {\n        $id = Yii::$app->session['select_session_id'];\n        if ($id === null || $id === '') {\n            return [];\n        }\n        $session = Session::findOne($id);\n\n        return $session ? explode('-', $session->name) : [];\n    }\n\n    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */\n    public function getVendorDataOptions()\n    {\n        $list = [];\n        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);\n        // Yii 1 reaches these through findAllByAttributes(), which applies the\n        // model's defaultScope; the order is what the dropdown shows.\n        $query->orderBy(Vendor::defaultOrder() ?: []);\n        foreach ($query->all() as $vendor) {\n            $list[$vendor->id] = $vendor->name;\n        }\n\n        return $list;\n    }"
+
+SHARED_VENDOR_ITEM_DETAIL_IDS = "    /** The item_detail_ids ItemVendor holds for the matching vendor. */\n    private static function vendorItemDetailIds($condition)\n    {\n        $vendor = Vendor::findOne($condition);\n        if ($vendor === null) {\n            return [];\n        }\n\n        return ItemVendor::find()->where(['vendor_id' => $vendor->id])\n            ->select('item_detail_id')->column();\n    }"
+
+
+# Methods that are neither generated nor translatable: a second search() whose
+# filters resolve through another table. Written out, keyed by model, and
+# skipped where the model turns out to define one itself.
+HAND_PORTED = {
+    'ItemDetail': ["    /**\n     * BaseItemDetail::adminsearch(): the provider behind itemDetail/admin.\n     *\n     * Not search(), and not a variant of it. Four of this grid's filters -\n     * item title, mrp, hsn code, product code - are columns of Item, not of\n     * item_detail, so they are resolved to a set of item ids first and the\n     * grid is then filtered by item_id. The generator builds search() out of\n     * its compares; this one is not a list of compares, so it is written out.\n     *\n     * Takes no parameters: the action loads the model from the query string\n     * and the view calls this on the loaded model, as Yii 1 does.\n     */\n    public function adminsearch()\n    {\n        $query = self::find();\n\n        $match_mrp = null;\n        $match_purchase_price = null;\n        $match_item_id = null;\n        $match_hsn_code = null;\n        $match_product_code = null;\n\n        if ($this->item_id != null) {\n            // item_id holds a title here, not an id: the action puts the\n            // Item's title in it, and the filter box is a title box.\n            $item = Item::find()\n                ->where('title LIKE :title', [':title' => trim($this->item_id) . '%'])\n                ->one();\n            if ($item) {\n                $first = ItemDetail::find()\n                    ->where('item_id = ' . $item->id)\n                    ->orderBy('id asc')\n                    ->one();\n                if ($first) {\n                    // The first detail row of a matched item is the item\n                    // itself, and the admin grid hides it.\n                    $query->andWhere('id != ' . $first->id);\n                }\n            }\n            $match_item_id = $this->item_id;\n        }\n        if ($this->mrp != null) {\n            $match_mrp = $this->mrp;\n        }\n        if ($this->purchase_price != null) {\n            $match_purchase_price = $this->purchase_price;\n        }\n        if ($this->hsn_code != null) {\n            $match_hsn_code = $this->hsn_code;\n        }\n        if ($this->product_code != null) {\n            $match_product_code = $this->product_code;\n        }\n        $match_company_id = $this->company_id != null ? $this->company_id : null;\n\n        $is_vendor = 0;\n        $role = UserRole::findOne(['title' => 'Vendor']);\n        $user = Yii::$app->user->model;\n        if ($user && $role && $user->role_id == $role->id) {\n            $is_vendor = 1;\n        }\n\n        if ($match_item_id != null || $match_mrp != null || $match_hsn_code != null\n            || $match_product_code != null || $match_purchase_price != null\n            || $match_company_id != null || $is_vendor == 1) {\n            $query->andWhere(['item_id' => $this->getItemOptionIdsInBarcode(\n                $match_item_id, $match_mrp, $match_hsn_code, $match_product_code,\n                $match_purchase_price, $match_company_id, $is_vendor)]);\n        }\n\n        Criteria::compare($query, 'id', $this->id);\n        Criteria::compare($query, 'bar_code', $this->bar_code, true);\n        Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);\n        Criteria::compare($query, 'reorder_qty', $this->reorder_qty);\n        Criteria::compare($query, 'status', $this->status);\n        Criteria::compare($query, 'type_id', $this->type_id);\n        Criteria::compare($query, 'create_time', $this->create_time, true);\n        Criteria::compare($query, 'tax_id', $this->tax_id);\n        Criteria::compare($query, 'create_user_id', $this->create_user_id);\n        Criteria::compare($query, 'updated_by', $this->updated_by);\n\n        // Yii 1 puts 't.id desc' on the criteria and 'id DESC' on the sort,\n        // and CSort::applyOrder appends one to the other. Both name the same\n        // column in the same direction, so one of them says it.\n        $query->orderBy('id desc');\n\n        return new ActiveDataProvider([\n            'query' => $query,\n            'sort' => ['defaultOrder' => []],\n            'pagination' => ['pageSize' => 10],\n        ]);\n    }"],
+}
+
+
+def convert_search(body, model, page_size, eager, load_params=True):
+    """
+    search() converted rather than rebuilt, for the ones where rebuilding
+    loses something.
+
+    The rebuilt search() is a list of compares, which is all most of these
+    methods are. MrnDetail's is not: it drops every row whose status is
+    STATUS_DONE, and when the date or vendor filter is set it first resolves
+    those to a set of mrn ids and restricts the grid to them. None of that is
+    a compare, so the rebuilt method returned rows Yii 1 does not show - and
+    with pagination off, that was the whole table.
+
+    Here the criteria converter takes the body as written, control flow and
+    all, and only the provider at the end is replaced. Returns None when it
+    cannot, and the caller falls back to rebuilding.
+    """
+    cut = body.find('new CActiveDataProvider')
+    if cut < 0:
+        return None
+    ret = body.rfind('return', 0, cut)
+    if ret < 0:
+        return None
+    var = re.search(r"'criteria'\s*=>\s*\$(\w+)", body[cut:])
+    if not var:
+        return None
+
+    # The provider is what consumes the criteria in a search(). Handing it to
+    # the converter as an ordinary finder means one implementation covers both.
+    prepared = body[:ret] + 'return %s::model()->findAll($%s);' % (model, var.group(1))
+    out, ok, _ = convert_criteria(prepared)
+    if not ok:
+        return None
+
+    # The alias, for the same reason the rebuilt search() needs it: Yii 2
+    # names the primary table after the table, so a condition on `t.status`
+    # refers to an alias the query does not have.
+    aliased = "'t." in out
+
+    lines = []
+    for line in out.splitlines():
+        decl = re.match(r'(\s*)\$query = ' + model + r'::find\(\);\s*$', line)
+        if decl:
+            lines.append(decl.group(1) + '$query = self::find()%s;'
+                         % ("->alias('t')" if aliased else ''))
+            continue
+        if line.strip() == 'return $query->all();':
+            indent = line[:len(line) - len(line.lstrip())]
+            lines.append(indent + 'return new ActiveDataProvider([')
+            lines.append(indent + "    'query' => $query,")
+            lines.append(indent + "    'sort' => ['defaultOrder' => []],")
+            if page_size is False:
+                lines.append(indent + "    'pagination' => false,")
+            elif page_size:
+                lines.append(indent + "    'pagination' => ['pageSize' => %s]," % page_size)
+            else:
+                lines.append(indent + "    'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
+            lines.append(indent + ']);')
+            continue
+        lines.append(line)
+
+    body = yii1_idioms('\n'.join(lines))
+    if re.search(YII1_CLASSES, body):
+        return None
+
+    # Yii 1's action fills the model before the view calls search(); Yii 2's
+    # provider is built from $params, so the load happens here. The other
+    # provider methods take their own arguments and the action has already
+    # filled the model, exactly as in Yii 1, so they get no load at all.
+    if not load_params:
+        return body.rstrip()
+
+    return '        $this->load($params, $this->formName());\n' + body.rstrip()
+
+
+def provider_methods(src):
+    """Every method that builds a CActiveDataProvider, as (name, params, body)."""
+    out = []
+    for m in re.finditer(r'\n[ \t]*(?:public|protected|private)?\s*(?:static\s+)?'
+                         r'function\s+(\w+)\s*\(([^)]*)\)', src):
+        brace = src.find('{', m.end())
+        if brace < 0:
+            continue
+        i, depth = brace + 1, 1
+        while i < len(src) and depth:
+            if src[i] == '{':
+                depth += 1
+            elif src[i] == '}':
+                depth -= 1
+            i += 1
+        body = src[brace + 1:i - 1]
+        if 'new CActiveDataProvider' in body:
+            out.append((m.group(1), m.group(2).strip(), body))
+
+    return out
+
+
+def port_provider_methods(base, concrete, model, taken):
+    """
+    The search() variants, converted the same way search() is.
+
+    A model rarely has one listing. PurchaseBill has listsearch(),
+    PurchaseBillDetail has reportsearch() and purchasesearch(), OrderItem has
+    five, and each backs a view of its own. They are ordinary Yii 1 code
+    holding a CDbCriteria and a CActiveDataProvider, so the same conversion
+    applies - and without it they are dropped as "still contains Yii 1 code"
+    and the page dies on a missing method.
+
+    search() itself is not here: it is handled where the provider's sort and
+    page size are already known.
+    """
+    out, warn = [], []
+    for src in (base, concrete):
+        if not src:
+            continue
+        for name, params, body in provider_methods(src):
+            if name == 'search' or name in taken:
+                continue
+            taken.add(name)
+            converted = convert_search(arrays(body), model,
+                                       port_page_size(body), None, load_params=False)
+            if converted is None:
+                warn.append('%s(): a second listing this could not convert - '
+                            'the page that uses it stays on Yii 1' % name)
+                continue
+            out.append('    /**\n'
+                       '     * Yii 1\'s %s(): a listing of its own, converted as written.\n'
+                       '     */\n'
+                       '    public function %s(%s)\n'
+                       '    {\n%s\n    }' % (name, name, params, converted))
+
+    return out, warn
+
 def generate(model, table_alias):
     base = read(f'{ROOT}/protected/models/_base/Base{model}.php')
     concrete = read(f'{ROOT}/protected/models/{model}.php')
@@ -899,7 +1212,11 @@ def generate(model, table_alias):
     # the model was generated. Declaring a property for a real column shadows
     # Yii 2's attribute handling and the column is never populated, which is
     # what emptied Outlet's update form.
-    known = columns_of(table) | {n for n, _ in labels}
+    # The columns, and only the columns. attributeLabels() also carries
+    # relations and form-only fields, and counting those as known dropped
+    # the declaration for Discount::\ - which the update
+    # action assigns, so the page answered 500 where Yii 1 renders a form.
+    known = columns_of(table)
     dropped = [n for n, _ in props if n.lstrip('$') in known]
     props = [(n, d) for n, d in props if n.lstrip('$') not in known]
     for n in dropped:
@@ -920,6 +1237,15 @@ def generate(model, table_alias):
     # one. They are translated with the same rules as the controllers and
     # anything unrecognised is reported.
     concrete_methods, notes = port_concrete(concrete, model)
+
+    # What the concrete model defines itself. GxActiveRecord's helpers below
+    # are emitted only where the model does not already have one: Discount and
+    # FreeItem write their own getItemOptions(), and emitting the base one as
+    # well would put two methods of the same name in one class. Preferring the
+    # base one silently would be worse than the parse error - theirs lists
+    # item *detail* ids labelled by bar code, the base one lists item ids
+    # labelled by mrp, and the dropdown would quietly change.
+    own = methods_of('\n'.join(concrete_methods))
     warn += notes
 
     L = []
@@ -1057,6 +1383,25 @@ def generate(model, table_alias):
     A('        return \\app\\components\\Access::check($url);')
     A('    }')
     A('')
+    if 'getItemOptions' not in own:
+        A('')
+        A(SHARED_GET_ITEM_OPTIONS)
+    if 'getItemOptionIdsInBarcode' not in own:
+        A('')
+        A(SHARED_IDS_IN_BARCODE)
+    # The rest of GxActiveRecord's helpers, as one block. They are emitted
+    # together because they call one another - getItemOptionbarcodes() is
+    # getItemOptionIds() resolved to bar codes - and a model that overrides one
+    # of them would otherwise get a half of the set.
+    if not any(n in own for n in ('getItemOptionIds', 'getItemOptionbarcodes',
+                                  'getItemCustomerName', 'getSessionStartDate',
+                                  'getSessionEndDate', 'getVendorDataOptions')):
+        A('')
+        A(SHARED_MORE_GX)
+    A('')
+    A(SHARED_VENDOR_ITEM_DETAIL_IDS)
+    A('')
+
     A('    /**')
     A("     * GxActiveRecord::getRelationLabel(). The generated attributeLabels()")
     A('     * above already resolves a relation or foreign key to the related')
@@ -1065,6 +1410,21 @@ def generate(model, table_alias):
     A('    public function getRelationLabel($name, $n = null)')
     A('    {')
     A('        return $this->getAttributeLabel($name);')
+    A('    }')
+    A('')
+    A('    /**')
+    A("     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item")
+    A("     * detail's bar code is the company's own, and an empty string")
+    A('     * otherwise. The grids use the result as an html attribute, so a')
+    A('     * barcode belonging to the company cannot be edited in place.')
+    A('     */')
+    A('    public function getCompanyBarcode($id)')
+    A('    {')
+    A('        $itemDetail = ItemDetail::findOne($id);')
+    A('')
+    A('        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY')
+    A("            ? 'readOnly'")
+    A("            : '';")
     A('    }')
     A('')
     A('    /**')
@@ -1174,45 +1534,76 @@ def generate(model, table_alias):
     A('     */')
     A('    public function search($params = [])')
     A('    {')
-    A('        $query = self::find();')
-    if eager:
-        A('        // Yii 1 eager-loads these, by JOIN, in the same query. That is')
-        A('        // part of the result and not just an optimisation: where the')
-        A('        // listing has no ORDER BY, the join decides which rows the')
-        A('        // first page shows.')
-        A("        $query->joinWith([%s]);" % ', '.join("'%s'" % x for x in eager))
-    A('        $provider = new ActiveDataProvider([')
-    A("            'query' => $query,")
-    A("            // The order goes on the query, not on the provider's sort.")
-    A('            // Yii 1 sets it on the criteria, and three of these listings')
-    A("            // order by a joined column - 'item.title' - which Yii 2's Sort")
-    A('            // rejects as a key unless it is declared as a sortable')
-    A('            // attribute. orderBy takes it as written.')
-    A("            'sort' => ['defaultOrder' => []],")
-    if page_size:
-        A("            // The page size Yii 1's search() asks its provider for, which")
-        A('            // is not always the framework default.')
-        A("            'pagination' => ['pageSize' => %s]," % page_size)
+    # Rebuilding search() out of its compares is enough for most of these and
+    # silently wrong for the few that filter by anything else. Where Yii 1's
+    # search() carries conditions the rebuild cannot express, the whole method
+    # is converted instead - and if that conversion fails, the rebuild is
+    # still what gets written, with the warning port_search() already raised.
+    converted = None
+    if re.search(r'\$criteria->(?:addCondition|addInCondition|addNotInCondition|'
+                 r'addBetweenCondition|addSearchCondition)\s*\(', search_body or ''):
+        converted = convert_search(search_body, model, page_size, eager)
+    if converted:
+        A(converted)
     else:
-        A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
-    A('        ]);')
-    A('')
-    A('        if (self::listingOrder()) {')
-    A('            $query->orderBy(self::listingOrder());')
-    A('        }')
-    A('')
-    A('        $this->load($params, $this->formName());')
-    A('')
-    if exact:
-        A('        foreach ([%s] as $attr) {' % ', '.join("'%s'" % c for c in exact))
-        A('            Criteria::compare($query, $attr, $this->$attr);')
+        # `t` when the compares name it. Yii 2 aliases the primary table by its
+        # table name, so `t.mrs_id` in a condition is an alias that is not in the
+        # query; the alias has to be declared for the column to resolve. Only
+        # where it is needed, so the 42 controllers already compared against Yii 1
+        # keep the SQL they were verified with.
+        aliased = any(c.startswith('t.') for c, _ in exact + partial)
+        A("        $query = self::find()%s;" % ("->alias('t')" if aliased else ''))
+        if eager:
+            A('        // Yii 1 eager-loads these, by JOIN, in the same query. That is')
+            A('        // part of the result and not just an optimisation: where the')
+            A('        // listing has no ORDER BY, the join decides which rows the')
+            A('        // first page shows.')
+            # Aliased by relation name. Yii 1 names an eager-loaded table after the
+            # relation - `item` - and its order and conditions refer to it that
+            # way. Yii 2 joins on the real table name instead, so `item.title` in
+            # an ORDER BY resolves to nothing: "Unknown column 'item.title'".
+            joins = ', '.join(
+                "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
+                for x in eager)
+            A('        $query->joinWith([%s]);' % joins)
+        A('        $provider = new ActiveDataProvider([')
+        A("            'query' => $query,")
+        A("            // The order goes on the query, not on the provider's sort.")
+        A('            // Yii 1 sets it on the criteria, and three of these listings')
+        A("            // order by a joined column - 'item.title' - which Yii 2's Sort")
+        A('            // rejects as a key unless it is declared as a sortable')
+        A('            // attribute. orderBy takes it as written.')
+        A("            'sort' => ['defaultOrder' => []],")
+        if page_size is False:
+            A("            // Yii 1 turns pagination off for this one: every matching")
+            A('            // row on one page, and no pager.')
+            A("            'pagination' => false,")
+        elif page_size:
+            A("            // The page size Yii 1's search() asks its provider for, which")
+            A('            // is not always the framework default.')
+            A("            'pagination' => ['pageSize' => %s]," % page_size)
+        else:
+            A("            'pagination' => ['pageSize' => Ui::PAGE_SIZE],")
+        A('        ]);')
+        A('')
+        A('        if (self::listingOrder()) {')
+        A('            $query->orderBy(self::listingOrder());')
         A('        }')
-    if partial:
-        A('        foreach ([%s] as $attr) {' % ', '.join("'%s'" % c for c in partial))
-        A('            Criteria::compare($query, $attr, $this->$attr, true);')
-        A('        }')
-    A('')
-    A('        return $provider;')
+        A('')
+        A('        $this->load($params, $this->formName());')
+        A('')
+        if exact:
+            A('        foreach ([%s] as [$col, $attr]) {'
+              % ', '.join("['%s', '%s']" % c for c in exact))
+            A('            Criteria::compare($query, $col, $this->$attr);')
+            A('        }')
+        if partial:
+            A('        foreach ([%s] as [$col, $attr]) {'
+              % ', '.join("['%s', '%s']" % c for c in partial))
+            A('            Criteria::compare($query, $col, $this->$attr, true);')
+            A('        }')
+        A('')
+        A('        return $provider;')
     A('    }')
     for text in concrete_methods:
         A('')
@@ -1223,6 +1614,17 @@ def generate(model, table_alias):
         A('    {')
         A(body)
         A('    }')
+    extra, extra_warn = port_provider_methods(base, concrete, model, set(own))
+    warn.extend(extra_warn)
+    for text in extra:
+        A('')
+        A(text)
+
+    for text in HAND_PORTED.get(model, []):
+        if re.search(r'function\s+(\w+)', text).group(1) in own:
+            continue
+        A('')
+        A(text)
     A('}')
     return '\n'.join(L) + '\n', warn
 
@@ -1283,6 +1685,19 @@ def search_rule_of(generated):
     return m.group(1) if m else None
 
 
+
+# GxActiveRecord's helpers, which the generator writes into every model as a
+# fallback. A model that defines its own keeps it: these are the base class's
+# behaviour, not this pipeline's output, so a newer generated one is not a
+# better version of the same thing.
+SHARED_GX_FALLBACKS = {
+    'getItemOptions', 'getItemOptionIds', 'getItemOptionbarcodes',
+    'getItemOptionIdsInBarcode', 'getItemCustomerName', 'getSessionStartDate',
+    'getSessionEndDate', 'getVendorDataOptions', 'getCompanyBarcode',
+    'getTotals', 'isAllowCreate', 'getRelationLabel', 'checkPermission',
+    'vendorItemDetailIds', 'selectedSessionYears',
+}
+
 def merge(existing, generated, model, warn):
     """
     Add what the UI needs to a model the API port already wrote.
@@ -1296,6 +1711,33 @@ def merge(existing, generated, model, warn):
     """
     have = methods_of(existing)
     added = []
+
+    # Properties, not only methods. The Yii 1 model declares the form-only
+    # attributes - `Discount::$item_detail_id`, which the update action
+    # assigns and the form posts back as an array - and Yii 2 throws on an
+    # unknown property where Yii 1 declared it. The merge carried the methods
+    # across and left these behind, so discount/update answered 500 where
+    # Yii 1 renders the form.
+    want = re.findall(r'^    public (\$\w+)(\s*=\s*[^;]+)?;', generated, re.M)
+    held = set(re.findall(r'^\s*public (\$\w+)', existing, re.M))
+    missing = [(n, d) for n, d in want if n not in held]
+    if missing:
+        decls = '\n'.join('    public %s%s;' % (n, d or '') for n, d in missing)
+        block = ('    // Declared on the Yii 1 model and not columns: the forms post\n'
+                 '    // to these and the actions assign them.\n' + decls + '\n')
+        # After the trait if there is one, so `use` stays at the top of the
+        # class as PHP convention has it.
+        anchored = re.subn(r'(\n    use LegacyColumnTypes;\n)',
+                           lambda m: m.group(1) + '\n' + block, existing, count=1)
+        if anchored[1] == 0:
+            anchored = re.subn(r'(\nclass \w+ extends [^\n]*\n\{\n)',
+                               lambda m: m.group(1) + block + '\n', existing, count=1)
+        if anchored[1]:
+            existing = anchored[0]
+            added.append('properties ' + ', '.join(n for n, _ in missing))
+        else:
+            warn.append('could not place %s: the class header is not where this '
+                        'expects it' % ', '.join(n for n, _ in missing))
 
     # Two methods are replaced rather than kept. Both are derived wholly from
     # the Yii 1 source and neither affects how the model validates or saves:
@@ -1322,7 +1764,14 @@ def merge(existing, generated, model, warn):
     #     asks its provider for 100, so the port showed a tenth of the rows.
     if 'presentation-only' not in ' '.join(warn):
         replace.append('search')
-    replace += [n for n, _ in method_blocks(generated) if re.match(r'get\w*Options$', n)]
+    # ...but never one of GxActiveRecord's own helpers. Those are emitted as
+    # fallbacks for every model, and two models write their own:
+    # Discount::getItemOptions() and FreeItem::getItemOptions() list item
+    # *detail* ids labelled by bar code, where the base one lists item ids
+    # labelled by mrp. Replacing theirs with the fallback changed what the
+    # discount form offers, which is how it was noticed.
+    replace += [n for n, _ in method_blocks(generated)
+                if re.match(r'get\w*Options$', n) and n not in SHARED_GX_FALLBACKS]
     for name in replace:
         if name not in have:
             continue
@@ -1423,7 +1872,7 @@ def merge(existing, generated, model, warn):
 # and saves, and these models are already in use by the ported API.
 PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermission',
                      'getRelationLabel', 'defaultOrder', 'listingOrder',
-                     'getTotals', 'isAllowCreate'}
+                     'getTotals', 'isAllowCreate', 'getCompanyBarcode'}
 
 # Never added to a model the API port wrote, whatever else says otherwise.
 # These decide how the model validates, what it saves and what a listing
@@ -1551,7 +2000,13 @@ if __name__ == '__main__':
                     or read_only(text)):
                 keep.append(text)
         header = src.split('class ')[0]
+        # The property declarations come across as well. They are the Yii 1
+        # model's form-only attributes, they are not columns and nothing in
+        # the API assigns them, but the UI actions do - and Yii 2 throws on an
+        # unknown property where Yii 1 simply declared it.
+        decls = re.findall(r'^    public \$\w+(?:\s*=\s*[^;]+)?;$', src, re.M)
         src = (header + 'class %s extends ActiveRecord\n{\n' % model
+               + ('\n'.join(decls) + '\n\n' if decls else '')
                + '\n\n'.join(t.strip('\n') for t in keep) + '\n}\n')
         warn = ['presentation-only merge into a model used elsewhere; not added: '
                 + (', '.join(denied) if denied else 'nothing in the deny list was present')]

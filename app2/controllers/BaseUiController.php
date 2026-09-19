@@ -127,9 +127,17 @@ abstract class BaseUiController extends Controller
      *
      * The message is Yii 1's, because it is what the error page shows.
      */
-    public function loadModel($id)
+    /**
+     * Yii 1's GxController::loadModel($id, $modelClass).
+     *
+     * The class argument is not decoration. ItemDetail's update action loads
+     * an Item by the row's item_id with it, and dropping it looked up an
+     * ItemDetail of that id instead: the page answered 404 where Yii 1
+     * answers 403.
+     */
+    public function loadModel($id, $class = null)
     {
-        $class = $this->modelClass();
+        $class = $class ?: $this->modelClass();
         $model = $class::findOne($id);
         if ($model === null) {
             throw new NotFoundHttpException('The requested page does not exist.');

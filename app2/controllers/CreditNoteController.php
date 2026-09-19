@@ -48,8 +48,8 @@ class CreditNoteController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'credit-note-form' );
 		
-		if (Yii::$app->request->post('CreditNote') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['CreditNote'] )) {
+			$model->load($_POST, 'CreditNote');
 			
 			if ($model->save ()) {
 				if (Yii::$app->request->isAjax)
@@ -78,8 +78,8 @@ class CreditNoteController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'credit-note-form' );
 		
-		if (Yii::$app->request->post('CreditNote') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['CreditNote'] )) {
+			$model->load($_POST, 'CreditNote');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -132,8 +132,8 @@ class CreditNoteController extends BaseUiController {
 		$model = new CreditNote(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('CreditNote') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['CreditNote'] )) {
+			$model->load($_GET, 'CreditNote');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -150,8 +150,8 @@ class CreditNoteController extends BaseUiController {
 			throw new ForbiddenHttpException(Yii::t ( 'app', 'You are not allowed to access this page.' ) );
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('CreditNote') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['CreditNote'] ))
+			$model->load($_GET, 'CreditNote');
 		
 		return $this->render( 'admin', [
 				'model' => $model 

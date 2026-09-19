@@ -115,12 +115,12 @@ table {
    
       
         <table border="1" cellspacing="0" cellpadding="0" width="100%"  class="print-friendly" >
-        <?php  $criteria4 = new CDbCriteria;
+        <?php  $query4 = MrnDetail::find();
 		
-        $criteria4->with = 'item';
-        $criteria4->order = 'item.title asc';
-        $criteria4->addCondition('mrn_id ='.$mrn->id);
-        $details = MrnDetail::model()->findAll($criteria4);
+        $query4->joinWith(['item' => function ($q) { $q->alias('item'); }]);
+        $query4->orderBy(['item.title' => SORT_ASC]);
+        $query4->andWhere('mrn_id ='.$mrn->id);
+        $details = $query4->all();
 		
 		
           if($details){

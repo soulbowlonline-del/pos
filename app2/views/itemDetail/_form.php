@@ -3,7 +3,6 @@
  * Ported from protected/views/itemDetail/_form.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\models\Item;
 use app\models\ItemDetail;

@@ -20,7 +20,7 @@ echo GridView::widget([
 		'id',
 		[
 			'attribute' =>'item_id',
-			'value' => function ($data) { return Gx::str($data->item); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->item); },
 			'filter'=>Gx::listData(Item::class),
 			],
 		'bar_code',
@@ -28,23 +28,23 @@ echo GridView::widget([
 	//	'reorder_qty',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>ItemDetail::getStatusOptions(),
 				],
 		/*
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>ItemDetail::getTypeOptions(),
 				),
 		array(
 			'attribute' =>'tax_id',
-			'value' => function ($data) { return Gx::str($data->tax); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->tax); },
 			'filter'=>Gx::listData(Tax::class),
 			),
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		*/

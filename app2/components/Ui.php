@@ -53,7 +53,18 @@ class Ui
         'orderRefund',
         'stockAdjustLog',
         'item',
-        'item',
+        'itemCompany',
+        'discount',
+        'itemCategory',
+        'itemExpire',
+        'itemReturn',
+        'itemReturnItem',
+        'itemStock',
+        'mrn',
+        'b2bPurchaseBill',
+        'itemDetail',
+        'mrnDetail',
+        'mrsDetail',
     ];
 
     /**

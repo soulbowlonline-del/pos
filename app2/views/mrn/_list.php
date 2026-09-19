@@ -25,35 +25,35 @@ echo GridView::widget([
 		'mrs_req_date',
 		[
 				'attribute' => 'status',
-				'value' => function ($data) { return $data->getStatusOptions($data->status); },
+				'value' => function ($data, $key, $index) { return $data->getStatusOptions($data->status); },
 				'filter'=>Mrn::getStatusOptions(),
 				],
 		/*
 		array(
 				'attribute' => 'type_id',
-				'value' => function ($data) { return $data->getTypeOptions($data->type_id); },
+				'value' => function ($data, $key, $index) { return $data->getTypeOptions($data->type_id); },
 				'filter'=>Mrn::getTypeOptions(),
 				),
 		'remarks:html',
 		'update_time',
 		array(
 			'attribute' =>'updated_by',
-			'value' => function ($data) { return Gx::str($data->updatedBy); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->updatedBy); },
 			'filter'=>Gx::listData(User::class),
 			),
 		array(
 			'attribute' =>'outlet_id',
-			'value' => function ($data) { return Gx::str($data->outlet); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->outlet); },
 			'filter'=>Gx::listData(Outlet::class),
 			),
 		array(
 			'attribute' =>'mrs_id',
-			'value' => function ($data) { return Gx::str($data->mrs); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->mrs); },
 			'filter'=>Gx::listData(Mrs::class),
 			),
 		array(
 			'attribute' =>'organization_id',
-			'value' => function ($data) { return Gx::str($data->organization); },
+			'value' => function ($data, $key, $index) { return Gx::str($data->organization); },
 			'filter'=>Gx::listData(Organization::class),
 			),
 		*/

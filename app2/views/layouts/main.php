@@ -23,7 +23,6 @@ use app\models\OnlineOrder;
 use app\models\User;
 use app\models\UserRole;
 use yii\helpers\Html;
-use Yii;
 
 $this->beginPage();
 ?>

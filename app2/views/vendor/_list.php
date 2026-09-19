@@ -3,7 +3,6 @@
  * Ported from protected/views/vendor/_list.php.
  */
 
-use Yii;
 use app\components\Gx;
 use app\models\City;
 use app\models\Country;

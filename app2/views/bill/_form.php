@@ -3,7 +3,6 @@
  * Ported from protected/views/bill/_form.php.
  */
 
-use Yii;
 use app\widgets\ActiveForm;
 use app\widgets\Button;
 ?>

@@ -4,7 +4,9 @@ namespace app\controllers;
 use app\components\Ui;
 use app\models\B2bPurchaseBill;
 use app\models\B2bPurchaseBillDetail;
+use app\models\Bill;
 use app\models\Outlet;
+use app\models\PaymentReport;
 use app\models\PurchaseBill;
 use app\models\PurchaseBillDetail;
 use app\models\State;
@@ -34,11 +36,11 @@ class B2bPurchaseBillController extends BaseUiController {
 		
 		
 		$date ='2022-01-21'; 
-		$criteria = new CDbCriteria();
-	$criteria->addCondition('cgst_per = 0.00');
-	 $criteria->addCondition('date(create_time) = "' . $date . '"');
+		$query = PurchaseBillDetail::find();
+	$query->andWhere('cgst_per = 0.00');
+	 $query->andWhere('date(create_time) = "' . $date . '"');
 	 
-			$bills = PurchaseBillDetail::model()->findAll($criteria);
+			$bills = $query->all();
 			
 			
 		
@@ -77,23 +79,25 @@ exit;
 	public function actionMerge(){
 		$vendor_ids = [];
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
-			$criteria = new CDbCriteria();
+			$query = PurchaseBill::find();
+        $query->orderBy(['id' => SORT_DESC]);
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$criteria->addCondition('id ='.$_POST['idList']['0']);
-			$bill = PurchaseBill::model()->find($criteria);
+			$query->andWhere('id ='.$_POST['idList']['0']);
+			$bill = $query->one();
 			
 			if($bill){
-				$criteria = new CDbCriteria();
-				$criteria->addInCondition('id', $_POST['idList']);
-				$criteria->addCondition('id !='.$bill->id);
-				$bills = PurchaseBill::model()->findAll($criteria);
+				$query_2 = PurchaseBill::find();
+        $query_2->orderBy(['id' => SORT_DESC]);
+				$query_2->andWhere(['id' => $_POST['idList']]);
+				$query_2->andWhere('id !='.$bill->id);
+				$bills = $query_2->all();
 				if($bills){
 					$vendor_ids[] = $_POST['vendor_id'];
 					foreach($bills as $delbill){
 						$vendor_ids[] = $delbill->vendor_id;
-						$criteria1 = new CDbCriteria();
-						$criteria1->addCondition('purchase_bill_id ='.$delbill->id);
-						$billdetails = PurchaseBillDetail::model()->findAll($criteria1);
+						$query1 = PurchaseBillDetail::find();
+						$query1->andWhere('purchase_bill_id ='.$delbill->id);
+						$billdetails = $query1->all();
 						if($billdetails){
 							foreach($billdetails as $billdetail){
 								$billdetail->purchase_bill_id = $bill->id;
@@ -183,21 +187,19 @@ exit;
 	{
 	
 		$model = $this->loadModel($id);
-		$billDetail = new B2bPurchaseBillDetail ( 'search' );
-		$billDetail->unsetAttributes ();
+		$billDetail = new B2bPurchaseBillDetail(['scenario' => 'search']);
 		Yii::$app->session['billidList'] =  '';
 		Yii::$app->session['bill_date_list'] =  '' ;
 		Yii::$app->session['bill_expiry_val'] =  '';
 		$_GET ['B2bPurchaseBillDetail']['purchase_bill_id'] = $id;
 		if (isset ( $_GET ['B2bPurchaseBillDetail'] ))
-		$billDetail->setAttributes ( $_GET ['B2bPurchaseBillDetail'] );
+		$billDetail->load($_GET, 'B2bPurchaseBillDetail');
 		
-		$pobill = new Bill('search');
-		$pobill->unsetAttributes();
+		$pobill = new Bill(['scenario' => 'search']);
 		//$this->updateMenuItems($pobill);
 		$_GET['Bill']['po_id']= $model->purchase_order_id;
 		if (isset($_GET['Bill']))
-			$pobill->setAttributes($_GET['Bill']);
+			$pobill->load($_GET, 'Bill');
 		//if( !($this->isAllowed ( $model)))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 
 		//$this->processActions($model);	
@@ -214,7 +216,7 @@ exit;
 			
 			Yii::$app->session['print_id'] =  $_POST['PurchaseBill']['print_id'] ;
 			Yii::$app->session['qty'] =  $_POST['PurchaseBill']['qty'] ;
-			$model->setAttributes($_POST['PurchaseBill']);
+			$model->load($_POST, 'PurchaseBill');
 			
 		}
 		return $this->render('print', [ 'model' => $model]);
@@ -226,7 +228,7 @@ exit;
 				
 			Yii::$app->session['print_id'] =  $_POST['PurchaseBill']['print_id'] ;
 			Yii::$app->session['qty'] =  $_POST['PurchaseBill']['qty'] ;
-			$model->setAttributes($_POST['PurchaseBill']);
+			$model->load($_POST, 'PurchaseBill');
 				
 		}
 		$mPDF1 = Yii::$app->ePdf->mpdf();
@@ -260,9 +262,9 @@ exit;
 				Yii::$app->session['packing_date_list'] =  $_POST['packing_date_list'] ;
 			}
 			if(isset( $_POST['billidList']['0'] )){
-			$criteria = new CDbCriteria();
-			$criteria->compare('id', $_POST['billidList']['0']);
-			$purchasebilldetail = PurchaseBillDetail::model()->find($criteria);
+			$query = PurchaseBillDetail::find();
+			Criteria::compare($query, 'id', $_POST['billidList']['0']);
+			$purchasebilldetail = $query->one();
 			Yii::$app->session['qty'] = $purchasebilldetail->approved_qty ;
 			}
 			echo 'success';
@@ -280,7 +282,7 @@ exit;
 		$this->performAjaxValidation($model, 'purchase-bill-form');
 
 		if (isset($_POST['PurchaseBill'])) {
-			$model->setAttributes($_POST['PurchaseBill']);
+			$model->load($_POST, 'PurchaseBill');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -302,7 +304,7 @@ exit;
 		$this->performAjaxValidation($model, 'purchase-bill-form');
 
 		if (isset($_POST['PurchaseBill'])) {
-			$model->setAttributes($_POST['PurchaseBill']);
+			$model->load($_POST, 'PurchaseBill');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -316,7 +318,7 @@ exit;
 
 	public function actionDelete($id) 
 	{
-		$model = $this->loadModel($id);
+		$model = $this->loadModel($id, PurchaseBill::class);
 		
 		//if( !($this->isAllowed ( $model)))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 	
@@ -336,6 +338,9 @@ exit;
             // The model's own defaultScope() decides the order - most
             // inherit `id DESC`, but 22 of them override it to none.
             // Hardcoding id DESC here listed rows Yii 1 never showed.
+            // defaultOrder, not listingOrder: index builds its own
+            // provider and never calls search(), so the order the admin
+            // grid gets from the criteria does not apply here.
             'sort' => ['defaultOrder' => B2bPurchaseBill::defaultOrder() ?: []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE]]);
 		return $this->render('index', [
@@ -346,11 +351,11 @@ exit;
 
 	public function actionList()
 	{
-		$model = new PurchaseBill('search');
+		$model = new PurchaseBill(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		//$model->status = PurchaseBill::STATUS_UNAPPROVED;
-		if (Yii::$app->request->get('B2bPurchaseBill') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['B2bPurchaseBill']))
+			$model->load($_GET, 'B2bPurchaseBill');
 			
 			return $this->render('list', [
 					'model' => $model,
@@ -358,7 +363,7 @@ exit;
 	}
 	public function actionAdmin() 
 	{
-		$model = new PurchaseBill('search');
+		$model = new PurchaseBill(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		$columns = [];
 		if (isset ( $_POST ['PurchaseBill'] ['columns'] )) {
@@ -366,7 +371,7 @@ exit;
 		}
 		$_GET['PurchaseBill']['status'] = PurchaseBill::STATUS_APPROVED;
 		if (isset($_GET['PurchaseBill']))
-			$model->setAttributes($_GET['PurchaseBill']);
+			$model->load($_GET, 'PurchaseBill');
 			$columns = $model->getColumns ( $columns );
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), $columns );
@@ -434,7 +439,7 @@ exit;
 		//$id  =2;
 		$set = true;
 			// $model = $this->loadModel($id);
-		// $billDetail = new B2bPurchaseBillDetail ( 'search' );
+		// $billDetail = new B2bPurchaseBillDetail(['scenario' => 'search']);
 		
 		
 		$po =$this->loadModel($id);
@@ -455,9 +460,9 @@ exit;
 		
 		if($set == true){
 	
-			$criteria = new CDbCriteria();
-			$criteria->addCondition('purchase_bill_id ='.$po->id);
-			$billDetail = B2bPurchaseBillDetail::model()->findAll($criteria);
+			$query = B2bPurchaseBillDetail::find();
+			$query->andWhere('purchase_bill_id ='.$po->id);
+			$billDetail = $query->all();
 			
  		if ($billDetail)
 		$bill = B2bPurchaseBill::findOne( $po->id );
@@ -544,7 +549,7 @@ exit;
 	}
 	public function actionUserWise()
     {
-        $model = new B2bPurchaseBill('userwisesearch');
+        $model = new B2bPurchaseBill(['scenario' => 'userwisesearch']);
         $this->updateMenuItems($model);
         $columns = [];
         if (isset($_POST['B2bPurchaseBill']['columns'])) {
@@ -570,8 +575,8 @@ exit;
             Yii::$app->session['item_id'] = $_POST['B2bPurchaseBill']['item_id'];
         }
 		
-        if (Yii::$app->request->get('B2bPurchaseBill') !== null)
-            $model->load(Yii::$app->request->queryParams);
+        if (isset($_GET['B2bPurchaseBill']))
+            $model->load($_GET, 'B2bPurchaseBill');
         // $columns = $model->getUserwiseColumns($columns);
         if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
             // $this->exportCSV($model->userwisesearch(), $columns);
@@ -586,7 +591,7 @@ exit;
 	
 	 public function actionUserWiseExport()
     {
-        $model = new B2bPurchaseBill('userwisesearch');
+        $model = new B2bPurchaseBill(['scenario' => 'userwisesearch']);
         $this->updateMenuItems($model);
         $columns = [];
         if (isset($_POST['B2bPurchaseBill']['columns'])) {
@@ -602,8 +607,8 @@ exit;
             // Yii::$app->session['start_date'] = $_POST['B2bPurchaseBill']['start_date'];
             // Yii::$app->session['end_date'] = $_POST['B2bPurchaseBill']['end_date'];
         // }
-        if (Yii::$app->request->get('B2bPurchaseBill') !== null)
-            $model->load(Yii::$app->request->queryParams);
+        if (isset($_GET['B2bPurchaseBill']))
+            $model->load($_GET, 'B2bPurchaseBill');
         $columns = $model->getUserwiseColumns($columns);
         if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
             $this->exportCSV($model->userwisesearch(), $columns);
@@ -617,10 +622,10 @@ exit;
 
         // $login = Yii::$app->user->model;
 
-      $model = new B2bPurchaseBill('userwisesearch'); 
+      $model = new B2bPurchaseBill(['scenario' => 'userwisesearch']); 
 
-        if (Yii::$app->request->get('B2bPurchaseBill') !== null)
-            $model->load(Yii::$app->request->queryParams);
+        if (isset($_GET['B2bPurchaseBill']))
+            $model->load($_GET, 'B2bPurchaseBill');
 
         // mPDF
         $mPDF1 = Yii::$app->ePdf->mpdf();

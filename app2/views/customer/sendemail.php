@@ -3,7 +3,6 @@
  * Ported from protected/views/customer/sendemail.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\widgets\ActiveForm;
 use app\widgets\Button;

@@ -3,7 +3,6 @@
  * Ported from protected/views/item/storage.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\widgets\ActiveForm;
 ?>

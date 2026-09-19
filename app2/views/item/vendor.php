@@ -3,7 +3,6 @@
  * Ported from protected/views/item/vendor.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\models\Item;
 use app\models\User;

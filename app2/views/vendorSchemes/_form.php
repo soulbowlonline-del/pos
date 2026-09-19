@@ -3,7 +3,6 @@
  * Ported from protected/views/vendorSchemes/_form.php.
  */
 
-use Yii;
 use app\models\Item;
 use app\widgets\ActiveForm;
 use app\widgets\Button;

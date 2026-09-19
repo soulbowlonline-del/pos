@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use app\components\Criteria;
+
 use app\components\Ui;
 
 use yii\data\ActiveDataProvider;
@@ -18,6 +20,15 @@ use yii\db\ActiveRecord;
  */
 class Order extends ActiveRecord
 {
+    // Declared on the Yii 1 model and not columns: the forms post
+    // to these and the actions assign them.
+    public $start_date;
+    public $end_date;
+    public $columns;
+    public $item_id;
+    public $min_amt;
+    public $max_amt;
+
     public static function tableName()
     {
         return '{{%order}}';
@@ -914,7 +925,7 @@ class Order extends ActiveRecord
                 if(($this->bill_date >= Yii::$app->session ['order_start_date']  ) && ($this->bill_date <= Yii::$app->session ['order_end_date'])){
                     $orderitems = OrderItem::findAll(['order_id'=>$this->id]);
                 }else{
-                    Yii::warning( var_export( $this->id ), '$this->id');
+                    Yii::warning( var_export( $this->id , true), '$this->id');
                     return $tax;
                 }
             }else{
@@ -1131,4 +1142,535 @@ class Order extends ActiveRecord
 
             return round($total);
         }
+
+    /**
+     * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
+     * for the item dropdowns.
+     *
+     * Restricted to a vendor's own items when the signed-in user holds the
+     * Vendor role, and again when a vendor id is passed. Both filters compare
+     * Item.id against ItemVendor.item_detail_id, which is what Yii 1 does. It
+     * reads like a mistake, but it is the list these dropdowns have always
+     * shown, so it is ported as it stands rather than corrected here.
+     *
+     * An empty id list is not "no filter": Yii 1's addInCondition() degrades to
+     * 0=1 and ['id' => []] does the same, so a vendor with no items gets an
+     * empty dropdown rather than every item in the catalogue.
+     */
+    public function getItemOptions($vendor_id = null)
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($vendor_id !== null) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(['id' => $vendor_id])]);
+        }
+        $query->andWhere('status = ' . Item::STATUS_ACTIVE);
+        $query->orderBy('title asc');
+
+        $list = [];
+        foreach ($query->all() as $item) {
+            $list[$item->id] = $item->title . '(' . $item->mrp . ')';
+        }
+
+        return $list;
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIdsInBarcode(): the ids of the items an
+     * itemDetail admin filter matches, which that grid then filters item_id by.
+     *
+     * The values are bound rather than interpolated into the condition as Yii 1
+     * does. For every value the grid can actually produce the two are the same
+     * query; this is not a fix for a reported problem, only a refusal to build
+     * the same hole again.
+     */
+    public function getItemOptionIdsInBarcode($match_item_id, $match_mrp, $match_hsn_code,
+        $match_product_code, $match_purchase_price, $match_company_id, $is_vendor)
+    {
+        $query = Item::find();
+
+        if ($match_item_id != null) {
+            $query->andWhere('title LIKE :title', [':title' => trim($match_item_id) . '%']);
+        }
+        if ($is_vendor == 1) {
+            $user = Yii::$app->user->model;
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+        if ($match_company_id != null) {
+            Criteria::compare($query, 'company_id', $match_company_id, true);
+        }
+        if ($match_mrp != null) {
+            $query->andWhere(['mrp' => $match_mrp]);
+        }
+        if ($match_hsn_code != null) {
+            $query->andWhere(['hsn_code' => $match_hsn_code]);
+        }
+        if ($match_product_code != null) {
+            $query->andWhere(['item_code' => $match_product_code]);
+        }
+        if ($match_purchase_price != null) {
+            Criteria::compare($query, 'purchase_price', $match_purchase_price);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionIds(): the ids of the items the signed-in
+     * user may see.
+     *
+     * getItemOptions() filters on status and this does not, because Yii 1
+     * does not: the barcode dropdown this feeds lists inactive items too.
+     */
+    public function getItemOptionIds()
+    {
+        $query = Item::find();
+
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user && $role && $user->role_id == $role->id) {
+            $query->andWhere(['id' => self::vendorItemDetailIds(
+                ['create_user_id' => $user->id])]);
+        }
+
+        return $query->select('id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getItemOptionbarcodes(): item detail id => bar code, for
+     * the items getItemOptionIds() allows.
+     */
+    public function getItemOptionbarcodes()
+    {
+        $list = [];
+        foreach (ItemDetail::find()->where(['item_id' => $this->getItemOptionIds()])
+                     ->all() as $itemDetail) {
+            $list[$itemDetail->id] = $itemDetail->bar_code;
+        }
+
+        return $list;
+    }
+
+    /** GxActiveRecord::getItemCustomerName(): the customer on this row's order. */
+    public function getItemCustomerName()
+    {
+        $customer = Customer::findOne($this->order->customer_id);
+
+        return $customer ? $customer->name : '';
+    }
+
+    /**
+     * GxActiveRecord::getSessionStartDate(): 1 April of the selected session's
+     * opening year, or '' when no session is selected.
+     */
+    public function getSessionStartDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[0]) ? $years[0] . '-04-01' : '';
+    }
+
+    /** GxActiveRecord::getSessionEndDate(): 31 March of its closing year. */
+    public function getSessionEndDate()
+    {
+        $years = self::selectedSessionYears();
+
+        return isset($years[1]) ? $years[1] . '-03-31' : '';
+    }
+
+    /**
+     * The two years in the selected session's name, which is '<from>-<to>'.
+     * The financial year runs 1 April to 31 March, which is where the two
+     * dates above come from.
+     */
+    private static function selectedSessionYears()
+    {
+        $id = Yii::$app->session['select_session_id'];
+        if ($id === null || $id === '') {
+            return [];
+        }
+        $session = Session::findOne($id);
+
+        return $session ? explode('-', $session->name) : [];
+    }
+
+    /** GxActiveRecord::getVendorDataOptions(): the active vendors, id => name. */
+    public function getVendorDataOptions()
+    {
+        $list = [];
+        $query = Vendor::find()->where(['status' => Vendor::STATUS_ACTIVE]);
+        // Yii 1 reaches these through findAllByAttributes(), which applies the
+        // model's defaultScope; the order is what the dropdown shows.
+        $query->orderBy(Vendor::defaultOrder() ?: []);
+        foreach ($query->all() as $vendor) {
+            $list[$vendor->id] = $vendor->name;
+        }
+
+        return $list;
+    }
+
+    /** The item_detail_ids ItemVendor holds for the matching vendor. */
+    private static function vendorItemDetailIds($condition)
+    {
+        $vendor = Vendor::findOne($condition);
+        if ($vendor === null) {
+            return [];
+        }
+
+        return ItemVendor::find()->where(['vendor_id' => $vendor->id])
+            ->select('item_detail_id')->column();
+    }
+
+    /**
+     * GxActiveRecord::getCompanyBarcode(): 'readOnly' when the item
+     * detail's bar code is the company's own, and an empty string
+     * otherwise. The grids use the result as an html attribute, so a
+     * barcode belonging to the company cannot be edited in place.
+     */
+    public function getCompanyBarcode($id)
+    {
+        $itemDetail = ItemDetail::findOne($id);
+
+        return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
+            ? 'readOnly'
+            : '';
+    }
+
+    public function getTotalNetAmount(){
+             $total = 0;
+            $query1 = OrderItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query1->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query1->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount');
+            $query1->andWhere('create_user_id ='.$this->create_user_id);
+            $orderitem = $query1->one();
+            $order_amt = $orderitem->price + $orderitem->tax_amount;
+
+            $query2 = OrderRefundItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query2->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query2->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query2->select('sum(price*qty) as price,sum(tax_amt) as tax_amt');
+            $query2->andWhere('create_user_id ='.$this->create_user_id);
+            $orderrefunditem = $query2->one();
+            $order_refund_amt = $orderrefunditem->price + $orderrefunditem->tax_amt ;
+            $total = $order_amt - $order_refund_amt;
+            Yii::warning( var_export($order_amt, true), '$order_amt');
+            Yii::warning( var_export($this->create_user_id, true), '$$this->create_user_id');
+            Yii::warning( var_export($order_refund_amt, true), '$$order_refund_amt');
+
+
+            $query1_2 = Order::find();
+
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query1_2->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query1_2->select('sum(discount_amt) as discount_amt');
+            $query1_2->andWhere('create_user_id ='.$this->create_user_id);
+            $discountorder = $query1_2->one();
+            //$total = $total - $discountorder->discount_amt;
+
+            //Yii::warning( var_export($orderitems, true), '$orderitems');
+            /* if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query3 = OrderRefundItem::find();
+                        $query3->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query3->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                            $query3->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                        }
+                        $query3->andWhere('item_id ='.$orderitem->item_id);
+                        $query3->select('sum(total_amt) as total_amt');
+                        $orderRefundItem = $query3->one();
+                        $refund = $orderRefundItem->total_amt;
+
+                    }
+                    $amt = ($orderitem->total_amt) - ($refund);
+                    $total = $total + $amt;
+                    /* Yii::warning( var_export($orderitem->id, true), '$order_item_id');
+                    Yii::warning( var_export($amt, true), '$order_amt');
+                    Yii::warning( var_export($total, true), '$order_total');
+                }
+            } */
+            return round($total);
+        }
+
+    public function getTotalNetAmountData(){
+             $total = 0;
+            $query1 = OrderItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query1->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query1->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount');
+            $query1->andWhere('create_user_id ='.$this->create_user_id);
+            $orderitem = $query1->one();
+            $order_amt = $orderitem->price + $orderitem->tax_amount;
+
+            $query2 = OrderRefundItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query2->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query2->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query2->select('sum(price*qty) as price,sum(tax_amt) as tax_amt');
+            $query2->andWhere('create_user_id ='.$this->create_user_id);
+            $orderrefunditem = $query2->one();
+            $order_refund_amt = $orderrefunditem->price + $orderrefunditem->tax_amt ;
+             $total = $order_amt - $order_refund_amt ;
+            Yii::warning( var_export($order_amt, true), '$order_amt');
+            Yii::warning( var_export($this->create_user_id, true), '$$this->create_user_id');
+            Yii::warning( var_export($order_refund_amt, true), '$$order_refund_amt');
+
+
+            $query3 = Order::find();
+
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query3->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query3->select('sum(discount_amt) as discount_amt');
+            $query3->andWhere('create_user_id ='.$this->create_user_id);
+            $discountorder = $query3->one();
+
+
+         // $total = $total - $discountorder->discount_amt;
+         $total = $total;
+
+            //Yii::warning( var_export($orderitems, true), '$orderitems');
+            /* if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query3_2 = OrderRefundItem::find();
+                        $query3_2->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query3_2->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                            $query3_2->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                        }
+                        $query3_2->andWhere('item_id ='.$orderitem->item_id);
+                        $query3_2->select('sum(total_amt) as total_amt');
+                        $orderRefundItem = $query3_2->one();
+                        $refund = $orderRefundItem->total_amt;
+
+                    }
+                    $amt = ($orderitem->total_amt) - ($refund);
+                    $total = $total + $amt;
+                    /* Yii::warning( var_export($orderitem->id, true), '$order_item_id');
+                    Yii::warning( var_export($amt, true), '$order_amt');
+                    Yii::warning( var_export($total, true), '$order_total');
+                }
+            } */
+            return round($total);
+        }
+
+    public function getTotalGrossAmount(){
+
+            $total = 0;
+            $query1 = OrderItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query1->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query1->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query1->select('sum(price*qty) as price');
+            $query1->andWhere('create_user_id ='.$this->create_user_id);
+            $orderitem = $query1->one();
+            $order_amt = $orderitem->price;
+
+            $query2 = OrderRefundItem::find();
+            if((Yii::$app->session['item_id'] != '')){
+                $query2->andWhere(['item_id' => Yii::$app->session['item_id']]);
+            }
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $query2->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+            }
+            $query2->select('sum(price*qty) as price');
+            $query2->andWhere('create_user_id ='.$this->create_user_id);
+            $orderrefunditem = $query2->one();
+            $order_refund_amt = $orderrefunditem->price;
+
+            $total = $order_amt - $order_refund_amt;
+
+
+            /* if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+                    $refund = 0;
+                     $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query3 = OrderRefundItem::find();
+                        $query3->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query3->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                            $query3->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                        }
+                        $query3->select('sum(total_amt) as total_amt,sum(tax_amt) as tax_amt');
+                        $query3->andWhere('item_id ='.$orderitem->item_id);
+                        $orderRefundItem = $query3->one();
+
+                        $refund = $orderRefundItem->total_amt - $orderRefundItem->tax_amt;
+                    }
+                    $amt = (($orderitem->total_amt)-($orderitem->tax_amount))- ($refund);
+                    $total = $total + $amt;
+                }
+            } */
+            return $total;
+        }
+
+    public function getValTotalNetAmount($start_date,$end_date,$item_id){
+            $total = 0;
+            $query1 = OrderItem::find();
+            if((!empty($item_id))){
+                $query1->andWhere(['item_id' => $item_id]);
+            }
+            if(($start_date != '') && ($end_date != '')){
+                $query1->andWhere(['between', 'date(create_time)', $start_date, $end_date]);
+            }
+            $query1->andWhere('create_user_id ='.$this->create_user_id);
+            $orderitems = $query1->all();
+
+            if($orderitems){
+
+                foreach ($orderitems as $orderitem){
+                    $qty = $orderitem->qty;
+                    $refund = 0;
+                    $query = OrderRefund::find();
+                    $query->andWhere('order_id ='.$orderitem->order_id);
+                    if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                        $query->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                    }
+                    $orderRefund = $query->one();
+                    if($orderRefund){
+                        $query3 = OrderRefundItem::find();
+                        $query3->andWhere('order_refund_id ='.$orderRefund->id);
+                        $query3->andWhere('item_detail_id ='.$orderitem->item_detail_id);
+                        if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                            $query3->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+                        }
+                        $query3->andWhere('item_id ='.$orderitem->item_id);
+                        $orderRefundItems = $query3->all();
+                        if($orderRefundItems){
+
+                            foreach($orderRefundItems as $orderRefundItem){
+                                $refund = $refund + ($orderRefundItem->total_amt);
+                            }
+                            /* $qty = $qty - $refundqty;
+                            if($qty <0){
+                                $qty = 0;
+                            } */
+                        }
+
+                    }
+                    $amt = ($orderitem->total_amt)- ($refund);
+                    $total = $total + $amt;
+                }
+            }
+            return round($total);
+        }
+
+    /**
+     * Yii 1's userwisesearch(): a listing of its own, converted as written.
+     */
+    public function userwisesearch()
+    {
+
+		$query = self::find()->alias('t');
+		 if(($this->start_date != '' && $this->start_date != null) && ($this->end_date != '' && $this->end_date != null)){
+			$query->andWhere(['between', 'bill_date', $this->start_date, $this->end_date]);
+		}
+		if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+			$query->andWhere(['between', 'bill_date', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+		} 
+		// $criteria->select ='t.*, sum(total_amt) as total_amt ';
+		$query->groupBy('create_user_id');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['create_user_id' => SORT_ASC]);
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'bill_no', $this->bill_no);
+		Criteria::compare($query, 'qty', $this->qty);
+		Criteria::compare($query, 'discount_amt', $this->discount_amt);
+		if($this->total_amt != '0.000'){
+		Criteria::compare($query, 'total_amt', $this->total_amt);
+		}
+		Criteria::compare($query, 'paid_amt', $this->paid_amt);
+		 Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id); 
+	 	Criteria::compare($query, 'city_id', $this->city_id);
+		Criteria::compare($query, 'state_id', $this->state_id);
+		Criteria::compare($query, 'country_id', $this->country_id); 
+		Criteria::compare($query, 'address', $this->address, true);
+		Criteria::compare($query, 'note', $this->note, true);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'customer_id', $this->customer_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by); 
+		// $orders = Order::model()->findAll($criteria);
+		// echo"<pre>"; print_r($orders); die;
+	   /*  if($orders){
+			$taxable = 0;
+			$total = 0;
+			foreach($orders as $order){
+				$taxable = $taxable + $order->getTotalGrossAmount();
+				$total = $total + $order->getTotalNetAmount();
+				//Yii::warning( var_export($total, true), '$total');
+			}
+		
+			Yii::$app->session ['gross_total']=round($taxable);
+			Yii::$app->session ['gross_total_amt']=round($total);
+		} */
+		$taxable = 0;
+		$total = 0;
+		Yii::$app->session ['gross_total']=round($taxable);
+		Yii::$app->session ['gross_total_amt']=round($total);
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
 }

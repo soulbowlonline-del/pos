@@ -3,7 +3,6 @@
  * Ported from protected/views/item/scannedItems.php.
  */
 
-use Yii;
 use app\components\Ui;
 use app\models\User;
 use app\widgets\ActiveForm;
@@ -204,34 +203,34 @@ $('.search-form form').submit(function(){
 								[
 									'attribute' => 'user_id',
 									'header' => '<a>Username</a>',
-									'value' => function ($data) { return isset($data->createUser)?$data->createUser:""; },
+									'value' => function ($data, $key, $index) { return isset($data->createUser)?$data->createUser:""; },
 									'filter'=>User::getAllUserOptions(),
 								],
 								[
 									'header' => '<a>User Email</a>',
-									'value' => function ($data) { return $data->user_email; },
+									'value' => function ($data, $key, $index) { return $data->user_email; },
 								],
 								'computer_name',
 								[
 									'header' => '<a>Item</a>',
-									'value' => function ($data) { return isset($data->getItemDetail)?$data->getItemDetail ? $data->getItemDetail->item : "":""; },
+									'value' => function ($data, $key, $index) { return isset($data->getItemDetail)?$data->getItemDetail ? $data->getItemDetail->item : "":""; },
 								],
 								'bar_code',
 								[
 									'header' => '<a>Quantity</a>',
-									'value' => function ($data) { return $data->qty; },
+									'value' => function ($data, $key, $index) { return $data->qty; },
 								],
 								[
 									'header' => '<a>Sale Rate</a>',
-									'value' => function ($data) { return $data->sale_rate; },
+									'value' => function ($data, $key, $index) { return $data->sale_rate; },
 								],
 								[
 									'header' => '<a>Base Price</a>',
-									'value' => function ($data) { return $data->base_price; },
+									'value' => function ($data, $key, $index) { return $data->base_price; },
 								],
 								[
 									'header' => '<a>MRP</a>',
-									'value' => function ($data) { return $data->mrp; },
+									'value' => function ($data, $key, $index) { return $data->mrp; },
 								],
 								'created_at'
 							],
