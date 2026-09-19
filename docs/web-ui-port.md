@@ -230,7 +230,7 @@ found, not fixed.
 
 ## Where the port has got to
 
-56 of the 59 controllers:
+57 of the 59 controllers:
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
@@ -242,9 +242,9 @@ found, not fixed.
 `itemStock`, `mrn`, `b2bPurchaseBill`, `itemDetail`, `mrnDetail`,
 `mrsDetail`, `vendorSchemes`, `orderRefundItem`, `vendor`, `user`,
 `purchaseOrder`, `purchaseBillDetail`, `onlineOrder`, `purchaseOrderDetail`,
-`site`, `b2bPurchaseBillDetail`, `loyaltyAdmin`.
+`site`, `b2bPurchaseBillDetail`, `loyaltyAdmin`, `orderItem`.
 
-Three remain, and none of the three is blocked on the port:
+Two remain, and neither is blocked on the port:
 
 - **`order`** - `order/create` does not finish on *either* stack. It renders a
   checkbox list over the whole of `tbl_order_item`, 4,976,355 rows, and both
@@ -253,9 +253,6 @@ Three remain, and none of the three is blocked on the port:
 - **`purchaseBill`** - `purchaseBill/view` answers 200 on PHP 5.6 and 500 on
   PHP 8.3 *in the Yii 1 tree*. Until that is fixed there is nothing to compare
   the port against.
-- **`orderItem`** - one cell. The detail view's label for `discount_id` is
-  "Discount Id" on Yii 1 and "Discount" here. Explained below, under
-  *A label can depend on the database*, and not yet fixed.
 
 `loyaltyAdmin` and `site` have no model, so none of the six page types the UI
 suite is built around exist for them. They are compared as page text instead,
@@ -315,8 +312,9 @@ So `BaseOrderItem` declaring `'discount' => array(BELONGS_TO, 'Discount',
 label, "Discount". The generator reads `relations()` and so always produces
 the second.
 
-This is the last difference in `orderItem`, and it is a reminder that a label
-in this application is not always a property of the code.
+This was the last difference in `orderItem`, which now matches on all seven
+comparisons. It is a reminder that a label in this application is not always a
+property of the code.
 
 ## The cases the UI suite does not count as passes
 

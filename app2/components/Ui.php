@@ -78,6 +78,7 @@ class Ui
         'site',
         'b2bPurchaseBillDetail',
         'loyaltyAdmin',
+        'orderItem',
     ];
 
     /**
