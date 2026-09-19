@@ -1385,6 +1385,8 @@ class PurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 		
+		$query->orderBy(['order' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

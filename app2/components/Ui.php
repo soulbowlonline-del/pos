@@ -69,6 +69,8 @@ class Ui
         'orderRefundItem',
         'vendor',
         'user',
+        'purchaseOrder',
+        'purchaseBillDetail',
     ];
 
     /**

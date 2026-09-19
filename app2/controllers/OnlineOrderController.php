@@ -789,4 +789,16 @@ class OnlineOrderController extends BaseUiController {
 		// merge actions with menu
 		$this->actions = array_merge ( $this->actions, $this->menu );
 	}
+
+	/**
+	 * Actions Yii 1's accessRules() refuses to a signed-in user.
+	 *
+	 * Read from accessRules() when this file was generated, not enforced by
+	 * duplicating the rules: only actions refused outright are listed, and a
+	 * rule decided by a role or an expression is left out.
+	 */
+	public function deniedActions()
+	{
+		return ['hold', 'create', 'delete', 'index', 'search'];
+	}
 }

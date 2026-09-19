@@ -1178,6 +1178,14 @@ def convert_search(body, model, page_size, eager, load_params=True):
             continue
         if line.strip() == 'return $query->all();':
             indent = line[:len(line) - len(line.lstrip())]
+            # The order can live on the provider's sort rather than on the
+            # criteria - PurchaseBillDetail's listing is ordered by
+            # `t.order Asc` there and nowhere else - and carrying only the
+            # criteria's order left that listing in storage order.
+            sort = port_search_sort(body)
+            if sort:
+                lines.append(indent + '$query->orderBy(%s);' % sort)
+                lines.append('')
             lines.append(indent + 'return new ActiveDataProvider([')
             lines.append(indent + "    'query' => $query,")
             lines.append(indent + "    'sort' => ['defaultOrder' => []],")
