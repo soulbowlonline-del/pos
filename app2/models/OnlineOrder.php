@@ -63,6 +63,7 @@ class OnlineOrder extends ActiveRecord
     public function rules()
     {
         return [
+            [['start_date', 'end_date'], 'safe'],  // form-only, declared on the Yii 1 model
             [['id', 'order_id', 'item_count', 'grand_total', 'first_name', 'last_name', 'street', 'city', 'telephone', 'zip_code', 'country', 'delivery_slot', 'ship_name', 'type_id', 'status', 'create_time', 'update_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
             [['order_id'], 'required'],
             [['order_id', 'item_count', 'type_id', 'create_user_id', 'updated_by'], 'integer'],

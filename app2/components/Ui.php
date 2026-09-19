@@ -71,6 +71,7 @@ class Ui
         'user',
         'purchaseOrder',
         'purchaseBillDetail',
+        'onlineOrder',
     ];
 
     /**

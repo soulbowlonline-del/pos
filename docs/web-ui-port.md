@@ -289,35 +289,35 @@ because the page genuinely was not checked. Adding an `ORDER BY` to settle it
 would be inventing behaviour Yii 1 does not have; doing exactly that earlier in
 this port broke a working Yii 1 page and was reverted in full.
 
-## onlineOrder: the port blanks a session key Yii 1 wrote
+## A form-only property has to be safe, not just declared
 
-Not ported, and held back for a reason worth writing down rather than a
-difference in a grid.
+`onlineOrder/admin` filters to a date range it keeps in the session: the action
+puts it in `$_GET` and loads it back onto the model. The port showed all 51
+orders where Yii 1 shows the day's - none, in this data.
 
-`onlineOrder/admin` filters to a date range it keeps in the session. On the
-first request Yii 1 finds the key empty and sets it to today, so the grid shows
-today's orders - none, in this data. The port carries the same code, character
-for character apart from `Yii::app()` becoming `Yii::$app`, and shows all 51.
+Declaring `public $start_date` was not enough. `load()` assigns only attributes
+that are *safe* in the current scenario, and `rules()` is never replaced on a
+model the API port wrote, because rules decide how that model validates and
+saves. So the Yii 1 rule marking these safe never came across, `load()` skipped
+them, and the filter silently did not apply. A missing filter does not raise
+anything; it just shows more rows.
 
-Traced through the session file, with one login and one request to each stack:
+The merge now adds a `safe` rule for the form-only properties alongside the
+existing rules rather than replacing them. These are not columns, so permitting
+mass assignment of them cannot write anything to the database - it sets a
+public property, which is what Yii 1 does.
 
-    after login:  (no key)
+**A wrong turn worth recording.** The first diagnosis was that the port blanked
+a session key Yii 1 had written, traced through the session file:
+
     after yii1:   onlineorder_start_date|s:10:"2026-09-19"
     after port:   onlineorder_start_date|s:0:""
 
-The port's request *blanks* a key Yii 1 wrote. Neither of the two assignments in
-the ported action can produce an empty string: one takes it from `$_POST`,
-behind an `isset() && != ''` guard that a GET does not pass, and the other
-assigns `date('Y-m-d')`. So something else in the request is rewriting
-`$_SESSION` wholesale and dropping what it does not know about - the bridge
-that carries Yii 1's login into Yii 2 keeps its own blob in there, and is the
-first place to look.
-
-This matters beyond one grid: both stacks share one PHP session, and every
-ported page that remembers something in it is exposed to the same loss. It is
-not visible in the suite because only this controller filters on a session
-value, and it was found only by comparing a listing that should have been
-empty.
+That was real but it was a symptom, not the cause, and the write-up of it as a
+shared-session defect was wrong. Once the safe rule was in place the key
+stopped being blanked. Half an hour went into looking for a session bug that
+did not exist, because the observation was striking enough to stop the search
+for a duller explanation.
 
 ## Access control: what Yii 1 refuses
 

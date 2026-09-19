@@ -1854,6 +1854,33 @@ def merge(existing, generated, model, warn):
     # unknown property where Yii 1 declared it. The merge carried the methods
     # across and left these behind, so discount/update answered 500 where
     # Yii 1 renders the form.
+    # The form-only properties must also be *safe*, or load() will not set
+    # them. rules() is never replaced on a model the API port wrote - it
+    # decides how that model validates and saves - so the safe rule is added
+    # alongside rather than swapped in. These attributes are not columns, so
+    # permitting mass assignment of them cannot write anything to the database;
+    # it only sets a public property, which is what Yii 1 does.
+    #
+    # onlineOrder/admin filters on a date range it keeps in the session, puts
+    # it in $_GET, and loads it back. start_date was not safe here, so the
+    # filter silently never applied and the grid showed every order instead of
+    # the day's.
+    props_wanted = [n for n, _ in re.findall(r'^    public (\$\w+)(\s*=\s*[^;]+)?;',
+                                             generated, re.M)]
+    if props_wanted:
+        names = [n.lstrip('$') for n in props_wanted]
+        already = re.search(r"\[\[([^\]]*)\],\s*'safe'\]", existing)
+        safe_now = set(re.findall(r"'(\w+)'", already.group(1))) if already else set()
+        missing = [n for n in names if n not in safe_now]
+        if missing and 'public function rules' in existing:
+            rule = ("            [['%s'], 'safe'],  // form-only, declared on the "
+                    "Yii 1 model\n" % "', '".join(missing))
+            patched, n = re.subn(r"(public function rules\(\)\s*\{\s*return \[\n)",
+                                 lambda m: m.group(1) + rule, existing, count=1)
+            if n:
+                existing = patched
+                added.append('safe rule for ' + ', '.join(missing))
+
     want = re.findall(r'^    public (\$\w+)(\s*=\s*[^;]+)?;', generated, re.M)
     held = set(re.findall(r'^\s*public (\$\w+)', existing, re.M))
     missing = [(n, d) for n, d in want if n not in held]
