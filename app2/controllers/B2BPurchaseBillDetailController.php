@@ -30,7 +30,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
 /**
- * Yii 2 port of protected/controllers/B2bPurchaseBillDetailController.php.
+ * Yii 2 port of protected/controllers/B2BPurchaseBillDetailController.php.
  *
  * Access matches Yii 1's accessRules(): signed in, nothing further. The
  * permission table decides what the views draw, not what the URL answers -
@@ -38,7 +38,7 @@ use yii\web\NotFoundHttpException;
  */
 class B2BPurchaseBillDetailController extends BaseUiController {
 	
-	public function actionUpdateMRP($id){
+	public function actionUpdateMrp($id){
 		$purchasebill = $this->loadModel($id, B2bPurchaseBill::class);
 		if($purchasebill){
 			$purchaseBillDetails = B2bPurchaseBillDetail::findAll(['purchase_bill_id'=>$purchasebill->id]);
@@ -276,7 +276,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['tax_id'] ) && isset ( $_POST ['id'] ) && isset ( $_POST ['purchase_ids'] )) {
 			
 			$purchase_bill_ids = $_POST ['purchase_ids'];
-			$model = $this->loadModel($_POST ['id']);
+			$model = $this->loadModel($_POST ['id'], B2bPurchaseBillDetail::class);
 			if ($model) {
 				$purchaseBill = $this->loadModel($model->purchase_bill_id, B2bPurchaseBill::class);
 			}
@@ -292,7 +292,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		}
 	}
 	public function actionView($id) {
-		$model = $this->loadModel($id);
+		$model = $this->loadModel($id, B2bPurchaseBillDetail::class);
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
@@ -343,7 +343,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 			echo 'Fail';
 		}
 	}
-	public function actionAjaxPONo() {
+	public function actionAjaxPoNo() {
 		$option = '';
 		$alreadypermissions = [];
 		$user = Yii::$app->user->model;
@@ -405,7 +405,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		] );
 	}
 	public function actionUpdate($id) {
-		$model = $this->loadModel($id);
+		$model = $this->loadModel($id, B2bPurchaseBillDetail::class);
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
@@ -427,12 +427,12 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		] );
 	}
 	public function actionDelete($id) {
-		$model = $this->loadModel($id);
+		$model = $this->loadModel($id, B2bPurchaseBillDetail::class);
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
 		if (Yii::$app->request->isPost) {
-			$this->loadModel($id)->delete ();
+			$this->loadModel($id, B2bPurchaseBillDetail::class)->delete ();
 			
 			if (! Yii::$app->request->isAjax)
 				return $this->redirect( [
@@ -610,7 +610,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 					}
 					if ($oldstatus != B2bPurchaseBill::STATUS_APPROVED){
 					foreach ( $qtys as $key => $qty ) {
-						$model = $this->loadModel($key);
+						$model = $this->loadModel($key, B2bPurchaseBillDetail::class);
 						$itemdetail = ItemDetail::findOne( $model->item_detail_id );
 						$item = Item::findOne( $model->item_id );
 						
@@ -1110,7 +1110,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 				{
 					$this->menu [] = [
 							'label' => Yii::t ( 'app', 'View' ),
-							'url' => Ui::to('b2bPurchaseBillDetail/view', ['id' => $model->id]),
+							'url' => Ui::to('b2BPurchaseBillDetail/view', ['id' => $model->id]),
 							'icon' => 'icon-plus icon-white' 
 					];
 				}
@@ -1206,7 +1206,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 					];
 					$this->menu [] = [
 							'label' => Yii::t ( 'app', 'Update' ),
-							'url' => Ui::to('b2bPurchaseBillDetail/update', ['id' => $model->id]),
+							'url' => Ui::to('b2BPurchaseBillDetail/update', ['id' => $model->id]),
 							'icon' => 'icon-edit icon-white' 
 					];
 				}

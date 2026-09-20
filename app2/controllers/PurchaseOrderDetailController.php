@@ -123,7 +123,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	{
 		return $model->isAllowed();
 	}
-	public function actionAjaxPONo() {
+	public function actionAjaxPoNo() {
 		$option = '';
 		$alreadypermissions = [];
 		$user =Yii::$app->user->model;

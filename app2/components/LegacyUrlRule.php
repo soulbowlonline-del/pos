@@ -22,9 +22,9 @@ use yii\base\BaseObject;
  */
 class LegacyUrlRule extends BaseObject implements UrlRuleInterface
 {
-    private function toYii2($id)
+    private function toYii2($id, $isController = true)
     {
-        return Ui::toYii2Id($id);
+        return Ui::toYii2Id($id, $isController);
     }
 
     private function toYii1($id)
@@ -51,7 +51,7 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
-        $action = isset($parts[1]) ? $this->toYii2($parts[1]) : 'index';
+        $action = isset($parts[1]) ? $this->toYii2($parts[1], false) : 'index';
         return [$controller . '/' . $action, []];
     }
 

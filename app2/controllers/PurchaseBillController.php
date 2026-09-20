@@ -292,7 +292,7 @@ class PurchaseBillController extends BaseUiController {
 		}
 		return $this->render('print', [ 'model' => $model]);
 	}  
-	public function actionprintPDF() {
+	public function actionPrintPdf() {
 		$model = new PurchaseBill;
 		
 		if(isset($_POST['PurchaseBill']['print_id']) && isset($_POST['PurchaseBill']['qty'])) {

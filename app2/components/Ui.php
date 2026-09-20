@@ -191,7 +191,7 @@ class Ui
      * controller and action objects use Yii 2's - so the conversion lives here
      * rather than being repeated wherever the two meet.
      */
-    public static function toYii2Id($id)
+    public static function toYii2Id($id, $isController = true)
     {
         // A run of capitals first: B2BPurchaseBillDetail's Yii 1 id is
         // b2BPurchaseBillDetail, and splitting only on lower-then-upper gave
@@ -202,7 +202,11 @@ class Ui
         $id = preg_replace('/([A-Z]+)([A-Z][a-z])/', '$1-$2', $id);
         $hyphenated = strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1-$2', $id));
 
-        return self::needsUiSuffix($id) ? $hyphenated . '-ui' : $hyphenated;
+        // The suffix distinguishes a *controller* from the API one of the
+        // same name. An action called `item` is not that controller, and
+        // adding it there asked for the route vendor/item-ui, which does not
+        // exist: vendor/item answered 404 on the port and 200 on Yii 1.
+        return $isController && self::needsUiSuffix($id) ? $hyphenated . '-ui' : $hyphenated;
     }
 
     /** payment-mode -> paymentMode */

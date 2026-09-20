@@ -37,7 +37,7 @@ use yii\web\NotFoundHttpException;
  */
 class PurchaseBillDetailController extends BaseUiController {
 	
-	public function actionUpdateMRP($id){
+	public function actionUpdateMrp($id){
 		$purchasebill = $this->loadModel($id, PurchaseBill::class);
 		if($purchasebill){
 			$purchaseBillDetails = PurchaseBillDetail::findAll(['purchase_bill_id'=>$purchasebill->id]);
@@ -328,7 +328,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			echo 'Fail';
 		}
 	}
-	public function actionAjaxPONo() {
+	public function actionAjaxPoNo() {
 		$option = '';
 		$alreadypermissions = [];
 		$user = Yii::$app->user->model;

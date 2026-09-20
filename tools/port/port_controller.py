@@ -256,6 +256,8 @@ def translate(src, model, ctrl, warn):
     body = re.sub(r"'class'\s*=>\s*'CViewAction'",
                   lambda m: "'class' => \\yii\\web\\ViewAction::class", body)
 
+    body = yii2_action_names(body)
+
     body = dao_idioms(body)
 
     body = finder_idioms(body)
@@ -305,6 +307,32 @@ def translate(src, model, ctrl, warn):
         warn.append('unconverted Yii 1 class: ' + leftover)
 
     return body
+
+
+def yii2_action_names(body):
+    """
+    Action methods named so Yii 2 can route to them.
+
+    Yii 2 turns a hyphenated action id back into a method by capitalising each
+    word: `ajax-po-no` becomes `actionAjaxPoNo`. Yii 1 wrote `actionAjaxPONo`,
+    and a run of capitals does not survive the round trip - the id is right
+    and the method is not there, so /v2/purchaseBillDetail/ajaxPONo answered
+    404 while Yii 1 answered 200. Four actions across five controllers.
+
+    Only the declaration is renamed. Nothing calls these by name except the
+    router, and the links in the views go out through Ui::to(), which spells
+    the id the Yii 1 way regardless.
+    """
+    def fix(m):
+        name = m.group(1)
+        ident = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1-\2', name)
+        ident = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', ident).lower()
+        want = ''.join(w[:1].upper() + w[1:] for w in ident.split('-'))
+
+        return m.group(0) if want == name else m.group(0).replace(
+            'action' + name, 'action' + want, 1)
+
+    return re.sub(r'function\s+action([A-Za-z0-9_]+)\s*\(', fix, body)
 
 
 def convert_criteria_blocks(src):
