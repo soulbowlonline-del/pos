@@ -20,9 +20,26 @@ BASE = 'http://127.0.0.1:8084'
 COOKIE = os.environ.get('COOKIE_FILE', '/tmp/uic.txt')
 
 
+# Pages that take longer than the default budget on *both* stacks, and the
+# reason. Without an entry here the port reads as a timeout - curl reports 000
+# - and a page that renders correctly in four minutes is recorded as a
+# mismatch rather than compared.
+#
+# order/create renders a checkbox list over the whole of tbl_order_item,
+# 4,976,355 rows. Yii 1 takes about 108 seconds and sometimes exhausts memory
+# instead; the port takes about 220. The page is unusable on either stack -
+# see docs/live-bugs-found.md - but it can still be compared, and comparing it
+# is better than excusing it.
+SLOW = ('/order/create', '/order/update')
+
+
+def budget(path):
+    return '400' if any(p in path for p in SLOW) else '120'
+
+
 def fetch(path):
     out = subprocess.run(
-        ['curl', '-sS', '-b', COOKIE, '--max-time', '120', BASE + path],
+        ['curl', '-sS', '-b', COOKIE, '--max-time', budget(path), BASE + path],
         capture_output=True, text=True)
     return out.stdout
 
@@ -30,7 +47,7 @@ def fetch(path):
 def status(path):
     out = subprocess.run(
         ['curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
-         '-b', COOKIE, '--max-time', '120', BASE + path],
+         '-b', COOKIE, '--max-time', budget(path), BASE + path],
         capture_output=True, text=True)
     return out.stdout.strip()
 

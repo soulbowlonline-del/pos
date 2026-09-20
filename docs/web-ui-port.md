@@ -230,7 +230,7 @@ found, not fixed.
 
 ## Where the port has got to
 
-57 of the 59 controllers:
+**All 59 controllers.**
 
 `paymentMode`, `userRole`, `advanceLogs`, `empShift`, `question`, `shift`,
 `advancePayment`, `itemExpireItem`, `paymentReport`, `itemCompanyCategory`,
@@ -242,60 +242,33 @@ found, not fixed.
 `itemStock`, `mrn`, `b2bPurchaseBill`, `itemDetail`, `mrnDetail`,
 `mrsDetail`, `vendorSchemes`, `orderRefundItem`, `vendor`, `user`,
 `purchaseOrder`, `purchaseBillDetail`, `onlineOrder`, `purchaseOrderDetail`,
-`site`, `b2bPurchaseBillDetail`, `loyaltyAdmin`, `orderItem`.
+`site`, `b2bPurchaseBillDetail`, `loyaltyAdmin`, `orderItem`, `purchaseBill`,
+`order`.
 
-Two remain, and neither is blocked on the port:
+"All 59" means every controller's pages are compared against Yii 1 and agree,
+or are accounted for. What it does not mean is that all 59 are *verified*: a
+page that neither stack renders is reported as **nothing compared**, and there
+are 49 of those. They are not passes and they are not failures; they are the
+suite saying it does not know. Most are pages the permission table refuses to
+every role, and those are a live bug, not a gap in the port - see
+`docs/live-bugs-found.md`.
 
-- **`order`** - `order/create` does not finish on *either* stack. It renders a
-  checkbox list over the whole of `tbl_order_item`, 4,976,355 rows, and both
-  the 5.6 baseline and the port give up at 40 seconds. Broken upstream, and
-  porting it would only reproduce that.
-- **`purchaseBill`** - `purchaseBill/view` answers 200 on PHP 5.6 and 500 on
-  PHP 8.3 *in the Yii 1 tree*. Until that is fixed there is nothing to compare
-  the port against.
+`loyaltyAdmin` and `site` have no model, so none of the seven page types the
+UI suite is built around exist for them. They are compared as page text
+instead, by `tests/port/pagecompare.py`, which the `pages_difftest` suite runs
+as part of the regression.
 
-`loyaltyAdmin` and `site` have no model, so none of the six page types the UI
-suite is built around exist for them. They are compared as page text instead,
-by `tests/port/pagecompare.py`, which the `pages_difftest` suite runs as part
-of the regression.
+Three controllers took most of the last stretch, and none of the three was
+blocked on the port:
 
-## Two pagers, and which one a grid gets
-
-Every paginated grid in the port had the wrong pager, and 319 green
-comparisons said nothing about it: the UI suite compares the rows of a grid,
-not the controls under it.
-
-There are two, and the application uses both.
-
-- **CLinkPager** - Yii 1's own. `Go to page: << First < Previous 1 2 3 Next >
-  Last >>`, with a header above the list.
-- **TbPager** - YiiBooster's, and `TbGridView`'s declared default. No header,
-  arrows instead of words, and `displayFirstAndLast = false`, so no First or
-  Last button is rendered at all.
-
-Which one a page gets does not follow from the widget it uses. It turns on a
-detail of `CGridView::renderPager()`:
-
-```php
-$class = 'CLinkPager';
-if (is_string($this->pager))     $class = $this->pager;
-elseif (is_array($this->pager))  { ... }
-```
-
-A `pager` that is neither a string nor an array falls through to **CLinkPager**
-- so the 57 views that write `'pager' => true` get CLinkPager even though they
-are all TbGridViews, and only the views that say nothing about the pager keep
-TbPager. `app\widgets\GridView` reproduces both, defaulting `$pager` to
-`TbPager::class` so that "the view said nothing" stays distinguishable from
-"the view asked for the framework default".
-
-`CBaseListView::$summaryText` was being swallowed silently by
-`IgnoresLegacyOptions` in the same way, so `loyaltyAdmin/customers` printed
-nothing where Yii 1 prints "Showing 1-20 of 5141 customers". Its placeholders
-are not Yii 2's, and the one that matters is `{count}`: in Yii 1 it is the
-total row count, which Yii 2 spells `{totalCount}` - Yii 2's own `{count}` is
-how many rows the current page shows, so passing the string through unchanged
-would have printed "of 20".
+- **`purchaseBill`** was blocked on a PHP 8.3 regression in the *Yii 1* tree -
+  `TbEditableField::init()` calling `strlen(null)` - not on anything the
+  generator did.
+- **`order`** renders a checkbox list over 4,976,355 rows on create and
+  update. The untouched 5.6 baseline takes 302 seconds on create and fails
+  after 190 on update. Both are compared now, with a 400-second budget.
+- **`orderItem`** differed in one label, which turned out to depend on the
+  database rather than the code.
 
 ## A label can depend on the database
 

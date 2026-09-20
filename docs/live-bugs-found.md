@@ -128,6 +128,38 @@ fatal on PHP 8. Affected 407 real orders. Fixed with a null guard.
 
 ## Found, not fixed — needs a product decision
 
+### order/create and order/update render a checkbox list over five million rows — **found, not fixed**
+
+`protected/views/order/_form.php` offers every order item and every refund as
+a checkbox:
+
+```php
+<?php if (count(OrderItem::model()->findAllAttributes(null, true)) > 0): ?>
+    <?php echo $form->checkBoxListRow($model, 'orderItems',
+              GxHtml::listDataEx(OrderItem::model()->findAllAttributes(null, true))); ?>
+```
+
+`tbl_order_item` holds 4,976,355 rows. Measured on the untouched PHP 5.6
+baseline, signed in:
+
+| | |
+|---|---|
+| `order/create` | 200, after **302 seconds** |
+| `order/update` | 500, after **190 seconds** |
+
+So the page has never been usable, and update does not finish at all. The port
+behaves the same way, a little differently: create renders in about 220
+seconds, update renders. Neither stack produces a page anyone could use — five
+million checkboxes is not a form.
+
+Not fixed here: the repair is a design change to that form, which is a product
+decision, not a port. It is recorded because the two pages are the last thing
+standing between `order` and the rest of the controllers, and because a
+comparison suite timing out on them looks exactly like a port defect.
+
+The UI suite gives these two pages a 400-second budget so they are compared
+rather than excused; `order/update` is registered as a baseline failure.
+
 ### Seventeen pages are refused to every role, including Admin — **found, not fixed**
 
 `GxActiveRecord::checkPermission($url)` builds a `url => id` map from

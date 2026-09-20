@@ -30,3 +30,5 @@ b2bPurchaseBill/index rows       every b2bPurchaseBill page is 500 on the 5.6 ba
 b2bPurchaseBill/create form      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
 b2bPurchaseBill/view detail      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
 b2bPurchaseBill/update form      every b2bPurchaseBill page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBill and Yii 1 looks for b2bPurchaseBill
+orderRefund/view detail        orderRefund/view returns 500 on the 5.6 baseline
+order/update form              order/update returns 500 on the 5.6 baseline, after 190 seconds

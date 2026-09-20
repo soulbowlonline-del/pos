@@ -80,6 +80,7 @@ class Ui
         'loyaltyAdmin',
         'orderItem',
         'purchaseBill',
+        'order',
     ];
 
     /**
