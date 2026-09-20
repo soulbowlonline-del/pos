@@ -232,10 +232,10 @@ exit;
 			$model->load($_POST, 'PurchaseBill');
 				
 		}
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# render (full page)
 		//$mPDF1->WriteHTML($this->render('index', array(), true));
@@ -523,10 +523,10 @@ exit;
 			
 			// echo"<pre>"; print_r($vendor); die;
 		# mPDF
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# render (full page)
 		//$mPDF1->WriteHTML($this->render('index', array(), true));
@@ -629,10 +629,10 @@ exit;
             $model->load($_GET, 'B2bPurchaseBill');
 
         // mPDF
-        $mPDF1 = Yii::$app->ePdf->mpdf();
+        $mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 
         // You can easily override default constructor's params
-        $mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+        $mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 
         // render (full page)
         // $mPDF1->WriteHTML($this->render('index', array(), true));
@@ -658,8 +658,8 @@ exit;
         // Outputs ready PDF
         /*
          * $mPDF1->Output();
-         * $PDF = Yii::$app->ePdf->mpdf();
-         * $PDF = Yii::$app->ePdf->mpdf('', 'A4');
+         * $PDF = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
+         * $PDF = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
          * $PDF ->WriteHTML($this->render('_pdf', true));
          * $PDF ->Output();
          */

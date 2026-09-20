@@ -130,7 +130,7 @@ class SiteUiController extends BaseUiController
 						"MIME-Version: 1.0\r\n".
 						"Content-type: text/plain; charset=UTF-8";
 
-				mail(Yii::$app->params['adminEmail'],$subject,$model->body,$headers);
+				mail((Yii::$app->params['adminEmail'] ?? null),$subject,$model->body,$headers);
 				Yii::$app->user->setFlash('contact','Thank you for contacting us. We will respond to you as soon as possible.');
 				$this->refresh();
 			}

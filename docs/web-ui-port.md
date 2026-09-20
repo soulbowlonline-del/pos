@@ -384,6 +384,28 @@ less than Yii 1, never more.
 404, because the action does not exist here at all. Both refuse; they disagree
 about why.
 
+## Where the sweep has got to
+
+210 actions on both stacks - 176 read-only, 34 whose only side effect is a
+session key - and the database checksum around the run is unchanged.
+
+| | |
+|---|---|
+| answer the same way | 153 |
+| **port fails where Yii 1 works** | **0** |
+| Yii 1 fails where the port works | 9 |
+| both fail | 1 |
+| other status mismatch | 0 |
+| stray output from the port | 0 |
+
+The nine where Yii 1 fails are its own bugs, each confirmed on the untouched
+5.6 baseline and listed in `tests/port/known-action-failures.txt`: the two B2B
+sections whose view directories are misspelled, and five `search` actions.
+The port renders all nine.
+
+The one that fails on both is `order/userwisePdf`, and only when the session
+carries no date range - with one set it renders a PDF on both stacks.
+
 ## The action sweep
 
 The UI suite compares six page types per controller. The ported controllers

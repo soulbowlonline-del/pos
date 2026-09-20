@@ -47,10 +47,10 @@ class MrnDetailController extends BaseUiController {
         $mrn = $this->loadModel($id, Mrn::class);
 
         # mPDF
-        $mPDF1 = Yii::$app->ePdf->mpdf();
+        $mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 
         # You can easily override default constructor's params
-        $mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+        $mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 
         # renderPartial (only 'view' of current controller)
 		

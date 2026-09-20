@@ -948,7 +948,9 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
 
     def order_by(m):
         cols = []
-        for part in m.group(1).split(','):
+        # The last group is the order text: the pattern captures the quote
+        # character first so both styles match.
+        for part in m.groups()[-1].split(','):
             bits = part.strip().split()
             if not bits:
                 continue
@@ -968,7 +970,12 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
     #  - and without allowing for that
     # the statement was left behind, the conversion refused the whole
     # method, and itemReturn/list died on a missing listsearch().
-    for m in re.finditer(V + r"\s*->\s*order\s*=\s*\(?\s*'([^']+)'\s*\)?\s*;", region):
+    # Either quote style. BaseItemReturnItem::reportsearch() writes
+    # `$criteria->order ="id DESC";` and the single-quote-only pattern left it
+    # behind, which refused the whole method - so itemReturnItem/report died
+    # on a missing reportsearch().
+    for m in re.finditer(V + r"\s*->\s*order\s*=\s*\(?\s*(['\"])([^'\"]+)\1\s*\)?\s*;",
+                         region):
         take(m, order_by(m))
     for m in re.finditer(V + r"\s*->\s*select\s*=\s*([^;]+);", region):
         take(m, Q + '->select(%s);' % m.group(1).strip())
@@ -1659,6 +1666,21 @@ def dao_idioms(text):
     text = re.sub(r"(\$\w*(?i:dataProvider)\w*)\s*->\s*getData\s*\(\s*\)",
                   lambda m: m.group(1) + '->getModels()', text)
 
+    # Yii 1's ePdf extension is a wrapper round the same mPDF this uses
+    # directly - see ItemController::punchGenerateBillAndSend(), which was
+    # hand-ported that way. The component does not exist here, so
+    # order/userwisePdf died on "Getting unknown property: Application::ePdf".
+    #
+    # The temp directory matches the Yii 1 configuration, which points
+    # _MPDF_TEMP_PATH at the application runtime directory. 35 call sites
+    # across ten controllers, in two shapes.
+    TMP = "'tempDir' => Yii::getAlias('@runtime')"
+    text = re.sub(r"Yii::\$app\s*->\s*ePdf\s*->\s*mpdf\s*\(\s*\)",
+                  lambda m: 'new \\Mpdf\\Mpdf([%s])' % TMP, text)
+    text = re.sub(r"Yii::\$app\s*->\s*ePdf\s*->\s*mpdf\s*\(\s*'[^']*'\s*,\s*"
+                  r"('[^']*')\s*\)",
+                  lambda m: "new \\Mpdf\\Mpdf(['format' => %s, %s])"
+                            % (m.group(1), TMP), text)
     # CHtml::link is Html::a, with the same argument order.
     text = re.sub(r"\bCHtml::link\s*\(", lambda m: '\\yii\\helpers\\Html::a(', text)
 

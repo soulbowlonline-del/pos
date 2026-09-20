@@ -63,10 +63,10 @@ class PurchaseOrderController extends BaseUiController {
 	
 			
 				# mPDF
-				$mPDF1 = Yii::$app->ePdf->mpdf();
+				$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 	
 				# You can easily override default constructor's params
-				$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+				$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 	
 				# render (full page)
 				//$mPDF1->WriteHTML($this->render('index', array(), true));
@@ -119,10 +119,10 @@ class PurchaseOrderController extends BaseUiController {
 				}
 			}
 		# mPDF
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# render (full page)
 		//$mPDF1->WriteHTML($this->render('index', array(), true));
@@ -154,8 +154,8 @@ class PurchaseOrderController extends BaseUiController {
 		$html2pdf->Output(); */
 		# Outputs ready PDF
 		/* $mPDF1->Output();
-		$PDF = Yii::$app->ePdf->mpdf();
-		$PDF = Yii::$app->ePdf->mpdf('', 'A4');
+		$PDF = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
+		$PDF = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		$PDF ->WriteHTML($this->render('_pdf', true));
 		$PDF ->Output(); */
 		}else{

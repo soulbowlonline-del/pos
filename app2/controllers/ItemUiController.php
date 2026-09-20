@@ -261,7 +261,7 @@ class ItemUiController extends BaseUiController {
 
 			/*send data to sect4 greycell*/
 			
-			//$ftp_server =  "143.110.254.206";//Yii::$app->params['ftp_server'] ;
+			//$ftp_server =  "143.110.254.206";//(Yii::$app->params['ftp_server'] ?? null) ;
 			//Soul Bowl Demo Server FTP Credentials
 			// username ftp_user
 			// passowrd gtech_ftp
@@ -1391,7 +1391,7 @@ curl_close($ch);
 	 * 'pageSize' => 10,
 	 * ),));
 	 * $pages = new \yii\data\Pagination(['totalCount' => $item_count]);
-	 * $pages->setPageSize(Yii::$app->params['listPerPage']);
+	 * $pages->setPageSize((Yii::$app->params['listPerPage'] ?? null));
 	 *
 	 *
 	 * $this->render('barcode',array('model' => $model,'dataProvider'=>$dataProvider,'totalItemCount'=>$item_count,
@@ -2999,7 +2999,7 @@ curl_close($ch);
 			if ($items) {
 		
 					# You can easily override default constructor's params
-					$mPDF = Yii::$app->ePdf->mpdf('', 'A4');
+					$mPDF = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 					
 					// Create HTML content for the PDF
 					$htmlContent = '<h1>Items Below Minimum Quantity</h1>';

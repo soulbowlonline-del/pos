@@ -1193,4 +1193,54 @@ class ItemReturnItem extends ActiveRecord
             ? 'readOnly'
             : '';
     }
+
+    /**
+     * Yii 1's reportsearch(): a listing of its own, converted as written.
+     */
+    public function reportsearch()
+    {
+
+		$query = self::find();
+		$query->orderBy(['id' => SORT_DESC]);
+	if ((Yii::$app->session ['returnitem_start_date'] != '') && (Yii::$app->session ['returnitem_end_date'] != '')) {
+			$query->andWhere(['between', 'date(create_time)', Yii::$app->session ['returnitem_start_date'], Yii::$app->session ['returnitem_end_date']]);
+		}
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'item_id', $this->item_id);
+		Criteria::compare($query, 'item_detail_id', $this->item_detail_id);
+		Criteria::compare($query, 'mrp', $this->mrp, true);
+		Criteria::compare($query, 'price', $this->price);
+		Criteria::compare($query, 'sale_rate', $this->sale_rate, true);
+		Criteria::compare($query, 'free', $this->free);
+		Criteria::compare($query, 'qty', $this->qty);
+		Criteria::compare($query, 'discount', $this->discount);
+		Criteria::compare($query, 'discount_amt', $this->discount_amt);
+		Criteria::compare($query, 'discount1', $this->discount1);
+		Criteria::compare($query, 'discount_amt1', $this->discount_amt1);
+		Criteria::compare($query, 'cgst_per', $this->cgst_per);
+		Criteria::compare($query, 'sgst_per', $this->sgst_per);
+		Criteria::compare($query, 'cess_per', $this->cess_per);
+		Criteria::compare($query, 'cgst_amt', $this->cgst_amt);
+		Criteria::compare($query, 'sgst_amt', $this->sgst_amt);
+		Criteria::compare($query, 'cess_amt', $this->cess_amt);
+		Criteria::compare($query, 'igst_per', $this->igst_per);
+		Criteria::compare($query, 'igst_amt', $this->igst_amt);
+		Criteria::compare($query, 'tax_id', $this->tax_id);
+		Criteria::compare($query, 'other_charge', $this->other_charge);
+		Criteria::compare($query, 'total_amt', $this->total_amt, true);
+		Criteria::compare($query, 'vendor_id', $this->vendor_id);
+		Criteria::compare($query, 'outlet_id', $this->outlet_id);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'return_id', $this->return_id);
+		//$criteria->compare ( 'create_time', $this->create_time, true );
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => false,
+		]);
+    }
 }

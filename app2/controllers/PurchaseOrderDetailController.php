@@ -41,10 +41,10 @@ class PurchaseOrderDetailController extends BaseUiController {
 		
 			
 		# mPDF
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# render (full page)
 		//$mPDF1->WriteHTML($this->render('index', array(), true));
@@ -91,10 +91,10 @@ class PurchaseOrderDetailController extends BaseUiController {
 		$purchaseorder =$this->loadModel($id, PurchaseOrder::class);
 		$baseUrl = (Yii::$app->params['soul_bowl_url'] ?? null);
 		# mPDF
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# renderPartial (only 'view' of current controller)
 		$mPDF1->WriteHTML($this->renderPartial('/purchaseOrder/_pdf',['po'=>$purchaseorder,'poid'=>$id], true));

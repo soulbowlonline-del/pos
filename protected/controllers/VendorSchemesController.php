@@ -66,7 +66,12 @@ class VendorSchemesController extends GxController {
 						$this->redirect(array('view', 'id' => $model->id)); */
 			}
 		}
-		$model->item_id = explode(',',$model->item_id);
+		// (string) for PHP 8.1: item_id is null on a model that has not been
+		// saved, and explode() with null as the subject is deprecated - which
+		// this application reports like any other error, so vendorSchemes/add
+		// was a 500 on 8.3 and a working page on 5.6. explode(',', '') is
+		// array(''), which is what explode(',', null) gave before.
+		$model->item_id = explode(',', (string) $model->item_id);
 		$this->updateMenuItems($model);
 		$this->render('add', array( 'model' => $model,'id'=>$id));
 	}
@@ -117,7 +122,12 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 			}
 		}
 		if($model->item_id != '')
-		$model->item_id = explode(',',$model->item_id);
+		// (string) for PHP 8.1: item_id is null on a model that has not been
+		// saved, and explode() with null as the subject is deprecated - which
+		// this application reports like any other error, so vendorSchemes/add
+		// was a 500 on 8.3 and a working page on 5.6. explode(',', '') is
+		// array(''), which is what explode(',', null) gave before.
+		$model->item_id = explode(',', (string) $model->item_id);
 		$this->updateMenuItems($model);
 		$this->render('update', array(
 				'model' => $model,

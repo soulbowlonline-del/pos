@@ -1234,10 +1234,10 @@ public function actionReport($id = null) {
 		$model = new ItemReturnItem();
 
 		# mPDF
-		$mPDF1 = Yii::$app->ePdf->mpdf();
+		$mPDF1 = new \Mpdf\Mpdf(['tempDir' => Yii::getAlias('@runtime')]);
 		
 		# You can easily override default constructor's params
-		$mPDF1 = Yii::$app->ePdf->mpdf('', 'A4');
+		$mPDF1 = new \Mpdf\Mpdf(['format' => 'A4', 'tempDir' => Yii::getAlias('@runtime')]);
 		
 		# renderPartial (only 'view' of current controller)
 		$mPDF1->WriteHTML($this->renderPartial('_pdf',['model'=>$model,'outlet_id'=>$_GET['outlet_id'],'vendor_id'=>$_GET['vendor_id']], true));
@@ -1246,7 +1246,7 @@ public function actionReport($id = null) {
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
 		$mPDF1->Output();
 		// if($email != '' && ($role->id != $login->role_id)){
-		// 	$from = Yii::$app->params['mail_email'] ;
+		// 	$from = (Yii::$app->params['mail_email'] ?? null) ;
 		// 	$to      = $email;
 		// 	$subject = 'Your purchase order :';
 		

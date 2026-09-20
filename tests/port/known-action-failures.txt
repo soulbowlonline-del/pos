@@ -29,3 +29,13 @@ item/barCode                  200 on 5.6, 500 under 8.3 in the Yii 1 tree
 item/checkUpdateStatus        200 on 5.6, 500 under 8.3 in the Yii 1 tree
 itemReturnItem/printPdf       200 on 5.6, 500 under 8.3 in the Yii 1 tree
 order/groupTax             Yii 1 echoes the raw SQL and calls die() - debugging code left in BaseOrderItem::groupTaxsearch(); confirmed on the 5.6 baseline
+b2BPurchaseBillDetail/search               the b2b purchase bill detail views are in protected/views/b2bpurchaseBillDetail and Yii 1 looks for b2BPurchaseBillDetail
+b2BPurchaseBillDetail/list                 same view-directory fault as the rest of that controller
+b2BPurchaseBillDetail/ajaxPBillTax         same view-directory fault as the rest of that controller
+b2BPurchaseBillDetail/getpendingbilldate   same view-directory fault as the rest of that controller
+b2BPurchaseBillDetail/taxwise              same view-directory fault as the rest of that controller
+b2bPurchaseBill/printBarcode               same view-directory fault as the rest of that controller
+b2bPurchaseBill/userWise                   same view-directory fault as the rest of that controller
+purchaseBillDetail/search                  500 on the 5.6 baseline
+purchaseBillDetail/ajaxPBillTax            500 on the 5.6 baseline
+user/dash                                  500 on the 5.6 baseline
