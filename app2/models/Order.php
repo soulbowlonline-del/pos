@@ -1661,7 +1661,7 @@ class Order extends ActiveRecord
 		Criteria::compare($query, 'update_time', $this->update_time, true);
 		Criteria::compare($query, 'customer_id', $this->customer_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by); 
-		// $orders = Order::model()->findAll(;
+		// $orders = Order::model()->findAll($criteria);
 		// echo"<pre>"; print_r($orders); die;
 	   /*  if($orders){
 			$taxable = 0;
@@ -1679,8 +1679,11 @@ class Order extends ActiveRecord
 		$total = 0;
 		Yii::$app->session ['gross_total']=round($taxable);
 		Yii::$app->session ['gross_total_amt']=round($total);
+		$query->orderBy(['create_user_id' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);

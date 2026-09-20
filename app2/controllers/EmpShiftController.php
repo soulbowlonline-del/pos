@@ -44,8 +44,8 @@ class EmpShiftController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'emp-shift-form');
 
-		if (Yii::$app->request->post('EmpShift') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['EmpShift'])) {
+			$model->load($_POST, 'EmpShift');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class EmpShiftController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'emp-shift-form');
 
-		if (Yii::$app->request->post('EmpShift') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['EmpShift'])) {
+			$model->load($_POST, 'EmpShift');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class EmpShiftController extends BaseUiController {
 		$model = new EmpShift(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('EmpShift') !== null)
+		if (isset($_GET['EmpShift']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'EmpShift');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class EmpShiftController extends BaseUiController {
 		$model = new EmpShift(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('EmpShift') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['EmpShift']))
+			$model->load($_GET, 'EmpShift');
 
 		return $this->render('admin', [
 			'model' => $model,

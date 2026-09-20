@@ -478,14 +478,14 @@ def port_with_full(body):
     an options array was simply unreadable and the method was refused - would
     turn loyaltyAdmin/customers' plain listing into a join.
 
-    Returns (paths, together, ok). `together` carries only the relations where
+    Returns (paths, together, ok, joins). `together` carries only the relations where
     the application set it explicitly; anything else keeps the join this has
     always emitted. `ok` is False when a relation carries an option this
     cannot model, so the caller can refuse the method rather than emit a query
     that quietly drops it.
     """
     paths = port_with(body)
-    together, bad = {}, []
+    together, joins, bad = {}, {}, []
 
     # Only the entries that are an options array with no nested array inside -
     # a nested `'with' => array(...)` is the eager-load form port_with()
@@ -494,10 +494,17 @@ def port_with_full(body):
         keys = re.findall(r"'(\w+)'\s*=>", nm.group(2))
         if not keys:
             continue
-        unknown = [k for k in keys if k != 'together']
+        # `select` limits which columns of the related table are added to the
+        # query. Ignored here: it changes how many columns come back, never
+        # which rows or what any of them say, and the comparison is of what
+        # the page says. `joinType` is honoured below.
+        unknown = [k for k in keys if k not in ('together', 'select', 'joinType')]
         if unknown:
             bad.extend(unknown)
             continue
+        jt = re.search(r"'joinType'\s*=>\s*'([^']+)'", nm.group(2))
+        if jt:
+            joins[nm.group(1)] = jt.group(1)
         name = nm.group(1)
         if name not in paths:
             paths.append(name)
@@ -505,10 +512,10 @@ def port_with_full(body):
         if t:
             together[name] = t.group(1).lower() == 'true'
 
-    return paths, together, not bad
+    return paths, together, not bad, joins
 
 
-def port_search_sort(body):
+def port_search_sort(body, aliased=False):
     """
     The order Yii 1's search() gives its data provider.
 
@@ -542,10 +549,12 @@ def port_search_sort(body):
         if not bits:
             continue
         col = bits[0]
-        # `t` is the main table's alias, which Yii 2 does not use; any other
-        # qualifier names a joined relation and has to stay, or the column is
-        # ambiguous - or simply the wrong one.
-        if col.startswith('t.'):
+        # `t` is the main table's alias. Yii 2 does not use it unless the
+        # query was given it - and where the query *was* given it, the
+        # qualifier has to stay: order/b2bReport joins a relation that also
+        # has a tax_id, and the bare column was "ambiguous in order clause".
+        # Any other qualifier names a joined relation and always stays.
+        if col.startswith('t.') and not aliased:
             col = col[2:]
         desc = len(bits) > 1 and bits[1].lower().startswith('desc')
         cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
@@ -671,9 +680,27 @@ def mask_comments(text):
     """
     lines = text.split('\n')
     saved = {}
+    in_block = False
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith('//') or stripped.startswith('#') or stripped.startswith('*'):
+        hide = in_block
+        if in_block:
+            if '*/' in line:
+                in_block = False
+        elif stripped.startswith('//') or stripped.startswith('#') or stripped.startswith('*'):
+            hide = True
+        elif stripped.startswith('/*'):
+            # A block comment. Only the lines it spans are hidden, and the
+            # block is tracked across them: without this, everything inside
+            # `/* ... */` counted as live code. B2bPurchaseBillDetail's
+            # itemwisesearch() has a commented-out
+            # `OrderItem::model()->findAll($criteria)` above its real
+            # consumer, and the converter read the class off it - the query
+            # was built on the wrong model, and order/b2bItemWise died on a
+            # relation OrderItem does not have.
+            hide = True
+            in_block = '*/' not in line[line.index('/*') + 2:]
+        if hide:
             token = '/*__MASKED_%d__*/' % i
             saved[token] = line
             lines[i] = token
@@ -926,7 +953,12 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
             if not bits:
                 continue
             col = bits[0]
-            if col.startswith('t.'):
+            # The `t.` prefix is kept when the query carries that alias. Yii 1
+            # writes `t.tax_id` precisely so the column is unambiguous once a
+            # relation is joined, and dropping it gave "Column 'tax_id' in
+            # order clause is ambiguous" on order/b2bReport - but only when
+            # the session held no date range, which is the branch that joins.
+            if col.startswith('t.') and not alias:
                 col = col[2:]
             desc = len(bits) > 1 and bits[1].lower().startswith('desc')
             cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
@@ -961,7 +993,8 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
     assigns = len(re.findall(V + r"\s*->\s*with\s*=", region))
     joined_before = False
     for m in re.finditer(V + r"\s*->\s*with\s*=\s*([^;]+);", region):
-        paths, together, ok = port_with_full('$criteria->with = %s;' % m.group(1).strip())
+        paths, together, ok, joins = port_with_full('$criteria->with = %s;'
+                                                   % m.group(1).strip())
         if not ok or not paths:
             return [], False, 'CDbCriteria with a `with` this cannot read'
         stmts = []
@@ -973,9 +1006,16 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
         if joined:
             if assigns > 1:
                 stmts.append(Q + '->with = [];')
-            stmts.append(Q + '->joinWith([%s]);' % ', '.join(
-                "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
-                for x in joined))
+            # Grouped by join type: Yii 2 takes one per joinWith() call, and
+            # Yii 1 declares it per relation. Everything without an explicit
+            # one keeps Yii 2's default, which is Yii 1's too.
+            for jt in sorted({joins.get(x) for x in joined}, key=lambda v: (v is not None, v)):
+                group = [x for x in joined if joins.get(x) == jt]
+                arg = ', '.join(
+                    "'%s' => function ($q) { $q->alias('%s'); }" % (x, x.split('.')[-1])
+                    for x in group)
+                stmts.append(Q + '->joinWith([%s]%s);'
+                             % (arg, ", true, '%s'" % jt if jt else ''))
         if lazy and joined_before:
             return [], False, ('a CDbCriteria whose `with` replaces a join - '
                                'Yii 2 cannot drop one')
@@ -1056,8 +1096,25 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
     if not ok:
         return [], False, why
 
+    # A criteria handed to a dump - `Yii::log(CVarDumper::dumpAsString($criteria))`
+    # - is diagnostic, not behaviour. The variable is renamed so the method can
+    # still be converted; what the log then holds is a Yii 2 query rather than
+    # a CDbCriteria, which is the correct thing for it to hold.
+    #
+    # BaseItem::reportstocksearch() logs its criteria this way, and the whole
+    # method was being refused over it, so item/report died on a missing
+    # method.
+    for m in re.finditer(r'(?:CVarDumper::dumpAsString|var_export|print_r|var_dump)'
+                         r'\s*\(\s*' + V + r'\s*(?=[,)])', region):
+        take(m, m.group(0).replace('$' + var, Q))
+
     # Nothing may mention this criteria that has not been rewritten.
     for m in re.finditer(V + r'\b', region):
+        # Not a mention inside a string. Yii 1's logging calls carry the
+        # variable's own name as the category - `Yii::log(..., '$criteria')` -
+        # and counting that as unrewritten code refused the whole method.
+        if m.start() and region[m.start() - 1] in ('\'', '"'):
+            continue
         if not any(a <= m.start() < b for a, b in claimed):
             rest = re.match(r'\s*->\s*(\w+)', region[m.end():])
             return [], False, ('CDbCriteria uses ' + rest.group(1) if rest
@@ -1119,9 +1176,22 @@ def provider_edits(region, var, cls, Q, take_span, required=True):
                 for o in opts]
         if len(opts) == len(split_args_php(block)):
             continue          # some other provider in the same region
+        # A grouped query needs its own count. Yii 2 counts by wrapping the
+        # select list - `SELECT COUNT(*) FROM (...)` - and this application's
+        # grouped listings select `t.*` alongside `SUM(approved_qty) AS
+        # approved_qty`, so the derived table has that column twice and MySQL
+        # refuses it: order/b2bItemWise died on "Duplicate column name
+        # 'approved_qty'". Counting a constant counts the same groups and has
+        # nothing to collide.
+        head = ["'query' => " + Q]
+        # The Yii 1 spelling: the region is still the original text here, and
+        # the group -> groupBy edit is collected rather than applied.
+        grouped = (re.search(r'\$' + re.escape(var) + r'\s*->\s*group\s*=', region)
+                   or re.search(re.escape(Q) + r'\s*->\s*groupBy\s*\(', region))
+        if grouped:
+            head.append("'totalCount' => (clone %s)->select(new \\yii\\db\\Expression('1'))->count()" % Q)
         take_span(m.start(), i + close.end(),
-                  'new ActiveDataProvider([%s])'
-                  % ', '.join(["'query' => " + Q] + opts))
+                  'new ActiveDataProvider([%s])' % ', '.join(head + opts))
         found = True
 
     if not found and required:
@@ -1222,7 +1292,13 @@ def sub_balanced(head, fn, text):
             i = m.end()
             continue
         out.append(text[i:m.start()])
-        out.append(fn(m, text[m.end():j - 1]))
+        rep = fn(m, text[m.end():j - 1])
+        # A rule that declines returns the head it was given. The arguments
+        # are not part of that head, so emitting it alone dropped them:
+        # `Vendor::model()->findAll(` followed by the `;` that came after the
+        # arguments. Four models stopped generating, and the generator's own
+        # parse check was the only thing that caught it.
+        out.append(text[m.start():j] if rep == m.group(0) else rep)
         i = j
 
     return ''.join(out)
@@ -1456,6 +1532,20 @@ def yii1_idioms(text):
     return text
 
 
+def chtml_tag_wrap(m, args):
+    """CHtml::tag's arguments, reordered for Html::tag."""
+    bits = split_args_php(args)
+    if len(bits) == 1:
+        return '\\yii\\helpers\\Html::tag(%s)' % bits[0].strip()
+    if len(bits) == 2:
+        return "\\yii\\helpers\\Html::tag(%s, '', %s)" % (bits[0].strip(), bits[1].strip())
+    if len(bits) >= 3:
+        return '\\yii\\helpers\\Html::tag(%s, %s, %s)' % (
+            bits[0].strip(), bits[2].strip(), bits[1].strip())
+
+    return m.group(0)
+
+
 def dao_idioms(text):
     """
     The framework calls that are neither a model nor a query: Yii 1's DAO
@@ -1550,6 +1640,34 @@ def dao_idioms(text):
     # B2bPurchaseBill::userwisesearch(), which reads two session keys - kept
     # the Yii 1 spelling and died on a static method that does not exist.
     text = re.sub(r"\bYii::app\s*\(\s*\)", lambda m: 'Yii::$app', text)
+
+    # A missing application parameter is null in Yii 1 and an error in Yii 2.
+    #
+    # `Yii::app()->params['listPerPage']` reads a key that is not in
+    # config/params.php - nor anywhere else in the Yii 1 tree - so Yii 1
+    # yields null and CPagination falls back to its default. Yii 2 turns the
+    # warning into an exception, and item/printBarcode answered 500 where
+    # Yii 1 answers 200. Three parameters are read that way.
+    #
+    # Not for an assignment target, and not for one that already has a
+    # fallback.
+    text = re.sub(r"(Yii::\$app->params)\s*\[\s*('(?:\w+)')\s*\](?!\s*(?:=[^=]|\?\?))",
+                  lambda m: '(%s[%s] ?? null)' % (m.group(1), m.group(2)), text)
+
+    # CDataProvider::getData() is ActiveDataProvider::getModels().
+    # item/printBarcode's view iterates the provider that way.
+    text = re.sub(r"(\$\w*(?i:dataProvider)\w*)\s*->\s*getData\s*\(\s*\)",
+                  lambda m: m.group(1) + '->getModels()', text)
+
+    # CHtml::link is Html::a, with the same argument order.
+    text = re.sub(r"\bCHtml::link\s*\(", lambda m: '\\yii\\helpers\\Html::a(', text)
+
+    # CHtml::tag is Html::tag, and the arguments are *not* in the same order:
+    # Yii 1 takes (tag, htmlOptions, content), Yii 2 takes (tag, content,
+    # options). Renaming without swapping would put the attributes in the
+    # body and the body in the attributes.
+    text = sub_balanced(re.compile(r"\bCHtml::tag\s*\("),
+                        lambda m, a: chtml_tag_wrap(m, a), text)
 
     # CDbExpression is yii\db\Expression. The application uses it for NOW()
     # and other raw SQL in an assignment, where a quoted string would be
@@ -1737,7 +1855,7 @@ def finder_idioms(text):
     # written that way and kept its Yii 1 call.
     def chained(m):
         cls, withargs, kind, args = m.groups()
-        paths, together, ok = port_with_full('$criteria->with = %s;' % withargs)
+        paths, together, ok, _joins = port_with_full('$criteria->with = %s;' % withargs)
         if not ok or not paths:
             return m.group(0)
         eager = ', '.join("'%s'" % x for x in paths)
@@ -1760,6 +1878,17 @@ def finder_idioms(text):
                   lambda m: '%s::find()%s->one()'
                             % (m.group(1), default_order_call(m.group(1), '')), text)
     text = re.sub(M + r"exists\s*\(", lambda m: m.group(1) + '::find()->exists(', text)
+
+    # `findBySql`/`findAllBySql` are statics in Yii 2, and they hand back a
+    # query rather than a row, so the fetch has to be spelled out.
+    text = sub_balanced(
+        re.compile(r"\b(\w+)::model\s*\(\s*\)\s*->\s*"
+                   r"((?i:findAllBySql|findBySql))\s*\(", re.S),
+        lambda m, a: '%s::findBySql(%s)%s'
+                     % (m.group(1), a.strip(),
+                        '->all()' if m.group(2).lower().startswith('findall')
+                        else '->one()'),
+        text)
 
     # A bare `X::model()` with nothing chained onto it. Yii 1 hands back a
     # shared instance, used for the things that do not depend on a row -
@@ -1961,12 +2090,22 @@ def convert_search(body, model, page_size, eager, load_params=True):
             # criteria - PurchaseBillDetail's listing is ordered by
             # `t.order Asc` there and nowhere else - and carrying only the
             # criteria's order left that listing in storage order.
-            sort = port_search_sort(body)
+            sort = port_search_sort(body, aliased)
             if sort:
                 lines.append(indent + '$query->orderBy(%s);' % sort)
                 lines.append('')
             lines.append(indent + 'return new ActiveDataProvider([')
             lines.append(indent + "    'query' => $query,")
+            # A grouped listing needs its own count. Yii 2 counts by wrapping
+            # the select list - `SELECT COUNT(*) FROM (...)` - and these
+            # select `t.*` alongside `SUM(approved_qty) AS approved_qty`, so
+            # the derived table has that column twice and MySQL refuses it:
+            # order/b2bItemWise died on "Duplicate column name
+            # 'approved_qty'". Counting a constant counts the same groups and
+            # has nothing to collide.
+            if re.search(r'\$query\s*->\s*groupBy\s*\(', '\n'.join(lines)):
+                lines.append(indent + "    'totalCount' => (clone $query)"
+                                      "->select(new \\yii\\db\\Expression('1'))->count(),")
             lines.append(indent + "    'sort' => ['defaultOrder' => []],")
             if page_size is False:
                 lines.append(indent + "    'pagination' => false,")
@@ -2135,7 +2274,10 @@ def generate(model, table_alias):
     search_body = parse_block(base, 'search') or ''
     exact, partial = port_search(search_body, warn)
     eager = port_with(search_body)
-    search_sort = port_search_sort(search_body)
+    # Whether the rebuilt search() will declare the `t` alias - the same test
+    # it makes below - so the sort can keep the qualifier when it does.
+    search_aliased = any(c.startswith('t.') for c, _ in exact + partial)
+    search_sort = port_search_sort(search_body, search_aliased)
     page_size = port_page_size(search_body)
 
     has_before_validate = 'function beforeValidate' in base
@@ -2147,6 +2289,41 @@ def generate(model, table_alias):
     # one. They are translated with the same rules as the controllers and
     # anything unrecognised is reported.
     concrete_methods, notes = port_concrete(concrete, model)
+
+    # The base model's own helpers, where it has any beyond giix's.
+    # BaseVendor declares getAllItems(), a static the vendor/item form calls to
+    # list the items a vendor does not already carry - it is application code
+    # that happens to live in the generated base, and nothing was carrying it
+    # across, so vendor/item died on a method the port did not have.
+    #
+    # Only names the concrete model and the generator do not already provide,
+    # and never the giix boilerplate, which is generated from the schema above.
+    GIIX = {'model', 'tableName', 'label', 'representingColumn', 'rules',
+            'relations', 'pluralize', 'attributeLabels', 'search', 'defaultScope',
+            'primaryKey', 'behaviors', 'scopes', 'getRelationLabel'}
+    base_methods, base_notes = port_concrete(base, model)
+    taken_names = methods_of('\n'.join(concrete_methods)) | GIIX
+    extra = []
+    for text in base_methods:
+        m = re.search(r'function\s+(\w+)\s*\(', text)
+        if not m or m.group(1) in taken_names or m.group(1).lower().endswith('search'):
+            continue
+        if re.match(r'get\w*Options$', m.group(1)):
+            continue          # handled above, from the same source
+        if re.search(YII1_CLASSES, text):
+            # Same rule the presentation-only merge uses: a method the
+            # translator could not finish is left out rather than carried in
+            # half-converted. BaseItem::adjust() is one - it writes, and its
+            # criteria is consumed in a way convert_criteria cannot read, so
+            # item/adjustStock fails on a missing method instead of on a
+            # class that does not exist three lines into it.
+            notes.append('%s(): not shared from the base - still contains '
+                         'Yii 1 code' % m.group(1))
+            continue
+        taken_names.add(m.group(1))
+        extra.append(text)
+    concrete_methods = concrete_methods + extra
+    notes += [n for n in base_notes if 'not ported' in n and 'base method' not in n]
 
     # What the concrete model defines itself. GxActiveRecord's helpers below
     # are emitted only where the model does not already have one: Discount and
@@ -2738,6 +2915,16 @@ def merge(existing, generated, model, warn):
     #     asks its provider for 100, so the port showed a tenth of the rows.
     if 'presentation-only' not in ' '.join(warn):
         replace.append('search')
+        #   and the other listings - listsearch(), reportsearch(),
+        #     itemwisesearch(), userwisesearch(). port_provider_methods()
+        #     produces them from the same Yii 1 source by the same rules, so
+        #     an older one is stale in exactly the way an older search() is.
+        #     B2bPurchaseBillDetail::itemwisesearch() kept a query built on
+        #     the wrong model - the class had been read off a commented-out
+        #     finder - through every later fix, and order/b2bItemWise died on
+        #     a relation OrderItem does not have.
+        replace += [n for n, _ in method_blocks(generated)
+                    if n.lower().endswith('search') and n != 'search']
     # ...but never one of GxActiveRecord's own helpers. Those are emitted as
     # fallbacks for every model, and two models write their own:
     # Discount::getItemOptions() and FreeItem::getItemOptions() list item
@@ -2746,6 +2933,7 @@ def merge(existing, generated, model, warn):
     # discount form offers, which is how it was noticed.
     replace += [n for n, _ in method_blocks(generated)
                 if re.match(r'get\w*Options$', n) and n not in SHARED_GX_FALLBACKS]
+
     for name in replace:
         if name not in have:
             continue

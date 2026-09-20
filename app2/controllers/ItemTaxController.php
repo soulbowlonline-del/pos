@@ -37,8 +37,8 @@ class ItemTaxController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'item-tax-form' );
 		
-		if (Yii::$app->request->post('ItemTax') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['ItemTax'] )) {
+			$model->load($_POST, 'ItemTax');
 			
 			if ($model->save ()) {
 				if (Yii::$app->request->isAjax)
@@ -62,8 +62,8 @@ class ItemTaxController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'item-tax-form' );
 		
-		if (Yii::$app->request->post('ItemTax') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['ItemTax'] )) {
+			$model->load($_POST, 'ItemTax');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -111,8 +111,8 @@ class ItemTaxController extends BaseUiController {
 		$model = new ItemTax(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('ItemTax') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['ItemTax'] )) {
+			$model->load($_GET, 'ItemTax');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -130,8 +130,8 @@ class ItemTaxController extends BaseUiController {
 		if (isset ( $_POST ['ItemTax'] ['columns'] )) {
 			$columns = $_POST ['ItemTax'] ['columns'];
 		}
-		if (Yii::$app->request->get('ItemTax') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['ItemTax'] ))
+			$model->load($_GET, 'ItemTax');
 		$columns = $model->getColumns ( $columns );
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->search (), $columns );

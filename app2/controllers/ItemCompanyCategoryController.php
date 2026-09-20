@@ -2,6 +2,7 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\models\ItemCompany;
 use app\models\ItemCompanyCategory;
 use app\models\UserRole;
 use Yii;
@@ -42,13 +43,13 @@ class ItemCompanyCategoryController extends BaseUiController {
 	public function actionCreate($id = null) 
 	{
 		if($id != null)
-		$company = $this->loadModel($id);
+		$company = $this->loadModel($id, ItemCompany::class);
 		$model = new ItemCompanyCategory;
 
 		$this->performAjaxValidation($model, 'item-company-category-form');
 
-		if (Yii::$app->request->post('ItemCompanyCategory') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['ItemCompanyCategory'])) {
+			$model->load($_POST, 'ItemCompanyCategory');
 			if($id != null)
 			$model->company_id = $id;
 			if ($model->save()) {
@@ -74,8 +75,8 @@ class ItemCompanyCategoryController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'item-company-category-form');
 
-		if (Yii::$app->request->post('ItemCompanyCategory') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['ItemCompanyCategory'])) {
+			$model->load($_POST, 'ItemCompanyCategory');
 
 			if ($model->save()) {
 				return $this->redirect(['itemCompany/view', 'id' => $model->company_id]);
@@ -124,9 +125,9 @@ class ItemCompanyCategoryController extends BaseUiController {
 		$model = new ItemCompanyCategory(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('ItemCompanyCategory') !== null)
+		if (isset($_GET['ItemCompanyCategory']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'ItemCompanyCategory');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -143,8 +144,8 @@ class ItemCompanyCategoryController extends BaseUiController {
 		if( !($model->checkPermission ('itemCompanyCategory/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('ItemCompanyCategory') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['ItemCompanyCategory']))
+			$model->load($_GET, 'ItemCompanyCategory');
 
 		return $this->render('admin', [
 			'model' => $model,

@@ -138,7 +138,7 @@ class PurchaseOrderController extends BaseUiController {
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
 		$mPDF1->Output();
 		if($email != '' && ($role->id != $login->role_id)){
-			$from = Yii::$app->params['mail_email'] ;
+			$from = (Yii::$app->params['mail_email'] ?? null) ;
 			$to      = $email;
 			$subject = 'Your purchase order :';
 		

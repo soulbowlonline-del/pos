@@ -546,6 +546,8 @@ class ScannedItems extends ActiveRecord
 		Criteria::compare($query, 'item_detail', $this->item_detail);
 		Criteria::compare($query, 'created_at', $this->created_at, true);
 		
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

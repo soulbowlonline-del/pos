@@ -344,7 +344,7 @@ class OrderItem extends ActiveRecord
      */
     public static function listingOrder()
     {
-        return ['id' => SORT_DESC];
+        return ['t.id' => SORT_DESC];
     }
 
     /** Views ask the model whether the current role may reach a route. */
@@ -2935,7 +2935,7 @@ class OrderItem extends ActiveRecord
 
 
             $refund_price = '0.00';
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             Criteria::compare($query3, 'date(orderRefund.create_time)', $this->create_date);
             $query3->select('sum(t.price*t.qty) as qty');
@@ -2966,7 +2966,7 @@ class OrderItem extends ActiveRecord
 
             $order_price = $order->tax_amount;
             $refund_price = '0.00';
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
 
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->select('sum(t.tax_amt) as tax_amt');
@@ -3007,7 +3007,7 @@ class OrderItem extends ActiveRecord
 
             $order_price = $order->cgst_amt;
 
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
             $query3->andWhere('orderRefund.order_id ='.$this->order_id);
@@ -3058,7 +3058,7 @@ class OrderItem extends ActiveRecord
 
             $order_price = $order->sgst_amt;
 
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
 
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
@@ -3113,7 +3113,7 @@ class OrderItem extends ActiveRecord
 
             $order_price = $order->igst_amt;
 
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
 
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
@@ -3165,7 +3165,7 @@ class OrderItem extends ActiveRecord
 
             $order_price = $order->cess_amt;
 
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
             $query3->andWhere('orderRefund.order_id =' . $this->order_id);
@@ -3235,7 +3235,7 @@ class OrderItem extends ActiveRecord
 
 
 
-            $query3 = OrderRefundItem::find();
+            $query3 = OrderRefundItem::find()->alias('t');
 
             $query3->andWhere('t.tax_id =' . $this->tax_id);
             $query3->joinWith(['orderRefund' => function ($q) { $q->alias('orderRefund'); }]);
@@ -3377,6 +3377,8 @@ class OrderItem extends ActiveRecord
 		Criteria::compare($query, 'create_user_id', $this->create_user_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by);
 	
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
@@ -3392,7 +3394,7 @@ class OrderItem extends ActiveRecord
 
 	
 		$order_ids = [];
-		$query1 = Order::find();
+		$query1 = Order::find()->alias('t');
 		if ((Yii::$app->session ['order_b2b_start_date'] != '') && (Yii::$app->session ['order_b2b_end_date'] != '')) {
 			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_b2b_start_date'], Yii::$app->session ['order_b2b_end_date']]);
 		}else{
@@ -3407,15 +3409,15 @@ class OrderItem extends ActiveRecord
 				$order_ids[] = $order->id;
 			}
 		}
-	Yii::warning( var_export( $order_ids , true), '$order_ids_b2b');
-		$query = self::find()->alias('t');
+	Yii::warning( var_export($order_ids, true), '$order_ids_b2b');
+		$query = OrderItem::find()->alias('t');
 		$query->andWhere(['order_id' => $order_ids]);
 	
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
 		$query->groupBy('t.tax_id,t.create_date');
 		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
 		// explicitly by the grouped columns to preserve the previous output order.
-		$query->orderBy(['tax_id' => SORT_ASC, 'create_date' => SORT_ASC]);
+		$query->orderBy(['t.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
 		//$criteria->group = 't.tax_id,t.order_id';
 		Criteria::compare($query, 'item.title', $this->item_id, true);
 	
@@ -3434,8 +3436,11 @@ class OrderItem extends ActiveRecord
 		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
 		
 	
+		$query->orderBy(['t.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -3449,7 +3454,7 @@ class OrderItem extends ActiveRecord
 
 	
 		$order_ids = [];
-		$query1 = Order::find();
+		$query1 = Order::find()->alias('t');
 		if ((Yii::$app->session ['order_item_start_date'] != '') && (Yii::$app->session ['order_item_end_date'] != '')) {
 			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['order_item_start_date'], Yii::$app->session ['order_item_end_date']]);
 		}else{
@@ -3458,8 +3463,8 @@ class OrderItem extends ActiveRecord
 		if ( $this->mode_of_payment != null) {
 			$query1->andWhere('t.mode_of_payment ='.$this->mode_of_payment);
 		}
-		Yii::warning( var_export( Yii::$app->session ['order_item_start_date'] , true), 'start_date');
-		Yii::warning( var_export( Yii::$app->session ['order_item_end_date'] , true), 'end_date');
+		Yii::warning( var_export(Yii::$app->session ['order_item_start_date'], true), 'start_date');
+		Yii::warning( var_export(Yii::$app->session ['order_item_end_date'], true), 'end_date');
 		$orders = $query1->all();
 		if($orders){
 			foreach($orders as $order){
@@ -3467,14 +3472,14 @@ class OrderItem extends ActiveRecord
 			}
 		}
 		
-		$query = self::find()->alias('t');
+		$query = OrderItem::find()->alias('t');
 		$query->andWhere(['order_id' => $order_ids]);
 	
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }]);
 		$query->groupBy('t.item_id,t.tax_id,t.create_date');
 		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
 		// explicitly by the grouped columns to preserve the previous output order.
-		$query->orderBy(['item_id' => SORT_ASC, 'tax_id' => SORT_ASC, 'create_date' => SORT_ASC]);
+		$query->orderBy(['t.item_id' => SORT_ASC, 't.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
 		Criteria::compare($query, 'item.title', $this->item_id, true);
 	
 		Criteria::compare($query, 'order.bill_no', $this->order_id);
@@ -3490,8 +3495,8 @@ class OrderItem extends ActiveRecord
 		Criteria::compare($query, 't.price', $this->price);
 		Criteria::compare($query, 't.discount_id', $this->discount_id);
 		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
-	//    $orderItems = OrderItem::model()->findAll(;
-	   // Yii::warning( var_export( $orderItems , true), '$orderItems');
+	//    $orderItems = OrderItem::model()->findAll($criteria);
+	   // Yii::warning( var_export($orderItems, true), '$orderItems');
 	   /*   if($orderItems){
 	     	$gst = 0;
 	     	$cgst = 0;
@@ -3503,7 +3508,7 @@ class OrderItem extends ActiveRecord
 	     	foreach($orderItems as $orderItem){
 	     		$gst = $gst + $orderItem->getOrderTotalgstAmount();
 	     		$cgst = $cgst + $orderItem->getGroupTaxCgstAmount();
-	     		//Yii::warning( var_export( $orderItem->getGroupTaxCgstAmount() , true), '$cgst');
+	     		//Yii::warning( var_export($orderItem->getGroupTaxCgstAmount(), true), '$cgst');
 	     		$sgst = $sgst + $orderItem->getGroupTaxSgstAmount();
 	     		$cess = $cess + $orderItem->getGroupTaxCessAmount();
 	     		$igst = $igst + $orderItem->getGroupTaxIgstAmount();
@@ -3519,8 +3524,11 @@ class OrderItem extends ActiveRecord
 	     	Yii::$app->session ['group_taxable_total']=number_format($taxable,2);
 	     } */
 	
+		$query->orderBy(['t.item_id' => SORT_ASC, 't.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -3651,7 +3659,7 @@ class OrderItem extends ActiveRecord
 	
 		
 
-		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['t.id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
@@ -3680,4 +3688,71 @@ class OrderItem extends ActiveRecord
                         throw $e; // Re-throw for transaction handling
                 }
         }
+
+    /**
+     * Yii 1's itemwisesearch(): a listing of its own, converted as written.
+     */
+    public function itemwisesearch()
+    {
+
+		$query = OrderItem::find()->alias('t');
+
+		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'order' => function ($q) { $q->alias('order'); }], true, 'INNER JOIN');
+		$query->groupBy('item_detail_id');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['item_detail_id' => SORT_ASC]);
+		
+		if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
+			$order_ids = [];
+			$query1 = Order::find()->alias('t');
+			$query1->andWhere(['between', 't.bill_date', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
+			$orders = $query1->all();
+			if($orders){
+				foreach($orders as $order){
+					$order_ids[] = $order->id;
+				}
+			}
+			$query->andWhere(['t.order_id' => $order_ids]);
+			
+		}
+		
+		
+		
+	
+		if(!empty(Yii::$app->session['item_id'])){
+			$query->andWhere(['item.id' => Yii::$app->session['item_id']]);
+		}else{
+			Criteria::compare($query, 'item.title', $this->item_id, true);
+		}
+		Criteria::compare($query, 'order.customer_id', $this->customer_id);
+		Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+
+		Criteria::compare($query, 't.tax_amount', $this->tax_amount, true);
+		Criteria::compare($query, 't.order_id', $this->order_id);
+		Criteria::compare($query, 't.tax_id', $this->tax_id);
+	
+		Criteria::compare($query, 't.qty', $this->qty);
+		Criteria::compare($query, 't.price', $this->price, true);
+
+		Criteria::compare($query, 't.discount_amt', $this->discount_amt, true);
+
+		/* $orderitems = OrderItem::model()->findAll($criteria);
+		if($orderitems){
+		$total = 0;
+			foreach($orderitems as $orderitem){
+				
+				$total = $total + $orderitem->getItemTotalAmount();
+			}
+		Yii::$app->session ['itemwise_total_amt']=number_format($total,2);
+		} */
+		$query->orderBy(['item_detail_id' => SORT_ASC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
 }

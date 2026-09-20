@@ -46,8 +46,8 @@ class ShiftController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'shift-form');
 
-		if (Yii::$app->request->post('Shift') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Shift'])) {
+			$model->load($_POST, 'Shift');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -69,8 +69,8 @@ class ShiftController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'shift-form');
 
-		if (Yii::$app->request->post('Shift') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Shift'])) {
+			$model->load($_POST, 'Shift');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -119,9 +119,9 @@ class ShiftController extends BaseUiController {
 		$model = new Shift(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Shift') !== null)
+		if (isset($_GET['Shift']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Shift');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -138,8 +138,8 @@ class ShiftController extends BaseUiController {
 		if( !($model->checkPermission ('shift/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Shift') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Shift']))
+			$model->load($_GET, 'Shift');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

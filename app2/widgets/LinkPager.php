@@ -18,6 +18,15 @@ class LinkPager extends \yii\widgets\LinkPager
     /** CLinkPager's name for the container's HTML attributes. */
     public $htmlOptions = [];
 
+    /**
+     * @var \yii\data\Pagination CLinkPager's name for the pagination object.
+     *
+     * A view that renders a pager by hand passes it as `pages`;
+     * item/printBarcode does. Yii 2 calls the property `pagination` and
+     * refuses the other name outright.
+     */
+    public $pages;
+
     /** CLinkPager's labels. Yii 2 spells them ...PageLabel as well. */
     public $header;
 
@@ -27,6 +36,9 @@ class LinkPager extends \yii\widgets\LinkPager
     {
         if (!empty($this->htmlOptions)) {
             $this->options = array_merge($this->options, $this->htmlOptions);
+        }
+        if ($this->pages !== null && $this->pagination === null) {
+            $this->pagination = $this->pages;
         }
 
         // CLinkPager's own defaults, which the two frameworks do not share:

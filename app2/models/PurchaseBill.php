@@ -1163,7 +1163,7 @@ class PurchaseBill extends ActiveRecord
 				Criteria::compare($query, 'vendor_id', $vendor->id);
 		}
 		/* if($val == true){
-			$query->andWhere(['status' => array(PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED)]);
+			$criteria->addInCondition('status',array(PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED));
 		} */
 		if($val == false){
 			$vendor_ids = array();

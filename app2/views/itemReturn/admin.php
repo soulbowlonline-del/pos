@@ -3,6 +3,7 @@
  * Ported from protected/views/itemReturn/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\ItemReturn;
@@ -201,14 +202,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-								//	'visible' => function ($data) { return $data->checkPermission ("outlet/view")=="true"; },
+								//	'visible' => function ($data) { return Access::check("outlet/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemReturn/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-								//	'visible' => function ($data) { return $data->checkPermission ("outlet/view")=="true"; },
+								//	'visible' => function ($data) { return Access::check("outlet/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemReturn/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

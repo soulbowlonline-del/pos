@@ -3,6 +3,7 @@
  * Ported from protected/views/item/_form.php.
  */
 
+use app\components\Access;
 use app\components\Ui;
 use app\models\Item;
 use app\models\User;
@@ -149,7 +150,7 @@ HSN Code
 	$user = Yii::$app->user->model;
 	if ($user->role_id == $role->id) { */
 		?>
-		 <?php if($model->checkPermission('item/active')){?>
+		 <?php if(Access::check('item/active')){?>
 	<?php
 		
 echo $form->dropDownListRow ( $model, 'status', $model->getStatusOptions (), [

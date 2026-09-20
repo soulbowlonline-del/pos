@@ -183,7 +183,7 @@ $this->params['breadcrumbs'] = [
                     <?php
                     $query = CustomerLoyalty::find()->alias('t');
                     $query->with = ['customer'];
-                    $query->orderBy(['total_points' => SORT_DESC]);
+                    $query->orderBy(['t.total_points' => SORT_DESC]);
                     $query->limit(10);
                     $query->andWhere('total_points > 0');
                     $topCustomers = $query->all();

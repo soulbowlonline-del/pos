@@ -3,6 +3,7 @@
  * Ported from protected/views/emp/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Designation;
@@ -124,14 +125,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("emp/view")=="true"; },
+									'visible' => function ($data) { return Access::check("emp/view")=="true"; },
 									'url' => function ($data) { return Ui::to("emp/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 			
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("emp/update")=="true"; },
+									'visible' => function ($data) { return Access::check("emp/update")=="true"; },
 									'url' => function ($data) { return Ui::to("emp/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

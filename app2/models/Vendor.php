@@ -1144,4 +1144,31 @@ class Vendor extends ActiveRecord
             }
             return $output;
         }
+
+    public static function getAllItems($id = null) {
+            $item_arr = [];
+            $exist = [];
+            if($id != null){
+                $query1 = ItemVendor::find();
+            $query1->orderBy(['id' => SORT_DESC]);
+                $query1->andWhere('vendor_id =' . $id);
+                $itemvendors = $query1->all();
+                if($itemvendors){
+                    foreach($itemvendors as $itemvendor){
+                        $exist[] = $itemvendor->item_detail_id;
+                    }
+                }
+            }
+            $query = Item::find();
+            $query->andWhere(['not in', 'id', $exist]);
+            $query->andWhere('status =' . Item::STATUS_ACTIVE);
+            $items = $query->all();
+            if ($items != null) {
+                foreach ( $items as $item ) {
+                    $item_arr [$item->id] = $item->title;
+                }
+            }
+
+            return $item_arr;
+        }
 }

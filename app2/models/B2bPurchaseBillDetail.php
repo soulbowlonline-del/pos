@@ -292,7 +292,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
      */
     public static function listingOrder()
     {
-        return ['order' => SORT_ASC];
+        return ['t.order' => SORT_ASC];
     }
 
     /** Views ask the model whether the current role may reach a route. */
@@ -664,7 +664,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
                     }
                 }
             }
-                $vendor = Vendor::find()->all();
+                $vendor = Vendor::find()->orderBy(['id' => SORT_DESC])->all();
 
                 if ($vendor) {
                     foreach ($vendor as $_vendor) {
@@ -2050,7 +2050,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		
 		$query1->andWhere('status ='.B2bPurchaseBill::STATUS_APPROVED);
 		$purchasebills= $query1->all();
-	//	Yii::warning( var_export( $purchasebills , true), '$mrss');
+	//	Yii::warning( var_export($purchasebills, true), '$mrss');
 		if($purchasebills){
 			foreach($purchasebills as $purchasebill){
 				$purchase_bill_ids[] = $purchasebill->id;
@@ -2063,8 +2063,8 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		// explicitly by the grouped columns to preserve the previous output order.
 		$query->orderBy(['purchase_bill_id' => SORT_ASC, 'tax_id' => SORT_ASC]);
 		$query->andWhere(['purchase_bill_id' => $purchase_bill_ids]);
-		Yii::warning( var_export( Yii::$app->session ['tally_start_date'] , true), 'start_date');
-		Yii::warning( var_export( Yii::$app->session ['tally_start_date'] , true), 'end_date');
+		Yii::warning( var_export(Yii::$app->session ['tally_start_date'], true), 'start_date');
+		Yii::warning( var_export(Yii::$app->session ['tally_start_date'], true), 'end_date');
 		if ((Yii::$app->session ['tally_start_date'] != '') && (Yii::$app->session ['tally_end_date'] != '')) {
 			$query->andWhere(['between', 'date(create_time)', Yii::$app->session ['tally_start_date'], Yii::$app->session ['tally_end_date']]);
 		}
@@ -2094,8 +2094,11 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 'purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 'outlet_id', $this->outlet_id);
 	
+		$query->orderBy(['purchase_bill_id' => SORT_ASC, 'tax_id' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -2107,7 +2110,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
     public function purchasesearch()
     {
 
-		$query = self::find()->alias('t');
+		$query = B2bPurchaseBillDetail::find()->alias('t');
 	
 		
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }]);
@@ -2148,6 +2151,8 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 	
+		$query->orderBy(['t.order' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
@@ -2161,7 +2166,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
     public function itemwisesearch()
     {
 
-		$query = OrderItem::find();
+		$query = B2bPurchaseBillDetail::find()->alias('t');
 
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }, 'b2bPurchaseBill' => function ($q) { $q->alias('b2bPurchaseBill'); }]);
 		$query->select('t.*, SUM(t.approved_qty) AS approved_qty, SUM(t.amount) AS amount ');
@@ -2172,7 +2177,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		$query->orderBy(['item_detail_id' => SORT_ASC]);
 		if ((Yii::$app->session ['start_date'] != '') && (Yii::$app->session ['end_date'] != '')) {
 			$order_ids = [];
-			$query1 = B2bPurchaseBill::find();
+			$query1 = B2bPurchaseBill::find()->alias('t');
 			$query1->andWhere(['between', 't.start_date', Yii::$app->session ['start_date'], Yii::$app->session ['end_date']]);
 			$query1->andWhere('status ='. B2bPurchaseBill::STATUS_APPROVED);
 			$B2bPurchaseBill = $query1->all();
@@ -2209,7 +2214,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 
 		Criteria::compare($query, 't.discount_amt', $this->discount_amt, true);
 
-		/* $orderitems = $query->all();
+		/* $orderitems = OrderItem::model()->findAll($criteria);
 		if($orderitems){
 		$total = 0;
 			foreach($orderitems as $orderitem){
@@ -2218,8 +2223,11 @@ class B2bPurchaseBillDetail extends ActiveRecord
 			}
 		Yii::$app->session ['itemwise_total_amt']=number_format($total,2);
 		} */
+		$query->orderBy(['item_detail_id' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -2233,7 +2241,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 
 	
 		$order_ids = [];
-		$query1 = B2bPurchaseBill::find();
+		$query1 = B2bPurchaseBill::find()->alias('t');
 		if ((Yii::$app->session ['order_b2b_start_date'] != '') && (Yii::$app->session ['order_b2b_end_date'] != '')) {
 			$query1->andWhere(['between', 't.start_date', Yii::$app->session ['order_b2b_start_date'], Yii::$app->session ['order_b2b_end_date']]);
 		}else{
@@ -2406,7 +2414,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 		
-		$query->orderBy(['order' => SORT_ASC]);
+		$query->orderBy(['t.order' => SORT_ASC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
@@ -2573,7 +2581,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 	
 		
 
-		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['t.id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
@@ -2631,7 +2639,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		$query->groupBy('t.tax_id,b2bPurchaseBill.id');
 		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
 		// explicitly by the grouped columns to preserve the previous output order.
-		$query->orderBy(['tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
+		$query->orderBy(['t.tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
 		
 		// $criteria->group = 't.tax_id,b2bPurchaseBill.vendor_id';
 		Criteria::compare($query, 'item.title', $this->item_id, true);
@@ -2653,12 +2661,34 @@ class B2bPurchaseBillDetail extends ActiveRecord
 	
 		
 
-		$query->orderBy(['tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
+		$query->orderBy(['t.tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => 100],
 		]);
     }
+
+    public function TotalTax()
+        {
+            $bill_prefix = 'Tax';
+            $total = ($this->cess_amt + $this->sgst_amt + $this->cgst_amt + $this->igst_amt);
+
+
+            return $total;
+        }
+
+    public function getTaxTitle()
+        {
+            $bill_prefix = 'B';
+            $tax = $this->tax_id;
+
+            $bill = Tax::findOne($tax);
+
+
+
+            return $bill->title;
+        }
 }

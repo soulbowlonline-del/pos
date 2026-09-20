@@ -46,8 +46,8 @@ class OutletController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'outlet-form');
 
-		if (Yii::$app->request->post('Outlet') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Outlet'])) {
+			$model->load($_POST, 'Outlet');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -69,8 +69,8 @@ class OutletController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'outlet-form');
 
-		if (Yii::$app->request->post('Outlet') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Outlet'])) {
+			$model->load($_POST, 'Outlet');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -119,9 +119,9 @@ class OutletController extends BaseUiController {
 		$model = new Outlet(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Outlet') !== null)
+		if (isset($_GET['Outlet']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Outlet');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -138,8 +138,8 @@ class OutletController extends BaseUiController {
 		if( !($model->checkPermission ('outlet/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Outlet') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Outlet']))
+			$model->load($_GET, 'Outlet');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

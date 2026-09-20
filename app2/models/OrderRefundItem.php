@@ -102,7 +102,7 @@ class OrderRefundItem extends ActiveRecord
      */
     public static function listingOrder()
     {
-        return ['id' => SORT_DESC];
+        return ['t.id' => SORT_DESC];
     }
 
     /** Views ask the model whether the current role may reach a route. */
@@ -448,7 +448,7 @@ class OrderRefundItem extends ActiveRecord
 		Criteria::compare($query, 't.update_time', $this->update_time, true);
 		Criteria::compare($query, 't.create_user_id', $this->create_user_id);
 		Criteria::compare($query, 't.updated_by', $this->updated_by);
-		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['t.id' => SORT_DESC]);
 		$refundItems = $query->all();
 		if($refundItems){
 		$total = 0;
@@ -457,7 +457,7 @@ class OrderRefundItem extends ActiveRecord
 			}
 			Yii::$app->session ['refund_total']=number_format($total,2);
 		}
-		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['t.id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,

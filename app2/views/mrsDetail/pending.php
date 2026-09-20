@@ -3,6 +3,7 @@
  * Ported from protected/views/mrsDetail/pending.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -131,7 +132,7 @@ $('.search-form form').submit(function(){
     				'htmlOptions'=> ['style'=>'width:80px'],
     				'buttons'=>[
     						'Assign'=>[
-    								//'visible' => function ($data) { return $data->checkPermission ("mrsDetail/admin")=="true"; },
+    								//'visible' => function ($data) { return Access::check("mrsDetail/admin")=="true"; },
     								'url' => function ($data) { return Ui::to("mrsDetail/assign", ["id" => $data->id]); },
     								'label'=>'Assign',
     								'options'=>['class'=>'view'],

@@ -89,10 +89,10 @@ class OrderUiController extends BaseUiController {
 	
 	/*public function actionChangeTax() {
 		$date = "2020-09-30";
-	    $query_2 = OrderItem::find();
-		$query_2->andWhere('create_date > "'.$date.'"');
+	    $criteria = new CDbCriteria();
+		$criteria->addCondition('create_date > "'.$date.'"');
 		//$criteria->addCondition('qty > 1');
-		$orders = $query_2->all();
+		$orders = OrderItem::model()->findAll($criteria);
 		if($orders){
 			foreach($orders as $order){
 				$tax = Tax::findOne($order->tax_id);
@@ -243,12 +243,12 @@ class OrderUiController extends BaseUiController {
 		
 		$total = 0;
 		$taxamount = 0;
-		/* $query2 = OrderItem::find();
-		$query2->select('sum(total_amt) as total_amt');
-	$query2->andWhere('tax_id =10');
-	Criteria::compare($query2, 'date(create_time)', '2018-08-30');
+		/* $criteria2 = new CDbCriteria;
+		$criteria2->select = 'sum(total_amt) as total_amt';
+	$criteria2->addCondition('tax_id =10');
+	$criteria2->compare('date(create_time)','2018-08-30');
 	//$criteria1->limit = '10';
-	$order = $query2->one(); */
+	$order = OrderItem::model()->find($criteria2); */
 	
 	$sdate = '2021-08-01';
 	$edate = '2021-08-12';
@@ -261,7 +261,7 @@ class OrderUiController extends BaseUiController {
 //	$criteria1->compare('date(create_time)','2018-09-19');
 	//$criteria1->limit = '10';
 	$orderItems = $query1->all();
-	$orderItemcounts = $query1->all();
+	$orderItemcounts = $query1->count();
 	
 		if ($orderItems) {
 			/* foreach ( $orderItems as $orderItem ) {
@@ -508,7 +508,7 @@ if($oldgst != $newgst){
 				'model' => $model 
 		] );
 	}
-	public function actionorderexcel()
+	public function actionOrderexcel()
     {
         
         header('Content-Type: text/csv');
@@ -1299,7 +1299,7 @@ public function actionB2bItemWiseExport()
         // $criteria = new CDbCriteria();
         // $criteria->compare('title', 'B2B');
         // $criteria->compare('type_id', '0');
-        // $modePayment = PaymentMode::model()->find(;
+        // $modePayment = PaymentMode::model()->find($criteria);
         // if ($modePayment) {
             // Yii::$app->session['order_mode_payment'] = $modePayment->id;
         // } else {

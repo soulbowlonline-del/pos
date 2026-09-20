@@ -3,6 +3,7 @@ namespace app\controllers;
 
 use app\components\Ui;
 use app\models\Emp;
+use app\models\EmpShift;
 use app\models\User;
 use app\models\UserRole;
 use app\models\Vendor;
@@ -84,9 +85,9 @@ class EmpUiController extends BaseUiController {
 
 			$this->performAjaxValidation( $model, 'emp-form' );
 
-			if (Yii::$app->request->post('Emp') !== null) {
+			if (isset ( $_POST ['Emp'] )) {
 					
-				$model->load(Yii::$app->request->post());
+				$model->load($_POST, 'Emp');
 				$user = User::getUserByEmail ( $model->email );
 				$user1 = User::getUserByName ( $model->username );
 				if (isset ( $_POST ['Emp']['role_id'] ) && ($_POST ['Emp']['role_id'] != '')) {
@@ -179,8 +180,8 @@ class EmpUiController extends BaseUiController {
 
 			$this->performAjaxValidation( $model, 'emp-form' );
 
-			if (Yii::$app->request->post('Emp') !== null) {
-				$model->load(Yii::$app->request->post());
+			if (isset ( $_POST ['Emp'] )) {
+				$model->load($_POST, 'Emp');
 				if (isset ( $_POST ['Emp']['role_id'] )) {
 					$model->role_id = implode(',', $_POST ['Emp']['role_id']);
 				}
@@ -291,8 +292,8 @@ class EmpUiController extends BaseUiController {
 		$model = new Emp(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 
-		if (Yii::$app->request->get('Emp') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Emp'] )) {
+			$model->load($_GET, 'Emp');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model
@@ -309,8 +310,8 @@ class EmpUiController extends BaseUiController {
 			throw new ForbiddenHttpException(Yii::t ( 'app', 'You are not allowed to access this page.' ) );
 			$this->updateMenuItems ( $model );
 
-			if (Yii::$app->request->get('Emp') !== null)
-				$model->load(Yii::$app->request->queryParams);
+			if (isset ( $_GET ['Emp'] ))
+				$model->load($_GET, 'Emp');
 				if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 					$this->exportCSV( $model->search (), [
 								

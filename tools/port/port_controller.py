@@ -325,6 +325,12 @@ def yii2_action_names(body):
     """
     def fix(m):
         name = m.group(1)
+        if name == 's':
+            # `public function actions()` - the framework's own declaration of
+            # class-based actions, not an action called `s`. Renaming it to
+            # actionS() made /v2/site/s answer 500 where Yii 1 answers 404,
+            # and stopped site's captcha and page actions being declared.
+            return m.group(0)
         ident = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1-\2', name)
         ident = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', ident).lower()
         want = ''.join(w[:1].upper() + w[1:] for w in ident.split('-'))

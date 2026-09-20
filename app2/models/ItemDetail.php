@@ -1,6 +1,8 @@
 <?php
 namespace app\models;
 
+use yii\helpers\Html;
+
 use app\components\Criteria;
 
 use app\components\Ui;
@@ -1462,101 +1464,34 @@ class ItemDetail extends ActiveRecord
      */
     public function search($params = [])
     {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            // The page size Yii 1's search() asks its provider for, which
+            // is not always the framework default.
+            'pagination' => ['pageSize' => 10],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-		$item_ids = array ();
-		$query = ItemDetail::find()->alias('t');
-		$item_list_ids = array ();
-		
-		$match_purchase_price = null;
-		$match_mrp = null;
-		$match_item_id = null;
-		$match_hsn_code = null;
-		$match_product_code = null;
-		
-		if ($this->item_id != null) {
-			/* Yii::warning( var_export($this->item_id, true), '$this->item_id');
-			$query2 = Item::find()->alias('t');
-			
-				$query2->andWhere("title LIKE :title", array (
-						':title' => trim (  $this->item_id ) . '%'
-				));
-				
-			
-			//$criteria2->compare ( 'title', $this->item_id );
-			$getitem = $query2->one();
-			if($getitem){
-			$query1 = ItemDetail::find()->alias('t');
-			$query1->orderBy(['id' => SORT_ASC]);
-			$query1->andWhere('item_id ='.$getitem->id);
-			$itemDetail = $query1->one();
-			if($itemDetail){
-				$query->andWhere('id !='. $itemDetail->id);
-			}
-			} */
-			$match_item_id = $this->item_id;
-			Yii::warning( var_export($match_item_id, true), '$match_item_id');
-		}
-		if ($this->mrp != null) {
-			$match_mrp = $this->mrp;
-		}
-		
-		if ($this->purchase_price != null) {
-			$match_purchase_price = $this->purchase_price;
-		}
-		if ($this->hsn_code != null) {
-			$match_hsn_code = $this->hsn_code;
-		}
-		
-		if ($this->product_code != null) {
-			$match_product_code = $this->product_code;
-		}
-		if ($this->company_id != null) {
-			$match_company_id = $this->company_id;
-		}else{
-			$match_company_id = null;
-		}
-		
-		
-		$is_vendor = 0;
-		$query->orderBy(['id' => SORT_DESC]);
-		Criteria::compare($query, 'id', $this->id);
-		
-		$role = UserRole::find()->where(array (
-				'title' => 'Vendor' 
-		))->orderBy(['id' => SORT_DESC])->one();
-		$user = Yii::$app->user->model;
-		if ($user->role_id == $role->id) {
-			$is_vendor = 1;
-		} 
-		
-		if($match_item_id != null || $match_mrp !=null ||$match_hsn_code !=null || $match_product_code != null ||
-				$match_purchase_price != null || $match_company_id !=null || $is_vendor == 1	)
-		{
-		$item_ids = $this->getItemOptionIdsInBarcode ($match_item_id ,$match_mrp,$match_hsn_code,$match_product_code,
-				$match_purchase_price,$match_company_id,$is_vendor);
-		$query->andWhere(['item_id' => $item_ids]);
-		}
-			
-	
-		Criteria::compare($query, 'bar_code', $this->bar_code, true);
-		Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);
-		//$criteria->compare ( 'mrp', $this->mrp );
-		Criteria::compare($query, 'reorder_qty', $this->reorder_qty);
-		Criteria::compare($query, 'status', $this->status);
-		Criteria::compare($query, 'type_id', $this->type_id);
-		Criteria::compare($query, 'create_time', $this->create_time, true);
-		Criteria::compare($query, 'tax_id', $this->tax_id);
-		Criteria::compare($query, 'create_user_id', $this->create_user_id);
-		Criteria::compare($query, 'updated_by', $this->updated_by);
-		
-		$query->orderBy(['id' => SORT_DESC]);
+        foreach ([['id', 'id'], ['open_stock_qty', 'open_stock_qty'], ['mrp', 'mrp'], ['reorder_qty', 'reorder_qty'], ['status', 'status'], ['type_id', 'type_id'], ['tax_id', 'tax_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['bar_code', 'bar_code'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
 
-		return new ActiveDataProvider([
-		    'query' => $query,
-		    'sort' => ['defaultOrder' => []],
-		    'pagination' => ['pageSize' => 10],
-		]);
+        return $provider;
     }
 
     /**
@@ -1666,96 +1601,104 @@ class ItemDetail extends ActiveRecord
     }
 
     /**
-     * BaseItemDetail::adminsearch(): the provider behind itemDetail/admin.
-     *
-     * Not search(), and not a variant of it. Four of this grid's filters -
-     * item title, mrp, hsn code, product code - are columns of Item, not of
-     * item_detail, so they are resolved to a set of item ids first and the
-     * grid is then filtered by item_id. The generator builds search() out of
-     * its compares; this one is not a list of compares, so it is written out.
-     *
-     * Takes no parameters: the action loads the model from the query string
-     * and the view calls this on the loaded model, as Yii 1 does.
+     * Yii 1's adminsearch(): a listing of its own, converted as written.
      */
     public function adminsearch()
     {
-        $query = self::find();
 
-        $match_mrp = null;
-        $match_purchase_price = null;
-        $match_item_id = null;
-        $match_hsn_code = null;
-        $match_product_code = null;
+		$item_ids = [];
+		$query = ItemDetail::find()->alias('t');
+		$item_list_ids = [];
+	
+		$match_purchase_price = null;
+		$match_mrp = null;
+		$match_item_id = null;
+		$match_hsn_code = null;
+		$match_product_code = null;
+	
+		if ($this->item_id != null) {
+			Yii::warning( var_export($this->item_id, true), '$this->item_id');
+				$query2 = Item::find()->alias('t');
+					
+				$query2->andWhere("title LIKE :title", [
+				':title' => trim (  $this->item_id ) . '%'
+				]);
+				
+					
+				//$criteria2->compare ( 'title', $this->item_id );
+				$getitem = $query2->one();
+				if($getitem){
+				$query1 = ItemDetail::find()->alias('t');
+				$query1->orderBy(['id' => SORT_ASC]);
+				$query1->andWhere('item_id ='.$getitem->id);
+				$itemDetail = $query1->one();
+				if($itemDetail){
+				$query->andWhere('id !='. $itemDetail->id);
+				}
+				} 
+			$match_item_id = $this->item_id;
+			Yii::warning( var_export($match_item_id, true), '$match_item_id');
+		}
+		if ($this->mrp != null) {
+			$match_mrp = $this->mrp;
+		}
+	
+		if ($this->purchase_price != null) {
+			$match_purchase_price = $this->purchase_price;
+		}
+		if ($this->hsn_code != null) {
+			$match_hsn_code = $this->hsn_code;
+		}
+	
+		if ($this->product_code != null) {
+			$match_product_code = $this->product_code;
+		}
+		if ($this->company_id != null) {
+			$match_company_id = $this->company_id;
+		}else{
+			$match_company_id = null;
+		}
+	
+	
+		$is_vendor = 0;
+		$query->orderBy(['t.id' => SORT_DESC]);
+		Criteria::compare($query, 'id', $this->id);
+	
+		$role = UserRole::find()->where([
+				'title' => 'Vendor'
+		])->orderBy(['id' => SORT_DESC])->one();
+		$user = Yii::$app->user->model;
+		if ($user->role_id == $role->id) {
+			$is_vendor = 1;
+		}
+	
+		if($match_item_id != null || $match_mrp !=null ||$match_hsn_code !=null || $match_product_code != null ||
+				$match_purchase_price != null || $match_company_id !=null || $is_vendor == 1	)
+		{
+			$item_ids = $this->getItemOptionIdsInBarcode ($match_item_id ,$match_mrp,$match_hsn_code,$match_product_code,
+					$match_purchase_price,$match_company_id,$is_vendor);
+			$query->andWhere(['item_id' => $item_ids]);
+		}
+			
+	
+		Criteria::compare($query, 'bar_code', $this->bar_code, true);
+		Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);
+		//$criteria->compare ( 'mrp', $this->mrp );
+		Criteria::compare($query, 'reorder_qty', $this->reorder_qty);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'tax_id', $this->tax_id);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+	
+		$query->orderBy(['t.id' => SORT_DESC]);
 
-        if ($this->item_id != null) {
-            // item_id holds a title here, not an id: the action puts the
-            // Item's title in it, and the filter box is a title box.
-            $item = Item::find()
-                ->where('title LIKE :title', [':title' => trim($this->item_id) . '%'])
-                ->one();
-            if ($item) {
-                $first = ItemDetail::find()
-                    ->where('item_id = ' . $item->id)
-                    ->orderBy('id asc')
-                    ->one();
-                if ($first) {
-                    // The first detail row of a matched item is the item
-                    // itself, and the admin grid hides it.
-                    $query->andWhere('id != ' . $first->id);
-                }
-            }
-            $match_item_id = $this->item_id;
-        }
-        if ($this->mrp != null) {
-            $match_mrp = $this->mrp;
-        }
-        if ($this->purchase_price != null) {
-            $match_purchase_price = $this->purchase_price;
-        }
-        if ($this->hsn_code != null) {
-            $match_hsn_code = $this->hsn_code;
-        }
-        if ($this->product_code != null) {
-            $match_product_code = $this->product_code;
-        }
-        $match_company_id = $this->company_id != null ? $this->company_id : null;
-
-        $is_vendor = 0;
-        $role = UserRole::findOne(['title' => 'Vendor']);
-        $user = Yii::$app->user->model;
-        if ($user && $role && $user->role_id == $role->id) {
-            $is_vendor = 1;
-        }
-
-        if ($match_item_id != null || $match_mrp != null || $match_hsn_code != null
-            || $match_product_code != null || $match_purchase_price != null
-            || $match_company_id != null || $is_vendor == 1) {
-            $query->andWhere(['item_id' => $this->getItemOptionIdsInBarcode(
-                $match_item_id, $match_mrp, $match_hsn_code, $match_product_code,
-                $match_purchase_price, $match_company_id, $is_vendor)]);
-        }
-
-        Criteria::compare($query, 'id', $this->id);
-        Criteria::compare($query, 'bar_code', $this->bar_code, true);
-        Criteria::compare($query, 'open_stock_qty', $this->open_stock_qty);
-        Criteria::compare($query, 'reorder_qty', $this->reorder_qty);
-        Criteria::compare($query, 'status', $this->status);
-        Criteria::compare($query, 'type_id', $this->type_id);
-        Criteria::compare($query, 'create_time', $this->create_time, true);
-        Criteria::compare($query, 'tax_id', $this->tax_id);
-        Criteria::compare($query, 'create_user_id', $this->create_user_id);
-        Criteria::compare($query, 'updated_by', $this->updated_by);
-
-        // Yii 1 puts 't.id desc' on the criteria and 'id DESC' on the sort,
-        // and CSort::applyOrder appends one to the other. Both name the same
-        // column in the same direction, so one of them says it.
-        $query->orderBy('id desc');
-
-        return new ActiveDataProvider([
-            'query' => $query,
-            'sort' => ['defaultOrder' => []],
-            'pagination' => ['pageSize' => 10],
-        ]);
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 10],
+		]);
     }
 
     /**
@@ -1851,4 +1794,23 @@ class ItemDetail extends ActiveRecord
 
         return $list;
     }
+
+    public static function getItemBarcode($valueArray) {
+            $elementId = $valueArray ['itemId'] . "_bcode"; /* the div element id */
+            $value = $valueArray ['barocde'];
+            $type = 'code128'; /* you can set the type dynamically if you want valueArray eg - $valueArray['type'] */
+
+            self::getBarcode ( [
+                    'elementId' => $elementId,
+                    'value' => $value,
+                    'type' => $type
+            ] );
+            return \yii\helpers\Html::tag('div', '', [
+                    'id' => $elementId
+            ]);
+        }
+
+    public static function getBarcode($optionsArray) {
+            Yii::$app->getController ()->widget ( 'application.extensions.Yii-Barcode-Generator.Barcode', $optionsArray );
+        }
 }

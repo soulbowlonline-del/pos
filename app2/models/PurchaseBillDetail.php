@@ -923,7 +923,7 @@ class PurchaseBillDetail extends ActiveRecord
      */
     public static function listingOrder()
     {
-        return ['order' => SORT_ASC];
+        return ['t.order' => SORT_ASC];
     }
 
     public function getTaxIgstPercentage(){
@@ -1159,7 +1159,7 @@ class PurchaseBillDetail extends ActiveRecord
 		
 		$query1->andWhere('status ='.PurchaseBill::STATUS_APPROVED);
 		$purchasebills= $query1->all();
-	//	Yii::warning( var_export( $purchasebills , true), '$mrss');
+	//	Yii::warning( var_export($purchasebills, true), '$mrss');
 		if($purchasebills){
 			foreach($purchasebills as $purchasebill){
 				$purchase_bill_ids[] = $purchasebill->id;
@@ -1172,8 +1172,8 @@ class PurchaseBillDetail extends ActiveRecord
 		// explicitly by the grouped columns to preserve the previous output order.
 		$query->orderBy(['purchase_bill_id' => SORT_ASC, 'tax_id' => SORT_ASC]);
 		$query->andWhere(['purchase_bill_id' => $purchase_bill_ids]);
-		Yii::warning( var_export( Yii::$app->session ['tally_start_date'] , true), 'start_date');
-		Yii::warning( var_export( Yii::$app->session ['tally_start_date'] , true), 'end_date');
+		Yii::warning( var_export(Yii::$app->session ['tally_start_date'], true), 'start_date');
+		Yii::warning( var_export(Yii::$app->session ['tally_start_date'], true), 'end_date');
 		if ((Yii::$app->session ['tally_start_date'] != '') && (Yii::$app->session ['tally_end_date'] != '')) {
 			$query->andWhere(['between', 'date(create_time)', Yii::$app->session ['tally_start_date'], Yii::$app->session ['tally_end_date']]);
 		}
@@ -1203,8 +1203,11 @@ class PurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 'purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 'outlet_id', $this->outlet_id);
 	
+		$query->orderBy(['purchase_bill_id' => SORT_ASC, 'tax_id' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
+		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -1216,7 +1219,7 @@ class PurchaseBillDetail extends ActiveRecord
     public function purchasesearch()
     {
 
-		$query = self::find()->alias('t');
+		$query = PurchaseBillDetail::find()->alias('t');
 	
 		
 		$query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); }, 'item' => function ($q) { $q->alias('item'); }]);
@@ -1257,6 +1260,8 @@ class PurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 	
+		$query->orderBy(['t.order' => SORT_ASC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
@@ -1386,7 +1391,7 @@ class PurchaseBillDetail extends ActiveRecord
 		Criteria::compare($query, 't.purchase_bill_id', $this->purchase_bill_id);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 		
-		$query->orderBy(['order' => SORT_ASC]);
+		$query->orderBy(['t.order' => SORT_ASC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,

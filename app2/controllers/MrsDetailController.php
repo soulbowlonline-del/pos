@@ -109,11 +109,11 @@ class MrsDetailController extends BaseUiController {
 		$alreadypermissions = array ();
 		if (isset ( $_POST ['item_id'] )) {
 			
-			$query_2 = ItemDetail::find();
-			$query_2->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query_2->andWhere('item_id =' . $_POST ['item_id']);
+			$criteria = new CDbCriteria ();
+			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
+			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
 			
-			$itemdetails = $query_2->all();
+			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="MrsDetail_item_detaill_id" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
 			if ($itemdetails) {
 				foreach ( $itemdetails as $itemdetail ) {
@@ -917,7 +917,7 @@ class MrsDetailController extends BaseUiController {
 					Notification::AddNotification ( $model_id, $msg, $type, $to_id );
 					
 					if ($email != '') {
-						$from = Yii::$app->params ['mail_email'];
+						$from = (Yii::$app->params['mail_email'] ?? null);
 						$to = $email;
 						$subject = 'A new MRN is added:';
 						

@@ -44,8 +44,8 @@ class OrderRefundController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'order-refund-form');
 
-		if (Yii::$app->request->post('OrderRefund') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['OrderRefund'])) {
+			$model->load($_POST, 'OrderRefund');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class OrderRefundController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'order-refund-form');
 
-		if (Yii::$app->request->post('OrderRefund') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['OrderRefund'])) {
+			$model->load($_POST, 'OrderRefund');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class OrderRefundController extends BaseUiController {
 		$model = new OrderRefund(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('OrderRefund') !== null)
+		if (isset($_GET['OrderRefund']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'OrderRefund');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class OrderRefundController extends BaseUiController {
 		$model = new OrderRefund(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('OrderRefund') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['OrderRefund']))
+			$model->load($_GET, 'OrderRefund');
 
 		return $this->render('admin', [
 			'model' => $model,

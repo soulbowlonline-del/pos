@@ -3,6 +3,7 @@
  * Ported from protected/views/itemDetail/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -114,21 +115,21 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("itemDetail/view")=="true"; },
+									'visible' => function ($data) { return Access::check("itemDetail/view")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("itemDetail/update")=="true"; },
+									'visible' => function ($data) { return Access::check("itemDetail/update")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],
 			
 							],
 							'delete'=>[
-									'visible' => function ($data) { return $data->checkPermission ("itemDetail/delete")=="true"; },
+									'visible' => function ($data) { return Access::check("itemDetail/delete")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/delete", ["id" => $data->id]); },
 									'label'=>'Delete',
 									'options'=>['class'=>'update'],

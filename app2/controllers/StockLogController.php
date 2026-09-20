@@ -44,8 +44,8 @@ class StockLogController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'stock-log-form');
 
-		if (Yii::$app->request->post('StockLog') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['StockLog'])) {
+			$model->load($_POST, 'StockLog');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class StockLogController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'stock-log-form');
 
-		if (Yii::$app->request->post('StockLog') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['StockLog'])) {
+			$model->load($_POST, 'StockLog');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class StockLogController extends BaseUiController {
 		$model = new StockLog(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('StockLog') !== null)
+		if (isset($_GET['StockLog']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'StockLog');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -136,8 +136,8 @@ class StockLogController extends BaseUiController {
 		if($id != null){
 			$_GET['StockLog']['item_id'] = $id;
 		}
-		if (Yii::$app->request->get('StockLog') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['StockLog']))
+			$model->load($_GET, 'StockLog');
 
 		return $this->render('admin', [
 			'model' => $model,'id'=>$id

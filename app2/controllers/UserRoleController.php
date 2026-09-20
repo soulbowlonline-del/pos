@@ -46,8 +46,8 @@ class UserRoleController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'user-role-form');
 
-		if (Yii::$app->request->post('UserRole') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['UserRole'])) {
+			$model->load($_POST, 'UserRole');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -69,8 +69,8 @@ class UserRoleController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'user-role-form');
 
-		if (Yii::$app->request->post('UserRole') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['UserRole'])) {
+			$model->load($_POST, 'UserRole');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -119,9 +119,9 @@ class UserRoleController extends BaseUiController {
 		$model = new UserRole(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('UserRole') !== null)
+		if (isset($_GET['UserRole']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'UserRole');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -138,8 +138,8 @@ class UserRoleController extends BaseUiController {
 		if( !($model->checkPermission ('userRole/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('UserRole') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['UserRole']))
+			$model->load($_GET, 'UserRole');
 
 		return $this->render('admin', [
 			'model' => $model,

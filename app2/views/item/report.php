@@ -3,6 +3,7 @@
  * Ported from protected/views/item/report.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\models\Item;
 use app\models\Vendor;
@@ -201,7 +202,7 @@ $('.search-form form').submit(function(){
 		/*	*/
 		
 			/* array(
-				'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
+				'visible' => function ($data) { return Access::check("itemDetail/admin")=="true"; },
 					'header'=>'Vendor',
 				'attribute' =>'vendor_id',
 					'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },

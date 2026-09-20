@@ -44,8 +44,8 @@ class AdvanceLogsController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'advance-logs-form');
 
-		if (Yii::$app->request->post('AdvanceLogs') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['AdvanceLogs'])) {
+			$model->load($_POST, 'AdvanceLogs');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class AdvanceLogsController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'advance-logs-form');
 
-		if (Yii::$app->request->post('AdvanceLogs') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['AdvanceLogs'])) {
+			$model->load($_POST, 'AdvanceLogs');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class AdvanceLogsController extends BaseUiController {
 		$model = new AdvanceLogs(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('AdvanceLogs') !== null)
+		if (isset($_GET['AdvanceLogs']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'AdvanceLogs');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class AdvanceLogsController extends BaseUiController {
 		$model = new AdvanceLogs(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('AdvanceLogs') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['AdvanceLogs']))
+			$model->load($_GET, 'AdvanceLogs');
 
 		return $this->render('admin', [
 			'model' => $model,

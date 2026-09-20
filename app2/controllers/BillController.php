@@ -44,8 +44,8 @@ class BillController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'bill-form');
       
-		if (Yii::$app->request->post('Bill') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Bill'])) {
+			$model->load($_POST, 'Bill');
 			$model->po_id = $id;
 			$model->saveUploadedFile ( $model, 'image_file1' );
 			$model->saveUploadedFile ( $model, 'image_file2' );
@@ -69,8 +69,8 @@ class BillController extends BaseUiController {
 		$this->performAjaxValidation($model, 'bill-form');
 		$old_image1 = $model->image_file1;
 		$old_image2 = $model->image_file2;
-		if (Yii::$app->request->post('Bill') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Bill'])) {
+			$model->load($_POST, 'Bill');
 			$image1 = $model->saveUploadedFile ( $model, 'image_file1' );
 			if($image1 == ''){
 				$model->image_file1 = $old_image1;
@@ -126,9 +126,9 @@ class BillController extends BaseUiController {
 		$model = new Bill(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Bill') !== null)
+		if (isset($_GET['Bill']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Bill');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -144,8 +144,8 @@ class BillController extends BaseUiController {
 		$model = new Bill(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Bill') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Bill']))
+			$model->load($_GET, 'Bill');
 
 		return $this->render('admin', [
 			'model' => $model,

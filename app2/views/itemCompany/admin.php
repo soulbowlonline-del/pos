@@ -3,6 +3,7 @@
  * Ported from protected/views/itemCompany/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\ItemCompany;
@@ -107,14 +108,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("ItemCompany/view")=="true"; },
+									'visible' => function ($data) { return Access::check("ItemCompany/view")=="true"; },
 									'url' => function ($data) { return Ui::to("ItemCompany/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("ItemCompany/update")=="true"; },
+									'visible' => function ($data) { return Access::check("ItemCompany/update")=="true"; },
 									'url' => function ($data) { return Ui::to("ItemCompany/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

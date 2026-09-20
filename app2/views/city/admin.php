@@ -3,6 +3,7 @@
  * Ported from protected/views/city/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\City;
@@ -102,14 +103,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("city/view")=="true"; },
+									'visible' => function ($data) { return Access::check("city/view")=="true"; },
 									'url' => function ($data) { return Ui::to("city/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 			
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("city/update")=="true"; },
+									'visible' => function ($data) { return Access::check("city/update")=="true"; },
 									'url' => function ($data) { return Ui::to("city/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

@@ -70,7 +70,7 @@ class RolePermissionController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'role-permission-form' );
 		$set = true;
-		if (Yii::$app->request->post('RolePermission') !== null) {
+		if (isset ( $_POST ['RolePermission'] )) {
 			if (isset ( $_POST ['RolePermission'] ['permission_id'] ) && isset ( $_POST ['RolePermission'] ['role_id'] )) {
 				$model->deleteOldPermissions($_POST ['RolePermission'] ['role_id']);
 				$permissions = $_POST ['RolePermission'] ['permission_id'];
@@ -106,8 +106,8 @@ class RolePermissionController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'role-permission-form' );
 		
-		if (Yii::$app->request->post('RolePermission') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['RolePermission'] )) {
+			$model->load($_POST, 'RolePermission');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -155,8 +155,8 @@ class RolePermissionController extends BaseUiController {
 		$model = new RolePermission(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('RolePermission') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['RolePermission'] )) {
+			$model->load($_GET, 'RolePermission');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -173,8 +173,8 @@ class RolePermissionController extends BaseUiController {
 			throw new ForbiddenHttpException(Yii::t ( 'app', 'You are not allowed to access this page.' ) );
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('RolePermission') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['RolePermission'] ))
+			$model->load($_GET, 'RolePermission');
 		
 		return $this->render( 'admin', [
 				'model' => $model 

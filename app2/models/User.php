@@ -624,7 +624,7 @@ class User extends ActiveRecord
         {
             $to      = $this->email;
 
-            $subject = 'Confirm Your Account at: ' . Yii::$app->params['company'];
+            $subject = 'Confirm Your Account at: ' . (Yii::$app->params['company'] ?? null);
 
             $body     = 'Thank you for registering with us. Please click on below given link to activate. ' ."\r\n";
             $body     .= Html::a( 'Activate', $this->getActivationUrl());
@@ -633,8 +633,8 @@ class User extends ActiveRecord
             $body     .= 'Thanks' ."\r\n";
             $body     .= 'Admin' ."\r\n";
 
-            $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
-                    'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+            $headers = 'From: ' . (Yii::$app->params['adminEmail'] ?? null) . "\r\n" .
+                    'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
             //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
             (class_exists('PosOutbound') && PosOutbound::isStubbed())
@@ -685,8 +685,8 @@ class User extends ActiveRecord
             $body     .= 'Thanks' ."\r\n";
             $body     .= 'Admin' ."\r\n";
 
-            $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
-                    'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+            $headers = 'From: ' . (Yii::$app->params['adminEmail'] ?? null) . "\r\n" .
+                    'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
             //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
             (class_exists('PosOutbound') && PosOutbound::isStubbed())
@@ -1233,8 +1233,8 @@ class User extends ActiveRecord
                 $body     .= 'Thanks' ."\r\n";
                 $body     .= 'Admin' ."\r\n";
 
-                $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
-                        'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+                $headers = 'From: ' . (Yii::$app->params['adminEmail'] ?? null) . "\r\n" .
+                        'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
                 //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
                 (class_exists('PosOutbound') && PosOutbound::isStubbed())
@@ -1265,8 +1265,8 @@ class User extends ActiveRecord
                 $body     .= 'Thanks' ."\r\n";
                 $body     .= 'Admin' ."\r\n";
 
-                $headers = 'From: ' . Yii::$app->params['adminEmail'] . "\r\n" .
-                        'Reply-To: ' . Yii::$app->params['adminEmail'] ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
+                $headers = 'From: ' . (Yii::$app->params['adminEmail'] ?? null) . "\r\n" .
+                        'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
                 //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
                 (class_exists('PosOutbound') && PosOutbound::isStubbed())

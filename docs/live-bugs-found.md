@@ -210,6 +210,35 @@ It is also why the UI suite reports these as **nothing compared** rather than
 as passes: both stacks answer 403, and a page neither stack renders has not
 been verified by their agreeing about it.
 
+### Two report pages print debugging output instead of a report — **found, not fixed**
+
+`order/groupTax` ends like this, on the untouched 5.6 baseline as well as on
+8.3:
+
+    </form>
+        <div class="col-md-12">
+        SELECT * FROM `tbl_order_item` `t` WHERE 0=1 GROUP BY t.tax_id,t.create_date ORDER BY ...
+
+`BaseOrderItem::groupTaxsearch()` carries a line that was meant to be
+temporary:
+
+```php
+// print_r query for debugging
+echo $this->getCommandBuilder()->createFindCommand($this->getTableSchema(), $criteria)->getText(); die;
+```
+
+So the page renders its search form, echoes the query it was about to run, and
+stops. It has never shown a report.
+
+`item/adjustStock` is the same fault without the `die`: `BaseItem::adjust()`
+does `echo "<pre>"; print_r($criteria); echo "</pre>";`, and the page carries a
+dump of the CDbCriteria object above the grid.
+
+Not fixed here: deleting a line from the Yii 1 tree is not porting it, and
+which of these reports is still wanted is a product question. The port cannot
+match either page - reproducing a debug dump is not a port - so `order/groupTax`
+is registered in `tests/port/known-action-failures.txt`.
+
 ### Six more pages that are 500 on the untouched 5.6 baseline — **found, not fixed**
 
 Measured against a real row, signed in, on both stacks:

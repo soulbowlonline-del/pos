@@ -31,7 +31,14 @@ ROOT = '/root/pos/pos83/app2'
 
 
 def code_spans(text):
-    """The (start, end) ranges of `text` that are code, not comment or string."""
+    """
+    The (start, end) ranges of `text` that are code rather than comment.
+
+    Comments only. Splitting strings out as well broke the rules that balance
+    parentheses: `LoyaltyTransaction::model()->findBySql(<<multi-line SQL>>)`
+    has its closing parenthesis in a different span from its opening one, so
+    the conversion could not see the end of the call and declined.
+    """
     out, i, n, run = [], 0, len(text), 0
     while i < n:
         c = text[i]
@@ -44,16 +51,6 @@ def code_spans(text):
         elif c == '/' and i + 1 < n and text[i + 1] == '*':
             j = text.find('*/', i + 2)
             j = n if j < 0 else j + 2
-        elif c in ('"', "'"):
-            q, j = c, i + 1
-            while j < n:
-                if text[j] == '\\':
-                    j += 2
-                    continue
-                if text[j] == q:
-                    j += 1
-                    break
-                j += 1
         else:
             i += 1
             continue
@@ -80,6 +77,42 @@ def on_code(fn, text):
         out.append(fn(text[a:b]))
         prev = b
     out.append(text[prev:])
+
+    return ''.join(out)
+
+
+def add_t_alias(text):
+    """
+    Give a query the `t` alias when its own conditions name it.
+
+    Yii 1 aliases the primary table `t`; Yii 2 aliases it by table name. The
+    generator has emitted `->alias('t')` for a query whose conditions mention
+    `t.` for a long time - but merge() preserves the methods an API-tracked
+    model already has, so a method first written before that rule existed
+    still carries a query without it. order/b2bReport and order/grouphsntax
+    died on "Unknown column 't.bill_date' in 'where clause'".
+
+    Scoped to one method at a time, and to the span between this assignment
+    and the next one to the same variable, so an alias is only added where the
+    conditions that need it actually are.
+    """
+    out = []
+    for piece in re.split(r'(?=\n[ \t]*(?:public|protected|private)?\s*'
+                          r'(?:static\s+)?function\s+\w+\s*\()', text):
+        edits = []
+        for m in re.finditer(r'(\$\w+)\s*=\s*(\w+)::find\(\)', piece):
+            var, decl_end = m.group(1), m.end()
+            if re.match(r"\s*->\s*alias\s*\(", piece[decl_end:]):
+                continue
+            nxt = re.search(re.escape(var) + r'\s*=\s*\w+::find\(\)',
+                            piece[decl_end:])
+            span = piece[decl_end:decl_end + (nxt.start() if nxt else len(piece))]
+            uses = re.search(re.escape(var) + r'\s*->[^;]*?[\'"]t\.', span, re.S)
+            if uses:
+                edits.append(decl_end)
+        for at in reversed(edits):
+            piece = piece[:at] + "->alias('t')" + piece[at:]
+        out.append(piece)
 
     return ''.join(out)
 
@@ -171,6 +204,7 @@ for dirpath, _, files in os.walk(ROOT):
         out = on_code(pm.finder_idioms, out)
         out = on_code(pm.dao_idioms, out)
         out = close_where(out)
+        out = add_t_alias(out)
         if out == src:
             continue
 

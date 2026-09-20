@@ -79,7 +79,7 @@ class ItemCompanyController extends BaseUiController {
 			'model' => $model
 		]);
 	}
-	public function actionsubView($id)
+	public function actionSubView($id)
 	{
 		$model = $this->loadModel($id);
 		if( !($model->checkPermission ('ItemCompany/view')))	throw new ForbiddenHttpException('You are not allowed to access this page.');

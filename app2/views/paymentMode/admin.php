@@ -3,6 +3,7 @@
  * Ported from protected/views/paymentMode/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\PaymentMode;
@@ -85,14 +86,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("paymentMode/view")=="true"; },
+									'visible' => function ($data) { return Access::check("paymentMode/view")=="true"; },
 									'url' => function ($data) { return Ui::to("paymentMode/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("paymentMode/update")=="true"; },
+									'visible' => function ($data) { return Access::check("paymentMode/update")=="true"; },
 									'url' => function ($data) { return Ui::to("paymentMode/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

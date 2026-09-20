@@ -90,8 +90,8 @@ class OrganizationController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'organization-form');
 
-		if (Yii::$app->request->post('Organization') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Organization'])) {
+			$model->load($_POST, 'Organization');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -113,8 +113,8 @@ class OrganizationController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'organization-form');
 
-		if (Yii::$app->request->post('Organization') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Organization'])) {
+			$model->load($_POST, 'Organization');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -163,9 +163,9 @@ class OrganizationController extends BaseUiController {
 		$model = new Organization(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Organization') !== null)
+		if (isset($_GET['Organization']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Organization');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -182,8 +182,8 @@ class OrganizationController extends BaseUiController {
 		if( !($model->checkPermission ('organization/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Organization') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Organization']))
+			$model->load($_GET, 'Organization');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

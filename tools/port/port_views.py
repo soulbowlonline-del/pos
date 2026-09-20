@@ -376,11 +376,6 @@ def rewrite(src, ctrl, unknown):
     # for. One set of rules, applied everywhere.
     src = port_model.finder_idioms(src)
 
-    # The DAO query builder and CJSON, from the one place all three
-    # translators share. Four loyaltyAdmin views query the database
-    # directly and died on a Command that has no select().
-    src = port_model.dao_idioms(src)
-
     # controller state the views set or read
     src = re.sub(r"\$this->breadcrumbs\s*=", "$this->params['breadcrumbs'] =", src)
     src = re.sub(r"\$this->menu\b", '$this->context->menu', src)
@@ -478,6 +473,14 @@ def rewrite(src, ctrl, unknown):
 
     src = re.sub(r'Yii::app\s*\(\s*\)\s*->', 'Yii::$app->', src)
     src = re.sub(r'Yii::app\s*\(\s*\)', 'Yii::$app', src)
+
+    # The DAO query builder, CJSON and the rest, from the one place all three
+    # translators share. After the rules above, not before: dao_idioms also
+    # rewrites `Yii::app()`, and running it first meant the specific rules
+    # here no longer matched - 96 views lost `$this->registerJs(` and got
+    # `Yii::$app->clientScript->registerScript(` back, which is Yii 1 code for
+    # a component Yii 2 does not have.
+    src = port_model.dao_idioms(src)
 
     # Partials. Yii 1's renderPartial() writes to the output buffer; Yii 2's
     # render() returns the string. Without the echo the partial is rendered and

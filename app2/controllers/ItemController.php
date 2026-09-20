@@ -783,7 +783,7 @@ class ItemController extends Controller
             return $out;
         }
 
-        $saleStatus = Yii::$app->params['saleStatus'];
+        $saleStatus = (Yii::$app->params['saleStatus'] ?? null);
 
         $outletModel = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
         $outlet = $outletModel ? $outletModel->id : null;

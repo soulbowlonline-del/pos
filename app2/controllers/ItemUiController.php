@@ -26,6 +26,7 @@ use app\models\Setting;
 use app\models\StockAdjustLog;
 use app\models\StockLog;
 use app\models\Tax;
+use app\models\TblItemNewTax;
 use app\models\User;
 use app\models\UserRole;
 use app\models\Vendor;
@@ -51,10 +52,10 @@ class ItemUiController extends BaseUiController {
 			foreach($items as $item){
 				 $item->item_code = $item->id;
 				$item->saveAttributes(['item_code']); 
-				/*  $query = Item::find();
-				$query->andWhere('item_code ='.$item->item_code);
-				$query->andWhere('id !='.$item->id);
-				$sameitems = $query->all();
+				/*  $criteria = new CDbCriteria ();
+				$criteria->addCondition ( 'item_code ='.$item->item_code);
+				$criteria->addCondition ( 'id !='.$item->id );
+				$sameitems = Item::model ()->findAll ( $criteria );
 				if($sameitems){
 					echo 'item'.$item->id;
 					echo '<br>';
@@ -267,8 +268,8 @@ class ItemUiController extends BaseUiController {
 			// host 202.164.34.118
 			$ftp_server =  "143.110.254.206";
 			$ftp_conn = ftp_connect ( $ftp_server ) or die ( "Could not connect to $ftp_server" );
-			$ftp_username = Yii::$app->params['ftp_username'];
-			$ftp_userpass = Yii::$app->params['ftp_password'];
+			$ftp_username = (Yii::$app->params['ftp_username'] ?? null);
+			$ftp_userpass = (Yii::$app->params['ftp_password'] ?? null);
 			$login = ftp_login ( $ftp_conn, $ftp_username, $ftp_userpass );
 			
 			$file = "Products.txt";
@@ -357,7 +358,7 @@ class ItemUiController extends BaseUiController {
 			}
 		}
 	}
-	public function actioncheck() {
+	public function actionCheck() {
 		$setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
 		if ($setting) {
 			$setting->days = 10;
@@ -579,7 +580,7 @@ curl_close($ch);
 			if ($posted) {
 				
 				$formdata = $_POST ['formData'];
-				$saleStatus = Yii::$app->params['saleStatus'];
+				$saleStatus = (Yii::$app->params['saleStatus'] ?? null);
 				//echo "<pre>"; print_r($formdata); echo "<pre>";die;
 				foreach ( $formdata as $key => $itemDetail ) {
 					
@@ -1019,7 +1020,7 @@ curl_close($ch);
 		 * $criteria->limit = '100';
 		 *
 		 * $criteria->addCondition ( 'status =' . Item::STATUS_ACTIVE );
-		 * $items = Item::model ()->findAll (;
+		 * $items = Item::model ()->findAll ( $criteria );
 		 *
 		 * if ($items != null) {
 		 * foreach ( $items as $item ) {
@@ -1176,7 +1177,7 @@ curl_close($ch);
 	public function isAllowed($model) {
 		return $model->isAllowed ();
 	}
-	public function actionstockImport() {
+	public function actionStockImport() {
 		ini_set ( 'max_execution_time', 10000 );
 		$model = new Item ();
 		if (isset ( $_FILES ['Item'] )) {
@@ -1424,7 +1425,7 @@ curl_close($ch);
 						'pageSize' => 10 
 				]]);
 		$pages = new \yii\data\Pagination(['totalCount' => $item_count]);
-		$pages->setPageSize ( Yii::$app->params ['listPerPage'] );
+		$pages->setPageSize ( (Yii::$app->params['listPerPage'] ?? null) );
 		
 		return $this->render( 'print', [
 				'dataProvider' => $dataProvider,
@@ -1543,10 +1544,10 @@ curl_close($ch);
 			if ($model->save ()) {
 				$model->item_code = $model->id;
 				$model->saveAttributes(['item_code']);
-			/* $query = Item::find();
-			$query->andWhere('item_code ='.$model->item_code);
-			$query->andWhere('id !='.$model->id);
-			$existitem = $query->one();
+			/* $criteria = new CDbCriteria();
+			$criteria->addCondition('item_code ='.$model->item_code);
+			$criteria->addCondition('id !='.$model->id);
+			$existitem = Item::model()->find($criteria);
 				if($existitem){
 				$model->item_code = $model->item_code.$model->id;
 				$model->saveAttributes(array('item_code'));
@@ -2461,7 +2462,7 @@ curl_close($ch);
 			
 			$query = Outlet::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere(['id ' => $outlet_ids]);
+			$query->andWhere(['id' => $outlet_ids]);
 			$query->andWhere('status =' . Outlet::STATUS_ACTIVE);
 			$outletlist = $query->all();
 			

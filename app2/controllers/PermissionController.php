@@ -44,8 +44,8 @@ class PermissionController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'permission-form');
 
-		if (Yii::$app->request->post('Permission') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Permission'])) {
+			$model->load($_POST, 'Permission');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class PermissionController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'permission-form');
 
-		if (Yii::$app->request->post('Permission') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Permission'])) {
+			$model->load($_POST, 'Permission');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class PermissionController extends BaseUiController {
 		$model = new Permission(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Permission') !== null)
+		if (isset($_GET['Permission']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Permission');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -135,8 +135,8 @@ class PermissionController extends BaseUiController {
 		if( !($model->checkPermission ('permission/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Permission') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Permission']))
+			$model->load($_GET, 'Permission');
 
 		return $this->render('admin', [
 			'model' => $model,

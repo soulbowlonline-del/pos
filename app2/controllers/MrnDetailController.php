@@ -65,7 +65,7 @@ class MrnDetailController extends BaseUiController {
         $vendor = Vendor::findOne($mrn->vendor_id);
         if ($vendor) {
            
-                $from = Yii::$app->params['smtp_from_address'];
+                $from = (Yii::$app->params['smtp_from_address'] ?? null);
 				
                $to="cs@soulbowl.in";
 				
@@ -94,11 +94,11 @@ class MrnDetailController extends BaseUiController {
 		$alreadypermissions = array ();
 		if (isset ( $_POST ['item_id'] )) {
 	
-			$query = ItemDetail::find();
-			$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id ='.$_POST ['item_id']);
+			$criteria = new CDbCriteria();
+			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
+			$criteria->addCondition('item_id ='.$_POST ['item_id']);
 				
-			$itemdetails = $query->all();
+			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" id="MrnDetail_item_detaill_id" onChange="checkTaxes()"  name="MrnDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
 			if ($itemdetails) {
 				foreach ( $itemdetails as $itemdetail ) {
@@ -906,7 +906,7 @@ class MrnDetailController extends BaseUiController {
 					$model_id = $pomodel->id;
 					Notification::AddNotification($model_id,$msg,$type,$to_id);
 					if($email != ''){
-					$from = Yii::$app->params['mail_email'] ;
+					$from = (Yii::$app->params['mail_email'] ?? null) ;
 					$to      = $email;
 					$subject = 'Your new purchase order:';
 					

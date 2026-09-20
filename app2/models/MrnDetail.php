@@ -656,7 +656,7 @@ class MrnDetail extends ActiveRecord
     public function getPurchaseAmount(){
             $mrs = Mrn::findOne($this->mrn_id);
             $amount = '0';
-            $query1 = PurchaseBillDetail::find();
+            $query1 = PurchaseBillDetail::find()->alias('t');
             $query1->andWhere('t.item_id ='.$this->item_id);
             $query1->select('sum(t.amount) as amount');
             $orderitem = $query1->one();
@@ -672,7 +672,7 @@ class MrnDetail extends ActiveRecord
 
     public function getSaleAmount(){
             $amount = '0';
-            $query1 = OrderItem::find();
+            $query1 = OrderItem::find()->alias('t');
             $query1->andWhere('t.item_id ='.$this->item_id);
             $query1->select('sum(t.total_amt) as total_amt');
             $orderitem = $query1->one();
@@ -689,7 +689,7 @@ class MrnDetail extends ActiveRecord
     public function getPurchaseQty(){
             $mrs = Mrn::findOne($this->mrn_id);
             $qty = '0';
-            $query1 = PurchaseBillDetail::find();
+            $query1 = PurchaseBillDetail::find()->alias('t');
             $query1->andWhere('t.item_id ='.$this->item_id);
             $query1->select('sum(t.approved_qty) as approved_qty');
             $orderitem = $query1->one();
@@ -706,7 +706,7 @@ class MrnDetail extends ActiveRecord
 
     public function getSaleQty(){
             $qty = '0';
-            $query1 = OrderItem::find();
+            $query1 = OrderItem::find()->alias('t');
             $query1->andWhere('t.item_id ='.$this->item_id);
             $query1->select('sum(t.qty) as qty');
             $orderitem = $query1->one();
@@ -798,7 +798,7 @@ class MrnDetail extends ActiveRecord
 			Criteria::compare($query1, 'status', Mrs::STATUS_HALF_DONE);
 			
 			$mrss= $query1->all();
-			Yii::warning( var_export( $mrss , true), '$mrss');
+			Yii::warning( var_export($mrss, true), '$mrss');
 			if($mrss){
 				foreach($mrss as $mrs){
 					$mrs_ids[] = $mrs->id;

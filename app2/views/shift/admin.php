@@ -3,6 +3,7 @@
  * Ported from protected/views/shift/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Shift;
@@ -101,14 +102,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("shift/view")=="true"; },
+									'visible' => function ($data) { return Access::check("shift/view")=="true"; },
 									'url' => function ($data) { return Ui::to("shift/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("shift/update")=="true"; },
+									'visible' => function ($data) { return Access::check("shift/update")=="true"; },
 									'url' => function ($data) { return Ui::to("shift/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

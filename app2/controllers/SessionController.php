@@ -44,8 +44,8 @@ class SessionController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'session-form');
 
-		if (Yii::$app->request->post('Session') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Session'])) {
+			$model->load($_POST, 'Session');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class SessionController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'session-form');
 
-		if (Yii::$app->request->post('Session') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Session'])) {
+			$model->load($_POST, 'Session');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class SessionController extends BaseUiController {
 		$model = new Session(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Session') !== null)
+		if (isset($_GET['Session']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Session');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class SessionController extends BaseUiController {
 		$model = new Session(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Session') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Session']))
+			$model->load($_GET, 'Session');
 
 		return $this->render('admin', [
 			'model' => $model,

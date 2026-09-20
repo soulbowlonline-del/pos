@@ -689,20 +689,20 @@ class PurchaseOrderDetail extends ActiveRecord
 		$query->orderBy(['item.title' => SORT_ASC]);
 		$query->andWhere('t.purchase_order_id ='. $id);
 		Yii::warning( var_export($id, true), '$id');
-		/* Criteria::compare($query, 'id', $this->id);
-		Criteria::compare($query, 'req_qty', $this->req_qty);
-		Criteria::compare($query, 'bal_qty', $this->bal_qty);
-		Criteria::compare($query, 'status', $this->status);
-		Criteria::compare($query, 'type_id', $this->type_id);
-		Criteria::compare($query, 'charge_amount', $this->charge_amount);
-		Criteria::compare($query, 'extra_charges', $this->extra_charges);
-		Criteria::compare($query, 'remarks', $this->remarks, true);
-		Criteria::compare($query, 'create_time', $this->create_time, true);
-		Criteria::compare($query, 'update_time', $this->update_time, true);
-		Criteria::compare($query, 'create_user_id', $this->create_user_id);
-		Criteria::compare($query, 'updated_by', $this->updated_by);
-		Criteria::compare($query, 'item_detail_id', $this->item_detail_id);
-		Criteria::compare($query, 'item_id', $this->item_id); */
+		/* $criteria->compare('id', $this->id);
+		$criteria->compare('req_qty', $this->req_qty);
+		$criteria->compare('bal_qty', $this->bal_qty);
+		$criteria->compare('status', $this->status);
+		$criteria->compare('type_id', $this->type_id);
+		$criteria->compare('charge_amount', $this->charge_amount);
+		$criteria->compare('extra_charges', $this->extra_charges);
+		$criteria->compare('remarks', $this->remarks, true);
+		$criteria->compare('create_time', $this->create_time, true);
+		$criteria->compare('update_time', $this->update_time, true);
+		$criteria->compare('create_user_id', $this->create_user_id);
+		$criteria->compare('updated_by', $this->updated_by);
+		$criteria->compare('item_detail_id', $this->item_detail_id);
+		$criteria->compare('item_id', $this->item_id); */
 		//$criteria->compare('purchase_order_id', $this->purchase_order_id);
 		//$criteria->compare('outlet_id', $this->outlet_id);
 	

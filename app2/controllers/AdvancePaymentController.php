@@ -2,6 +2,7 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\models\AdvanceLogs;
 use app\models\AdvancePayment;
 use Yii;
 use yii\data\ActiveDataProvider;
@@ -47,7 +48,7 @@ class AdvancePaymentController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'advance-payment-form');
 
-		if (Yii::$app->request->post('AdvancePayment') !== null) {
+		if (isset($_POST['AdvancePayment'])) {
 			if (isset($_POST['AdvancePayment']['vendor_id'])) {
 			$model = AdvancePayment::findOne(['vendor_id'=>$_POST['AdvancePayment']['vendor_id'],
 					'create_user_id'=>Yii::$app->user->id
@@ -62,7 +63,7 @@ class AdvancePaymentController extends BaseUiController {
 			}
 			}
 			
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'AdvancePayment');
 			if(isset($_POST['AdvancePayment']['payment'])){
 			$model->balance_amt = $oldbal + $_POST['AdvancePayment']['payment'];
 			$model->payment = $oldpay + $_POST['AdvancePayment']['payment'];
@@ -91,8 +92,8 @@ class AdvancePaymentController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'advance-payment-form');
 
-		if (Yii::$app->request->post('AdvancePayment') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['AdvancePayment'])) {
+			$model->load($_POST, 'AdvancePayment');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -142,9 +143,9 @@ class AdvancePaymentController extends BaseUiController {
 		$model = new AdvancePayment(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('AdvancePayment') !== null)
+		if (isset($_GET['AdvancePayment']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'AdvancePayment');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -161,8 +162,8 @@ class AdvancePaymentController extends BaseUiController {
 		if( !($model->checkPermission ('advancePayment/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('AdvancePayment') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['AdvancePayment']))
+			$model->load($_GET, 'AdvancePayment');
 
 		return $this->render('admin', [
 			'model' => $model,

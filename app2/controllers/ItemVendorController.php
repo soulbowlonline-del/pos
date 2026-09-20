@@ -44,8 +44,8 @@ class ItemVendorController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'item-vendor-form');
 
-		if (Yii::$app->request->post('ItemVendor') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['ItemVendor'])) {
+			$model->load($_POST, 'ItemVendor');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class ItemVendorController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'item-vendor-form');
 
-		if (Yii::$app->request->post('ItemVendor') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['ItemVendor'])) {
+			$model->load($_POST, 'ItemVendor');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class ItemVendorController extends BaseUiController {
 		$model = new ItemVendor(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('ItemVendor') !== null)
+		if (isset($_GET['ItemVendor']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'ItemVendor');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class ItemVendorController extends BaseUiController {
 		$model = new ItemVendor(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('ItemVendor') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['ItemVendor']))
+			$model->load($_GET, 'ItemVendor');
 
 		return $this->render('admin', [
 			'model' => $model,

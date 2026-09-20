@@ -1056,7 +1056,7 @@ class Item extends ActiveRecord
     public function getPurchaseQty(){
 
             $qty = '0';
-            $query = PurchaseBillDetail::find();
+            $query = PurchaseBillDetail::find()->alias('t');
             $query->andWhere('t.item_id ='.$this->id);
             $query->select('sum(t.approved_qty) as approved_qty');
             $orderitem = $query->one();
@@ -1073,7 +1073,7 @@ class Item extends ActiveRecord
 
     public function getSaleQty(){
             $qty = '0';
-            $query = OrderItem::find();
+            $query = OrderItem::find()->alias('t');
             $query->andWhere('t.item_id ='.$this->id);
             $query->select('sum(t.qty) as qty');
             $orderitem = $query->one();
@@ -1090,7 +1090,7 @@ class Item extends ActiveRecord
 
     public function getItemSaleQty($start_date,$end_date){
             $qty = '0';
-            $query = OrderItem::find();
+            $query = OrderItem::find()->alias('t');
             $query->andWhere('t.item_id ='.$this->id);
             $query->andWhere(['between', 'create_date', $start_date, $end_date]);
             $query->select('sum(t.qty) as qty');
@@ -1215,12 +1215,21 @@ class Item extends ActiveRecord
                 $remaining_quantity = '0.000';
                 $add_quantity = '0.000';
                 $sub_quantity = '0.000';
-                $query = ItemDetail::find();
+                // ItemStock, and every row of it. Yii 1 writes
+                //   $stocks = ItemStock::model()->findAll($criteria);
+                // and an older version of the generator read the class and
+                // the fetch off the *first* criteria in this method, which is
+                // an ItemDetail lookup - so the query asked tbl_item_detail
+                // for item_detail_id, a column of tbl_item_stock, and
+                // item/adjustStock answered 500. The generator gets this
+                // right now; this method predates it and the merge keeps the
+                // methods a model already has.
+                $query = ItemStock::find();
                 $query->andWhere('item_detail_id ='.$item_detail->id);
                 $query->orderBy(['id' => SORT_ASC]);
                 $query->andWhere("balance_qty > 0.000");
                 $query->andWhere('item_detail_id IS NOT NULL');
-                $stocks = $query->one();
+                $stocks = $query->all();
 
                 if(!empty($stocks))
                 {
@@ -1274,12 +1283,21 @@ class Item extends ActiveRecord
                 $remaining_quantity = '0.000';
                 $add_quantity = '0.000';
                 $sub_quantity = '0.000';
-                $query = ItemDetail::find();
+                // ItemStock, and every row of it. Yii 1 writes
+                //   $stocks = ItemStock::model()->findAll($criteria);
+                // and an older version of the generator read the class and
+                // the fetch off the *first* criteria in this method, which is
+                // an ItemDetail lookup - so the query asked tbl_item_detail
+                // for item_detail_id, a column of tbl_item_stock, and
+                // item/adjustStock answered 500. The generator gets this
+                // right now; this method predates it and the merge keeps the
+                // methods a model already has.
+                $query = ItemStock::find();
                 $query->andWhere('item_detail_id ='.$item_detail->id);
                 $query->orderBy(['id' => SORT_ASC]);
                 $query->andWhere("balance_qty > 0.000");
                 $query->andWhere('item_detail_id IS NOT NULL');
-                $stocks = $query->one();
+                $stocks = $query->all();
 
                 if(!empty($stocks))
                 {
@@ -2617,5 +2635,261 @@ class Item extends ActiveRecord
         }
 
         return $list;
+    }
+
+    public static function getItemCompany($id) {
+            $company = ItemCompany::findOne( $id );
+            if ($company) {
+                return $company->title;
+            }
+            return '';
+        }
+
+    public static function getItemCompanyCategory($id) {
+            $company = ItemCompanyCategory::findOne( $id );
+            if ($company) {
+                return $company->title;
+            }
+            return '';
+        }
+
+    public static function getItemCategory($id) {
+            $company = ItemCategory::findOne( $id );
+            if ($company) {
+                return $company->title;
+            }
+            return '';
+        }
+
+    /**
+     * Yii 1's reportstocksearch(): a listing of its own, converted as written.
+     */
+    public function reportstocksearch()
+    {
+
+		$query = self::find();
+		$user = Yii::$app->user->model;
+		if(isset(Yii::$app->session ['item_name']) && (Yii::$app->session ['item_name'] != '')){
+			$this->title = Yii::$app->session ['item_name'];
+		}
+// 		if ($this->name != null) {
+// 			$criteria->condition = "title LIKE :title";
+// 			$criteria->params = array (
+// 					':title' => trim ( (string)$this->title ) . '%',
+// 					':title1' => '%' . trim ( $this->name ) . '%'
+// 			);
+// 		} else {
+			$query->andWhere("title LIKE :title ", [
+					':title' => trim ( (string)$this->title ) . '%'
+			]);
+	
+			
+		/* } */
+		Yii::warning( var_export($this->name, true), '$$this->name');
+		if ($user->role_id == 6) {
+			$itemvendor_ids = [];
+			$vendor = Vendor::find()->where([
+					'create_user_id' => $user->id
+			])->orderBy(['id' => SORT_DESC])->one();
+			if ($vendor) {
+				$itemvendors = ItemVendor::find()->where([
+						'vendor_id' => $vendor->id
+				])->orderBy(['id' => SORT_DESC])->all();
+				if ($itemvendors) {
+	
+					foreach ( $itemvendors as $itemvendor ) {
+						$itemvendor_ids [] = $itemvendor->item_detail_id;
+					}
+				}
+			}
+			$query->andWhere(['id' => $itemvendor_ids]);
+			Yii::warning( var_export($itemvendor_ids, true), '$itemvendor_ids');
+		}
+		Criteria::compare($query, 'id', $this->id);
+	
+		/*
+		 * if($this->title != null){
+		 * $titles = explode(' ',$this->title);
+		 * foreach($titles as $title){
+		 * $criteria->compare ( 'title',$title, true);
+		 * }
+		 * }
+		 */
+		/* if (Yii::$app->session ['item_name'] != '' and Yii::$app->session ['item_name'] != null) {
+			$this->name = Yii::$app->session ['item_name'];
+		} */
+		Yii::warning( var_export($this->bar_code, true), '$this->bar_code ');
+		if (isset ( $this->bar_code ) && ($this->bar_code != '')) {
+			$item_detail = ItemDetail::find()->where([
+					'bar_code' => $this->bar_code
+			])->one();
+			if ($item_detail) {
+	
+				Criteria::compare($query, 'id', $item_detail->item_id);
+			}
+		}
+		if (isset ( $this->tax_id ) && ($this->tax_id != '')) {
+			$detail_ids = [];
+			$query4 = ItemDetail::find();
+			$query4->andWhere('tax_id ='.$this->tax_id);
+			$query4->orderBy(['id' => SORT_DESC]);
+			$query4->groupBy('item_id');
+			$item_details = $query4->all();
+			Yii::warning( var_export($this->tax_id, true), '$this->tax_id');
+	
+			if ($item_details) {
+				foreach ( $item_details as $item_detail ) {
+	
+					$detail_ids [] = $item_detail->item_id;
+				}
+				Yii::warning( var_export($detail_ids, true), '$detail_ids');
+	
+			}
+			$query->andWhere(['id' => $detail_ids]);
+		}
+		if (isset ( $this->vendor_id ) && ($this->vendor_id != '') && ($user->role_id != 6)) {
+			$itemvendor_idds = [];
+			$itemvendorrs = ItemVendor::find()->where([
+					'vendor_id' => $this->vendor_id
+			])->orderBy(['id' => SORT_DESC])->all();
+			if ($itemvendorrs) {
+	
+				foreach ( $itemvendorrs as $itemvendor ) {
+					$itemvendor_idds [] = $itemvendor->item_detail_id;
+				}
+				$query->andWhere(['id' => $itemvendor_idds]);
+			}
+		}
+		Criteria::compare($query, 'item_code', $this->item_code, true);
+		Criteria::compare($query, 'description', $this->description, true);
+		Criteria::compare($query, 'image_file', $this->image_file, true);
+		Criteria::compare($query, 'item_type', $this->item_type);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'mrp', $this->mrp);
+		Criteria::compare($query, 'is_tax', $this->is_tax);
+		Criteria::compare($query, 'is_discount', $this->is_discount);
+		Criteria::compare($query, 'sale_price', $this->sale_price);
+		Criteria::compare($query, 'hsn_code', $this->hsn_code, true);
+		Criteria::compare($query, 'purchase_price', $this->purchase_price);
+		Criteria::compare($query, 'sub_category_id', $this->sub_category_id);
+		Criteria::compare($query, 'opening_stock', $this->opening_stock);
+		Criteria::compare($query, 'weight', $this->weight);
+		Criteria::compare($query, 'sub_category_id', $this->sub_category_id);
+		Criteria::compare($query, 'category_id', $this->category_id);
+		Criteria::compare($query, 'sub_company_id', $this->sub_company_id);
+		Criteria::compare($query, 'company_id', $this->company_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		Yii::warning( var_export($query, true), '$criteria');
+		$query->orderBy(['id' => SORT_DESC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    /**
+     * Yii 1's adjust(): a listing of its own, converted as written.
+     */
+    public function adjust()
+    {
+
+		$query = self::find();
+		$user = Yii::$app->user->model;
+		
+		if (Yii::$app->session ['item_name'] != '' and Yii::$app->session ['item_name'] != null) {
+			$this->name = Yii::$app->session ['item_name'];
+		}
+		
+		if (Yii::$app->session ['remaining_quan'] != '' and Yii::$app->session ['remaining_quan'] != null) {	
+		$this->remaining_quan = Yii::$app->session ['remaining_quan'];	
+		}
+		
+		
+		if ($this->name != null) {
+			$query->andWhere("title LIKE :title AND title LIKE :title1 ", [
+					//':title' => trim ( (string)$this->title ) . '%',
+					//':title' => "%" .trim ( (string)$this->title ) . '%',
+					':title1' => '%' . trim ( $this->name ) . '%' 
+			]);
+			
+		} else {
+			// $criteria->condition = "title LIKE :title ";
+			
+			// $criteria->params = array (
+			// 		':title' => trim ( (string)$this->title ) . '%' 
+			// );
+		}
+		Yii::warning( var_export($this->name, true), '$$this->name');
+		if (isset ( Yii::$app->session ['company_id'] ) && (Yii::$app->session ['company_id'] != '')) {
+			$this->company_id = Yii::$app->session ['company_id'];
+		}
+		
+		if (isset ( $this->vendor_id ) && ($this->vendor_id != '') && ($user->role_id != 6)) {
+			$itemvendor_idds = [];
+			$itemvendorrs = ItemVendor::find()->where([
+					'vendor_id' => $this->vendor_id
+			])->orderBy(['id' => SORT_DESC])->all();
+			if ($itemvendorrs) {
+		
+				foreach ( $itemvendorrs as $itemvendor ) {
+					$itemvendor_idds [] = $itemvendor->item_detail_id;
+				}
+				$query->andWhere(['id' => $itemvendor_idds]);
+			}
+		}
+		
+		if($this->remaining_quan != null){
+			
+			
+			
+			$ids =  $this->getAscBarCodeTotalRemainingQuantityIds($this->remaining_quan );
+			
+			$query->andWhere(['id' => $ids]);
+		
+			
+		}else{
+			
+			Criteria::compare($query, 'id', $this->id);
+					
+		}
+		
+		Criteria::compare($query, 'title', $this->title, true);
+		Criteria::compare($query, 'item_code', $this->item_code, true);
+		Criteria::compare($query, 'description', $this->description, true);
+		Criteria::compare($query, 'image_file', $this->image_file, true);
+		Criteria::compare($query, 'mrp', $this->mrp);
+		Criteria::compare($query, 'item_type', $this->item_type);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id);
+		Criteria::compare($query, 'is_tax', $this->is_tax);
+		Criteria::compare($query, 'is_discount', $this->is_discount);
+		Criteria::compare($query, 'sale_price', $this->sale_price);
+		Criteria::compare($query, 'hsn_code', $this->hsn_code, true);
+		Criteria::compare($query, 'purchase_price', $this->purchase_price);
+		Criteria::compare($query, 'sub_category_id', $this->sub_category_id);
+		Criteria::compare($query, 'opening_stock', $this->opening_stock);
+		Criteria::compare($query, 'weight', $this->weight);
+		Criteria::compare($query, 'sub_category_id', $this->sub_category_id);
+		Criteria::compare($query, 'category_id', $this->category_id);
+		Criteria::compare($query, 'sub_company_id', $this->sub_company_id);
+		Criteria::compare($query, 'company_id', $this->company_id);
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'create_user_id', $this->create_user_id);
+		Criteria::compare($query, 'updated_by', $this->updated_by);
+		
+		echo "<pre>"; print_r($query); echo "</pre>";
+		//die;
+		$query->orderBy(['adjustment_time' => SORT_DESC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 20],
+		]);
     }
 }

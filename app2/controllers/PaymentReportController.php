@@ -44,8 +44,8 @@ class PaymentReportController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'payment-report-form');
 
-		if (Yii::$app->request->post('PaymentReport') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['PaymentReport'])) {
+			$model->load($_POST, 'PaymentReport');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class PaymentReportController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'payment-report-form');
 
-		if (Yii::$app->request->post('PaymentReport') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['PaymentReport'])) {
+			$model->load($_POST, 'PaymentReport');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class PaymentReportController extends BaseUiController {
 		$model = new PaymentReport(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('PaymentReport') !== null)
+		if (isset($_GET['PaymentReport']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'PaymentReport');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -137,8 +137,8 @@ class PaymentReportController extends BaseUiController {
 		if (isset ( $_POST ['PaymentReport'] ['columns'] )) {
 			$columns = $_POST ['PaymentReport'] ['columns'];
 		}
-		if (Yii::$app->request->get('PaymentReport') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['PaymentReport']))
+			$model->load($_GET, 'PaymentReport');
 			$columns = $model->getColumns ( $columns );
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), $columns );

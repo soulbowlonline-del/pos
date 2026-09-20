@@ -3,6 +3,7 @@
  * Ported from protected/views/item/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Item;
@@ -131,21 +132,21 @@ $('.search-form form').submit(function(){
 	'columns' => [
 		'id',
 			[
-					'visible'=>$model->checkPermission ("item/create")=="true",
+					'visible'=>Access::check("item/create")=="true",
 					'header'=>'<a>Status</a>',
 					'class' => ActionColumn::class,
 					'template' => '{update}', //include the standard buttons plus the new status button
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							/* 	'view'=>array(
-							 'visible' => function ($data) { return $data->checkPermission ("item/view")=="true"; },
+							 'visible' => function ($data) { return Access::check("item/view")=="true"; },
 									'url' => function ($data) { return Ui::to("item/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>array('class'=>'view'),
 			
 							), */
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("item/create")=="true"; },
+									'visible' => function ($data) { return Access::check("item/create")=="true"; },
 									'url' => function ($data) { return Ui::to("item/create", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],
@@ -336,7 +337,7 @@ $('.search-form form').submit(function(){
 				), */
 		
 			[
-					'visible'=>$model->checkPermission ("item/active")=="true",
+					'visible'=>Access::check("item/active")=="true",
 					'class' => EditableColumn::class,
 					'attribute' => 'status',
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
@@ -362,7 +363,7 @@ $('.search-form form').submit(function(){
 			
 			],
 			/* array(
-					'visible'=>$model->checkPermission ("item/active")=="true",
+					'visible'=>Access::check("item/active")=="true",
 					'header'=>'<a>Active/InActive</a>',
 					'class' => ActionColumn::class,
 					'template' => '{Active}{InActive}', //include the standard buttons plus the new status button
@@ -442,7 +443,7 @@ $('.search-form form').submit(function(){
 						
 			],
 			/* array(
-				'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
+				'visible' => function ($data) { return Access::check("itemDetail/admin")=="true"; },
 					'header'=>'Vendor',
 				'attribute' =>'vendor_id',
 					'value' => function ($data, $key, $index) { return $data->getLatestVendorName(); },
@@ -457,7 +458,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'Details'=>[
-									'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
+									'visible' => function ($data) { return Access::check("itemDetail/admin")=="true"; },
 									'url' => function ($data) { return Ui::to("itemDetail/admin", ["id" => $data->id]); },
 									'label'=>'SubItems',
 									'options'=>['class'=>'view'],
@@ -474,7 +475,7 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'Free'=>[
-									//'visible' => function ($data) { return $data->checkPermission ("itemDetail/admin")=="true"; },
+									//'visible' => function ($data) { return Access::check("itemDetail/admin")=="true"; },
 									'url' => function ($data) { return Ui::to("freeItem/admin", ["id" => $data->id]); },
 									'label'=>'Free Items',
 									'options'=>['class'=>'view'],

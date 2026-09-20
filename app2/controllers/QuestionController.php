@@ -46,8 +46,8 @@ class QuestionController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'question-form');
 
-		if (Yii::$app->request->post('Question') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Question'])) {
+			$model->load($_POST, 'Question');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -69,8 +69,8 @@ class QuestionController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'question-form');
 
-		if (Yii::$app->request->post('Question') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Question'])) {
+			$model->load($_POST, 'Question');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -119,9 +119,9 @@ class QuestionController extends BaseUiController {
 		$model = new Question(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Question') !== null)
+		if (isset($_GET['Question']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Question');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -137,8 +137,8 @@ class QuestionController extends BaseUiController {
 		$model = new Question(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Question') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Question']))
+			$model->load($_GET, 'Question');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

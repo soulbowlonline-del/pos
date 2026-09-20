@@ -44,8 +44,8 @@ class NotificationController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'notification-form');
 
-		if (Yii::$app->request->post('Notification') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Notification'])) {
+			$model->load($_POST, 'Notification');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class NotificationController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'notification-form');
 
-		if (Yii::$app->request->post('Notification') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Notification'])) {
+			$model->load($_POST, 'Notification');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class NotificationController extends BaseUiController {
 		$model = new Notification(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Notification') !== null)
+		if (isset($_GET['Notification']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Notification');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class NotificationController extends BaseUiController {
 		$model = new Notification(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Notification') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Notification']))
+			$model->load($_GET, 'Notification');
 
 		return $this->render('admin', [
 			'model' => $model,

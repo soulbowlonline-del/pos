@@ -824,4 +824,14 @@ class Customer extends ActiveRecord
             ? 'readOnly'
             : '';
     }
+
+    public function generateOtp()
+        {
+            return CustomerOtpVerification::generateOtp($this->id);
+        }
+
+    public function verifyOtp($otp)
+        {
+            return CustomerOtpVerification::verifyOtp($this->id,$otp);
+        }
 }

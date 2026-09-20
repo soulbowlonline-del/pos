@@ -454,7 +454,7 @@ class ItemCompany extends ActiveRecord
 		Criteria::compare($query, 'update_time', $this->update_time, true);
 		Criteria::compare($query, 'create_user_id', $this->create_user_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by);
-		/* $cats = $query->all();
+		/* $cats = ItemCompany::model()->findAll($criteria);
 		if($cats){
 			$cat_total = 0;
 				

@@ -3,6 +3,7 @@
  * Ported from protected/views/vendor/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\City;
@@ -140,7 +141,7 @@ $('.search-form form').submit(function(){
 		'htmlOptions'=> ['style'=>'width:80px'],
 		'buttons'=>[
 				'Mrs Details'=>[
-						//'visible' => function ($data) { return $data->checkPermission ("mrsDetail/admin")=="true"; },
+						//'visible' => function ($data) { return Access::check("mrsDetail/admin")=="true"; },
 						'url' => function ($data) { return Ui::to("mrsDetail/admin", ["id" => $data->id]); },
 						'label'=>'Mrs Details',
 						'options'=>['class'=>'view'],
@@ -157,14 +158,14 @@ $('.search-form form').submit(function(){
 		'htmlOptions'=> ['style'=>'width:80px'],
 		'buttons'=>[
 				'view'=>[
-						'visible' => function ($data) { return $data->checkPermission ("vendor/view")=="true"; },
+						'visible' => function ($data) { return Access::check("vendor/view")=="true"; },
 						'url' => function ($data) { return Ui::to("vendor/view", ["id" => $data->id]); },
 						'label'=>'View',
 						'options'=>['class'=>'view'],
 							
 				],
 				'update'=>[
-						'visible' => function ($data) { return $data->checkPermission ("vendor/create")=="true"; },
+						'visible' => function ($data) { return Access::check("vendor/create")=="true"; },
 						'url' => function ($data) { return Ui::to("vendor/create", ["id" => $data->id]); },
 						'label'=>'Update',
 						'options'=>['class'=>'update'],

@@ -331,7 +331,7 @@ class B2bPurchaseBill extends ActiveRecord
 				Criteria::compare($query, 'vendor_id', $vendor->id);
 		}
 		/* if($val == true){
-			$query->andWhere(['status' => array(PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED)]);
+			$criteria->addInCondition('status',array(PurchaseBill::STATUS_UNAPPROVED,PurchaseBill::STATUS_RECEIVED));
 		} */
 		if($val == false){
 			$vendor_ids = array();
@@ -1974,15 +1974,15 @@ class B2bPurchaseBill extends ActiveRecord
 				//Yii::log ( CVarDumper::dumpAsString ($total), CLogger::LEVEL_WARNING, '$total' );
 			}
 		
-			Yii::$app->session ['gross_total']=round($taxable);
-			Yii::$app->session ['gross_total_amt']=round($total);
+			Yii::app ()->session ['gross_total']=round($taxable);
+			Yii::app ()->session ['gross_total_amt']=round($total);
 		} */
 		$taxable = 0;
 		$total = 0;
 		Yii::$app->session ['gross_total']=round($taxable);
 		Yii::$app->session ['gross_total_amt']=round($total);
 		//echo "<pre>"; print_r($criteria);
-		$modeldata = new ActiveDataProvider(['query' => $query, 'sort'=>[
+		$modeldata = new ActiveDataProvider(['query' => $query, 'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(), 'sort'=>[
 					'defaultOrder'=>['id' => SORT_DESC],
 			]]);
 

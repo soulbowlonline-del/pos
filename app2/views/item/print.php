@@ -109,7 +109,7 @@ src="<?php  echo '/themes/bar'; ?>/js/jQuery.print.js"
       <div id="bar_code_print">
   
      <?php  
-	foreach($dataProvider->getData() as $item){
+	foreach($dataProvider->getModels() as $item){
 		$result = [];
 		$result1 = [];
 	$list = Yii::$app->session['date_list'];

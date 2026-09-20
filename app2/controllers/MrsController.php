@@ -62,8 +62,7 @@ class MrsController extends BaseUiController {
 			}
 		}
 		
-	
-    }
+	}
 	public function actionView($id) 
 	{
 		$model = $this->loadModel($id);
@@ -85,8 +84,8 @@ class MrsController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'mrs-form');
 
-		if (Yii::$app->request->post('Mrs') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Mrs'])) {
+			$model->load($_POST, 'Mrs');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -108,8 +107,8 @@ class MrsController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'mrs-form');
 
-		if (Yii::$app->request->post('Mrs') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Mrs'])) {
+			$model->load($_POST, 'Mrs');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -158,9 +157,9 @@ class MrsController extends BaseUiController {
 		$model = new Mrs(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Mrs') !== null)
+		if (isset($_GET['Mrs']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Mrs');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -176,8 +175,8 @@ class MrsController extends BaseUiController {
 		$model = new Mrs(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		$model->status = Mrs::STATUS_PENDING;
-		if (Yii::$app->request->get('Mrs') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Mrs']))
+			$model->load($_GET, 'Mrs');
 
 		return $this->render('admin', [
 			'model' => $model,

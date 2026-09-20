@@ -3,6 +3,7 @@
  * Ported from protected/views/purchaseOrder/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Mrn;
@@ -134,7 +135,7 @@ $('.search-form form').submit(function(){
 						'htmlOptions'=> ['style'=>'width:80px'],
 						'buttons'=>[
 								'view'=>[
-										'visible' => function ($data) { return $data->checkPermission ("purchaseOrder/view")=="true"; },
+										'visible' => function ($data) { return Access::check("purchaseOrder/view")=="true"; },
 										'url' => function ($data) { return Ui::to("purchaseOrder/view", ["id" => $data->id]); },
 										'label'=>'View',
 										'options'=>['class'=>'view'],

@@ -3,6 +3,7 @@
  * Ported from protected/views/country/admin.php.
  */
 
+use app\components\Access;
 use app\components\Ui;
 use app\models\Country;
 use app\widgets\ActionColumn;
@@ -85,14 +86,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("country/view")=="true"; },
+									'visible' => function ($data) { return Access::check("country/view")=="true"; },
 									'url' => function ($data) { return Ui::to("country/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("country/update")=="true"; },
+									'visible' => function ($data) { return Access::check("country/update")=="true"; },
 									'url' => function ($data) { return Ui::to("country/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

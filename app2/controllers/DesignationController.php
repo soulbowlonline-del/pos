@@ -86,8 +86,8 @@ class DesignationController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'designation-form');
 
-		if (Yii::$app->request->post('Designation') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Designation'])) {
+			$model->load($_POST, 'Designation');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -110,8 +110,8 @@ class DesignationController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'designation-form');
 
-		if (Yii::$app->request->post('Designation') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Designation'])) {
+			$model->load($_POST, 'Designation');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -160,9 +160,9 @@ class DesignationController extends BaseUiController {
 		$model = new Designation(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Designation') !== null)
+		if (isset($_GET['Designation']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Designation');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -179,8 +179,8 @@ class DesignationController extends BaseUiController {
 		if( !($model->checkPermission ('designation/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Designation') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Designation']))
+			$model->load($_GET, 'Designation');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

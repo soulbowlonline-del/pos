@@ -219,7 +219,7 @@ class ItemStockController extends BaseUiController {
 						}
 					}
 					if($email != ''){
-						$from = Yii::$app->params['mail_email'] ;
+						$from = (Yii::$app->params['mail_email'] ?? null) ;
 						$to      = $email;
 						$subject = 'A new MRS is added';
 							

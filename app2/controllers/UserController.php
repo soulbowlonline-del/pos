@@ -987,7 +987,7 @@ class UserController extends BaseUiController {
 			] );
 		
 			if ($user) {
-				$from = Yii::$app->params['mail_email'] ;
+				$from = (Yii::$app->params['mail_email'] ?? null) ;
 				$to      = $user->email;
 				$subject = 'Your new password:';
 				
@@ -1069,7 +1069,7 @@ class UserController extends BaseUiController {
 		$query1 = Driver::find();
 		$query1->andWhere('user_id =' . Yii::$app->user->id);
 		$driver = $query1->all();
-		// $passenger = Passenger::model()->findAll(;
+		// $passenger = Passenger::model()->findAll($criteria1);
 		
 		$gridDataProvider = new \yii\data\ArrayDataProvider(['allModels' => $driver]);
 		

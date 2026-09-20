@@ -89,7 +89,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 
 	public function actionSendTemplate($id){
 		$purchaseorder =$this->loadModel($id, PurchaseOrder::class);
-		$baseUrl = Yii::$app->params['soul_bowl_url'];
+		$baseUrl = (Yii::$app->params['soul_bowl_url'] ?? null);
 		# mPDF
 		$mPDF1 = Yii::$app->ePdf->mpdf();
 		
@@ -837,7 +837,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 				Notification::AddNotification($model_id,$msg,$type,$to_id);
 				
 				if($email != ''){
-					$from = Yii::$app->params['mail_email'] ;
+					$from = (Yii::$app->params['mail_email'] ?? null) ;
 					if($vendor->contact_email != ''){
 					$to = $vendor->contact_email;
 					}else{

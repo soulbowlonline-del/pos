@@ -615,6 +615,8 @@ class ItemReturn extends ActiveRecord
 		Criteria::compare($query, 'create_user_id', $this->create_user_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by);
 
+		$query->orderBy(['id' => SORT_DESC]);
+
 		return new ActiveDataProvider([
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],

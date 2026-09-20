@@ -3,6 +3,7 @@
  * Ported from protected/views/advancePayment/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\AdvancePayment;
@@ -95,14 +96,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("advancePayment/view")=="true"; },
+									'visible' => function ($data) { return Access::check("advancePayment/view")=="true"; },
 									'url' => function ($data) { return Ui::to("advancePayment/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("advancePayment/update")=="true"; },
+									'visible' => function ($data) { return Access::check("advancePayment/update")=="true"; },
 									'url' => function ($data) { return Ui::to("advancePayment/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

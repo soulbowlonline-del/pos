@@ -47,8 +47,8 @@ class CityController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'city-form');
 
-		if (Yii::$app->request->post('City') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['City'])) {
+			$model->load($_POST, 'City');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -70,8 +70,8 @@ class CityController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'city-form');
 
-		if (Yii::$app->request->post('City') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['City'])) {
+			$model->load($_POST, 'City');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -120,9 +120,9 @@ class CityController extends BaseUiController {
 		$model = new City(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('City') !== null)
+		if (isset($_GET['City']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'City');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -139,8 +139,8 @@ class CityController extends BaseUiController {
 		if( !($model->checkPermission ('city/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('City') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['City']))
+			$model->load($_GET, 'City');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->search (), [
 						

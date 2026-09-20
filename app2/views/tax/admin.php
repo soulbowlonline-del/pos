@@ -3,6 +3,7 @@
  * Ported from protected/views/tax/admin.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Tax;
@@ -189,14 +190,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("tax/view")=="true"; },
+									'visible' => function ($data) { return Access::check("tax/view")=="true"; },
 									'url' => function ($data) { return Ui::to("tax/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("tax/update")=="true"; },
+									'visible' => function ($data) { return Access::check("tax/update")=="true"; },
 									'url' => function ($data) { return Ui::to("tax/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

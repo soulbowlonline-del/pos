@@ -31,7 +31,7 @@ class LoyaltyAdminController extends BaseUiController
 
         $query = CustomerLoyalty::find()->alias('t');
         $query->with = ['customer'];
-        $query->orderBy(['total_points' => SORT_DESC, 'id' => SORT_DESC]);
+        $query->orderBy(['t.total_points' => SORT_DESC, 't.id' => SORT_DESC]);
 
         if ($searchName !== '' || $searchPhone !== '') {
             // Need a JOIN to filter on customer columns — use together:true only for this filter
@@ -66,7 +66,7 @@ class LoyaltyAdminController extends BaseUiController
         $query->andWhere('t.customer_id = :cid', [':cid' => $id]);
         
         $query->with = ['order'];
-        $query->orderBy(['created_at' => SORT_DESC]);
+        $query->orderBy(['t.created_at' => SORT_DESC]);
 
         $dataProvider = new ActiveDataProvider(['query' => $query, 'pagination' => ['pageSize' => 20], 'sort'       => false]);
 
@@ -223,7 +223,7 @@ class LoyaltyAdminController extends BaseUiController
     public function actionExportCustomers() {
         $query = CustomerLoyalty::find()->alias('t');
         $query->with = ['customer'];
-        $query->orderBy(['total_points' => SORT_DESC, 'id' => SORT_DESC]);
+        $query->orderBy(['t.total_points' => SORT_DESC, 't.id' => SORT_DESC]);
 
         $records = $query->all();
 

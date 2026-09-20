@@ -46,8 +46,8 @@ class StateController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'state-form');
 
-		if (Yii::$app->request->post('State') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['State'])) {
+			$model->load($_POST, 'State');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -69,8 +69,8 @@ class StateController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'state-form');
 
-		if (Yii::$app->request->post('State') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['State'])) {
+			$model->load($_POST, 'State');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -119,9 +119,9 @@ class StateController extends BaseUiController {
 		$model = new State(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('State') !== null)
+		if (isset($_GET['State']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'State');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -138,8 +138,8 @@ class StateController extends BaseUiController {
 		if( !($model->checkPermission ('state/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('State') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['State']))
+			$model->load($_GET, 'State');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

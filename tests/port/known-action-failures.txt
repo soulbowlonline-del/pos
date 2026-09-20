@@ -28,3 +28,4 @@ shift/search                  500 on the 5.6 baseline
 item/barCode                  200 on 5.6, 500 under 8.3 in the Yii 1 tree
 item/checkUpdateStatus        200 on 5.6, 500 under 8.3 in the Yii 1 tree
 itemReturnItem/printPdf       200 on 5.6, 500 under 8.3 in the Yii 1 tree
+order/groupTax             Yii 1 echoes the raw SQL and calls die() - debugging code left in BaseOrderItem::groupTaxsearch(); confirmed on the 5.6 baseline

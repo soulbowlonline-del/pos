@@ -45,7 +45,7 @@ class ItemExpireItemController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'item-expire-item-form');
 
-		if (Yii::$app->request->post('ItemExpireItem') !== null&&(isset($_POST['ItemExpireItem']['outlet_id']))&& (isset($_POST['ItemExpireItem']['vendor_id']))
+		if (isset($_POST['ItemExpireItem'])&&(isset($_POST['ItemExpireItem']['outlet_id']))&& (isset($_POST['ItemExpireItem']['vendor_id']))
 				&& (isset($_POST['ItemExpireItem']['total_amt']))) {
 			$itemExpire = ItemExpire::findOne(['vendor_id'=>$_POST['ItemExpireItem']['vendor_id'],
 					'outlet_id'=>$_POST['ItemExpireItem']['outlet_id'],'status'=>ItemExpire::STATUS_PENDING
@@ -60,7 +60,7 @@ class ItemExpireItemController extends BaseUiController {
 			$itemExpire->vendor_id = $_POST['ItemExpireItem']['vendor_id'];
 			$itemExpire->total_amt =$amount + ($_POST['ItemExpireItem']['qty'] * $_POST['ItemExpireItem']['sale_rate']);
 			if($itemExpire->save()){
-			$model->load(Yii::$app->request->post());
+			$model->load($_POST, 'ItemExpireItem');
 			$model->item_expire_id = $itemExpire->id;
 			$model->total_amt = $_POST['ItemExpireItem']['qty'] * $_POST['ItemExpireItem']['sale_rate'];
 			if ($model->save()) {
@@ -83,8 +83,8 @@ class ItemExpireItemController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'item-expire-item-form');
 
-		if (Yii::$app->request->post('ItemExpireItem') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['ItemExpireItem'])) {
+			$model->load($_POST, 'ItemExpireItem');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -141,9 +141,9 @@ class ItemExpireItemController extends BaseUiController {
 		$model = new ItemExpireItem(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('ItemExpireItem') !== null)
+		if (isset($_GET['ItemExpireItem']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'ItemExpireItem');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -159,8 +159,8 @@ class ItemExpireItemController extends BaseUiController {
 		$model = new ItemExpireItem(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('ItemExpireItem') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['ItemExpireItem']))
+			$model->load($_GET, 'ItemExpireItem');
 
 		return $this->render('admin', [
 			'model' => $model,

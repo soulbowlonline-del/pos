@@ -3,8 +3,10 @@ namespace app\controllers;
 
 use app\components\Criteria;
 use app\components\Ui;
+use app\models\City;
 use app\models\Customer;
 use app\models\Order;
+use app\models\WhatsappLogs;
 use Yii;
 use yii\data\ActiveDataProvider;
 use yii\helpers\Html;
@@ -24,12 +26,12 @@ class CustomerUiController extends BaseUiController {
 		return $model->isAllowed ();
 	}
 	/* public function actionDuplicate() {
-		$query = Customer::find();
-		$query->groupBy('email');
+		$criteria = new CDbCriteria();
+		$criteria->group = 'email';
 		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
 		// explicitly by the grouped columns to preserve the previous output order.
-		$query->orderBy(['email' => SORT_ASC]);
-		$customers = $query->all();
+		$criteria->order = 'email';
+		$customers = Customer::model()->findAll($criteria);
 		
 	} */
 	
@@ -60,9 +62,9 @@ class CustomerUiController extends BaseUiController {
 	}
 	
 	public function actionGetCustomerAddress() {
-		$query = Customer::find();
+		$query_2 = Customer::find();
 		//$criteria->addCondition('email = ""');
-		$customers = $query->all();
+		$customers = $query_2->all();
 		//echo '<pre>';
 		//print_r($customers);exit;
 		if($customers){
@@ -85,9 +87,10 @@ class CustomerUiController extends BaseUiController {
 					curl_close ( $ch );
 					$response = json_decode ( $server_output, true );
 					if($response['success'] == 1 && (isset($response['phone']) && $response['phone'] != null)){
-						$query = Customer::find();
-						Criteria::compare($query, 'title', $response['city']);
-						$city = $query->all();
+						$query_3 = City::find();
+        $query_3->orderBy(['id' => SORT_DESC]);
+						Criteria::compare($query_3, 'title', $response['city']);
+						$city = $query_3->one();
 						$customer->address = $response['address'];
 						$customer->contact_no = trim($response['phone']);
 						$customer->zip_code = $response['postcode'];
@@ -111,9 +114,9 @@ class CustomerUiController extends BaseUiController {
 		}
 	}
 	public function actionGetCustomerEmail() {
-	$query = Customer::find();
+	$query_2 = Customer::find();
 	//$criteria->addCondition('email = ""');
-	$customers = $query->all();
+	$customers = $query_2->all();
 	//echo '<pre>';
 	//print_r($customers);exit;
 	if($customers){
@@ -248,7 +251,7 @@ class CustomerUiController extends BaseUiController {
 		
 		
 		
-		$this->performAjaxValidation ( $model, 'customer-form' );
+		$this->performAjaxValidation( $model, 'customer-form' );
 	
 		if (isset ($_POST ['Customer'])){
 		if($is_email == true){
@@ -309,11 +312,10 @@ class CustomerUiController extends BaseUiController {
 		}
 		}
 		$this->updateMenuItems ( $model );
-		$this->render ( 'sendemail', [
+		return $this->render( 'sendemail', [
 				'model' => $model 
 		] );
-	
-    }
+	}
 	public function actionCreate() {
 		$model = new Customer();
 		if( !($model->checkPermission ('customer/update')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
@@ -322,8 +324,8 @@ class CustomerUiController extends BaseUiController {
 	
 		$this->performAjaxValidation( $model, 'customer-form' );
 	
-		if (Yii::$app->request->post('Customer') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['Customer'] )) {
+			$model->load($_POST, 'Customer');
 				
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -345,8 +347,8 @@ class CustomerUiController extends BaseUiController {
 		
 		$this->performAjaxValidation( $model, 'customer-form' );
 		
-		if (Yii::$app->request->post('Customer') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset ( $_POST ['Customer'] )) {
+			$model->load($_POST, 'Customer');
 			
 			if ($model->save ()) {
 				return $this->redirect( [
@@ -365,9 +367,9 @@ class CustomerUiController extends BaseUiController {
 		if( !($model->checkPermission ('customer/delete')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
-		$query = Order::find();
-		$query->andWhere('customer_id ='.$id);
-		$orders = $query->count();
+		$query1 = Order::find();
+		$query1->andWhere('customer_id ='.$id);
+		$orders = $query1->count();
 		if($orders){
 			foreach($orders as $order){
 				$order->customer_id = 1;
@@ -403,8 +405,8 @@ class CustomerUiController extends BaseUiController {
 		$model = new Customer(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 		
-		if (Yii::$app->request->get('Customer') !== null) {
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Customer'] )) {
+			$model->load($_GET, 'Customer');
 			return $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
@@ -424,8 +426,8 @@ class CustomerUiController extends BaseUiController {
 		if (isset ( $_POST ['Customer']['columns'] )){
 			$columns = $_POST ['Customer']['columns'];
 		}
-		if (Yii::$app->request->get('Customer') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset ( $_GET ['Customer'] ))
+			$model->load($_GET, 'Customer');
 		$columns = $model->getColumns($columns);
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 			$this->exportCSV( $model->search (), $columns
@@ -437,7 +439,7 @@ class CustomerUiController extends BaseUiController {
 	}
 
 	public function actionWhatsapplogs() {
-		$model = new WhatsappLogs ( 'search' );
+		$model = new WhatsappLogs(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
 
 		$columns = [];
@@ -470,7 +472,7 @@ class CustomerUiController extends BaseUiController {
 		}
 
 		if (isset ( $_GET ['WhatsappLogs'] )) {
-			$model->setAttributes ( $_GET ['WhatsappLogs'] );
+			$model->load($_GET, 'WhatsappLogs');
 		}
 		$columns = $model->getWhatapplogsColumns ( $columns );
 		if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]

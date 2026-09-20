@@ -37,11 +37,11 @@ class B2bPurchaseBillController extends BaseUiController {
 		
 		
 		$date ='2022-01-21'; 
-		$query = PurchaseBillDetail::find();
-	$query->andWhere('cgst_per = 0.00');
-	 $query->andWhere('date(create_time) = "' . $date . '"');
+		$criteria = new CDbCriteria();
+	$criteria->addCondition('cgst_per = 0.00');
+	 $criteria->addCondition('date(create_time) = "' . $date . '"');
 	 
-			$bills = $query->all();
+			$bills = PurchaseBillDetail::model()->findAll($criteria);
 			
 			
 		

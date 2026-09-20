@@ -44,8 +44,8 @@ class PaymentModeController extends BaseUiController {
 
 		$this->performAjaxValidation($model, 'payment-mode-form');
 
-		if (Yii::$app->request->post('PaymentMode') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['PaymentMode'])) {
+			$model->load($_POST, 'PaymentMode');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -66,8 +66,8 @@ class PaymentModeController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'payment-mode-form');
 
-		if (Yii::$app->request->post('PaymentMode') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['PaymentMode'])) {
+			$model->load($_POST, 'PaymentMode');
 
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -116,9 +116,9 @@ class PaymentModeController extends BaseUiController {
 		$model = new PaymentMode(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('PaymentMode') !== null)
+		if (isset($_GET['PaymentMode']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'PaymentMode');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -134,8 +134,8 @@ class PaymentModeController extends BaseUiController {
 		$model = new PaymentMode(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('PaymentMode') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['PaymentMode']))
+			$model->load($_GET, 'PaymentMode');
 
 		return $this->render('admin', [
 			'model' => $model,

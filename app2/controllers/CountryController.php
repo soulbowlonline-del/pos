@@ -105,8 +105,8 @@ class CountryController extends BaseUiController {
 		$this->performAjaxValidation($model, 'country-form');
 		if( !($model->checkPermission ('country/create')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
-		if (Yii::$app->request->post('Country') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Country'])) {
+			$model->load($_POST, 'Country');
 
 			if ($model->save()) {
 				if (Yii::$app->request->isAjax)
@@ -128,8 +128,8 @@ class CountryController extends BaseUiController {
 		
 		$this->performAjaxValidation($model, 'country-form');
 
-		if (Yii::$app->request->post('Country') !== null) {
-			$model->load(Yii::$app->request->post());
+		if (isset($_POST['Country'])) {
+			$model->load($_POST, 'Country');
 			
 			if ($model->save()) {
 				return $this->redirect(['view', 'id' => $model->id]);
@@ -178,9 +178,9 @@ class CountryController extends BaseUiController {
 		$model = new Country(['scenario' => 'search']);
 		$this->updateMenuItems($model);
 	
-		if (Yii::$app->request->get('Country') !== null)
+		if (isset($_GET['Country']))
 		{
-			$model->load(Yii::$app->request->queryParams);
+			$model->load($_GET, 'Country');
 			return $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
@@ -197,8 +197,8 @@ class CountryController extends BaseUiController {
 		if( !($model->checkPermission ('country/admin')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		$this->updateMenuItems($model);
 		
-		if (Yii::$app->request->get('Country') !== null)
-			$model->load(Yii::$app->request->queryParams);
+		if (isset($_GET['Country']))
+			$model->load($_GET, 'Country');
 			if ($this->isExportRequest()) { // <==== [[ADD THIS BLOCK BEFORE RENDER]]
 				$this->exportCSV( $model->search (), [
 							

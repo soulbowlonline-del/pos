@@ -151,7 +151,7 @@ class StockAdjustLog extends ActiveRecord
      */
     public static function listingOrder()
     {
-        return ['id' => SORT_DESC];
+        return ['t.id' => SORT_DESC];
     }
 
     /** Views ask the model whether the current role may reach a route. */
@@ -327,7 +327,7 @@ class StockAdjustLog extends ActiveRecord
 		Criteria::compare($query, 't.adjusted', $this->adjusted);
 		Criteria::compare($query, 't.outlet_id', $this->outlet_id);
 		
-		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['t.id' => SORT_DESC]);
 
 		return new ActiveDataProvider([
 		    'query' => $query,
