@@ -908,7 +908,7 @@ class Item extends ActiveRecord
         }
 
     public static function RemoveVendors($id){
-            ItemVendor::model()->deleteAllByAttributes(['item_detail_id'=>$id]);
+            ItemVendor::deleteAll(['item_detail_id'=>$id]);
             return true;
         }
 
@@ -2011,7 +2011,7 @@ class Item extends ActiveRecord
                         $getItem = $query->one();
                         Yii::warning( var_export( $getItem , true), '$getItem');
                         if($getItem){
-                            $stocks = ItemStock::model()->deleteAllByAttributes(['item_id'=>$getItem->id]);
+                            $stocks = ItemStock::deleteAll(['item_id'=>$getItem->id]);
                             $barcode = $getItem->getItemBarcodes();
                             if($barcode){
                                 $query = ItemDetail::find();

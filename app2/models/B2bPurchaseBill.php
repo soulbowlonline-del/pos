@@ -1200,7 +1200,7 @@ class B2bPurchaseBill extends ActiveRecord
             curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, true );
             $server_output = curl_exec ( $ch );
             curl_close ( $ch );
-            $setting = Setting::model ()->find ();
+            $setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
             if ($setting == null) {
                 $setting = new Setting ();
             }

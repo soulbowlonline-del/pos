@@ -354,7 +354,7 @@ class Emp extends ActiveRecord
         }
 
     public function removeShifts(){
-            EmpShift::model()->deleteAllByAttributes(['emp_id'=>$this->id]);
+            EmpShift::deleteAll(['emp_id'=>$this->id]);
             return true;
         }
 

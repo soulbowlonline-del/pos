@@ -485,8 +485,8 @@ class ItemStock extends ActiveRecord
     }
 
     public function createB2bMrs(){
-            $organization = Organization::model()->find(['order'=>'id asc']);
-            $outlet =  Outlet::model()->find(['order'=>'id asc']);
+            $organization = Organization::find()->orderBy('id ASC')->one();
+            $outlet =  Outlet::find()->orderBy('id ASC')->one();
             if($outlet){
             $this->outlet_id = $outlet->id;
             }

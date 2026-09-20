@@ -210,10 +210,37 @@ It is also why the UI suite reports these as **nothing compared** rather than
 as passes: both stacks answer 403, and a page neither stack renders has not
 been verified by their agreeing about it.
 
-### Every b2bPurchaseBill page is dead, and has been — **found, not fixed**
+### Six more pages that are 500 on the untouched 5.6 baseline — **found, not fixed**
 
-All seven pages of the B2B purchase bill section answer 500, on the untouched
-PHP 5.6 baseline as well as on 8.3:
+Measured against a real row, signed in, on both stacks:
+
+| page | 5.6 baseline | PHP 8.3 |
+|---|---|---|
+| `item/update` | 500 | 500 |
+| `mrnDetail/update` | 500 | 500 |
+| `mrsDetail/update` | 500 | 500 |
+| `purchaseBillDetail/admin` | 500 | 500 |
+| `purchaseOrderDetail/update` | 500 | 500 |
+| `vendor/update` | 500 | 500 |
+
+The port reproduces each one, so the UI suite records them as *nothing
+compared* rather than as passes: neither stack renders a page, and two crashes
+agreeing is not agreement.
+
+`itemDetail/view` belongs here too, with a twist: it is **403 on the baseline
+and 500 on 8.3**, because the permission that refuses it there is one of the
+seventeen the application asks for under a spelling the table does not have.
+Grant it - which `perm_fixture.sql` does so the page can be compared at all -
+and the page crashes instead of being refused. It has presumably never been
+opened.
+
+Not fixed here: each is a bug in the Yii 1 application, not in the port.
+
+### Both B2B sections are dead, and have been — **found, not fixed**
+
+All seven pages of `b2bPurchaseBill`, and all seven of
+`b2BPurchaseBillDetail`, answer 500 on the untouched PHP 5.6 baseline as well
+as on 8.3:
 
     :8082 (5.6)  b2bPurchaseBill/admin   500
                  b2bPurchaseBill/index   500
@@ -229,6 +256,10 @@ directory on disk is `protected/views/b2bpurchaseBill` — lower-case `p`. On a
 case-insensitive filesystem, which is what a Windows or macOS development
 machine has, those are the same directory. On Linux they are not, and every
 one of the fifteen view files is invisible.
+
+`B2BPurchaseBillDetailController` has the same fault: its id is
+`b2BPurchaseBillDetail` and its views are in
+`protected/views/b2bpurchaseBillDetail`.
 
 So this section of the application has been unusable on the server for as long
 as it has been on Linux.

@@ -794,7 +794,7 @@ class User extends ActiveRecord
 
     public static function RemoveStore($id)
         {
-            MerchantStore::model()->deleteAllByAttributes(['merchant_id'=>$id]);
+            MerchantStore::deleteAll(['merchant_id'=>$id]);
         }
 
     public function getSelectedStores(){
@@ -1202,13 +1202,13 @@ class User extends ActiveRecord
             $list = [];
             $chars = str_split($keyword);
             {
-                $criteria = new CDbCriteria;
-                $criteria->addSearchCondition('username', $keyword, true);
-                $criteria->addSearchCondition('full_name', $keyword, true);
-                $criteria->scopes = 'active';
-                $criteria->order = 'username';
-                $criteria->limit = $limit;
-                $list = self::model()->findAll($criteria);
+                $query = User::find();
+                $query->andWhere(['like', 'username', $keyword]);
+                $query->andWhere(['like', 'full_name', $keyword]);
+                $query->andWhere('state_id=' . User::STATUS_ACTIVE);
+                $query->orderBy(['username' => SORT_ASC]);
+                $query->limit($limit);
+                $list = $query->all();
             }
             return $list;
         }

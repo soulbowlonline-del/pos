@@ -350,7 +350,7 @@ class Mrs extends ActiveRecord
 
     public function AssignMrs($id){
            $existmrsdetail = MrsDetail::findOne($id);
-            $organization = Organization::model()->find();
+            $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
             $item = Item::findOne($this->item_id);
             $mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$this->vendor_id,
                     'outlet_id'=>$this->outlet_id

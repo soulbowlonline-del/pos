@@ -1249,7 +1249,7 @@ class PurchaseBill extends ActiveRecord
 
             curl_close ( $ch );
 
-            $setting = Setting::model ()->find ();
+            $setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
             if ($setting == null) {
                 $setting = new Setting ();
             }

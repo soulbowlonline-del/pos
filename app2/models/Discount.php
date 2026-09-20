@@ -322,7 +322,7 @@ class Discount extends ActiveRecord
 
     public function removeItemDetailIds(){
 
-            $itemDiscounts = ItemDiscount::model()->deleteAllByAttributes(['discount_id'=>$this->id]);
+            $itemDiscounts = ItemDiscount::deleteAll(['discount_id'=>$this->id]);
             return true;
         }
 

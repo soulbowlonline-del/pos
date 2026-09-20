@@ -486,7 +486,7 @@ public function actionReport($id = null) {
 									
 										/*Create MRS*/
 										// $itemdetail = Item::findOne($item->item_id);
-										$organization = Organization::model()->find();
+										$organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
 										$itemdetail_ = ItemDetail::findOne($itemDetail->id);
 										$tax='';
 										$tax_id='';
@@ -1049,7 +1049,7 @@ public function actionReport($id = null) {
 									
 										/*Create MRS*/
 										// $itemdetail = Item::findOne($item->item_id);
-										$organization = Organization::model()->find();
+										$organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
 										$itemdetail_ = ItemDetail::findOne($itemDetail->id);
 										$tax='';
 										$tax_id='';

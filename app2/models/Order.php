@@ -730,7 +730,7 @@ class Order extends ActiveRecord
             // A dashboard chart of monthly order counts tolerates up-to-1h staleness.
             $rows = Yii::$app->db->cache(3600)->createCommand()
                 ->select('MONTH(create_time) AS m, COUNT(*) AS c')
-                ->from(Order::model()->tableName())
+                ->from(Order::tableName())
                 ->group('MONTH(create_time)')
                 ->queryAll();
             foreach($rows as $row){
@@ -1901,11 +1901,7 @@ class Order extends ActiveRecord
                 $json_entry['is_mobile'] = $model->is_mobile;
                 $json_entry['gross_total_amt'] = $model->gross_total_amt;
                 $json_entry ['customer_name'] = isset($model->customer)?$model->customer->name:'';
-                $loyaltyInfo = LoyaltyTransaction::model()->find([
-                    'condition' => 'order_id = :order_id AND transaction_type = :type',
-                    'params' => [':order_id' => $model->id, ':type' => 'REDEEM'],
-                    'order' => 'created_at DESC, id DESC', // id breaks the 1-second tie
-                ]);
+                $loyaltyInfo = LoyaltyTransaction::find()->where('order_id = :order_id AND transaction_type = :type', [':order_id' => $model->id, ':type' => 'REDEEM'])->orderBy('created_at DESC, id DESC')->one();
                 $json_entry ['redeemed_points'] = 0;
                 if ($loyaltyInfo) {
                     $json_entry ['redeemed_points'] = $loyaltyInfo->points;

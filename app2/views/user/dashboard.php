@@ -167,8 +167,8 @@ echo $form->dropDownListRow($model, 'session_id',
                   </p>
 
                   <div class="progress-group">
-                  <?php $mrscreated = Mrs::model()->count();
-                  $mrsapproved = Mrs::model()->countByAttributes(['status'=>Mrs::STATUS_DONE]);
+                  <?php $mrscreated = Mrs::find()->count();
+                  $mrsapproved = Mrs::find()->where(['status'=>Mrs::STATUS_DONE])->count();
                   ?>
                     <span class="progress-text">MRS Approved</span>
                     <span class="progress-number"><b><?php echo $mrsapproved;?></b>/<?php echo $mrscreated;?></span>
@@ -179,8 +179,8 @@ echo $form->dropDownListRow($model, 'session_id',
                   </div>
                   <!-- /.progress-group -->
                   <div class="progress-group">
-                     <?php $mrncreated = Mrn::model()->count();
-                  $mrnapproved = Mrn::model()->countByAttributes(['status'=>Mrn::STATUS_APPROVED]);
+                     <?php $mrncreated = Mrn::find()->count();
+                  $mrnapproved = Mrn::find()->where(['status'=>Mrn::STATUS_APPROVED])->count();
                   ?>
                     <span class="progress-text">MRN Approved</span>
                     <span class="progress-number"><b><?php echo $mrnapproved;?></b>/<?php echo $mrncreated;?></span>
@@ -191,8 +191,8 @@ echo $form->dropDownListRow($model, 'session_id',
                   </div>
                   <!-- /.progress-group -->
                   <div class="progress-group">
-                     <?php $pocreated = PurchaseOrder::model()->count();
-                  $poapproved = PurchaseOrder::model()->countByAttributes(['status'=>PurchaseOrder::STATUS_APPROVED]);
+                     <?php $pocreated = PurchaseOrder::find()->count();
+                  $poapproved = PurchaseOrder::find()->where(['status'=>PurchaseOrder::STATUS_APPROVED])->count();
                   ?>
                     <span class="progress-text">Purchase Order Approved</span>
                     <span class="progress-number"><b><?php echo $poapproved;?></b>/<?php echo $pocreated;?></span>

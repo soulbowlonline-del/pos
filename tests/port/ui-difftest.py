@@ -12,7 +12,7 @@ reductions are compared.
 
 e.g. ui-difftest.py paymentMode PaymentMode payment-mode-grid 1 type_id=1
 """
-import re, subprocess, sys, json, os
+import re, subprocess, sys, json, os, time
 
 BASE = 'http://127.0.0.1:8084'
 # The suite script logs in and passes its own cookie jar; the default is there
@@ -143,6 +143,7 @@ def check_pair(name, y1, y2, reduce_fn, require='nonempty'):
     form, and the right question is whether they refused the same way, not
     whether the empty reductions match.
     """
+    keep_session()
     s1, s2 = status(y1), status(y2)
     if s1 != '200' or s2 != '200':
         if s1 == s2:
@@ -345,6 +346,35 @@ def signed_in():
     # renders a source excerpt that happens to contain the grid's id, so
     # searching the body reports a guest as signed in.
     return status('/paymentMode/admin') == '200'
+
+
+def keep_session():
+    """
+    Re-establish the session if it has lapsed, before comparing a page.
+
+    Checking once at the start is not enough. PHP's session lifetime here is
+    24 minutes and a single controller can run longer than that on its own -
+    order/create and order/update take about four minutes each. When it lapses
+    mid-controller, Yii 1 answers a 500 (its admin layout reads role_id on a
+    null user) while the port redirects, and the case is recorded as a
+    mismatch. Two of those appeared in a run where every page was in fact
+    correct.
+
+    The probe is one request, so it is rate-limited rather than run before
+    every case.
+    """
+    now = time.time()
+    if now - keep_session.checked < 120:
+        return
+    keep_session.checked = now
+    if signed_in():
+        return
+    subprocess.run(['bash', '/root/pos/uilogin.sh'],
+                   capture_output=True, text=True)
+    keep_session.checked = time.time()
+
+
+keep_session.checked = 0.0
 
 
 def main():

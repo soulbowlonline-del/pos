@@ -32,7 +32,7 @@ use yii\web\NotFoundHttpException;
  */
 class OnlineOrderController extends BaseUiController {
 	public function actionCountOrders(){
-		$count = OnlineOrder::model()->countByAttributes(['type_id'=>OnlineOrder::TYPE_NEW]);
+		$count = OnlineOrder::find()->where(['type_id'=>OnlineOrder::TYPE_NEW])->count();
 		 echo $count;
 	}
 	public function isAllowed($model) {

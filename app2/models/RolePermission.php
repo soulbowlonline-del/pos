@@ -242,7 +242,7 @@ class RolePermission extends ActiveRecord
     }
 
     public function deleteOldPermissions($role_id){
-            $rolepermissions = RolePermission::model()->deleteAllByAttributes(['role_id'=>$role_id]);
+            $rolepermissions = RolePermission::deleteAll(['role_id'=>$role_id]);
             return true;
         }
 

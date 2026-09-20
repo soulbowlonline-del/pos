@@ -72,10 +72,10 @@ class SiteUiController extends BaseUiController
 		if (strpos($q,'.') !== false) {
 			$list = explode(".",$q);
 
-			$criteria = new CDbCriteria();
+			$query = Pointer::find();
 			// $user = User::findOne(array('full_name'=>$list[0]));
-			$criteria->addCondition('title = \''.$list[1].'\'');
-			$pointers=Pointer::model()->resetScope()->findAll($criteria);
+			$query->andWhere('title = \''.$list[1].'\'');
+			$pointers=$query->all();
 			if($pointers)
 			{
 				$ids = [];
@@ -84,16 +84,16 @@ class SiteUiController extends BaseUiController
 					$ids[] = $pointer->locator_id;
 
 				}
-				$criteria = new CDbCriteria();
-				$criteria->addInCondition('id ',$ids);
+				$query_2 = Locator::find();
+				$query_2->andWhere(['id' => $ids]);
 			}
 		}
 		else
 		{
-			$criteria = new CDbCriteria();
-			$criteria->compare('address',$q, true) ;
+			$query_2 = Locator::find();
+			Criteria::compare($query_2, 'address', $q, true);
 				}
-		$models=Locator::model()->findAll($criteria);
+		$models=$query_2->all();
 		//$dataProvider = new CActiveDataProvider('Locator',array('criteria'=>$criteria));
 		return $this->render('search',['models'=>$models,'q'=>$q]);
 	}

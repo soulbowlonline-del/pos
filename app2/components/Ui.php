@@ -76,7 +76,7 @@ class Ui
         'onlineOrder',
         'purchaseOrderDetail',
         'site',
-        'b2bPurchaseBillDetail',
+        'b2BPurchaseBillDetail',
         'loyaltyAdmin',
         'orderItem',
         'purchaseBill',
@@ -193,6 +193,13 @@ class Ui
      */
     public static function toYii2Id($id)
     {
+        // A run of capitals first: B2BPurchaseBillDetail's Yii 1 id is
+        // b2BPurchaseBillDetail, and splitting only on lower-then-upper gave
+        // b2-bpurchase-bill-detail, which Yii 2 resolves to a class that does
+        // not exist. The controller was unreachable under /v2 - and its seven
+        // comparisons passed, because a 404 on both stacks used to count as
+        // agreement.
+        $id = preg_replace('/([A-Z]+)([A-Z][a-z])/', '$1-$2', $id);
         $hyphenated = strtolower(preg_replace('/([a-z0-9])([A-Z])/', '$1-$2', $id));
 
         return self::needsUiSuffix($id) ? $hyphenated . '-ui' : $hyphenated;

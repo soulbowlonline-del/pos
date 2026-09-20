@@ -358,7 +358,7 @@ class ItemUiController extends BaseUiController {
 		}
 	}
 	public function actioncheck() {
-		$setting = Setting::model ()->find ();
+		$setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
 		if ($setting) {
 			$setting->days = 10;
 			$setting->create_time = '2018-08-10 12:11:11';
@@ -418,7 +418,7 @@ class ItemUiController extends BaseUiController {
 		];
 		$list = [];
 		$last = 0;
-		$setting = Setting::model ()->find ();
+		$setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
 		if ($setting) {
 			if (isset ( $setting ['last_item_id'] ) && ($setting ['last_item_id'] != null)) {
 				$last = $setting ['last_item_id'];
@@ -794,7 +794,7 @@ curl_close($ch);
 									
 										/*Create MRS*/
 										// $itemdetail = Item::findOne($item->item_id);
-										$organization = Organization::model()->find();
+										$organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
 										$itemdetail_ = ItemDetail::findOne($itemDetail->id);
 										$tax='';
 										$tax_id='';
@@ -1389,7 +1389,7 @@ curl_close($ch);
 	 * $dataProvider = new CActiveDataProvider('ItemDetail',array('criteria'=>$criteria ,'pagination' => array(
 	 * 'pageSize' => 10,
 	 * ),));
-	 * $pages = new CPagination($item_count);
+	 * $pages = new \yii\data\Pagination(['totalCount' => $item_count]);
 	 * $pages->setPageSize(Yii::$app->params['listPerPage']);
 	 *
 	 *
@@ -1402,7 +1402,7 @@ curl_close($ch);
 	 */
 	public function actionPrintBarcode() {
 		$model = new ItemDetail(['scenario' => 'search']);
-		$criteria = new CDbCriteria ();
+		$query = ItemDetail::find();
 		$item_detail_ids = [];
 		if ((isset ( $_POST ['ItemDetail'] ['item_print_id'] )) && ($_POST ['ItemDetail'] ['item_print_id'] != '') && ((isset ( $_POST ['ItemDetail'] ['item_qty'] )) && ($_POST ['ItemDetail'] ['item_qty'] != ''))) {
 			Yii::$app->session ['item_print_id'] = $_POST ['ItemDetail'] ['item_print_id'];
@@ -1417,16 +1417,13 @@ curl_close($ch);
 		// $item_detail_ids, not the session value: it is built above for exactly
 		// this call and defaults to array(). The session key is unset on a first
 		// visit, and addInCondition() calls count() on it - a TypeError on PHP 8.
-		$criteria->addInCondition ( 'id', $item_detail_ids );
-		$item_count = ItemDetail::model ()->count ( $criteria );
+		$query->andWhere(['id' => $item_detail_ids]);
+		$item_count = $query->count();
 		
-		$dataProvider = new CActiveDataProvider ( 'ItemDetail', [
-				'criteria' => $criteria,
-				'pagination' => [
+		$dataProvider = new ActiveDataProvider(['query' => $query, 'pagination' => [
 						'pageSize' => 10 
-				] 
-		] );
-		$pages = new CPagination ( $item_count );
+				]]);
+		$pages = new \yii\data\Pagination(['totalCount' => $item_count]);
 		$pages->setPageSize ( Yii::$app->params ['listPerPage'] );
 		
 		return $this->render( 'print', [
@@ -3353,7 +3350,7 @@ curl_close($ch);
 							
 							// Mark as updated
 							$item->price_update_flag = 1;
-							$item->price_update_time = new CDbExpression('NOW()');
+							$item->price_update_time = new \yii\db\Expression('NOW()');
 							$item->save(false); // Skip validation for performance
 						} else {
 							$results['errors']++;
@@ -3382,7 +3379,7 @@ curl_close($ch);
 					// No updates needed, but mark as processed
 					if (!$dryRun) {
 						$item->price_update_flag = 1;
-						$item->price_update_time = new CDbExpression('NOW()');
+						$item->price_update_time = new \yii\db\Expression('NOW()');
 						$item->save(false);
 					}
 				}
@@ -3558,7 +3555,7 @@ curl_close($ch);
 	 */
 	private function getTotalItemsCount()
 	{
-		return Item::model()->find('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0')->count();
+		return Item::find()->where('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0')->one()->count();
 	}
 
 	/**

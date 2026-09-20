@@ -240,15 +240,15 @@ class UserController extends BaseUiController {
 		$items = $query->count();
 	
 		$vendor = Vendor::findOne(['create_user_id'=>$user->id]);
-		$mrss =  Mrs::model ()->countByAttributes ( [
+		$mrss =  Mrs::find()->where([
 				'vendor_id' => $vendor->id
-		] );
-		$pos =  PurchaseOrder::model ()->countByAttributes ( [
+		])->count();
+		$pos =  PurchaseOrder::find()->where([
 				'vendor_id' => $vendor->id
-		] );
-		$grns =  PurchaseBill::model ()->countByAttributes ( [
+		])->count();
+		$grns =  PurchaseBill::find()->where([
 				'vendor_id' => $vendor->id
-		] );
+		])->count();
 		
 		$model = new User(['scenario' => 'search']);
 		$this->updateMenuItems ( $model );
@@ -276,9 +276,9 @@ class UserController extends BaseUiController {
 			] );
 		}
 		
-	$items = Item::model ()->count();
+	$items = Item::find()->count();
 		// $items = 1;
-		$vendors = Vendor::model ()->count();
+		$vendors = Vendor::find()->count();
 		$orders = 0;
 		$pendingorders = 0;
 		
@@ -308,7 +308,7 @@ class UserController extends BaseUiController {
 				// effective behaviour without the error; what it should actually
 				// provide needs someone who knows the intent of this screen.
 				$objects = [];
-				$dataProvider = new CArrayDataProvider ( $objects );
+				$dataProvider = new \yii\data\ArrayDataProvider(['allModels' => $objects]);
 				return $this->renderPartial( '/' . $view . '/_list', [
 						'dataProvider' => $dataProvider 
 				] );
@@ -500,7 +500,7 @@ class UserController extends BaseUiController {
 	protected function updateMenuItems($model = null) {
 		// create static model if model is null
 		if ($model == null)
-			$model = User::model ();
+			$model = new User();
 		
 		switch ($this->action->id) {
 			case 'update' :
@@ -586,7 +586,7 @@ class UserController extends BaseUiController {
 				] // return values from autocomplete
 ;
 			}
-			echo CJSON::encode ( $suggest );
+			echo json_encode( $suggest );
 		}
 		Yii::$app->end();
 	}
@@ -732,13 +732,13 @@ class UserController extends BaseUiController {
 	}
 	public function loginByUsername() {
 		if ($this->caseSensitiveUsers)
-			$user = User::model ()->find ( 'username = :username', [
+			$user = User::find()->where('username = :username', [
 					':username' => $this->loginForm->username 
-			] );
+			])->orderBy(['id' => SORT_DESC])->one();
 		else
-			$user = User::model ()->find ( 'upper(username) = :username', [
+			$user = User::find()->where('upper(username) = :username', [
 					':username' => strtoupper ( $this->loginForm->username ) 
-			] );
+			])->orderBy(['id' => SORT_DESC])->one();
 		if ($user)
 			return $this->authenticate ( $user );
 		else
@@ -811,7 +811,7 @@ class UserController extends BaseUiController {
 			
 			
 			
-			$setting = Setting::model()->find();
+			$setting = Setting::find()->orderBy(['id' => SORT_DESC])->one();
 			if($setting){
 			$days = $setting->days;
 			$create_time = $setting->create_time;
@@ -1058,21 +1058,19 @@ class UserController extends BaseUiController {
 		) );
 		
 		$user = Yii::$app->user->model;
-		$criteria = new CDbCriteria ();
+		$query = Journey::find();
 		$journey = new Journey ();
 		$bookdriver = new Driver ();
 		
-		$criteria->addCondition ( 'passenger_id =' . Yii::$app->user->id );
+		$query->andWhere('passenger_id =' . Yii::$app->user->id);
 		// $criteria->addCondition('state_id = 1');
-		$dataProvider = new CActiveDataProvider ( 'Journey', array (
-				'criteria' => $criteria 
-		) );
-		$criteria1 = new CDbCriteria ();
-		$criteria1->addCondition ( 'user_id =' . Yii::$app->user->id );
-		$driver = Driver::model ()->findAll ( $criteria1 );
+		$dataProvider = new ActiveDataProvider(['query' => $query]);
+		$query1 = Driver::find();
+		$query1->andWhere('user_id =' . Yii::$app->user->id);
+		$driver = $query1->all();
 		// $passenger = Passenger::model()->findAll($criteria1);
 		
-		$gridDataProvider = new CArrayDataProvider ( $driver );
+		$gridDataProvider = new \yii\data\ArrayDataProvider(['allModels' => $driver]);
 		
 		$dataProvider1 = new CActiveDataProvider ( 'Dispatcher' );
 		return $this->render( 'home', array (

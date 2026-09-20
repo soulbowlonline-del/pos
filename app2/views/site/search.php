@@ -40,12 +40,13 @@ if( $rec > 0 )
 		$lat =($model->latitude );
 		$lon = ($model->longitude );
 		$city = ($model->city );
-		$criteria = new CDbCriteria ;
-		$criteria->addCondition('locator_id  ='.$model->id);
-		$pointer = Pointer::model()->resetScope()->find($criteria);
-		$criteria=new CDbCriteria();
-		$criteria->select = 'email , id,full_name';
-		$user = User::model()->find($criteria);
+		$query = Pointer::find();
+		$query->andWhere('locator_id  ='.$model->id);
+		$pointer = $query->one();
+		$query_2 = User::find();
+        $query_2->orderBy(['id' => SORT_DESC]);
+		$query_2->select('email , id,full_name');
+		$user = $query_2->one();
 		if(!$pointer)
 		{
 			$icon = new EGMapMarkerImage(Yii::$app->request->baseUrl.'/images/phone.png');

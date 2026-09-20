@@ -717,7 +717,12 @@ DECL_RE = r'\$(\w+)\s*=\s*new\s+CDbCriteria\s*(?:\(\s*\))?\s*;'
 
 
 def finder_re(var):
-    return (r"(\w+)\s*::\s*model\s*\(\s*\)\s*->\s*(findAll|find|count)\s*\(\s*"
+    # `->resetScope()` may sit between the two. It says "ignore
+    # defaultScope() for this query", so it has to be matched here rather than
+    # stripped beforehand: the whole call is replaced, and convert_criteria
+    # uses its presence to leave the scope order off.
+    return (r"(\w+)\s*::\s*model\s*\(\s*\)\s*(?:->\s*resetScope\s*\(\s*\)\s*)?"
+            r"->\s*(findAll|find|count)\s*\(\s*"
             r"\$" + re.escape(var) + r"\s*\)")
 
 
@@ -788,6 +793,7 @@ def convert_criteria(text):
     # cannot read leaves the whole method alone.
     plans = []
     seen = {}
+    shared = {}          # consumer offset -> the query variable it is built in
     for i, d in enumerate(decls):
         var = d.group(1)
         end = len(text)
@@ -795,14 +801,34 @@ def convert_criteria(text):
             if later.group(1) == var:
                 end = later.start()
                 break
-        fm = re.search(finder_re(var), text[d.start():end])
+        # The consumer, looked for from this declaration to the end of the
+        # method rather than only to the next declaration of the same name.
+        #
+        # A criteria is often built differently in two branches and consumed
+        # once after them - site/search builds one set of conditions when the
+        # search term contains a dot and another when it does not, then calls
+        # Locator::model()->findAll($criteria) below both. Stopping at the
+        # next declaration meant the first branch had no consumer in its own
+        # region and the whole method was refused.
+        #
+        # Declarations that resolve to the same consumer are alternative
+        # constructions of one query, so they share its variable. That is
+        # faithful whether the branches are exclusive, where exactly one
+        # assignment runs, or sequential, where the later one overwrites the
+        # earlier - which is what Yii 1 does with `$criteria = new
+        # CDbCriteria()` twice.
+        fm = re.search(finder_re(var), text[d.start():])
+        pv = re.search(provider_re(var), text[d.start():])
+        if fm and pv:
+            fm, pv = (fm, None) if fm.start() < pv.start() else (None, pv)
         if fm:
             cls, kind = fm.group(1), fm.group(2)
+            at = d.start() + fm.start()
+        elif pv:
+            cls, kind = pv.group(1), 'provider'
+            at = d.start() + pv.start()
         else:
-            pm = re.search(provider_re(var), text[d.start():end])
-            if not pm:
-                return original, False, 'the criteria is not passed to a finder this knows'
-            cls, kind = pm.group(1), 'provider'
+            return original, False, 'the criteria is not passed to a finder this knows'
 
         # A name free in the method as the application wrote it, and not
         # already handed to another region. actionGetCustomerAddress() has its
@@ -810,22 +836,28 @@ def convert_criteria(text):
         # criteria overwrote it. Refusing the method over that would leave it
         # as CDbCriteria, which is a page that dies rather than a page that
         # lies, but it is still a page that dies.
-        base = query_var_for(var)
-        taken = {pl[3] for pl in plans}
-        name, n = base, 1
-        while name in taken or re.search(r'\$' + re.escape(name) + r'\b', original):
-            n += 1
-            name = '%s_%d' % (base, n)
+        if at in shared:
+            name = shared[at]
+        else:
+            base = query_var_for(var)
+            taken = set(shared.values())
+            name, n = base, 1
+            while name in taken or re.search(r'\$' + re.escape(name) + r'\b', original):
+                n += 1
+                name = '%s_%d' % (base, n)
+            shared[at] = name
         seen[var] = seen.get(var, 0) + 1
 
-        plans.append((d.start(), end, var, name, cls, kind))
+        # defaultScope() does not apply to a query that reset it.
+        reset = re.search(r'resetScope\s*\(\s*\)', text[d.start():end]) is not None
+        plans.append((d.start(), end, var, name, cls, kind, reset))
 
     # Regions of two different criteria interleave, so the edits are collected
     # against the original offsets and applied back to front rather than each
     # region being spliced in on its own.
     edits = []
-    for start, end, var, name, cls, kind in plans:
-        got, ok, why = region_edits(text, start, end, var, name, cls, kind)
+    for start, end, var, name, cls, kind, reset in plans:
+        got, ok, why = region_edits(text, start, end, var, name, cls, kind, reset)
         if not ok:
             return original, False, why
         edits.extend(got)
@@ -837,7 +869,7 @@ def convert_criteria(text):
     return restore(out), True, ''
 
 
-def region_edits(text, start, end, var, name, cls, kind):
+def region_edits(text, start, end, var, name, cls, kind, reset=False):
     """
     Every edit one criteria's region needs, as (span, replacement) pairs
     against `text`.
@@ -860,7 +892,10 @@ def region_edits(text, start, end, var, name, cls, kind):
         take_span(m.start(), m.end(), replacement)
 
     decl = re.match(DECL_RE, region)
-    scope = default_order_of(cls)
+    # resetScope() asks for the model's defaultScope() to be ignored, and what
+    # that scope contributes here is the ORDER BY. Adding it anyway would give
+    # site/search a row order Yii 1 never produced.
+    scope = None if reset else default_order_of(cls)
     # `t` when this criteria's own conditions name it. Yii 2 aliases the
     # primary table after the table, so a condition on `t.bill_date` refers to
     # an alias the query does not have: "Unknown column 't.bill_date' in 'where
@@ -943,6 +978,25 @@ def region_edits(text, start, end, var, name, cls, kind):
             stmts.append(Q + '->with = [%s];' % ', '.join("'%s'" % x for x in lazy))
         take(m, ('\n' + ' ' * 8).join(stmts))
 
+    # `$criteria->scopes` names one of the model's Yii 1 named scopes, which
+    # Yii 2 has no equivalent for. The scope's condition is inlined instead -
+    # User::searchByName() asks for 'active', which is `state_id=1`.
+    for m in re.finditer(V + r"\s*->\s*scopes\s*=\s*([^;]+);", region):
+        raw = m.group(1).strip()
+        names = re.findall(r"'(\w+)'", raw)
+        if not names:
+            return [], False, 'CDbCriteria uses a scope this cannot read'
+        known = scopes_of(cls)
+        conds = [known.get(n) for n in names]
+        if any(c is None for c in conds):
+            return [], False, ('CDbCriteria uses the named scope %s, which is not '
+                               'declared as a condition' % ', '.join(
+                                   n for n, c in zip(names, conds) if c is None))
+        # `self::` in a scopes() body means the model; here it would mean
+        # whatever class the criteria is being built in.
+        conds = [re.sub(r'\bself::', cls + '::', c) for c in conds]
+        take(m, ('\n' + ' ' * 8).join(Q + '->andWhere(%s);' % c for c in conds))
+
     # `condition` plus `params` is one andWhere; `params` on its own adds to
     # whatever conditions the add* calls have already put on the query.
     cond = re.search(V + r"\s*->\s*condition\s*=\s*([^;]+);", region)
@@ -961,9 +1015,9 @@ def region_edits(text, start, end, var, name, cls, kind):
             return Q + '->andWhere(%s);' % args
         bits = split_args_php(args)
         if called == 'addInCondition' and len(bits) >= 2:
-            return Q + '->andWhere([%s => %s]);' % (bits[0].strip(), bits[1].strip())
+            return Q + '->andWhere([%s => %s]);' % (column_literal(bits[0]), bits[1].strip())
         if called == 'addNotInCondition' and len(bits) >= 2:
-            return Q + "->andWhere(['not in', %s, %s]);" % (bits[0].strip(), bits[1].strip())
+            return Q + "->andWhere(['not in', %s, %s]);" % (column_literal(bits[0]), bits[1].strip())
         if called == 'addBetweenCondition' and len(bits) >= 3:
             return Q + "->andWhere(['between', %s, %s, %s]);" % tuple(b.strip() for b in bits[:3])
         if called == 'addSearchCondition' and len(bits) >= 2:
@@ -981,15 +1035,17 @@ def region_edits(text, start, end, var, name, cls, kind):
             return [], False, 'CDbCriteria %s() with arguments this cannot read' % m.group(1)
         take(m, rep)
 
-    if kind == 'provider':
-        got, ok, why = provider_edits(region, var, cls, Q, take_span)
-        if not ok:
-            return [], False, why
-    else:
-        tail = {'findAll': Q + '->all()', 'find': Q + '->one()',
-                'count': Q + '->count()'}[kind]
-        for m in re.finditer(finder_re(var), region):
-            take(m, tail)
+    # Every consumer in the region, not just the one the plan found. A single
+    # criteria is often handed to a count *and* to the data provider that
+    # lists the same rows - item/printBarcode does exactly that - and
+    # rewriting only the first left the other referring to a variable that no
+    # longer existed, which the check below then refused the whole method for.
+    tails = {'findAll': '->all()', 'find': '->one()', 'count': '->count()'}
+    for m in re.finditer(finder_re(var), region):
+        take(m, Q + tails[m.group(2)])
+    got, ok, why = provider_edits(region, var, cls, Q, take_span, required=False)
+    if not ok:
+        return [], False, why
 
     # Nothing may mention this criteria that has not been rewritten.
     for m in re.finditer(V + r'\b', region):
@@ -1000,7 +1056,7 @@ def region_edits(text, start, end, var, name, cls, kind):
 
     return edits, True, ''
 
-def provider_edits(region, var, cls, Q, take_span):
+def provider_edits(region, var, cls, Q, take_span, required=True):
     """
     Rewrite `new CActiveDataProvider('X', array('criteria' => $criteria, ...))`
     as Yii 2's ActiveDataProvider over the converted query.
@@ -1039,10 +1095,26 @@ def provider_edits(region, var, cls, Q, take_span):
                   % ', '.join(["'query' => " + Q] + opts))
         found = True
 
-    if not found:
+    if not found and required:
         return [], False, 'a CActiveDataProvider this cannot read'
 
     return [], True, ''
+
+
+def column_literal(arg):
+    """
+    A column name argument, with the padding inside the quotes removed.
+
+    Yii 1 builds these conditions by concatenation - `$column . ' IN (...)'` -
+    so `addInCondition('id ', $ids)` produces `id  IN (...)` and the space is
+    harmless. Yii 2 takes the array key as a column name and quotes it, so the
+    same argument became `` `id ` `` and the query failed on a column that
+    does not exist. site/search is written that way.
+    """
+    arg = arg.strip()
+    m = re.match(r"^(['\"])(.*)\1$", arg, re.S)
+
+    return '%s%s%s' % (m.group(1), m.group(2).strip(), m.group(1)) if m else arg
 
 
 def split_two(args):
@@ -1384,6 +1456,24 @@ def dao_idioms(text):
     text = re.sub(r"\bCJSON::decode\s*\(([^;]*?)\)(\s*[;,\)])",
                   lambda m: 'json_decode(' + m.group(1) + ', true)' + m.group(2), text)
 
+    # CDbExpression is yii\db\Expression. The application uses it for NOW()
+    # and other raw SQL in an assignment, where a quoted string would be
+    # written to the column literally.
+    text = re.sub(r"\bnew\s+CDbExpression\s*\(",
+                  lambda m: 'new \\yii\\db\\Expression(', text)
+
+    # CArrayDataProvider takes the rows as its first argument; Yii 2 takes a
+    # configuration array with allModels.
+    text = re.sub(r"\bnew\s+CArrayDataProvider\s*\(\s*(\$\w+)\s*\)",
+                  lambda m: "new \\yii\\data\\ArrayDataProvider(['allModels' => %s])" % m.group(1),
+                  text)
+
+    # CPagination is yii\data\Pagination, and it takes the row count as a
+    # configuration key rather than a constructor argument.
+    text = re.sub(r"\bnew\s+CPagination\s*\(\s*(\$\w+)\s*\)",
+                  lambda m: "new \\yii\\data\\Pagination(['totalCount' => %s])" % m.group(1),
+                  text)
+
     return text
 
 
@@ -1406,10 +1496,21 @@ def options_finder(m):
     # Only the options this can express. Anything else is left as Yii 1 code,
     # which is a page that fails loudly rather than one that lists the wrong
     # rows.
-    if any(k not in ('order', 'limit', 'offset', 'select') for k in keys):
+    if any(k not in ('order', 'limit', 'offset', 'select', 'condition', 'params')
+           for k in keys):
         return m.group(0)
 
     query = cls + '::find()'
+    # `condition` and its `params` are one where(). Order::toApiArray() reads
+    # a loyalty transaction this way.
+    cond = re.search(r"'condition'\s*=>\s*((?:'[^']*'|\"[^\"]*\"))", args)
+    if cond:
+        prm = re.search(r"'params'\s*=>\s*((?:array\s*\(|\[)"
+                        r"(?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*[)\]])", args, re.S)
+        query += '->where(%s%s)' % (cond.group(1),
+                                    ', ' + prm.group(1) if prm else '')
+    elif 'condition' in keys:
+        return m.group(0)          # a condition this cannot read
     sel = re.search(r"'select'\s*=>\s*('[^']*')", args)
     if sel:
         query += '->select(%s)' % sel.group(1)
@@ -1435,6 +1536,22 @@ def options_finder(m):
         ('->all()' if kind.lower().startswith('findall') else '->one()')
 
 
+def normalise_self(text, cls):
+    """
+    `self::model()` written inside the model itself, as that model's name.
+
+    The conversions read the class out of the call - `User::model()->findAll()`
+    - so a method that says `self::model()` handed them the class "self", and
+    scopes_of('self') found nothing: User::searchByName() was refused over a
+    named scope that is declared perfectly well on User.
+
+    None of these models is subclassed, so self, static and the class name are
+    the same thing here.
+    """
+    return re.sub(r"\b(?:self|static)::model\s*\(\s*\)",
+                  lambda m: cls + '::model()', text)
+
+
 def finder_idioms(text):
     """
     `X::model()->find*` as Yii 2 spells it.
@@ -1455,7 +1572,59 @@ def finder_idioms(text):
                   r"\s*(?:array\s*\(|\[)((?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*)"
                   r"[)\]]\s*\)", options_finder, text, flags=re.S)
 
-    text = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', text)
+    # `deleteAllByAttributes` and `countByAttributes`, which have no Yii 2
+    # spelling at all. Both take the same attributes array as the finders
+    # above, so an empty one means "every row" in Yii 1 - which is why the
+    # array is passed through rather than defaulted.
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*(?i:deleteAllByAttributes)\s*\("
+                  r"\s*((?:array\s*\(|\[)(?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*[)\]])\s*\)",
+                  lambda m: '%s::deleteAll(%s)' % (m.group(1), m.group(2)), text)
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*(?i:countByAttributes)\s*\("
+                  r"\s*((?:array\s*\(|\[)(?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*[)\]])\s*\)",
+                  lambda m: '%s::find()->where(%s)->count()' % (m.group(1), m.group(2)), text)
+
+    # A finder given a condition and its parameters:
+    #   User::model()->find('username = :username', [':username' => $u])
+    # Yii 2 puts both on where().
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\(\s*"
+                  r"((?:'[^']*'|\"[^\"]*\"))\s*,\s*"
+                  r"((?:array\s*\(|\[)(?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*[)\]])\s*\)",
+                  lambda m: '%s::find()->where(%s, %s)%s%s'
+                            % (m.group(1), m.group(3), m.group(4),
+                               default_order_call(m.group(1), ''),
+                               '->all()' if m.group(2).lower().startswith('findall') else '->one()'),
+                  text)
+    # The same with only a condition.
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\(\s*"
+                  r"((?:'[^']*'|\"[^\"]*\"))\s*\)",
+                  lambda m: '%s::find()->where(%s)%s%s'
+                            % (m.group(1), m.group(3),
+                               default_order_call(m.group(1), ''),
+                               '->all()' if m.group(2).lower().startswith('findall') else '->one()'),
+                  text)
+
+    # `resetScope()` says "ignore defaultScope() for this query". Yii 2 has no
+    # default scope, so the reset itself is a no-op - but the order that scope
+    # implied is exactly what the conversions below would otherwise add, so
+    # these are converted here, without one.
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*resetScope\s*\(\s*\)\s*->\s*"
+                  r"((?i:findAll|find|count))\s*\(\s*\)",
+                  lambda m: '%s::find()->%s()'
+                            % (m.group(1),
+                               {'findall': 'all', 'find': 'one',
+                                'count': 'count'}[m.group(2).lower()]), text)
+
+    # `X::model()->tableName()` is a static in Yii 2.
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*tableName\s*\(\s*\)",
+                  lambda m: m.group(1) + '::tableName()', text)
+
+    # Yii 1 applies defaultScope() to a bare finder too, so `find()` returns
+    # the *last* row by id, not the first. Setting::model()->find() picks the
+    # newest settings row; Setting::find()->one() picked whichever the storage
+    # engine handed back first.
+    text = re.sub(M + r"findAll\s*\(\s*\)",
+                  lambda m: '%s::find()%s->all()'
+                            % (m.group(1), default_order_call(m.group(1), '')), text)
     text = re.sub(M + r"count\s*\(\s*\)", lambda m: m.group(1) + '::find()->count()', text)
     # `X::model()->with(...)->findByAttributes(...)` - a finder reached
     # through a chain rather than directly, which the rules above skip because
@@ -1482,8 +1651,20 @@ def finder_idioms(text):
                   r"((?i:findAllByAttributes|findByAttributes))\s*\((.*?)\)\s*(?=[;,)\]])",
                   chained, text, flags=re.S)
 
-    text = re.sub(M + r"find\s*\(\s*\)", lambda m: m.group(1) + '::find()->one()', text)
+    text = re.sub(M + r"find\s*\(\s*\)",
+                  lambda m: '%s::find()%s->one()'
+                            % (m.group(1), default_order_call(m.group(1), '')), text)
     text = re.sub(M + r"exists\s*\(", lambda m: m.group(1) + '::find()->exists(', text)
+
+    # A bare `X::model()` with nothing chained onto it. Yii 1 hands back a
+    # shared instance, used for the things that do not depend on a row -
+    # attributeLabels(), checkPermission(), building a menu. Yii 2 has no such
+    # thing, and a fresh instance answers all of them the same way.
+    #
+    # Last, so every chained form above has already been converted and this
+    # cannot swallow one.
+    text = re.sub(r"\b(\w+)::model\s*\(\s*\)(?!\s*->)",
+                  lambda m: 'new %s()' % m.group(1), text)
 
     return text
 
