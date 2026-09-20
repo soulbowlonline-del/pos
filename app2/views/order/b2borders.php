@@ -271,12 +271,12 @@ $('.search-form form').submit(function(){
 		/* 	array(
 					'attribute' =>'mode_of_payment',
 					'value' => function ($data, $key, $index) { return Gx::str($data->modePayment); },
-					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>0)->orderBy(['id' => SORT_DESC])->all())),
+					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>0))->orderBy(['id' => SORT_DESC])->all()),
 			),
 			array(
 					'attribute' =>'mode_of_delivery',
 					'value' => function ($data, $key, $index) { return Gx::str($data->modeDelivery); },
-					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>1)->orderBy(['id' => SORT_DESC])->all())),
+					'filter'=>Gx::listData(PaymentMode::find()->where(array('type_id'=>1))->orderBy(['id' => SORT_DESC])->all()),
 			),
 			
 			array(

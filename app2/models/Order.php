@@ -728,11 +728,11 @@ class Order extends ActiveRecord
             $list = array_fill(1, 12, 0);
             // Cache this historical monthly aggregate for 1h (opt-in, this query only).
             // A dashboard chart of monthly order counts tolerates up-to-1h staleness.
-            $rows = Yii::$app->db->cache(3600)->createCommand()
-                ->select('MONTH(create_time) AS m, COUNT(*) AS c')
+            $rows = Yii::$app->db->cache(function ($db) {
+            return (new \yii\db\Query())->select('MONTH(create_time) AS m, COUNT(*) AS c')
                 ->from(Order::tableName())
-                ->group('MONTH(create_time)')
-                ->queryAll();
+                ->groupBy('MONTH(create_time)')
+                ->all($db); }, 3600);
             foreach($rows as $row){
                 $m = (int)$row['m'];
                 if($m >= 1 && $m <= 12){
@@ -1661,7 +1661,7 @@ class Order extends ActiveRecord
 		Criteria::compare($query, 'update_time', $this->update_time, true);
 		Criteria::compare($query, 'customer_id', $this->customer_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by); 
-		// $orders = Order::model()->findAll($criteria);
+		// $orders = Order::model()->findAll(;
 		// echo"<pre>"; print_r($orders); die;
 	   /*  if($orders){
 			$taxable = 0;
@@ -1855,7 +1855,7 @@ class Order extends ActiveRecord
 
                 // $criteria = new CDbCriteria();
                 // $criteria->compare('order_id',$model->id);
-                // $orderRefund = OrderRefund::model()->find($criteria);
+                // $orderRefund = OrderRefund::model()->find(;
                  // [id] => 7088
                 // [qty] => 5
                 // [discount] => 0.00

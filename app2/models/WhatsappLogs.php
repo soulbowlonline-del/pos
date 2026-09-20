@@ -14,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/WhatsappLogs.php (Yii 1). */
 class WhatsappLogs extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     // Declared on the Yii 1 model and not columns: the forms post
     // to these and the actions assign them.
     public $start_date;
@@ -36,6 +40,7 @@ class WhatsappLogs extends ActiveRecord
     public function rules()
     {
         return [
+            [['id', 'number', 'message', 'type_id', 'status', 'message_id', 'template_name', 'created_at'], 'safe', 'on' => 'search'],
             [['start_date', 'end_date', 'columns'], 'safe'],  // form-only, declared on the Yii 1 model
             [['number', 'message'], 'required'],
             [['id'], 'integer'],
@@ -384,14 +389,6 @@ class WhatsappLogs extends ActiveRecord
     public function attributeLabels()
     {
         return [
-            'id' => 'ID',
-            'amount' => 'Amount',
-            'advance_payment_id' => 'Advance Payment Id',
-            'type_id' => 'Type',
-            'status' => 'Status',
-            'create_time' => 'Create Time',
-            'update_time' => 'Update Time',
-            'advancePayment' => 'Advance Payment',
         ];
     }
 
@@ -512,6 +509,87 @@ class WhatsappLogs extends ActiveRecord
 		    'query' => $query,
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+		]);
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $this->load($params, $this->formName());
+
+		
+		$query = self::find();
+
+		if((Yii::$app->session['whatsapp_start_date'] != '') && (Yii::$app->session['whatsapp_end_date'] != '')){
+			$query->andWhere(['between', 'DATE(created_at)', Yii::$app->session['whatsapp_start_date'], Yii::$app->session['whatsapp_end_date']]);
+		} 
+
+		Criteria::compare($query, 'id', $this->id);
+		Criteria::compare($query, 'number', $this->number);
+		Criteria::compare($query, 'template_name', $this->template_name);
+		Criteria::compare($query, 'message_id', $this->message_id);
+		Criteria::compare($query, 'message', $this->message);
+		Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'user_id', $this->user_id);
+		Criteria::compare($query, 'computer_name', $this->computer_name);
+		Criteria::compare($query, 'created_at', $this->created_at, true);
+		$query->orderBy(['id' => SORT_DESC]);
+		$query->orderBy(['id' => SORT_DESC]);
+
+		return new ActiveDataProvider([
+		    'query' => $query,
+		    'sort' => ['defaultOrder' => []],
+		    'pagination' => ['pageSize' => 20],
 		]);
     }
 }

@@ -736,7 +736,12 @@ def provider_re(var):
     loyaltyAdmin pages kept their Yii 1 code and died on a class Yii 2 does
     not have.
     """
-    return (r"new\s+CActiveDataProvider\s*\(\s*'(\w+)'\s*,\s*(?:array\s*\(|\[)"
+    # The class may be written as a literal, as $this, or as
+    # get_class($this) - BaseB2bPurchaseBill::userwisesearch() uses the
+    # second. When it is not a literal the caller supplies the class.
+    return (r"new\s+CActiveDataProvider\s*\(\s*"
+            r"(?:'(\w+)'|\$this|get_class\s*\(\s*\$this\s*\))\s*,\s*"
+            r"(?:array\s*\(|\[)"
             r"[^;]*?'criteria'\s*=>\s*\$" + re.escape(var) + r"\b")
 
 
@@ -751,7 +756,7 @@ def query_var_for(var):
     return var + 'Query'
 
 
-def convert_criteria(text):
+def convert_criteria(text, cls_hint=None):
     """
     Rewrites a CDbCriteria query as a Yii 2 query, statement by statement.
 
@@ -825,7 +830,11 @@ def convert_criteria(text):
             cls, kind = fm.group(1), fm.group(2)
             at = d.start() + fm.start()
         elif pv:
-            cls, kind = pv.group(1), 'provider'
+            cls = pv.group(1) or cls_hint
+            if not cls:
+                return original, False, ('a CActiveDataProvider whose model is '
+                                         'not written as a class name')
+            kind = 'provider'
             at = d.start() + pv.start()
         else:
             return original, False, 'the criteria is not passed to a finder this knows'
@@ -1056,6 +1065,20 @@ def region_edits(text, start, end, var, name, cls, kind, reset=False):
 
     return edits, True, ''
 
+def order_array(sql):
+    """A SQL order fragment as Yii 2's Sort spells it."""
+    cols = []
+    for part in sql.split(','):
+        bits = part.strip().split()
+        if not bits:
+            continue
+        col = bits[0][2:] if bits[0].startswith('t.') else bits[0]
+        desc = len(bits) > 1 and bits[1].lower().startswith('desc')
+        cols.append("'%s' => %s" % (col, 'SORT_DESC' if desc else 'SORT_ASC'))
+
+    return '[%s]' % ', '.join(cols)
+
+
 def provider_edits(region, var, cls, Q, take_span, required=True):
     """
     Rewrite `new CActiveDataProvider('X', array('criteria' => $criteria, ...))`
@@ -1066,8 +1089,9 @@ def provider_edits(region, var, cls, Q, take_span, required=True):
     `sort => false` - mean the same thing in both frameworks, and rewriting
     them would have replaced a page size of 20 with the default.
     """
-    pat = (r"new\s+CActiveDataProvider\s*\(\s*'" + re.escape(cls) +
-           r"'\s*,\s*(array\s*\(|\[)")
+    pat = (r"new\s+CActiveDataProvider\s*\(\s*"
+           r"(?:'" + re.escape(cls) + r"'|\$this|get_class\s*\(\s*\$this\s*\))"
+           r"\s*,\s*(array\s*\(|\[)")
     found = False
     for m in re.finditer(pat, region):
         opener = '(' if m.group(1).strip().startswith('array') else '['
@@ -1088,6 +1112,11 @@ def provider_edits(region, var, cls, Q, take_span, required=True):
 
         opts = [b.strip() for b in split_args_php(block)
                 if b.strip() and not re.match(r"'criteria'\s*=>", b.strip())]
+        # Yii 1 takes the provider's defaultOrder as a SQL fragment; Yii 2's
+        # Sort takes an array, and a string there is silently ignored.
+        opts = [re.sub(r"('defaultOrder'\s*=>\s*)'([^']+)'",
+                       lambda mm: mm.group(1) + order_array(mm.group(2)), o)
+                for o in opts]
         if len(opts) == len(split_args_php(block)):
             continue          # some other provider in the same region
         take_span(m.start(), i + close.end(),
@@ -1159,9 +1188,51 @@ def split_args_php(args):
     return out
 
 
-def by_attributes_php(m):
+def sub_balanced(head, fn, text):
+    """
+    Like re.sub, but the argument list is matched by balancing parentheses.
+
+    `head` must end where the arguments open. The rules that used a non-greedy
+    match for the argument list instead stopped at the first `)` followed by
+    which is the wrong one the moment an argument spans lines:
+
+        UserRole::model()->findByAttributes(array(
+                'title' => 'Vendor'
+        ));
+
+    came out as `where(array('title' => 'Vendor')->orderBy(...)->one())` - the
+    array closed, the call left open - and item/barCode died on "Call to a
+    member function orderBy() on array". Four models carried that.
+    """
+    out, i = [], 0
+    while True:
+        m = head.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        j, depth = m.end(), 1
+        while j < len(text) and depth:
+            if text[j] == '(':
+                depth += 1
+            elif text[j] == ')':
+                depth -= 1
+            j += 1
+        if depth:
+            out.append(text[i:m.end()])      # unbalanced source; leave it alone
+            i = m.end()
+            continue
+        out.append(text[i:m.start()])
+        out.append(fn(m, text[m.end():j - 1]))
+        i = j
+
+    return ''.join(out)
+
+
+def by_attributes_php(m, args=None):
     """X::model()->findAllByAttributes(attrs, options) as a Yii 2 query."""
-    cls, kind, args = m.group(1), m.group(2), m.group(3)
+    cls, kind = m.group(1), m.group(2)
+    if args is None:
+        args = m.group(3)
     bits = split_args_php(args)
     cond = bits[0].strip() if bits else '[]'
     query = cls + '::find()'
@@ -1406,8 +1477,14 @@ def dao_idioms(text):
     # this rule has just turned into a Query are followed.
     FETCH = {'queryScalar': 'scalar', 'queryAll': 'all',
              'queryRow': 'one', 'queryColumn': 'column'}
-    start = re.compile(r"Yii::(?:app\s*\(\s*\)|\$app)\s*->\s*db\s*->\s*"
-                       r"createCommand\s*\(\s*\)\s*->\s*select\s*\(")
+    # An optional `->cache(N)` in front. Yii 1 spells query caching fluently -
+    # `$db->cache(3600)->createCommand()...` - and Yii 2 takes a closure and
+    # the duration instead. Dropping it would be a behaviour change: the one
+    # site that uses it caches a grouped scan of 1.3M rows for an hour,
+    # deliberately, and without it the dashboard does that scan on every load.
+    start = re.compile(r"Yii::(?:app\s*\(\s*\)|\$app)\s*->\s*db\s*"
+                       r"(?:->\s*cache\s*\(\s*([^()]*?)\s*\)\s*)?"
+                       r"->\s*createCommand\s*\(\s*\)\s*->\s*select\s*\(")
     out, i = [], 0
     while True:
         m = start.search(text, i)
@@ -1415,7 +1492,10 @@ def dao_idioms(text):
             out.append(text[i:])
             break
         out.append(text[i:m.start()])
-        out.append('(new \\yii\\db\\Query())->select(')
+        cached = m.group(1)
+        out.append(('Yii::$app->db->cache(function ($db) {\n            return '
+                    if cached else '')
+                   + '(new \\yii\\db\\Query())->select(')
         # Walk the chain from the open parenthesis this just emitted, so the
         # fetch call that ends it is the one belonging to this query and not
         # some later statement's.
@@ -1440,8 +1520,14 @@ def dao_idioms(text):
                     depth -= 1
                 k += 1
             if called in FETCH:
-                out.append(text[j:j + link.start(1)] + FETCH[called]
-                           + text[j + link.end(1):k])
+                # Inside the closure the fetch takes the connection it was
+                # handed, so the cached query runs on that one.
+                tail = text[j + link.end(1):k]
+                if cached:
+                    tail = re.sub(r'\(\s*\)$', '($db)', tail)
+                out.append(text[j:j + link.start(1)] + FETCH[called] + tail)
+                if cached:
+                    out.append('; }, %s)' % cached)
                 j = k
                 break
             out.append(text[j:k])
@@ -1450,11 +1536,20 @@ def dao_idioms(text):
 
     text = ''.join(out)
 
+    # CDbCommand::group() is Query::groupBy().
+    text = re.sub(r"(\)\s*\n?\s*)->\s*group\s*\(", lambda m: m.group(1) + '->groupBy(', text)
+
     # CJSON is PHP's own json_* in Yii 2. decode() returns an array in Yii 1,
     # so the second argument is not optional if the result is used as one.
     text = re.sub(r"\bCJSON::encode\s*\(", 'json_encode(', text)
     text = re.sub(r"\bCJSON::decode\s*\(([^;]*?)\)(\s*[;,\)])",
                   lambda m: 'json_decode(' + m.group(1) + ', true)' + m.group(2), text)
+
+    # `Yii::app()` is `Yii::$app`. The translators each had their own rule for
+    # this; the shared set did not, so a method brought across by a merge -
+    # B2bPurchaseBill::userwisesearch(), which reads two session keys - kept
+    # the Yii 1 spelling and died on a static method that does not exist.
+    text = re.sub(r"\bYii::app\s*\(\s*\)", lambda m: 'Yii::$app', text)
 
     # CDbExpression is yii\db\Expression. The application uses it for NOW()
     # and other raw SQL in an assignment, where a quoted string would be
@@ -1488,8 +1583,16 @@ FINDER_OPTIONS = ('order', 'limit', 'offset', 'condition', 'params', 'select',
                   'join', 'alias', 'scopes')
 
 
-def options_finder(m):
-    cls, kind, args = m.group(1), m.group(2), m.group(3)
+def options_finder(m, args=None):
+    cls, kind = m.group(1), m.group(2)
+    if args is None:
+        args = m.group(3)
+    args = args.strip()
+    # The argument list as written, with the outer array unwrapped if it has
+    # one - the balanced match hands over everything between the parentheses.
+    inner = re.match(r'^(?:array\s*\(|\[)(.*)[)\]]$', args, re.S)
+    if inner:
+        args = inner.group(1)
     keys = re.findall(r"'(\w+)'\s*=>", args)
     if not keys or any(k not in FINDER_OPTIONS for k in keys):
         return m.group(0)
@@ -1566,11 +1669,13 @@ def finder_idioms(text):
     # See port_views.py: these take an options array Yii 2's findAll/findOne
     # do not, and an empty attributes array means "everything" in Yii 1 and
     # "nothing useful" through findAll().
-    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAllByAttributes|findByAttributes))"
-                  r"\s*\((.*?)\)\s*(?=[;,)\]])", by_attributes_php, text, flags=re.S)
-    text = re.sub(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\("
-                  r"\s*(?:array\s*\(|\[)((?:[^()\[\]]|\[[^\[\]]*\]|\([^()]*\))*)"
-                  r"[)\]]\s*\)", options_finder, text, flags=re.S)
+    text = sub_balanced(
+        re.compile(r"\b(\w+)::model\s*\(\s*\)\s*->\s*"
+                   r"((?i:findAllByAttributes|findByAttributes))\s*\(", re.S),
+        by_attributes_php, text)
+    text = sub_balanced(
+        re.compile(r"\b(\w+)::model\s*\(\s*\)\s*->\s*((?i:findAll|find))\s*\(", re.S),
+        lambda m, a: options_finder(m, a), text)
 
     # `deleteAllByAttributes` and `countByAttributes`, which have no Yii 2
     # spelling at all. Both take the same attributes array as the finders
@@ -1811,8 +1916,21 @@ def convert_search(body, model, page_size, eager, load_params=True):
     cut = body.find('new CActiveDataProvider')
     if cut < 0:
         return None
+
     ret = body.rfind('return', 0, cut)
     if ret < 0:
+        # No `return` before the provider to cut at, which is how
+        # userwisesearch() and two of OrderItem's are written: the provider is
+        # assigned to a variable and returned further down. The criteria
+        # converter understands a provider as a consumer in its own right, so
+        # it can take the method whole.
+        #
+        # Only as a fallback. Run first, it also took methods the substitution
+        # below handles correctly and produced worse output for them - four
+        # models stopped generating at all.
+        direct, ok, _ = convert_criteria(body, cls_hint=model)
+        if ok and 'CActiveDataProvider' not in direct and 'CDbCriteria' not in direct:
+            return direct
         return None
     var = re.search(r"'criteria'\s*=>\s*\$(\w+)", body[cut:])
     if not var:
@@ -2738,7 +2856,14 @@ PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermissi
 # would change what the order API validates on every save.
 NEVER_SHARED = {'rules', 'search', 'beforeValidate', 'init', 'scenarios',
                 'behaviors', 'transactions', 'primaryKey', 'tableName',
-                'optimisticLock', 'attributeHints'}
+                'optimisticLock', 'attributeHints',
+                # Yii 2 declares toArray() on Model itself, with a different
+                # signature and a different meaning - it returns fields(), not
+                # the hand-built JSON shape Yii 1's toArray() returns. The API
+                # port carries Yii 1's as toApiArray() for exactly that
+                # reason, and copying the original back in would override the
+                # framework's on a model the API serialises.
+                'toArray'}
 
 
 def write_model(path, content, what):

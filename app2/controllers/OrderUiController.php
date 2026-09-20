@@ -1299,7 +1299,7 @@ public function actionB2bItemWiseExport()
         // $criteria = new CDbCriteria();
         // $criteria->compare('title', 'B2B');
         // $criteria->compare('type_id', '0');
-        // $modePayment = PaymentMode::model()->find($criteria);
+        // $modePayment = PaymentMode::model()->find(;
         // if ($modePayment) {
             // Yii::$app->session['order_mode_payment'] = $modePayment->id;
         // } else {

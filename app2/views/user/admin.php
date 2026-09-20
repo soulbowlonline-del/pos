@@ -3,6 +3,7 @@
  * Ported from protected/views/user/admin.php.
  */
 
+use app\components\Access;
 use app\components\Ui;
 use app\models\User;
 use app\widgets\ActionColumn;
@@ -149,14 +150,14 @@ $('.search-form form').submit(function(){
 					'htmlOptions'=> ['style'=>'width:80px'],
 					'buttons'=>[
 							'view'=>[
-									'visible' => function ($data) { return $data->checkPermission ("user/view")=="true"; },
+									'visible' => function ($data) { return Access::check("user/view")=="true"; },
 									'url' => function ($data) { return Ui::to("user/view", ["id" => $data->id]); },
 									'label'=>'View',
 									'options'=>['class'=>'view'],
 										
 							],
 							'update'=>[
-									'visible' => function ($data) { return $data->checkPermission ("user/update")=="true"; },
+									'visible' => function ($data) { return Access::check("user/update")=="true"; },
 									'url' => function ($data) { return Ui::to("user/update", ["id" => $data->id]); },
 									'label'=>'Update',
 									'options'=>['class'=>'update'],

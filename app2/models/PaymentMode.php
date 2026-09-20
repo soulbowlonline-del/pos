@@ -119,38 +119,36 @@ class PaymentMode extends ActiveRecord
     /**
      * Backs the admin grid.
      *
-     * The comparison rules are Yii 1's: title, create_time and update_time are
-     * partial matches, everything else is exact, and an empty value drops the
-     * condition rather than matching on emptiness. Yii 1's CActiveDataProvider
-     * has no ORDER BY here, so the page order was the database's; ordered by id
-     * explicitly, because MySQL 8 does not sort implicitly and a grid that
-     * reshuffles between page 1 and page 2 loses rows.
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
      */
     public function search($params = [])
     {
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            // GxActiveRecord::defaultScope() puts `ORDER BY id DESC` on every
-            // model that has an id, so this is the order Yii 1 lists rows in -
-            // newest first - not the ascending order an unordered query happens
-            // to produce.
-            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 
-        // No validate() here. Yii 1's search() compares whatever is set and
-        // never validates, and it matters: the `required` rule on title has no
-        // `on` clause, so it applies in the search scenario too. Validating
-        // would reject every filtered request with "Title cannot be blank" and
-        // silently return the unfiltered list.
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-        foreach (['id', 'type_id', 'status', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['type_id', 'type_id'], ['status', 'status'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['title', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['title', 'title'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

@@ -279,11 +279,11 @@ class Bill extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['create_user_id', 'id', 'type_id', 'status', 'po_id'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['create_user_id', 'create_user_id'], ['id', 'id'], ['type_id', 'type_id'], ['status', 'status'], ['po_id', 'po_id']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['bill_no', 'image_file1', 'image_file2', 'image_file3', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['bill_no', 'bill_no'], ['image_file1', 'image_file1'], ['image_file2', 'image_file2'], ['image_file3', 'image_file3'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

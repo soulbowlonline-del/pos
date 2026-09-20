@@ -2447,7 +2447,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
             // $criteria3->with = 'orderRefund';
             // $criteria3->addInCondition('orderRefund.order_id',$order_ids);
 
-            // $orderRefundItem = OrderRefundItem::model ()->find ( $criteria3 );
+            // $orderRefundItem = OrderRefundItem::model ()->find (;
             // if($orderRefundItem){
             // $refund_price = $orderRefundItem->qty;
             // }
@@ -2495,7 +2495,7 @@ class B2bPurchaseBillDetail extends ActiveRecord
             // $criteria3->with = 'orderRefund';
                 // $criteria3->compare ( 'date(orderRefund.create_time)', $this->create_date );
             // $criteria3->addInCondition('orderRefund.order_id',$order_ids);
-            // $orderRefundItems = OrderRefundItem::model ()->findAll( $criteria3 );
+            // $orderRefundItems = OrderRefundItem::model ()->findAll(;
             // if($orderRefundItems){
 
                 // foreach($orderRefundItems as $orderRefundItem){

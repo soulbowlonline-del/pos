@@ -1218,7 +1218,7 @@ if ($mrsid) {
 							<div class="row">
 								<?php /*?>
 <div class="col-md-7  tax-table-responsive table-responsive customsmallgridwidth">
-<?php $taxes = Tax::find()->where(array('status'=>MrsDetail::STATUS_PENDING)->all());?>
+<?php $taxes = Tax::find()->where(array('status'=>MrsDetail::STATUS_PENDING))->all();?>
 <?php if($taxes){?>
 <table>
 <tr>

@@ -283,11 +283,11 @@ class Shift extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'status', 'type_id', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['status', 'status'], ['type_id', 'type_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['title', 'description', 'start_time', 'end_time', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['title', 'title'], ['description', 'description'], ['start_time', 'start_time'], ['end_time', 'end_time'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

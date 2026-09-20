@@ -415,7 +415,7 @@ class OrderRefundItem extends ActiveRecord
 		$query = OrderRefundItem::find()->alias('t');
 		if(isset($this->bill_no) && ($this->bill_no != '')){
 			$refund_ids = array();
-			$order = Order::find()->where(array('bill_no'=>$this->bill_no)->one());
+			$order = Order::find()->where(array('bill_no'=>$this->bill_no))->one();
 			if($order){
 		$query1 = OrderRefund::find()->alias('t');
 		Criteria::compare($query1, 'order_id', $order->id);

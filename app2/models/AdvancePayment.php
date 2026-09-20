@@ -293,11 +293,11 @@ class AdvancePayment extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'payment', 'type_id', 'status', 'vendor_id', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['payment', 'payment'], ['type_id', 'type_id'], ['status', 'status'], ['vendor_id', 'vendor_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['payment_date', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['payment_date', 'payment_date'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

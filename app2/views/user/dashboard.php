@@ -3,6 +3,7 @@
  * Ported from protected/views/user/dashboard.php.
  */
 
+use app\components\Access;
 use app\components\Gx;
 use app\components\Ui;
 use app\models\Mrn;
@@ -300,24 +301,24 @@ echo $form->dropDownListRow($model, 'session_id',
               $link = '#';
               $type = $notification->model_type;
               if($type == Notification::TYPE_MRS){
-              	if($user->checkPermission('mrsDetail/admin')){
+              	if(Access::check('mrsDetail/admin')){
               	$link = Ui::to('mrsDetail/admin');
               	}
               }
               if($type == Notification::TYPE_MRN){
-              	if($user->checkPermission('mrnDetail/admin')){
+              	if(Access::check('mrnDetail/admin')){
               		$link = Ui::to('mrnDetail/admin');
               	}
               }
               if($type == Notification::TYPE_PO){
-              	if($user->checkPermission('purchaseOrderDetail/admin')){
+              	if(Access::check('purchaseOrderDetail/admin')){
               		$link = Ui::to('purchaseOrderDetail/admin');
               	}
               }
               if($type == Notification::TYPE_PBILL){
-              	if($user->checkPermission('purchaseBillDetail/admin')){
+              	if(Access::check('purchaseBillDetail/admin')){
               		$link = Ui::to('purchaseBillDetail/admin');
-              	}else if($user->checkPermission('purchaseBillDetail/index')){
+              	}else if(Access::check('purchaseBillDetail/index')){
               		$link = Ui::to('purchaseBillDetail/index');
               	}
               }

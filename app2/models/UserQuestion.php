@@ -1,115 +1,55 @@
 <?php
 namespace app\models;
 
-use app\components\Ui;
-
 use app\components\Criteria;
-
-use yii\data\ActiveDataProvider;
-
+use app\components\Gx;
+use app\components\Ui;
 use Yii;
-
+use yii\data\ActiveDataProvider;
 use yii\db\ActiveRecord;
+use yii\helpers\Html;
 
-/** Ported from protected/models/LoyaltyTransaction.php (Yii 1). */
-class LoyaltyTransaction extends ActiveRecord
+/**
+ * Ported from protected/models/UserQuestion.php and its giix base class.
+ */
+class UserQuestion extends ActiveRecord
 {
-    // Yii 1 hands out column values as strings; the option helpers
-    // compare them loosely and answer wrongly for an integer 0.
+    // Yii 1 hands out column values as strings; the option helpers below
+    // compare them loosely and give the wrong answer for an integer 0.
     use LegacyColumnTypes;
 
-    // Declared on the Yii 1 model and not columns: the forms post
-    // to these and the actions assign them.
-    public $total;
-
-    public const TYPE_EARN = 'EARN';
-    public const TYPE_REDEEM = 'REDEEM';
-    public const TYPE_BONUS = 'BONUS';
-    public const TYPE_EXPIRE = 'EXPIRE';
-    public const TYPE_ADJUST = 'ADJUST';
+    public const STATUS_ACTIVE = 0;
+    public const STATUS_INACTIVE = 1;
 
     public static function tableName()
     {
-        return '{{%loyalty_transactions}}';
-    }
-
-    /**
-     * created_at is a DEFAULT_GENERATED CURRENT_TIMESTAMP column, so it is left
-     * to the database exactly as the Yii 1 model did - no TimestampBehavior.
-     */
-    public function rules()
-    {
-        return [
-            [['total'], 'safe'],  // form-only, declared on the Yii 1 model
-            [['customer_id', 'transaction_type', 'points'], 'required'],
-            [['customer_id', 'order_id', 'created_by'], 'integer'],
-            [['points', 'reference_amount'], 'number'],
-            [['description'], 'string', 'max' => 255],
-            [['transaction_type'], 'in', 'range' => [
-                self::TYPE_EARN, self::TYPE_REDEEM, self::TYPE_BONUS,
-                self::TYPE_EXPIRE, self::TYPE_ADJUST,
-            ]],
-        ];
-    }
-
-    /**
-     * Lifetime EARN points for a customer. Reproduces the Yii 1 helpers, which
-     * SUM(points) and coalesce a null (no rows) to 0.
-     */
-    public static function getLoyaltyLifetimeEarnedPoints($customerId)
-    {
-        $total = static::find()
-            ->where(['customer_id' => $customerId, 'transaction_type' => self::TYPE_EARN])
-            ->sum('points');
-        return $total ? $total : 0;
-    }
-
-    /** Lifetime REDEEM points for a customer. */
-    public static function getLoyaltyLifetimeRedeemedPoints($customerId)
-    {
-        $total = static::find()
-            ->where(['customer_id' => $customerId, 'transaction_type' => self::TYPE_REDEEM])
-            ->sum('points');
-        return $total ? $total : 0;
-    }
-
-    /** EARN points recorded against one bill. */
-    public static function getLoyaltyCurrentBillEarnedPoints($customerId, $billId)
-    {
-        $total = static::find()
-            ->where([
-                'customer_id' => $customerId,
-                'order_id' => $billId,
-                'transaction_type' => self::TYPE_EARN,
-            ])
-            ->sum('points');
-        return $total ? $total : 0;
+        return '{{%user_question}}';
     }
 
     /** Yii 1's label(): the model's name, singular or plural. */
     public static function label($n = 1)
     {
-        return $n == 1 ? 'LoyaltyTransaction' : 'LoyaltyTransactions';
+        return $n == 1 ? 'UserQuestion' : 'UserQuestions';
     }
 
     /** The column that stands for the whole row in a link or a breadcrumb. */
     public static function representingColumn()
     {
-        return 'id';
+        return 'create_time';
     }
 
     /**
      * GxActiveRecord::__toString(): the representing column's value.
      *
-     * Empty when that value is null. Yii 1 falls back to the primary key when
-     * representingColumn() itself is empty - which is why 'id' is named above
-     * for the models that have no other - and never because the column happens
-     * to be null on this row. Falling back on the value put an id in every grid
-     * cell where Yii 1 shows nothing.
+     * Empty when that value is null. Yii 1 falls back to the primary key
+     * when representingColumn() itself is empty - which the generator
+     * has already done above, by naming 'id' - and never because the
+     * column happens to be null on this row. Falling back on the value
+     * put an id in every grid cell where Yii 1 shows nothing.
      */
     public function __toString()
     {
-        $value = $this->hasAttribute('id') ? $this->id : null;
+        $value = $this->hasAttribute('create_time') ? $this->create_time : null;
 
         return $value === null ? '' : (string) $value;
     }
@@ -121,7 +61,26 @@ class LoyaltyTransaction extends ActiveRecord
      */
     public static function defaultOrder()
     {
-        return null;
+        return ['id' => SORT_DESC];
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
     }
 
     /**
@@ -171,6 +130,7 @@ class LoyaltyTransaction extends ActiveRecord
     {
         return \app\components\Access::check($url);
     }
+
 
     /**
      * GxActiveRecord::getItemOptions(): the active items, as id => 'title(mrp)',
@@ -425,44 +385,26 @@ class LoyaltyTransaction extends ActiveRecord
             $config));
     }
 
-    public function attributeLabels()
+    public static function getStatusOptions($id = null)
     {
-        return [
-        ];
+		$list = ["Active","InActive"];
+		if ($id === null || $id === '' )	return $list;
+		if ( is_numeric( $id )) return $list [ $id ];
+		return $id;
     }
 
-    public function getCustomer()
+    public static function getTypeOptions($id = null)
     {
-        return $this->hasOne(Customer::class, ['id' => 'customer_id']);
-    }
-
-    public function getOrder()
-    {
-        return $this->hasOne(Order::class, ['id' => 'order_id']);
-    }
-
-    public function getCreatedBy()
-    {
-        return $this->hasOne(User::class, ['id' => 'created_by']);
-    }
-
-    /**
-     * Yii 1's CActiveRecord fills a new record with the column defaults
-     * declared by the table; Yii 2 leaves them null until asked. Without
-     * this a create form shows an empty box where Yii 1 shows 0.00, and
-     * an insert writes NULL where Yii 1 writes the default.
-     */
-    public function init()
-    {
-        parent::init();
-
-        // Not in the search scenario. Yii 1 loaded the defaults and then
-        // the admin action called unsetAttributes() to clear them; a
-        // search model that keeps them filters the grid by every column
-        // that has a default, which showed 4 rows where Yii 1 shows 11.
-        if ($this->isNewRecord && $this->scenario !== 'search') {
-            $this->loadDefaultValues();
-        }
+		$list = [
+				"TYPE1",
+				"TYPE2",
+				"TYPE3" 
+		];
+		if ($id === null || $id === '')
+			return $list;
+		if (is_numeric ( $id ))
+			return $list [$id];
+		return $id;
     }
 
     /**
@@ -487,6 +429,34 @@ class LoyaltyTransaction extends ActiveRecord
         }
 
         return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['question_id', 'create_user_id'], 'required'],
+            [['question_id', 'type_id', 'status', 'create_user_id', 'updated_by'], 'integer'],
+            [['create_time', 'update_time'], 'safe'],
+            [['type_id', 'status', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
+            [['id', 'question_id', 'type_id', 'status', 'create_time', 'update_time', 'create_user_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'question_id' => 'Question',
+            'type_id' => 'Type',
+            'status' => 'Status',
+            'create_time' => 'Create Time',
+            'update_time' => 'Update Time',
+            'create_user_id' => 'User',
+            'updated_by' => 'User',
+            'createUser' => 'User',
+            'question' => 'Question',
+            'updatedBy' => 'User',
+        ];
     }
 
     /**
@@ -517,7 +487,63 @@ class LoyaltyTransaction extends ActiveRecord
 
         $this->load($params, $this->formName());
 
+        foreach ([['id', 'id'], ['question_id', 'question_id'], ['type_id', 'type_id'], ['status', 'status'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
 
         return $provider;
+    }
+
+    public function getQuestionOptions(){
+            $list = [];
+                    $questions = Question::find()->where(['status'=>UserRole::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->all();
+            if($questions){
+                foreach($questions as $question){
+                    $list[$question->id] = $question->title;
+                }
+            }
+            return $list;
+        }
+
+    public function getUserQuestionOptions($id){
+            $list = [];
+            $ids = [];
+            $query = Question::find();
+            $query->orderBy(['id' => SORT_DESC]);
+            if($id != null){
+                $userques = UserQuestion::find()->where(['create_user_id'=>$id])->orderBy(['id' => SORT_DESC])->all();
+                if($userques){
+                    foreach($userques as $userque){
+                        $ids[] = $userque->question_id;
+                    }
+                }
+                if(!empty($ids))
+                $query->andWhere(['id' => $ids]);
+            }
+            $questions = $query->all();
+            if($questions){
+                foreach($questions as $question){
+                    $list[$question->id] = $question->title;
+                }
+            }
+            return $list;
+        }
+
+    public function getCreateUser()
+    {
+        return $this->hasOne(User::class, ['id' => 'create_user_id']);
+    }
+
+    public function getQuestion()
+    {
+        return $this->hasOne(Question::class, ['id' => 'question_id']);
+    }
+
+    public function getUpdatedBy()
+    {
+        return $this->hasOne(User::class, ['id' => 'updated_by']);
     }
 }

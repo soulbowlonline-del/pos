@@ -1158,7 +1158,7 @@ class PurchaseBill extends ActiveRecord
 		Yii::warning( var_export($role_id, true), '$role_id');
 		if($role_id== 6){
 		
-			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id)->orderBy(['id' => SORT_DESC])->one());
+			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id))->orderBy(['id' => SORT_DESC])->one();
 			if($vendor)
 				Criteria::compare($query, 'vendor_id', $vendor->id);
 		}

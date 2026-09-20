@@ -1771,7 +1771,7 @@ class Item extends ActiveRecord
                         Yii::warning( var_export( $item , true), '$item');
                         if ($item->save()) {
                             /* $itemDetailoldbars = ItemDetail::find()->where(array (
-                                    'item_id' =>  $item->id)->all());
+                                    'item_id' =>  $item->id))->all();
                             if($itemDetailoldbars){
                                 foreach($itemDetailoldbars as $itemDetailoldbar){
                                     $itemDetailoldbar->delete();

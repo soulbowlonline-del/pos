@@ -1019,7 +1019,7 @@ curl_close($ch);
 		 * $criteria->limit = '100';
 		 *
 		 * $criteria->addCondition ( 'status =' . Item::STATUS_ACTIVE );
-		 * $items = Item::model ()->findAll ( $criteria );
+		 * $items = Item::model ()->findAll (;
 		 *
 		 * if ($items != null) {
 		 * foreach ( $items as $item ) {

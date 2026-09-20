@@ -285,12 +285,12 @@ class ItemTax extends ActiveRecord
      */
     public function search($params = [])
     {
-        $query = self::find();
+        $query = self::find()->alias('t');
         // Yii 1 eager-loads these, by JOIN, in the same query. That is
         // part of the result and not just an optimisation: where the
         // listing has no ORDER BY, the join decides which rows the
         // first page shows.
-        $query->joinWith(['itemDetail.item', 'tax']);
+        $query->joinWith(['itemDetail.item' => function ($q) { $q->alias('item'); }, 'tax' => function ($q) { $q->alias('tax'); }]);
         $provider = new ActiveDataProvider([
             'query' => $query,
             // The order goes on the query, not on the provider's sort.
@@ -308,11 +308,11 @@ class ItemTax extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['t.id', 'item.sale_price', 't.tax_id', 't.status', 't.type_id', 't.create_user_id', 't.updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['t.id', 'id'], ['item.sale_price', 'sale_rate'], ['t.tax_id', 'tax_id'], ['t.status', 'status'], ['t.type_id', 'type_id'], ['t.create_user_id', 'create_user_id'], ['t.updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['itemDetail.bar_code', 'item.title', 'tax.tax_val1', 'tax.hrn_code', 'tax.tax_val2', 'tax.tax_val3', 't.create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['itemDetail.bar_code', 'item_detail_id'], ['item.title', 'item_id'], ['tax.tax_val1', 'match_cgst'], ['tax.hrn_code', 'match_total_tax'], ['tax.tax_val2', 'match_sgst_tax'], ['tax.tax_val3', 'match_cess_tax'], ['t.create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

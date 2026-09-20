@@ -4,6 +4,7 @@ namespace app\controllers;
 use app\components\Ui;
 use app\models\Item;
 use app\models\ItemVendor;
+use app\models\LoginForm;
 use app\models\Mrs;
 use app\models\MrsDetail;
 use app\models\PurchaseBill;
@@ -1068,7 +1069,7 @@ class UserController extends BaseUiController {
 		$query1 = Driver::find();
 		$query1->andWhere('user_id =' . Yii::$app->user->id);
 		$driver = $query1->all();
-		// $passenger = Passenger::model()->findAll($criteria1);
+		// $passenger = Passenger::model()->findAll(;
 		
 		$gridDataProvider = new \yii\data\ArrayDataProvider(['allModels' => $driver]);
 		

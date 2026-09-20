@@ -238,17 +238,26 @@ class Permission extends ActiveRecord
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            'sort' => ['defaultOrder' => self::defaultOrder() ?: []],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-        foreach (['id', 'status', 'type_id', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['status', 'status'], ['type_id', 'type_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['title', 'url', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['title', 'title'], ['url', 'url'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

@@ -134,6 +134,11 @@ for c in PORTED:
         rows.append({'ctrl': c, 'action': act, 'args': len(needs), 'blocked': why})
 
 safe = [r for r in rows if not r['blocked']]
+# Actions whose only reason to be held back is a session write. They touch no
+# table and reach nothing outside, so they can be swept - as long as the write
+# cannot leak into another action's request, which is what the separate cookie
+# jar in action-sweep.py is for.
+session_only = [r for r in rows if r['blocked'] == ['sets session']]
 blocked = [r for r in rows if r['blocked']]
 print('uncovered actions:        %d' % len(rows))
 print('safe for a read-only GET: %d' % len(safe))
@@ -150,3 +155,6 @@ for c, a in dropped:
 
 json.dump(safe, open('/tmp/sweep-targets.json', 'w'), indent=1)
 print('\nwrote /tmp/sweep-targets.json with %d targets' % len(safe))
+
+json.dump(session_only, open('/tmp/sweep-session-targets.json', 'w'), indent=1)
+print('wrote /tmp/sweep-session-targets.json with %d session-only targets' % len(session_only))

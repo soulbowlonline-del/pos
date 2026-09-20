@@ -163,19 +163,26 @@ class City extends ActiveRecord
         $query = self::find();
         $provider = new ActiveDataProvider([
             'query' => $query,
-            // GxActiveRecord::defaultScope() orders every model with an id
-            // by id DESC, so Yii 1 lists newest first.
-            'sort' => ['defaultOrder' => ['id' => SORT_DESC]],
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
         ]);
 
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
         $this->load($params, $this->formName());
 
-        foreach (['id', 'type_id', 'state_id', 'status', 'create_user_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['type_id', 'type_id'], ['state_id', 'state_id'], ['status', 'status'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['title', 'create_time', 'update_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['title', 'title'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

@@ -48,6 +48,42 @@ def fetch(url):
     return code, text.rsplit('\n', 1)[0]
 
 
+def fetch_isolated(url, jar):
+    """A request in a cookie jar of its own, signed in for this call alone."""
+    sh('cd /root/pos && COOKIE_FILE=%s ./uilogin.sh >/dev/null 2>&1' % jar)
+    r = subprocess.run(['curl', '-s', '-b', jar, '-c', jar, '--max-time', '90',
+                        '-w', '\n%{http_code}', url], capture_output=True, text=True)
+    text = r.stdout
+    return text.rsplit('\n', 1)[-1].strip(), text.rsplit('\n', 1)[0]
+
+
+def sweep_session_actions():
+    """
+    The actions whose only side effect is writing a session key.
+
+    They were held back because the sweep shares one cookie jar across every
+    request, and a key written by one action changes what a later one sees -
+    item/printBarcode reads `item_print_id` back out. Given a jar per action,
+    and a separate one per stack so Yii 1's write cannot reach the port
+    through the shared session, there is nothing left to be careful about:
+    they touch no table and reach nothing outside.
+    """
+    path = '/tmp/sweep-session-targets.json'
+    if not os.path.exists(path):
+        return [], 0
+    targets = [t for t in json.load(open(path)) if not t['args']]
+    bad, ok = [], 0
+    for t in targets:
+        route = '%s/%s' % (t['ctrl'], t['action'])
+        c1, _ = fetch_isolated(f'{BASE}/{route}', '/tmp/sweep-sess-y1.txt')
+        c2, _ = fetch_isolated(f'{BASE}/v2/{route}', '/tmp/sweep-sess-y2.txt')
+        if c1 == c2:
+            ok += 1
+        else:
+            bad.append((route, c1, c2))
+    return bad, ok + len(bad)
+
+
 def stray_output(body):
     """Something printed before the real response."""
     s = body.lstrip()
@@ -101,6 +137,8 @@ def main():
         else:
             mismatched.append((path, c1, c2))
 
+    session_bad, session_n = sweep_session_actions()
+
     after = checksums()
     changed = [t for t in after if before.get(t) != after.get(t)]
 
@@ -112,10 +150,13 @@ def main():
     print('  known, confirmed on 5.6:     %d of %d listed' % (len(known_hit), len(known)))
     print('  other status mismatch:       %d' % len(mismatched))
     print('  stray output from the port:  %d' % len(stray))
+    print('  session-only actions swept:  %d, %d differ'
+          % (session_n, len(session_bad)))
     print('  tables changed by the sweep: %d %s'
           % (len(changed), ', '.join(changed[:6]) if changed else ''))
 
-    for title, rows in (('PORT FAILS WHERE YII 1 WORKS', port_bugs),
+    for title, rows in (('SESSION-ONLY ACTIONS THAT DIFFER', session_bad),
+                        ('PORT FAILS WHERE YII 1 WORKS', port_bugs),
                         ('STATUS MISMATCH', mismatched),
                         ('STRAY OUTPUT', stray),
                         ('BOTH FAIL', both),

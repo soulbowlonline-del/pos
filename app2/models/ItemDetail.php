@@ -1523,7 +1523,8 @@ class ItemDetail extends ActiveRecord
 		Criteria::compare($query, 'id', $this->id);
 		
 		$role = UserRole::find()->where(array (
-				'title' => 'Vendor')->orderBy(['id' => SORT_DESC])->one());
+				'title' => 'Vendor' 
+		))->orderBy(['id' => SORT_DESC])->one();
 		$user = Yii::$app->user->model;
 		if ($user->role_id == $role->id) {
 			$is_vendor = 1;

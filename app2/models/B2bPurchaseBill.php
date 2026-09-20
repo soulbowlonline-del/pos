@@ -326,7 +326,7 @@ class B2bPurchaseBill extends ActiveRecord
 		Yii::warning( var_export($role_id, true), '$role_id');
 		if($role_id== 6){
 		
-			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id)->orderBy(['id' => SORT_DESC])->one());
+			$vendor = Vendor::find()->where(array('create_user_id'=>$user->id))->orderBy(['id' => SORT_DESC])->one();
 			if($vendor)
 				Criteria::compare($query, 'vendor_id', $vendor->id);
 		}
@@ -1290,7 +1290,7 @@ class B2bPurchaseBill extends ActiveRecord
              * if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
              * $criteria->addBetweenCondition('date(create_time)',Yii::$app->session['start_date'], Yii::$app->session['end_date']);
              * }
-             * $orderRefund = OrderRefund::model()->find($criteria);
+             * $orderRefund = OrderRefund::model()->find(;
              * if($orderRefund){
              * $criteria3 = new CDbCriteria();
              * $criteria3->addCondition('order_refund_id ='.$orderRefund->id);
@@ -1300,7 +1300,7 @@ class B2bPurchaseBill extends ActiveRecord
              * }
              * $criteria3->select = 'sum(total_amt) as total_amt,sum(tax_amt) as tax_amt';
              * $criteria3->addCondition('item_id ='.$orderitem->item_id);
-             * $orderRefundItem = OrderRefundItem::model()->find($criteria3);
+             * $orderRefundItem = OrderRefundItem::model()->find(;
              *
              * $refund = $orderRefundItem->total_amt - $orderRefundItem->tax_amt;
              * }
@@ -1565,7 +1565,7 @@ class B2bPurchaseBill extends ActiveRecord
              * if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
              * $criteria->addBetweenCondition('date(create_time)',Yii::$app->session['start_date'], Yii::$app->session['end_date']);
              * }
-             * $orderRefund = OrderRefund::model()->find($criteria);
+             * $orderRefund = OrderRefund::model()->find(;
              * if($orderRefund){
              * $criteria3 = new CDbCriteria();
              * $criteria3->addCondition('order_refund_id ='.$orderRefund->id);
@@ -1575,7 +1575,7 @@ class B2bPurchaseBill extends ActiveRecord
              * }
              * $criteria3->addCondition('item_id ='.$orderitem->item_id);
              * $criteria3->select = 'sum(total_amt) as total_amt';
-             * $orderRefundItem = OrderRefundItem::model()->find($criteria3);
+             * $orderRefundItem = OrderRefundItem::model()->find(;
              * $refund = $orderRefundItem->total_amt;
              *
              * }
@@ -1931,5 +1931,64 @@ class B2bPurchaseBill extends ActiveRecord
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => 100],
 		]);
+    }
+
+    /**
+     * Yii 1's userwisesearch(): a listing of its own, converted as written.
+     */
+    public function userwisesearch()
+    {
+
+		$query = B2bPurchaseBill::find();
+		 if(($this->start_date != '' && $this->start_date != null) && ($this->end_date != '' && $this->end_date != null)){
+			 $query->andWhere(['between', 'start_date', $this->start_date, $this->end_date]);
+		}
+		if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+			 $query->andWhere(['between', 'start_date', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
+		} 
+		$query->groupBy('create_user_id');
+		// MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not. Order
+		// explicitly by the grouped columns to preserve the previous output order.
+		$query->orderBy(['create_user_id' => SORT_ASC]);
+		$query->andWhere('status =1');
+		// $criteria->compare('id', $this->id);
+		Criteria::compare($query, 'bill_no', $this->bill_no);
+		Criteria::compare($query, 'total_discount', $this->total_discount);
+		if($this->bill_amount != '0.000'){
+		Criteria::compare($query, 'bill_amount', $this->bill_amount);
+		}
+		Criteria::compare($query, 'tax_amount', $this->tax_amount);
+		Criteria::compare($query, 'gross_amt', $this->gross_amt);
+		 Criteria::compare($query, 'status', $this->status);
+		Criteria::compare($query, 'type_id', $this->type_id); 
+		Criteria::compare($query, 'create_time', $this->create_time, true);
+		Criteria::compare($query, 'update_time', $this->update_time, true);
+		Criteria::compare($query, 'updated_by', $this->updated_by); 
+	
+	   /*  if($orders){
+			$taxable = 0;
+			$total = 0;
+			foreach($orders as $order){
+				$taxable = $taxable + $order->getTotalGrossAmount();
+				$total = $total + $order->getTotalNetAmount();
+				//Yii::log ( CVarDumper::dumpAsString ($total), CLogger::LEVEL_WARNING, '$total' );
+			}
+		
+			Yii::$app->session ['gross_total']=round($taxable);
+			Yii::$app->session ['gross_total_amt']=round($total);
+		} */
+		$taxable = 0;
+		$total = 0;
+		Yii::$app->session ['gross_total']=round($taxable);
+		Yii::$app->session ['gross_total_amt']=round($total);
+		//echo "<pre>"; print_r($criteria);
+		$modeldata = new ActiveDataProvider(['query' => $query, 'sort'=>[
+					'defaultOrder'=>['id' => SORT_DESC],
+			]]);
+
+		//echo $modeldata->createCommand()->sql;
+		//echo $modeldata->createCommand()->getRawSql();
+		return $modeldata;
+	
     }
 }

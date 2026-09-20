@@ -288,11 +288,11 @@ class ItemExpireItem extends ActiveRecord
 
         $this->load($params, $this->formName());
 
-        foreach (['id', 'item_id', 'item_detail_id', 'free', 'qty', 'vendor_id', 'outlet_id', 'status', 'type_id', 'create_user_id', 'item_expire_id', 'updated_by'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr);
+        foreach ([['id', 'id'], ['item_id', 'item_id'], ['item_detail_id', 'item_detail_id'], ['free', 'free'], ['qty', 'qty'], ['vendor_id', 'vendor_id'], ['outlet_id', 'outlet_id'], ['status', 'status'], ['type_id', 'type_id'], ['create_user_id', 'create_user_id'], ['item_expire_id', 'item_expire_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
         }
-        foreach (['mrp', 'sale_rate', 'total_amt', 'create_time'] as $attr) {
-            Criteria::compare($query, $attr, $this->$attr, true);
+        foreach ([['mrp', 'mrp'], ['sale_rate', 'sale_rate'], ['total_amt', 'total_amt'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
         }
 
         return $provider;

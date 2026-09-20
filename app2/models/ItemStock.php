@@ -529,7 +529,7 @@ class ItemStock extends ActiveRecord
             // $criteria = new CDbCriteria();
             // $criteria->addCondition('item_id ='.$this->item_id);
             // $criteria->order = 'id desc';
-            // $itemstock = ItemStock::model()->find($criteria);
+            // $itemstock = ItemStock::model()->find(;
             // if($itemstock){
                 // $reorder_qty = 10/100*$itemstock;
             // }else{

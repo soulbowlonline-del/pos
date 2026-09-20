@@ -14,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/MrsAdjust.php (Yii 1). */
 class MrsAdjust extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     public const STATUS_PENDING = 0;
     public const STATUS_DONE = 1;
 
@@ -411,5 +415,98 @@ class MrsAdjust extends ActiveRecord
     public function getItem()
     {
         return $this->hasOne(Item::class, ['id' => 'item_id']);
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['item_id', 'item_detail_id', 'mrs_detail_id', 'qty'], 'required'],
+            [['item_id', 'item_detail_id', 'mrs_detail_id', 'type_id', 'status'], 'integer'],
+            [['qty'], 'string', 'max' => 10],
+            [['create_time'], 'safe'],
+            [['type_id', 'status', 'create_time'], 'default', 'value' => null],
+            [['id', 'item_id', 'item_detail_id', 'mrs_detail_id', 'qty', 'type_id', 'status', 'create_time'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
+        $this->load($params, $this->formName());
+
+        foreach ([['id', 'id'], ['item_id', 'item_id'], ['item_detail_id', 'item_detail_id'], ['mrs_detail_id', 'mrs_detail_id'], ['type_id', 'type_id'], ['status', 'status']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['qty', 'qty'], ['create_time', 'create_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
+
+        return $provider;
     }
 }

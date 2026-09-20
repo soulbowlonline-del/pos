@@ -3490,7 +3490,7 @@ class OrderItem extends ActiveRecord
 		Criteria::compare($query, 't.price', $this->price);
 		Criteria::compare($query, 't.discount_id', $this->discount_id);
 		Criteria::compare($query, 't.discount_amt', $this->discount_amt);
-	//    $orderItems = OrderItem::model()->findAll($criteria);
+	//    $orderItems = OrderItem::model()->findAll(;
 	   // Yii::warning( var_export( $orderItems , true), '$orderItems');
 	   /*   if($orderItems){
 	     	$gst = 0;

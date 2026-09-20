@@ -14,6 +14,10 @@ use yii\db\ActiveRecord;
 /** Ported from protected/models/OrderHold.php (Yii 1). */
 class OrderHold extends ActiveRecord
 {
+    // Yii 1 hands out column values as strings; the option helpers
+    // compare them loosely and answer wrongly for an integer 0.
+    use LegacyColumnTypes;
+
     public static function tableName()
     {
         return '{{%order_hold}}';
@@ -510,5 +514,99 @@ class OrderHold extends ActiveRecord
         return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
             ? 'readOnly'
             : '';
+    }
+
+    /**
+     * Yii 1's CActiveRecord fills a new record with the column defaults
+     * declared by the table; Yii 2 leaves them null until asked. Without
+     * this a create form shows an empty box where Yii 1 shows 0.00, and
+     * an insert writes NULL where Yii 1 writes the default.
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // the admin action called unsetAttributes() to clear them; a
+        // search model that keeps them filters the grid by every column
+        // that has a default, which showed 4 rows where Yii 1 shows 11.
+        if ($this->isNewRecord && $this->scenario !== 'search') {
+            $this->loadDefaultValues();
+        }
+    }
+
+    /**
+     * Port of the base model's beforeValidate(): stamps the row with who
+     * created or changed it and when. Yii 1 ran this on every save, so a
+     * row written by the port has to carry the same stamps.
+     */
+    public function beforeValidate()
+    {
+        if (!parent::beforeValidate()) {
+            return false;
+        }
+        if ($this->isNewRecord) {
+            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
+                $this->create_user_id = Yii::$app->user->id;
+            }
+        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            $this->updated_by = Yii::$app->user->id;
+        }
+
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            [['bill_date', 'mode_of_payment', 'mode_of_delivery'], 'required'],
+            [['bill_no', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'customer_id', 'updated_by'], 'integer'],
+            [['discount_amt', 'total_amt', 'paid_amt'], 'number'],
+            [['mode_of_payment', 'mode_of_delivery'], 'string', 'max' => 255],
+            [['address', 'note', 'create_time', 'update_time'], 'safe'],
+            [['qty', 'discount_amt', 'total_amt', 'paid_amt', 'status', 'type_id', 'address', 'note', 'create_time', 'update_time', 'updated_by'], 'default', 'value' => null],
+            [['id', 'bill_no', 'bill_date', 'mode_of_payment', 'mode_of_delivery', 'qty', 'discount_amt', 'total_amt', 'paid_amt', 'status', 'type_id', 'city_id', 'state_id', 'country_id', 'address', 'note', 'create_time', 'update_time', 'customer_id', 'updated_by'], 'safe', 'on' => 'search'],
+        ];
+    }
+
+    /**
+     * Backs the admin grid.
+     *
+     * The comparison rules are Yii 1's, and there is deliberately no
+     * validate() call: the generated search() compares whatever is set and
+     * never validates, and a required rule with no `on` clause would
+     * otherwise reject every filtered request and return the full list.
+     */
+    public function search($params = [])
+    {
+        $query = self::find();
+        $provider = new ActiveDataProvider([
+            'query' => $query,
+            // The order goes on the query, not on the provider's sort.
+            // Yii 1 sets it on the criteria, and three of these listings
+            // order by a joined column - 'item.title' - which Yii 2's Sort
+            // rejects as a key unless it is declared as a sortable
+            // attribute. orderBy takes it as written.
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
+
+        if (self::listingOrder()) {
+            $query->orderBy(self::listingOrder());
+        }
+
+        $this->load($params, $this->formName());
+
+        foreach ([['id', 'id'], ['bill_no', 'bill_no'], ['qty', 'qty'], ['discount_amt', 'discount_amt'], ['total_amt', 'total_amt'], ['paid_amt', 'paid_amt'], ['status', 'status'], ['type_id', 'type_id'], ['city_id', 'city_id'], ['state_id', 'state_id'], ['country_id', 'country_id'], ['customer_id', 'customer_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr);
+        }
+        foreach ([['bill_date', 'bill_date'], ['mode_of_payment', 'mode_of_payment'], ['mode_of_delivery', 'mode_of_delivery'], ['address', 'address'], ['note', 'note'], ['create_time', 'create_time'], ['update_time', 'update_time']] as [$col, $attr]) {
+            Criteria::compare($query, $col, $this->$attr, true);
+        }
+
+        return $provider;
     }
 }

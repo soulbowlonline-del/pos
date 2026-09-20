@@ -88,7 +88,7 @@ class Ui
      * @param array  $params query parameters
      */
     /**
-     * Yii 1's `Yii::app()->errorHandler->error`.
+     * Yii 1's `Yii::$app->errorHandler->error`.
      *
      * Yii 1 hands the error view an array - code, message, type, file, line;
      * Yii 2's handler holds the exception object instead. site/error reads the

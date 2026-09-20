@@ -368,6 +368,14 @@ def rewrite(src, ctrl, unknown):
     src = re.sub(M + r"(?i:findAllByAttributes)\s*\(", lambda m: m.group(1) + '::findAll(', src)
     src = re.sub(M + r"findAll\s*\(\s*\)", lambda m: m.group(1) + '::find()->all()', src)
 
+    # Then the shared set, which is larger than the rules above: count(),
+    # find(), deleteAllByAttributes, countByAttributes, resetScope, the
+    # defaultScope order. Without this, regenerating a view *undid* what
+    # tools/port/repair.py had fixed in it - user/dashboard went back to
+    # `Mrs::model()->count()` and died on a method Yii 2 has no equivalent
+    # for. One set of rules, applied everywhere.
+    src = port_model.finder_idioms(src)
+
     # The DAO query builder and CJSON, from the one place all three
     # translators share. Four loyaltyAdmin views query the database
     # directly and died on a Command that has no select().
@@ -510,6 +518,15 @@ def rewrite(src, ctrl, unknown):
         expr = arrays_to_brackets(m.group(1).replace("\\'", "'"))
         return "'url' => function ($data) { return " + expr + '; }'
     src = re.sub(r"'url'\s*=>\s*'((?:[^'\\]|\\.)*\$data(?:[^'\\]|\\.)*)'", url_expr, src)
+
+    # `$user->checkPermission('x/y')` written in the body of a view.
+    #
+    # Yii 1 hangs this off whatever row is to hand - GxActiveRecord declares
+    # it - and the port has it as a static, because Yii 2's identity is an
+    # Identity, not a User row: user/dashboard died on "Calling unknown
+    # method: app\models\Identity::checkPermission()". port_layout.py has
+    # made this substitution all along; the view translator had not.
+    src = re.sub(r"\$\w+\s*->\s*checkPermission\s*\(", 'Access::check(', src)
 
     # 'visible' => '$data->checkPermission ("x/y")=="true"'
     def visible_expr(m):
