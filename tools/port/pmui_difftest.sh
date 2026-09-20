@@ -17,11 +17,18 @@ cleanup() {
   docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' \
       < /root/pos/ui_teardown.sql >/dev/null 2>&1
   rm -f "$COOKIE"
+  docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/perm_teardown.sql >/dev/null 2>&1
 }
 trap cleanup EXIT
 
 docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' \
     < /root/pos/ui_fixture.sql >/dev/null 2>&1
+
+# The permission rows the application asks for and does not have. Without them
+# about thirty pages answer 403 on both stacks and the suite can only report
+# that it compared nothing. See perm_fixture.sql.
+docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' \
+    < /root/pos/perm_fixture.sql >/dev/null 2>&1
 
 curl -sS -o /dev/null -c "$COOKIE" -b "$COOKIE" --max-time 60 \
      "http://127.0.0.1:8084/user/login"

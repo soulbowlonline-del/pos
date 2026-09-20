@@ -212,6 +212,16 @@ def port_labels(body, relations_body, table=None):
         if kind == 'BELONGS_TO':
             fk[key] = cls
 
+    # Commented-out entries are not entries. BaseMrn carries
+    #     'createUser' =>  Yii::t('app', 'Create User'),
+    #     ...
+    #   //    'createUser' => null,
+    # and the second one was being read as real. It came last, so in the
+    # generated array it won, and mrn/view labelled the row "User" where Yii 1
+    # says "Create User".
+    body = re.sub(r'//[^\n]*', '', body)
+    body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
+
     out = []
     for m in re.finditer(r"'(\w+)'\s*=>\s*(?:Yii::t\s*\(\s*'[^']*'\s*,\s*'([^']*)'\s*\)|(null))", body, re.S):
         name, label, isnull = m.groups()
@@ -224,7 +234,15 @@ def port_labels(body, relations_body, table=None):
             out.append((name, model_label(fk[name])))
         else:
             out.append((name, attr_label(name)))
-    return out
+
+    # A key the source really does declare twice keeps the last value, which is
+    # what PHP does with the array - but it is emitted once, so the generated
+    # method cannot disagree with itself.
+    seen = {}
+    for name, label in out:
+        seen[name] = label
+
+    return list(seen.items())
 
 
 WRITES = re.compile(r'->\s*(?:save|delete|insert|update|updateAll|deleteAll|'

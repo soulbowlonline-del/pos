@@ -228,7 +228,6 @@ class Mrn extends ActiveRecord
             'outlet_id' => 'Outlet',
             'mrs_id' => 'Mrs',
             'organization_id' => 'Organization',
-            'createUser' => 'User',
             'mrs' => 'Mrs',
             'organization' => 'Organization',
             'outlet' => 'Outlet',
