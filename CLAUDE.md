@@ -83,6 +83,18 @@ The first seven are structural and need no HTTP:
 | `staticcalls_difftest` | does every static call have a method behind it |
 | `login_difftest` | does login work on both stacks |
 | `apiroutes_difftest` | does every API action answer at *Yii 1's* URL |
+| `searchparity_difftest` | does every search filter Yii 1 applies get applied |
+
+And three more that are run by hand rather than in the runner, because each
+takes a while and none of them needs fixtures:
+
+| check | asks |
+|---|---|
+| `tests/port/widget-sweep.py` | does a widget register a script where Yii 1's does |
+| `tests/port/route-sweep.py` | does every web action answer at the same URL |
+| `tests/port/ajax-sweep.py` | do the 72 ajax endpoints answer byte for byte |
+| `tests/port/crud-sweep.py` | do the grids' search filters return the same rows |
+| `tools/port/missing_methods.py` | is a method called on the port that it does not define |
 
 The rest drive HTTP and compare responses, database rows, outbound calls and
 rendered pages. `pmui_difftest` is the slow one — 359 pages, about 50 minutes.
@@ -113,6 +125,16 @@ stack and the port's for the other, so 69 of 69 green comparisons exercised
 URLs no client would ever send. Every multi-word API endpoint was a 404 for
 the .NET application and the Android app. `apiroutes_difftest` asks the other
 question.
+
+**4. A page that renders is not a page that works.** Every fault found on the
+first day of real use had the same shape: correct markup, nothing behind it.
+Element ids the javascript could not find, CSRF the javascript did not send,
+seventy-two actions appending an error to their own output, six widgets that
+rendered an input and bound nothing to it. Every page comparison passed
+throughout, because a page comparison reads what the markup carries and all of
+that was right. `docs/web-ui-port.md` has the full account under "The markup
+was never the problem"; the three sweeps above are what ask about behaviour
+instead.
 
 When something is reported broken from outside, read the container's access
 log before writing a test:

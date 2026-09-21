@@ -820,3 +820,75 @@ not be reached from the Yii 1 URL.
 for a generated action, which also prints the absolute path of the view file
 on the server. The port answers 404 there. That is the better answer and it
 stays.
+
+## The markup was never the problem
+
+Everything reported broken on the first day of real use had one shape: the
+page rendered correctly and did nothing. Every page comparison passed
+throughout, because a page comparison reads what the markup *carries* - grid
+rows, detail pairs, form fields - and all of that was right. What was missing
+was the wiring between the markup and the browser.
+
+Six causes, in the order they were found, each of which broke whole screens:
+
+**Element ids.** Yii 2 names an input `purchaseorderdetail-item_id`; Yii 1
+names it `PurchaseOrderDetail_item_id`. The application's javascript is Yii
+1's, served unchanged from the same theme, and addresses fields by Yii 1's
+id - 198 references across the ported views, not one of which resolved.
+Choosing a vendor loaded nothing, a tax change recalculated nothing, adding a
+row did nothing. `app2/helpers/Html.php` replaces Yii 2's helper through
+`Yii::$classMap`, which is what that seam is for.
+
+**CSRF.** `BaseUiController` validated it. Yii 1 does not - it is off by
+default, this application's config never turns it on, and no Yii 1 view emits
+a token. The same javascript therefore posts without one, and every ajax POST
+in the ported UI answered 400. This is a real reduction in security against
+the Yii 2 default and it is deliberate: the port's job is to behave as Yii 1
+behaves. Adding CSRF is a change to the application, in both trees at once.
+
+**Echoed output.** Seventy-two actions write their answer with `echo` and
+return nothing, which is correct in Yii 1 and wrong in Yii 2 - the framework
+then sends its own response, and sending it means sending headers after the
+echo has started the body. Every one of them appended "An internal server
+error occurred." to its own answer. `BaseUiController` buffers and returns
+what an action prints, so none of the seventy-two had to change.
+
+**Path-format parameters.** Yii 1 puts GET arguments in the path as
+alternating name and value segments, and both the API clients and the
+application's own javascript use it. `ApiUrlRule` and `LegacyUrlRule` each
+took a fixed number of segments and answered 404 to anything longer.
+
+**Numeric id routes.** Yii 1's config maps `<controller>/<id>` to view and
+`<controller>/<action>/<id>` to that action. Teaching LegacyUrlRule the path
+format without these turned every view link into a 400.
+
+**Widgets that bound nothing.** Six of them, each rendering its input and
+registering no script:
+
+| widget | views | what was lost |
+|---|---|---|
+| `datepickerRow` | 63 | every date field was a box to type into |
+| `TbTypeAhead` | 10 | the item lookup on every purchasing screen |
+| `ckEditorRow` | 12 | remarks and payment terms were plain boxes |
+| `redactorRow` | 11 | the same fields, on the other setting |
+| `EChosenWidget` | 10 | searchable selects became plain ones |
+| `CJuiRadioButtonList` | 58 | radio groups lost their button bar |
+
+The first four were found one at a time, by someone using the application.
+The last two were found by `tests/port/widget-sweep.py`, which asks the
+question directly: does this widget register a script where its Yii 1
+counterpart does? That check is the difference between finding the fifth and
+sixth the same way as the first four and finding them in an afternoon.
+
+## Three sweeps that ask about behaviour rather than markup
+
+  - `widget-sweep.py` - every ported widget against its Yii 1 counterpart.
+  - `route-sweep.py` - every action Yii 1 serves, answered at the same URL.
+    The web UI's equivalent of api-routes.py, and what found the 400s.
+  - `ajax-sweep.py` - the seventy-two endpoints, compared byte for byte, with
+    real arguments taken from the Yii 1 action's own `$_POST` references.
+
+Each exists because something got through the suites that already ran. The
+pattern is worth stating once more: a differential test compares what it is
+told to compare, and every one of these bugs lived in a question nobody had
+thought to ask.
