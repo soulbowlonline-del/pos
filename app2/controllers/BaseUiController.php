@@ -150,7 +150,49 @@ abstract class BaseUiController extends Controller
             throw new ForbiddenHttpException('You are not allowed to access this page.');
         }
 
+        // Everything the action prints is captured rather than sent. See
+        // afterAction().
+        ob_start();
+        $this->buffering = true;
+
         return true;
+    }
+
+    /** Whether beforeAction opened an output buffer for this request. */
+    private $buffering = false;
+
+    /**
+     * Returns whatever the action printed, instead of letting it escape.
+     *
+     * Seventy-two ported actions write their answer with `echo` and return
+     * nothing - `echo $option;` for a dropdown, `echo json_encode($data);` for
+     * a tax lookup, `echo $bar_code;`. That is how Yii 1 is written and it is
+     * correct there: CController sends nothing of its own afterwards.
+     *
+     * Yii 2 does. The action returns null, the framework sends its own empty
+     * response, and sending it means sending headers - after the echo has
+     * already started the body. The result was a HeadersAlreadySentException
+     * and the string "An internal server error occurred." appended to the
+     * answer. The purchase bill's PO dropdown arrived correct and with that
+     * sentence glued to the end of it, which the page then put on screen.
+     *
+     * Capturing the output here turns an echoing action into an ordinary Yii 2
+     * one without touching any of the seventy-two. An action that both prints
+     * and returns keeps both, in the order they happened.
+     */
+    public function afterAction($action, $result)
+    {
+        if ($this->buffering) {
+            $this->buffering = false;
+            $printed = ob_get_clean();
+            if ($printed !== '' && $printed !== false) {
+                $result = ($result === null || $result === '')
+                    ? $printed
+                    : $printed . $result;
+            }
+        }
+
+        return parent::afterAction($action, $result);
     }
 
     /**
