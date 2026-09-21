@@ -45,5 +45,11 @@ require_once $root . '/lib/PosOutbound.php';
 require $root . '/vendor/autoload.php';
 require $root . '/vendor/yiisoft/yii2/Yii.php';
 
+// Yii 2's helpers are a thin \yii\helpers\Html extends BaseHtml precisely so
+// an application can replace the outer class. This one generates Yii 1's
+// element ids, which is what the application's javascript addresses. Has to be
+// registered before anything loads the framework's own. See app2/helpers/Html.php.
+Yii::$classMap['yii\helpers\Html'] = $root . '/app2/helpers/Html.php';
+
 $config = require $root . '/app2/config/web.php';
 (new yii\web\Application($config))->run();

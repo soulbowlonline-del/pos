@@ -39,7 +39,15 @@ class DataColumn extends \yii\grid\DataColumn
         }
 
         $model = $this->grid->filterModel;
-        $options = array_merge(['id' => null], $this->filterInputOptions);
+        // Yii 2 suppresses the id on a filter input - its own
+        // DataColumn::$filterInputOptions carries 'id' => null. Yii 1's
+        // CGridView gives each one an id: Item_bar_code, Customer_city_id,
+        // Tax_columns_0. The application's javascript addresses them by those
+        // ids, so a suppressed id is a filter box that nothing can drive.
+        // Keeping the id lets Html::getInputId - which this port has replaced
+        // with Yii 1's scheme - name it the way the scripts expect.
+        $options = $this->filterInputOptions;
+        unset($options['id']);
 
         if (is_array($this->filter)) {
             $options['prompt'] = $this->filterInputOptions['prompt'] ?? '';
