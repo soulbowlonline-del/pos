@@ -40,8 +40,8 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
         }
 
         $parts = explode('/', $path);
-        if (count($parts) > 2) {
-            return false;   // not a plain controller/action
+        if (count($parts) < 1) {
+            return false;
         }
 
         $controller = $this->toYii2($parts[0]);
@@ -52,7 +52,24 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
         }
 
         $action = isset($parts[1]) ? $this->toYii2($parts[1], false) : 'index';
-        return [$controller . '/' . $action, []];
+
+        // Yii 1's path format puts GET arguments in the path as alternating
+        // name and value segments, and the application's own javascript uses
+        // it: purchaseBillDetail's bill-number lookup posts to
+        // /purchaseBillDetail/ajaxBillNo/id/63677. This rule took exactly two
+        // segments and refused anything longer, so every ajax call built that
+        // way answered 404 - the page rendered and nothing on it worked.
+        // A trailing name with no value is an empty value, as in Yii 1.
+        $params = [];
+        $rest = array_slice($parts, 2);
+        for ($i = 0; $i < count($rest); $i += 2) {
+            $name = urldecode($rest[$i]);
+            if ($name !== '') {
+                $params[$name] = isset($rest[$i + 1]) ? urldecode($rest[$i + 1]) : '';
+            }
+        }
+
+        return [$controller . '/' . $action, $params];
     }
 
     public function createUrl($manager, $route, $params)

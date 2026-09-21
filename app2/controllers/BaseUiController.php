@@ -48,7 +48,27 @@ abstract class BaseUiController extends Controller
     public $pageDescription;
     public $pageKeywords;
 
-    public $enableCsrfValidation = true;
+    /**
+     * Off, because Yii 1 does not validate it either.
+     *
+     * CWebApplication leaves enableCsrfValidation off unless the config turns
+     * it on, this application's config does not, and no view in the Yii 1 tree
+     * emits a token. The application's javascript therefore posts without one
+     * - and it is the same javascript here, served from the same theme.
+     *
+     * With validation on, every ajax POST in the ported UI answered 400
+     * "Unable to verify your data submission": the bill-number lookup, the
+     * item lookup, the PO lookup, the inline grid edits. The page rendered and
+     * nothing on it worked, on screen after screen.
+     *
+     * This is a real reduction in security against the Yii 2 default, and it
+     * is deliberate: the port's job is to behave as Yii 1 behaves, and Yii 1
+     * has no CSRF protection anywhere. Adding it is worth doing, but it is a
+     * change to the application rather than to the port - every form and every
+     * ajax call needs a token before validation can be turned on, on both
+     * stacks at once, or the two stop agreeing.
+     */
+    public $enableCsrfValidation = false;
 
     /**
      * Actions Yii 1's accessRules() refuses to a signed-in user.

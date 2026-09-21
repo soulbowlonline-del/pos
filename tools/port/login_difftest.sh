@@ -112,17 +112,32 @@ else
   bad "an unknown user is refused" "yii1 session=$n1   port session=$n2"
 fi
 
-# 6. a POST without the token is refused by the port, which is Yii 2's own
-#    protection and has no Yii 1 counterpart
+# 6. a POST without a CSRF token is accepted, because Yii 1 accepts one
+#
+# This case used to assert the opposite. The port had enableCsrfValidation on
+# in BaseUiController and Yii 1 has it off - CWebApplication's default, which
+# this application's config never changes, and no Yii 1 view emits a token.
+# So the application's own javascript posts without one, and with validation
+# on every ajax call in the ported UI answered 400: the bill-number lookup,
+# the item lookup, the PO lookup, the inline grid edits. Screen after screen
+# rendered and did nothing.
+#
+# The test encoded that divergence as the expected answer, which is the same
+# mistake the API suites made with the URL spelling: a case written against
+# the port's behaviour rather than Yii 1's cannot report that they differ.
+# It now asserts what Yii 1 does, and both stacks are compared.
 reset
-rm -f /tmp/n.txt
-curl -sS -o /dev/null -c /tmp/n.txt -b /tmp/n.txt --max-time 60 "$B/v2/user/login" >/dev/null
-nc=$(curl -sS -o /dev/null -w '%{http_code}' -c /tmp/n.txt -b /tmp/n.txt --max-time 60 \
+rm -f /tmp/n1.txt /tmp/n2.txt
+curl -sS -o /dev/null -c /tmp/n1.txt -b /tmp/n1.txt --max-time 60 "$B/user/login" >/dev/null
+n1=$(curl -sS -o /dev/null -w '%{http_code}' -c /tmp/n1.txt -b /tmp/n1.txt --max-time 60 \
+     -d "LoginForm[username]=$USERNAME" -d "LoginForm[password]=$PASSWORD" "$B/user/login")
+curl -sS -o /dev/null -c /tmp/n2.txt -b /tmp/n2.txt --max-time 60 "$B/v2/user/login" >/dev/null
+n2=$(curl -sS -o /dev/null -w '%{http_code}' -c /tmp/n2.txt -b /tmp/n2.txt --max-time 60 \
      -d "LoginForm[username]=$USERNAME" -d "LoginForm[password]=$PASSWORD" "$B/v2/user/login")
-if [ "$nc" = "400" ]; then
-  ok "the port refuses a POST with no CSRF token" "400"
+if [ "$n1" = "$n2" ] && [ "$(signed_in /tmp/n2.txt '/v2')" = yes ]; then
+  ok "a POST with no CSRF token is accepted, as on Yii 1" "$n1 on both, session made"
 else
-  bad "the port refuses a POST with no CSRF token" "got $nc, expected 400"
+  bad "a POST with no CSRF token is accepted, as on Yii 1" "yii1 $n1, port $n2"
 fi
 
 # 7. logging out ends the session on each stack
