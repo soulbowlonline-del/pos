@@ -47,7 +47,7 @@ class PurchaseBillController extends BaseUiController {
 					
 					$bill->cgst_per = $sgst;
 					
-					$bill->saveAttributes(array(
+					$bill->updateAttributes(array(
                     'cgst_per'
                 ));
 				
@@ -63,7 +63,7 @@ class PurchaseBillController extends BaseUiController {
 		if($purchasebills){
 			foreach($purchasebills as $purchasebill){
 				$purchasebill->grn_refrence_no = $purchasebill->id;
-				$purchasebill->saveAttributes(['grn_refrence_no']);
+				$purchasebill->updateAttributes(['grn_refrence_no']);
 			}
 		}
 	}

@@ -113,7 +113,7 @@ class ItemExpireItemController extends BaseUiController {
 		
 			$this->loadModel($id)->delete();
 			$itemExpire->total_amt = $total_amt;
-			$itemExpire->saveAttributes(['total_amt']);
+			$itemExpire->updateAttributes(['total_amt']);
 			
 				return $this->redirect(['item/expireStock','vendor_id'=>$vendor_id,'outlet_id'=>$outlet_id]);
 	

@@ -47,7 +47,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 					$itemDetail = ItemDetail::findOne($purchaseBillDetail->item_detail_id);
 					if($itemDetail){
 						$itemDetail->mrp = $purchaseBillDetail->mrp;
-						$itemDetail->saveAttributes(['mrp']);
+						$itemDetail->updateAttributes(['mrp']);
 					}
 				}
 			}
@@ -692,7 +692,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							$itemtax = $query_2->one();
 							if ($itemtax) {
 								$itemtax->tax_id = $poIdAll ['taxselectData'] [$key];
-								$itemtax->saveAttributes ( [
+								$itemtax->updateAttributes( [
 										'tax_id' 
 								] );
 							}
@@ -792,7 +792,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 								// $itemdetail->tax_id = $model->tax_id;
 								// $itemdetail->update_time = date('Y-m-d H:i:s');
 								
-								// $itemdetail->saveAttributes ( array (
+								// $itemdetail->updateAttributes( array (
 										// 'tax_id' ,'mrp','update_time'
 								// ) );
 							}
@@ -1326,9 +1326,9 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 	
 		if (isset ( $_POST ['vendor_id'] )) {
 			
-			$query = B2BPurchaseBill::find();
+			$query = B2bPurchaseBill::find();
 			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
-			$query->andWhere('status !=' . B2BPurchaseBill::STATUS_APPROVED);
+			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->all();
 			
 			
@@ -1358,9 +1358,9 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 	}
 	
 	public function actionGetpendingbilldate(){
-		$query = B2BPurchaseBill::find();
+		$query = B2bPurchaseBill::find();
 			$query->andWhere('id =' . $_POST ['bill_id']);
-			$query->andWhere('status !=' . B2BPurchaseBill::STATUS_APPROVED);
+			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->one();
 			$date=$Getpendingbill->start_date;
 			echo $date;	

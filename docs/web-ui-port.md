@@ -563,3 +563,136 @@ The suite is self-contained: it creates its own administrator, logs in as that
 account, and deletes it again, so no real credential is used and the database
 is left as it was found. It fails loudly if the login did not take, rather than
 comparing two login pages to each other and reporting a match.
+
+## The hooks nothing calls
+
+Six Yii 1 lifecycle hooks were not on the port. They are the one kind of
+method whose absence nothing reports: no page references them by name, so the
+model loads, the page renders, the suite passes, and the only difference is a
+row written on one stack and not the other.
+
+| hook | what it does | what its absence did |
+|---|---|---|
+| `OrderItem::afterSave` | appends a `tbl_item_velocity` row | the port saved order items and recorded no velocity |
+| `Order::afterSave` | `processLoyaltyEarning()` | the port saved orders and credited no points |
+| `Order::beforeDelete` | deletes the order's items | orphaned `tbl_order_item` rows |
+| `OrderHold::beforeDelete` | deletes the held order's items | orphaned `tbl_order_hold_item` rows |
+| `ItemDetail::beforeDelete` | deletes from fourteen tables | orphans in all fourteen |
+| `MrsDetail::beforeSave` | computes `ai_qty` on insert | requisition lines stored at the default |
+
+The three cascades stand in for foreign keys the schema does not declare -
+`tbl_order_item` has no constraint pointing at `tbl_order` - so nothing but
+the hook was removing the dependent rows.
+
+Both of the velocity helpers had come across with `OrderItem`, and both were
+dead: `queryRow()` is Yii 1's Command method and Yii 2 spells it `queryOne()`,
+and `Yii::log()` does not exist in Yii 2 at all. Either would have been a
+fatal on the first call, and neither had ever been called, because the hook
+that calls them was the thing that was missing. `merge()` keeps an
+API-tracked model's existing methods on purpose - that is what stops a web-UI
+port from changing how the API saves - so a method written before an idiom
+existed keeps the spelling it was written with. Both idioms are now in
+`dao_idioms()`, which all three translators call, and `repair.py` applied them
+to the four files that still carried them.
+
+`tests/port/hook-parity.py` checks the whole set on every run. It is a name
+check; whether the bodies agree is what the write sweep is for.
+
+## The write sweep refuses to run a maintenance script
+
+`order/updatetax` rewrote 8,925 order items during a sweep and kept writing
+for hours after the request was abandoned. `loops_over_saves()` now refuses
+an action that saves inside a loop, unless it either reads the request - which
+is what an ajax handler does, over the rows it was posted - or takes a
+required parameter, which scopes it to one row. Fourteen actions are refused
+and named in the output rather than folded into the skip count.
+
+The restored rows came from the 5.6 database, which this sweep never touches.
+That is the second time the baseline has served as the backup for a sweep that
+wrote something it should not have; the first was four `tbl_item_expire_item`
+rows, and the guard added then only covered actions whose name begins with
+`delete`.
+
+## Dead code hides a fatal, and porting a hook wakes it
+
+Adding `OrderItem::afterSave` and `Order::afterSave` broke the three order
+suites at once - 23 cases, every one of them a 500 from the port's order API.
+Nothing about the hooks was wrong. They were the first thing ever to call the
+methods beside them, and those methods had four separate faults between them,
+each one fatal on the first line that ran:
+
+| in | written | PHP 8.3 in `app\models` |
+|---|---|---|
+| `Order::processLoyaltyEarning` | `LoyaltyService::` | `app\models\LoyaltyService` - it is a component |
+| `LoyaltyService` | ported without `processOrderEarn` | undefined method |
+| `OrderItem::updateItemVelocity` | `PDO::PARAM_INT` | `app\models\PDO` - PHP does not fall back to the global namespace for a class |
+| `OrderItem::updateItemVelocity` | `catch (Exception $e)` | `app\models\Exception`, so the catch never matches |
+
+Each had been in the tree since the model was written. The suites were green
+the whole time, the action sweep answered 200 on every page that loads an
+order, and none of it meant anything, because nothing reached the lines.
+
+That is the shape of the risk in a port this size: a method that is never
+called is not ported, it is only copied, and the copy is not checked by
+anything until the day something calls it. Two checks now ask the questions
+that do not need a caller:
+
+  - `tests/port/class-refs.py` resolves every class name in `app2` the way PHP
+    would, through the file's namespace and `use` statements, and reports four
+    outcomes separately - the class is in the port under another namespace or
+    another capitalisation (`B2BPurchaseBill` against `app\models\B2bPurchaseBill`,
+    four call sites, fixed); the Yii 1 tree has it and the port does not
+    (`TblItemNewTax`, now ported); it is named without the leading backslash a
+    global class needs; or it is in neither tree, which is 30 names belonging
+    to other applications this code was cut from - `Nozzle`, `Tank`,
+    `Journey`, `MerchantStore` - where both stacks fail the same way and there
+    is nothing to reproduce. 1,885 references, 0 outstanding.
+  - `tests/port/static-calls.py` resolves the method too, following `extends`
+    and traits, and stops at the first class whose ancestry leaves the port so
+    that it never guesses about a Yii base class. 4,147 calls, 0 outstanding.
+
+`UserIdentity` is recorded in the first as a deliberate exception. The port
+does not own login: `BridgedUser` reads the signed-in user id out of the Yii 1
+session and is configured with `enableSession = false`, so a Yii 2 login would
+have nowhere to write. The consequence is worth stating plainly - **a POST to
+`/v2/user/login` fatals.** GET renders the form, which is why the page
+comparison passes, and the suites sign in through the bridge rather than
+through the form, which is why nothing else noticed. Users log in at `/`.
+
+## What the write sweep will not run
+
+Nineteen actions are refused and named in the output rather than counted as
+skips. Each saves models inside a loop and does not read the request, which is
+the shape of a maintenance script rather than a form handler - an ajax handler
+also saves in a loop, but over the rows it was posted, and does nothing
+without them.
+
+A required parameter was briefly taken to mean an action is scoped to one row.
+It does not. `order/updateOrders($id)` takes a required `$id` and then walks
+`id >= $id` a thousand rows at a time, rewriting each order's total from its
+lines; the sweep ran it before the exemption was withdrawn, and those thousand
+totals only happened to be right already - they checksum identical to the 5.6
+database. A parameter says where a loop starts, not how far it goes.
+
+So six ordinary row-scoped actions - `mrn/approve`, `onlineOrder/hold`,
+`itemDetail/makeInactive` and their kind - are refused along with the thirteen
+that deserve it, and their writes go uncompared. That is the trade, taken
+deliberately: a wrong refusal costs coverage, a wrong run costs rows.
+
+## An action that ends the session has to be measured twice over
+
+`user/logout` was the sweep's last difference: Yii 1 updated `tbl_user` and the
+port wrote nothing. Both stacks run the same two lines - `$user->logout()`
+sets `last_action_time` when the caller is not a guest - and the port's were
+right.
+
+The sweep runs Yii 1 first and the port second, from one cookie jar. Yii 1's
+logout ended the session, so the port's half arrived as a guest, redirected,
+and wrote nothing. The session is now re-established before each half rather
+than once per action, and before the log position is noted, so that signing in
+does not show up as a write of the action's own.
+
+It is worth saying what this was not: nothing in the port was wrong, and the
+sweep reported a difference for four days. A differential harness is a program
+like any other, and its own state is as capable of producing a difference as
+the code it is comparing.

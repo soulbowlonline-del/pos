@@ -449,6 +449,31 @@ class OrderItem extends ActiveRecord
         ];
     }
 
+    /**
+     * Yii 1's afterSave(), which records the item's sales velocity.
+     *
+     * Both helpers below were ported with the model and neither was called:
+     * the hook that calls them was not, so the Yii 2 stack saved an order
+     * item and wrote no tbl_item_velocity row where Yii 1 writes one. The
+     * write sweep reads that table as a difference on every action that saves
+     * an order item.
+     *
+     * Yii 1 runs afterSave() for an insert and an update alike, so this does
+     * too, and its return value is ignored in Yii 2.
+     */
+    public function afterSave($insert, $changedAttributes)
+    {
+        parent::afterSave($insert, $changedAttributes);
+
+        $velocityData = $this->calculateVelocity($this->item_id);
+        if ($velocityData) {
+            $this->updateItemVelocity($this->item_id,
+                                      $velocityData['velocity_change_percent']);
+        } else {
+            Yii::error("Failed to calculate velocity for item $this->item_id");
+        }
+    }
+
     private function calculateVelocity($itemId)
         {
                 $sql = "
@@ -487,7 +512,7 @@ class OrderItem extends ActiveRecord
                 $connection = Yii::$app->db;
                 $command = $connection->createCommand($sql);
                 $command->bindParam(':itemId', $itemId, \PDO::PARAM_INT);
-                return $command->queryRow();
+                return $command->queryOne();
         }
 
     public function getTaxArray() {
@@ -3677,14 +3702,14 @@ class OrderItem extends ActiveRecord
 
                 $connection = Yii::$app->db;
                 $command = $connection->createCommand($sql);
-                $command->bindParam(':itemId', $itemId, PDO::PARAM_INT);
-                $command->bindParam(':velocityChangePercent', $velocityChangePercent, PDO::PARAM_STR);
+                $command->bindParam(':itemId', $itemId, \PDO::PARAM_INT);
+                $command->bindParam(':velocityChangePercent', $velocityChangePercent, \PDO::PARAM_STR);
 
                 try {
                         $command->execute();
-                        Yii::log("Updated tbl_item_velocity for item $itemId: $velocityChangePercent", 'info');
-                } catch (Exception $e) {
-                        Yii::log("Failed to update tbl_item_velocity for item $itemId: " . $e->getMessage(), 'error');
+                        Yii::info("Updated tbl_item_velocity for item $itemId: $velocityChangePercent");
+                } catch (\Exception $e) {
+                        Yii::error("Failed to update tbl_item_velocity for item $itemId: " . $e->getMessage());
                         throw $e; // Re-throw for transaction handling
                 }
         }
@@ -3754,5 +3779,22 @@ class OrderItem extends ActiveRecord
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
+    }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
     }
 }

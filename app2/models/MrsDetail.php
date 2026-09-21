@@ -431,6 +431,43 @@ class MrsDetail extends ActiveRecord
      * created or changed it and when. Yii 1 ran this on every save, so a
      * row written by the port has to carry the same stamps.
      */
+    /**
+     * Yii 1's beforeSave(): the AI requisition quantity, set on insert only.
+     *
+     * calculateAIQty() was ported with the model and nothing called it, so
+     * every requisition line the port created was stored with ai_qty at its
+     * default while Yii 1 computed one.
+     *
+     * The two chaos constants are read and not used: the block that used them
+     * is commented out in the Yii 1 source. They are kept so that re-enabling
+     * it needs no second change, and they read through `??` because Yii 2
+     * raises on a params key that Yii 1 answers null for - neither is in
+     * config/params.php.
+     */
+    public function beforeSave($insert)
+    {
+        if (!parent::beforeSave($insert)) {
+            return false;
+        }
+
+        if ($this->isNewRecord && isset($this->item_id)) {
+            $itemId = $this->item_id;
+            $minQty = $this->min_qty ? $this->min_qty : 1;
+
+            $chaosConstant = Yii::$app->params['chaos_constant'] ?? 20;
+            $chaosConstantReduce = Yii::$app->params['chaos_constant_reduce'] ?? 10;
+
+            $aiCalculatedQty = $this->calculateAIQty($itemId);
+            $this->ai_qty = max($minQty, $aiCalculatedQty);
+
+            if (empty($this->create_time)) {
+                $this->create_time = date('Y-m-d H:i:s');
+            }
+        }
+
+        return true;
+    }
+
     public function beforeValidate()
     {
         if (!parent::beforeValidate()) {
@@ -580,7 +617,7 @@ class MrsDetail extends ActiveRecord
                 $connection = Yii::$app->db;
                 $command = $connection->createCommand($sql);
                 $command->bindParam(':itemId', $itemId, \PDO::PARAM_INT);
-                return $command->queryRow();
+                return $command->queryOne();
         }
 
     private function calculateAIQty($itemId) {
@@ -655,7 +692,7 @@ class MrsDetail extends ActiveRecord
             $connection = Yii::$app->db;
             $command = $connection->createCommand($sql);
             $command->bindParam(':item_id', $itemId, \PDO::PARAM_INT);
-            $result = $command->queryRow();
+            $result = $command->queryOne();
 
             if ($result) {
                 // Use calculated reorder quantity with buffer
@@ -678,7 +715,7 @@ class MrsDetail extends ActiveRecord
                 $finalQty = max(1, ceil($finalQty));
 
                 // Log the calculation for debugging
-                Yii::log("AI Qty calculation for item $itemId: velocity={$result['daily_velocity']}, lead_time={$result['avg_lead_time']}, calculated=$calculatedQty, safety=$safetyStock, final=$finalQty", 'info', 'mrs.ai_qty');
+                Yii::info("AI Qty calculation for item $itemId: velocity={$result['daily_velocity']}, lead_time={$result['avg_lead_time']}, calculated=$calculatedQty, safety=$safetyStock, final=$finalQty", 'mrs.ai_qty');
 
                 return $finalQty;
             } else {
@@ -703,11 +740,11 @@ class MrsDetail extends ActiveRecord
             $connection = Yii::$app->db;
             $command = $connection->createCommand($sql);
             $command->bindParam(':item_id', $itemId, \PDO::PARAM_INT);
-            $result = $command->queryRow();
+            $result = $command->queryOne();
 
             if ($result && $result['mrs_count'] >= 2) {
                 $avgQty = ceil($result['avg_req_qty']);
-                Yii::log("Fallback qty for item $itemId: avg_req_qty=$avgQty from {$result['mrs_count']} MRS records", 'info', 'mrs.fallback_qty');
+                Yii::info("Fallback qty for item $itemId: avg_req_qty=$avgQty from {$result['mrs_count']} MRS records", 'mrs.fallback_qty');
                 return max(1, $avgQty);
             }
 
@@ -1133,5 +1170,22 @@ class MrsDetail extends ActiveRecord
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
+    }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
     }
 }

@@ -210,6 +210,50 @@ It is also why the UI suite reports these as **nothing compared** rather than
 as passes: both stacks answer 403, and a page neither stack renders has not
 been verified by their agreeing about it.
 
+### itemExpireItem/delete removes a row on a plain GET — **found, not fixed**
+
+    GET /itemExpireItem/delete?id=8310
+    302 -> /item/expireStock?vendor_id=341&outlet_id=5
+
+and the row is gone. No POST, no confirmation, no token: anything that
+follows the link deletes the row - a crawler, a prefetching browser, a link
+checker, a preview in a chat client.
+
+Yii 1's generated delete actions guard this with
+`if (Yii::app()->request->isPostRequest)`, and most of this application's do.
+This one does not, and the port reproduces it.
+
+The write sweep does not run any action whose name begins with `delete` for
+exactly this reason. It found this one the hard way: four rows of
+`tbl_item_expire_item` were deleted before the guard existed, and restored
+from the 5.6 database, which still had them.
+
+Not fixed here: adding a POST check changes what the application does, which
+is a decision about the application rather than about porting it.
+
+### order/updateDetail rewrites every order item in one request — **found, not fixed**
+
+```php
+public function actionUpdateDetail() {
+    $orderItems = OrderItem::model()->findAll();
+    foreach ($orderItems as $orderItem) { ... $orderItem->saveAttributes(['create_date']); }
+}
+```
+
+`tbl_order_item` holds 4,976,355 rows, and the action loads all of them into
+memory before writing the first one. It gets 27 seconds in and exhausts a
+10 GB limit, on both stacks.
+
+The two report it differently, which is the only reason it shows up as a
+difference at all: Yii 1 answers **200** with `Fatal error: Allowed memory
+size ... exhausted` in the response body, because the fatal happens after the
+headers have gone out. The port answers **500**. Matching Yii 1 here would
+mean reproducing a page that claims success while printing a fatal error, so
+the action is registered as a known failure instead.
+
+It looks like a maintenance script that ended up on a web route. Whether it is
+still needed - and if so, in batches - is a product decision.
+
 ### Two report pages print debugging output instead of a report — **found, not fixed**
 
 `order/groupTax` ends like this, on the untouched 5.6 baseline as well as on
@@ -418,3 +462,64 @@ broken.
 answers 200 with an empty body on the baseline, on Yii 1 under 8.3, and on the
 port. All three agree, so there is nothing to fix - but nothing is compared
 either, which the suite now says out loud rather than counting as a pass.
+
+## Maintenance scripts left in controllers, reachable by GET
+
+`order/updatetax` takes an optional `$date` it never reads. It selects every
+order item created between two dates written into the source - 2021-08-01 to
+2021-08-12, 21,030 rows - recomputes each one's price, sale rate, MRP, the
+four tax percentages and amounts, and the line total, and saves it. A plain
+GET, no POST, no confirmation, no bound parameter. Anyone who can reach the
+admin can rewrite three weeks of billing history by following a link.
+
+It ran during a write sweep. It rewrote 8,925 of those 21,030 rows in the
+port's database; the 5.6 baseline was untouched, so the window could be
+restored from it, and the four neighbouring windows checksum identical on both
+databases, which is what confirmed the damage was exactly this action's range
+and nothing else's.
+
+Two things made it hard to see:
+
+  - It outlives its request. `OrderItem::afterSave()` appends a
+    `tbl_item_velocity` row per save, and the inserts continued for hours
+    after the sweep had given up waiting and moved on - roughly four a second,
+    from an Apache worker still running a request nobody was reading. The
+    write comparison for every action swept afterwards was unreadable, and it
+    looked like a background job nobody could find. There is none; it was this
+    request, still going.
+  - It leaves no trace in the row it changes. `tbl_order_item` has no
+    `update_time` maintained by the model, so a rewritten row is
+    indistinguishable from an untouched one by inspection. The only way to
+    find what it had changed was to checksum against the other database.
+
+`order/updateDetail` is the same shape and worse - it loops over every order
+item in the table - but it exhausts PHP's memory limit before it writes
+anything, on both stacks, so it has been sitting in `known-action-failures.txt`
+as a pair of matching 500s.
+
+Thirteen more actions save inside a loop over a finder that takes no input.
+The write sweep now refuses all of them and names them in its output; see
+`loops_over_saves()` in `tests/port/write-sweep.py` for how they are told
+apart from the ajax handlers, which also save in a loop but over the rows they
+were posted. `itemDetail/barcodes` is in the list and is commented out in the
+source - refusing it costs nothing.
+
+None of these are port defects. They are in the Yii 1 application, they are
+in production, and they are one click from an admin session.
+
+## `user/delete` cascades through four classes that do not exist
+
+`User::beforeDelete()` deletes through `MerchantStore`, `Category`, `Product`
+and `PromotionalAdd`. None of the four is in the Yii 1 tree, in the port, or
+in the database - they belong to a different application this code was cut
+from. Deleting a user therefore fatals on the first of them and deletes
+nothing, which is the only reason orders are not being orphaned.
+
+It is the one Yii 1 lifecycle hook deliberately not ported, because there is
+no behaviour to reproduce: copying it across would copy a fatal, and leaving
+it out lets the port delete the user and orphan its orders - a third
+behaviour, and the worst of the three. `tests/port/hook-parity.py` carries it
+as its only allowed exception so that the gap stays visible.
+
+Whoever owns this has to decide what deleting a user should do before either
+stack can do it.

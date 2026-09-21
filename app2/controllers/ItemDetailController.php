@@ -45,17 +45,17 @@ class ItemDetailController extends BaseUiController {
 						if($details){
 							foreach($details as $detail){
 								$detail->status = ItemDetail::STATUS_INACTIVE;
-								$detail->saveAttributes(['status']);
+								$detail->updateAttributes(['status']);
 							}
 						}
 						$item->status = Item::STATUS_INACTIVE;
-						$item->saveAttributes(['status']);
+						$item->updateAttributes(['status']);
 						echo 'id'.$item->title.'name'.$item->title;
 						echo '<br>';
 					}
 					echo $count;
 					//$itemDetail->company_bar_code = 1;
-					//$itemDetail->saveAttributes(array('company_bar_code'));
+					//$itemDetail->updateAttributes(array('company_bar_code'));
 				}
 			}
 		}
@@ -67,7 +67,7 @@ class ItemDetailController extends BaseUiController {
 				$strlen = strlen($itemDetail->bar_code);
 				if($strlen <11){
 					$itemDetail->company_bar_code = 1;
-					$itemDetail->saveAttributes(array('company_bar_code'));
+					$itemDetail->updateAttributes(array('company_bar_code'));
 				}
 			}
 		}

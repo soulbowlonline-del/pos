@@ -184,11 +184,11 @@ class ItemStockController extends BaseUiController {
 			if ($model->save()) {
 				$itemDetail = ItemDetail::findOne($model->item_detail_id);
 			$itemDetail->update_time = date('Y-m-d H:i:s');
-				$itemDetail->saveAttributes(['update_time']);
+				$itemDetail->updateAttributes(['update_time']);
 				$item = Item::findOne($itemDetail->item_id);
 				if($item){
 					$item->update_time = date('Y-m-d H:i:s');
-					$item->saveAttributes(['update_time']);
+					$item->updateAttributes(['update_time']);
 				}
 				$stock = new StockLog();
 				$stock->item_detail_id = $model->item_detail_id;

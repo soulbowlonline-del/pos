@@ -81,7 +81,7 @@ class OrderUiController extends BaseUiController {
 				$order->tax_amt = $total_tax;
 				
 				
-				$order->saveAttributes(['tax_amt']);
+				$order->updateAttributes(['tax_amt']);
 				}
 			}
 		}
@@ -110,7 +110,7 @@ class OrderUiController extends BaseUiController {
 				$order->igst_amt = $igst_tax;
 				$order->cess_amt = $cess_tax;
 				
-				$order->saveAttributes(array('tax_amount','cgst_amt','sgst_amt','igst_amt','cess_amt'));
+				$order->updateAttributes(array('tax_amount','cgst_amt','sgst_amt','igst_amt','cess_amt'));
 				}
 			}
 		}
@@ -156,7 +156,7 @@ class OrderUiController extends BaseUiController {
 				}
 				$orderItem->total_amt = (($orderItem->sale_rate)*($orderItem->qty)) - ($orderItem->discount_amt);
 				
-				$orderItem->saveAttributes(['total_amt','tax_amount','cgst_amt','sgst_amt','cess_amt','price']);
+				$orderItem->updateAttributes(['total_amt','tax_amount','cgst_amt','sgst_amt','cess_amt','price']);
 			}
 		}
 	}
@@ -212,7 +212,7 @@ class OrderUiController extends BaseUiController {
 			$order_refunditem->price = $price;
 			$order_refunditem->tax_amt = $totaltax;
 			$order_refunditem->total_amt = $total_amt;
-			$order_refunditem->saveAttributes(['tax_amt','total_amt','price']);
+			$order_refunditem->updateAttributes(['tax_amt','total_amt','price']);
 			echo $order_refunditem->id;
 			echo '<br>';
 		}
@@ -233,7 +233,7 @@ class OrderUiController extends BaseUiController {
 				$query1->select('sum(total_amt) as total_amt');
 				$order_item = $query1->one();
 				$order->total_amt = $order_item->total_amt;
-				$order->saveAttributes(['total_amt']);
+				$order->updateAttributes(['total_amt']);
 				$order_id = $order->id;
 			}
 			echo $order_id;
@@ -422,7 +422,7 @@ if($oldgst != $newgst){
 			foreach ( $orderItems as $orderItem ) {
 				$date = date ( 'Y-m-d', strtotime ( $orderItem->create_time ) );
 				$orderItem->create_date = $date;
-				$orderItem->saveAttributes ( [
+				$orderItem->updateAttributes( [
 						'create_date' 
 				] );
 			}

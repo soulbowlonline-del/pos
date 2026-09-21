@@ -51,7 +51,7 @@ class ItemUiController extends BaseUiController {
 		if($items){
 			foreach($items as $item){
 				 $item->item_code = $item->id;
-				$item->saveAttributes(['item_code']); 
+				$item->updateAttributes(['item_code']); 
 				/*  $criteria = new CDbCriteria ();
 				$criteria->addCondition ( 'item_code ='.$item->item_code);
 				$criteria->addCondition ( 'id !='.$item->id );
@@ -188,7 +188,7 @@ class ItemUiController extends BaseUiController {
 				if ($itemdetailss) {
 					foreach ( $itemdetailss as $itemdetails ) {
 						$itemdetails->status = ItemDetail::STATUS_ACTIVE;
-						$itemdetails->saveAttributes ( [
+						$itemdetails->updateAttributes( [
 								'status' 
 						] );
 					}
@@ -313,7 +313,7 @@ class ItemUiController extends BaseUiController {
 			$item = Item::findOne( $_POST ['pk'] );
 			if ($item) {
 				$item->status = $_POST ['value'];
-				$item->saveAttributes ( [
+				$item->updateAttributes( [
 						'status' 
 				] );
 				
@@ -323,7 +323,7 @@ class ItemUiController extends BaseUiController {
 				if ($itemdetailss) {
 					foreach ( $itemdetailss as $itemdetails ) {
 						$itemdetails->status = $_POST ['value'];
-						$itemdetails->saveAttributes ( [
+						$itemdetails->updateAttributes( [
 								'status' 
 						] );
 					}
@@ -376,7 +376,7 @@ class ItemUiController extends BaseUiController {
 				if ($itemDetails) {
 					foreach ( $itemDetails as $itemDetail ) {
 						$itemDetail->tax_id = $_POST ['value'];
-						$itemDetail->saveAttributes ( [
+						$itemDetail->updateAttributes( [
 								'tax_id' 
 						] );
 					}
@@ -391,7 +391,7 @@ class ItemUiController extends BaseUiController {
 				$name = $_POST ['name'];
 				if ($name != 'vendor_id') {
 					$item->$name = $_POST ['value'];
-					$item->saveAttributes ( [
+					$item->updateAttributes( [
 							$name 
 					] );
 				} else {
@@ -438,7 +438,7 @@ class ItemUiController extends BaseUiController {
 			}
 			
 			$setting->last_item_id = $last_id;
-			$setting->saveAttributes ( [
+			$setting->updateAttributes( [
 					'last_item_id' 
 			] );
 		}
@@ -690,14 +690,14 @@ curl_close($ch);
 								$mrsadjust = $query_2->one();
 								if($mrsadjust){
 									$mrsadjust->status = MrsAdjust::STATUS_DONE;
-									$mrsadjust->saveAttributes(['status']);
+									$mrsadjust->updateAttributes(['status']);
 								}
 								$itemDetail->update_time = date ( 'Y-m-d H:i:s' );
-								$itemDetail->saveAttributes ( [
+								$itemDetail->updateAttributes( [
 										'update_time' 
 								] );
 								$item->update_time = date ( 'Y-m-d H:i:s' );
-								$item->saveAttributes ( [
+								$item->updateAttributes( [
 										'update_time' 
 								] );
 								$log = new StockAdjustLog ();
@@ -1543,14 +1543,14 @@ curl_close($ch);
 			$model->update_time = date ( 'Y-m-d H:i:s' );
 			if ($model->save ()) {
 				$model->item_code = $model->id;
-				$model->saveAttributes(['item_code']);
+				$model->updateAttributes(['item_code']);
 			/* $criteria = new CDbCriteria();
 			$criteria->addCondition('item_code ='.$model->item_code);
 			$criteria->addCondition('id !='.$model->id);
 			$existitem = Item::model()->find($criteria);
 				if($existitem){
 				$model->item_code = $model->item_code.$model->id;
-				$model->saveAttributes(array('item_code'));
+				$model->updateAttributes(array('item_code'));
 				} */
 				if (isset ( $_POST ['Item'] ['status'] ) && ($_POST ['Item'] ['status'] != '')) {
 					$itemdetailss = ItemDetail::findAll( [
@@ -1559,7 +1559,7 @@ curl_close($ch);
 					if ($itemdetailss) {
 						foreach ( $itemdetailss as $itemdetails ) {
 							$itemdetails->status = $_POST ['Item'] ['status'];
-							$itemdetails->saveAttributes ( [
+							$itemdetails->updateAttributes( [
 									'status' 
 							] );
 						}
@@ -1573,7 +1573,7 @@ curl_close($ch);
 					if ($itemdetail) {
 						$itemdetail->update_time = date ( 'Y-m-d H:i:s' );
 						$itemdetail->mrp = $model->mrp;
-						$itemdetail->saveAttributes ( [
+						$itemdetail->updateAttributes( [
 								'mrp',
 								'update_time' 
 						] );
@@ -2562,7 +2562,7 @@ curl_close($ch);
 						}
 					}
 					$itemExpire->status = ItemExpire::STATUS_DONE;
-					$itemExpire->saveAttributes ( [
+					$itemExpire->updateAttributes( [
 							'status' 
 					] );
 				}
@@ -3474,7 +3474,7 @@ curl_close($ch);
 				
 		} catch (\Exception $e) {
 			// Log error but continue processing
-			Yii::log('Error calculating updates for item ID ' . $item->id . ': ' . $e->getMessage(), CLogger::LEVEL_ERROR);
+			Yii::error('Error calculating updates for item ID ' . $item->id . ': ' . $e->getMessage());
 		}
 
 		return $updateData;

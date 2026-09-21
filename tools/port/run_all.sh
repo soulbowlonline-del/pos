@@ -3,9 +3,9 @@
 # and prints one summary. The suites are order-independent: each reloads the
 # fixtures it needs.
 cd /root/pos
-SUITES="difftest emp_difftest cust_difftest order_difftest tally_difftest item_difftest
+SUITES="rows_difftest hooks_difftest classrefs_difftest staticcalls_difftest difftest emp_difftest cust_difftest order_difftest tally_difftest item_difftest
         otp_difftest update_difftest cust_last_difftest sendotp_difftest add_difftest
-        uploadbill_difftest grn_difftest discount_difftest online_difftest orderwrite_difftest item3_difftest refund_difftest barcode_difftest updstock_difftest adjust_difftest itemorder_difftest ordertest_difftest punch_difftest search_difftest pmui_difftest pages_difftest"
+        uploadbill_difftest grn_difftest discount_difftest online_difftest orderwrite_difftest item3_difftest refund_difftest barcode_difftest updstock_difftest adjust_difftest itemorder_difftest ordertest_difftest punch_difftest search_difftest pmui_difftest pages_difftest writes_difftest"
 FIXTURES="setup_test emp_fixture otp_fixture cust_last_fixture grn_fixture online_fixture refund_fixture adjust_fixture"
 
 mysql_run() { docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < "$1" >/dev/null 2>&1; }

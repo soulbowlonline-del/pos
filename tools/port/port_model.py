@@ -1270,8 +1270,8 @@ def sub_balanced(head, fn, text):
     Like re.sub, but the argument list is matched by balancing parentheses.
 
     `head` must end where the arguments open. The rules that used a non-greedy
-    match for the argument list instead stopped at the first `)` followed by
-    which is the wrong one the moment an argument spans lines:
+    match for the argument list instead stopped at the first `)` followed by a
+    delimiter, which is the wrong one the moment an argument spans lines:
 
         UserRole::model()->findByAttributes(array(
                 'title' => 'Vendor'
@@ -1553,6 +1553,32 @@ def chtml_tag_wrap(m, args):
     return m.group(0)
 
 
+def log_idioms(text):
+    """
+    Yii 1's logger, which Yii 2 does not have.
+
+    `Yii::log($msg, $level, $category)` became four functions named for the
+    level. There is no Yii::log() in Yii 2 at all, so anything still spelled
+    that way is a fatal the first time the line runs - which is why these
+    lasted: every one of them sits on a branch that had not been reached.
+    OrderItem's pair are in the velocity writer, whose caller (afterSave) had
+    not been ported, and ItemUi's is in a catch block.
+    """
+    LEVEL = {'error': 'Yii::error', 'warning': 'Yii::warning',
+             'info': 'Yii::info', 'trace': 'Yii::debug', 'profile': 'Yii::info'}
+
+    def one(m, args_text):
+        args = split_args_php(args_text)
+        msg = args[0] if args else "''"
+        level = args[1].strip().strip("'\"").lower() if len(args) > 1 else 'info'
+        level = re.sub(r'^clogger::level_', '', level)
+        fn = LEVEL.get(level, 'Yii::info')
+        cat = args[2].strip() if len(args) > 2 else None
+        return '%s(%s%s)' % (fn, msg, ', ' + cat if cat else '')
+
+    return sub_balanced(re.compile(r"\bYii::log\s*\("), one, text)
+
+
 def dao_idioms(text):
     """
     The framework calls that are neither a model nor a query: Yii 1's DAO
@@ -1636,6 +1662,14 @@ def dao_idioms(text):
     # CDbCommand::group() is Query::groupBy().
     text = re.sub(r"(\)\s*\n?\s*)->\s*group\s*\(", lambda m: m.group(1) + '->groupBy(', text)
 
+    # A Command that was never a Query still fetches the Yii 1 way. The rule
+    # above only follows the chains it has just converted, because Yii 2's
+    # Command really does have queryScalar/queryAll/queryColumn - but it has
+    # no queryRow() under any spelling, so one left here is always Yii 1's.
+    text = re.sub(r"->\s*queryRow\s*\(", '->queryOne(', text)
+
+    text = log_idioms(text)
+
     # CJSON is PHP's own json_* in Yii 2. decode() returns an array in Yii 1,
     # so the second argument is not optional if the result is used as one.
     text = re.sub(r"\bCJSON::encode\s*\(", 'json_encode(', text)
@@ -1681,6 +1715,13 @@ def dao_idioms(text):
                   r"('[^']*')\s*\)",
                   lambda m: "new \\Mpdf\\Mpdf(['format' => %s, %s])"
                             % (m.group(1), TMP), text)
+    # CActiveRecord::saveAttributes() is updateAttributes(): both write the
+    # named attributes straight to the row, without validating and without
+    # firing the save events. Eight actions across five controllers call it,
+    # and every one of them was a 500 - none was covered by any suite, because
+    # they write and the read-only sweep would not request them.
+    text = re.sub(r"->\s*saveAttributes\s*\(", '->updateAttributes(', text)
+
     # CHtml::link is Html::a, with the same argument order.
     text = re.sub(r"\bCHtml::link\s*\(", lambda m: '\\yii\\helpers\\Html::a(', text)
 
@@ -2216,7 +2257,10 @@ def generate(model, table_alias):
     concrete = read(f'{ROOT}/protected/models/{model}.php')
     warn = []
 
-    consts = re.findall(r'const\s+(\w+)\s*=\s*([^;]+);', base)
+    # Case-insensitively: two of these models spell it `Const`, which PHP
+    # accepts and this pattern did not - so Setting::SETTING_NO was never
+    # carried across and user/timer died on an undefined constant.
+    consts = re.findall(r'(?i:const)\s+(\w+)\s*=\s*([^;]+);', base)
     props = public_properties(base, concrete)
 
     # The getXOptions helpers. These were copied across with only their array
@@ -2450,6 +2494,23 @@ def generate(model, table_alias):
     A("        if ($this->isNewRecord && $this->scenario !== 'search') {")
     A('            $this->loadDefaultValues();')
     A('        }')
+    A('    }')
+    A('')
+    A('    /**')
+    A("     * GxActiveRecord::isAllowed(): whether this row belongs to the")
+    A('     * operator who is signed in.')
+    A('     *')
+    A("     * False for a model with no create_user_id, which is what Yii 1")
+    A('     * answers. bill/delete asks it before deleting, and died on a')
+    A('     * method the port did not have.')
+    A('     */')
+    A('    public function isAllowed()')
+    A('    {')
+    A("        if (!$this->hasAttribute('create_user_id')) {")
+    A('            return false;')
+    A('        }')
+    A('')
+    A('        return $this->create_user_id == Yii::$app->user->id;')
     A('    }')
     A('')
     A('    /**')
@@ -2827,7 +2888,7 @@ SHARED_GX_FALLBACKS = {
     'getItemOptions', 'getItemOptionIds', 'getItemOptionbarcodes',
     'getItemOptionIdsInBarcode', 'getItemCustomerName', 'getSessionStartDate',
     'getSessionEndDate', 'getVendorDataOptions', 'getCompanyBarcode',
-    'getTotals', 'isAllowCreate', 'getRelationLabel', 'checkPermission',
+    'getTotals', 'isAllowCreate', 'isAllowed', 'getRelationLabel', 'checkPermission',
     'vendorItemDetailIds', 'selectedSessionYears',
 }
 
@@ -3056,7 +3117,7 @@ def merge(existing, generated, model, warn):
 # and saves, and these models are already in use by the ported API.
 PRESENTATION_ONLY = {'label', 'representingColumn', '__toString', 'checkPermission',
                      'getRelationLabel', 'defaultOrder', 'listingOrder',
-                     'getTotals', 'isAllowCreate', 'getCompanyBarcode'}
+                     'getTotals', 'isAllowCreate', 'isAllowed', 'getCompanyBarcode'}
 
 # Never added to a model the API port wrote, whatever else says otherwise.
 # These decide how the model validates, what it saves and what a listing

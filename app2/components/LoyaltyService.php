@@ -72,6 +72,43 @@ class LoyaltyService
     }
 
     /** Legacy path: redeem against a completed order. */
+    /**
+     * Credits the customer for a completed order.
+     *
+     * The one method of this service that was not ported. Its only caller is
+     * Order::afterSave(), which was not ported either, so nothing named it and
+     * nothing missed it - the port saved orders and credited no points at all
+     * while Yii 1 credited every one.
+     *
+     * `status != 0` is Yii 1's test and is kept: 0 is a completed sale here,
+     * and a held or cancelled order earns nothing. The settings row's
+     * is_active defaults to on when it is missing, as it does there.
+     */
+    public static function processOrderEarn($order)
+    {
+        if (!$order->customer_id || $order->status != 0) {
+            return false;
+        }
+
+        $settings = self::getSettings();
+        if (!(isset($settings['is_active']) ? $settings['is_active'] : 1)) {
+            return false;
+        }
+
+        $earnedPoints = self::calculateEarnedPoints($order->total_amt);
+        if ($earnedPoints <= 0) {
+            return false;
+        }
+
+        $loyalty = CustomerLoyalty::getOrCreate($order->customer_id);
+
+        return $loyalty->addPoints(
+            $earnedPoints,
+            $order->id,
+            "Earned {$earnedPoints} points for order #{$order->id}"
+        );
+    }
+
     public static function processOrderRedeem($orderId, $pointsToRedeem)
     {
         $order = Order::findOne($orderId);

@@ -449,7 +449,7 @@ class PaymentReport extends ActiveRecord
                                         //if($itemcat_values [$arrays ['Status']] == 'L' && ($chq_date == $value_date)){
                                             //if($itemcat_values [$arrays ['Status']] == 'L' ){
                                             $bill->payment_done = PurchaseBill::PAYMENT_DONE;
-                                            $bill->saveAttributes(['payment_done']);
+                                            $bill->updateAttributes(['payment_done']);
                                             $save = true;
                                             //}
                                         //}
@@ -688,5 +688,22 @@ class PaymentReport extends ActiveRecord
         return $itemDetail && $itemDetail->company_bar_code == ItemDetail::IS_COMPANY
             ? 'readOnly'
             : '';
+    }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
     }
 }

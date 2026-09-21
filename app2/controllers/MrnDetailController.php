@@ -1016,7 +1016,7 @@ class MrnDetailController extends BaseUiController {
 					{
 						$item->max_qty = $mrnIdAll['maxData'][$key];
 						$item->min_qty = $mrnIdAll['minData'][$key];
-						//$item->saveAttributes(array('max_qty','min_qty'));
+						//$item->updateAttributes(array('max_qty','min_qty'));
 					}
 						}
 						if($qty != '' && $qty != '0'){
@@ -1099,13 +1099,13 @@ class MrnDetailController extends BaseUiController {
         	if(($mrn) && ($mrn->status == MrnDetail::STATUS_DONE)){
         		$mrn->status = Mrn::STATUS_REJECT;
         	
-        		$mrn->saveAttributes(['status']);
+        		$mrn->updateAttributes(['status']);
         	
         		$mrndetailmodels = MrnDetail::findAll(['mrn_id'=>$id]);
         		if($mrndetailmodels){
         			foreach($mrndetailmodels as $mrndetailmodel){
         				$mrndetailmodel->status =  MrnDetail::STATUS_REJECT;
-        				$mrndetailmodel->saveAttributes(['status']);
+        				$mrndetailmodel->updateAttributes(['status']);
         			}
         			
         			$msg = 'MRN is rejected';
@@ -1128,12 +1128,12 @@ class MrnDetailController extends BaseUiController {
         	 
         	if($mrs){
         		$mrs->status = Mrs::STATUS_PENDING;
-        		$mrs->saveAttributes(['status']);
+        		$mrs->updateAttributes(['status']);
         		$mrsdetailmodels = MrsDetail::findAll(['mrs_id'=>$mrs->id]);
         		if($mrsdetailmodels){
         			foreach($mrsdetailmodels as $mrsdetailmodel){
         				$mrsdetailmodel->status =  MrsDetail::STATUS_PENDING;
-        				$mrsdetailmodel->saveAttributes(['status']);
+        				$mrsdetailmodel->updateAttributes(['status']);
         			}
         			 
         			 

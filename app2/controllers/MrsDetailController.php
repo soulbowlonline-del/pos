@@ -449,7 +449,7 @@ class MrsDetailController extends BaseUiController {
 				$existmrs->outlet_id = $existmrs->outlet_id;
 				if ($existmrs->AssignMrs ( $id )) {
 					$model->status = MrsDetail::STATUS_ASSIGN;
-					$model->saveAttributes ( [
+					$model->updateAttributes( [
 							'status' 
 					] );
 					return $this->redirect( [
@@ -813,10 +813,10 @@ class MrsDetailController extends BaseUiController {
 						$mrs = $this->loadModel($id, Mrs::class);
 						
 						$mrs->status = Mrs::STATUS_DONE;
-						$mrs->saveAttributes(['status']);
+						$mrs->updateAttributes(['status']);
 						$model = $this->loadModel($key);
 						$model->status = MrsDetail::STATUS_DONE;
-						$model->saveAttributes(['status']);
+						$model->updateAttributes(['status']);
 						
 						$mrsadjust = MrsAdjust::findOne( [
 								'item_id' => $model->item_id,
@@ -835,7 +835,7 @@ class MrsDetailController extends BaseUiController {
 						if($mrsadjust->save()){
 							$adjusteditem = $this->loadModel($mrsadjust->item_id, Item::class);
 							$adjusteditem->adjustment_time = date('Y-m-d H:i:s');
-							$adjusteditem->saveAttributes(['adjustment_time']);
+							$adjusteditem->updateAttributes(['adjustment_time']);
 						}
 					}
 				}
@@ -1129,7 +1129,7 @@ class MrsDetailController extends BaseUiController {
 						
 						$model = $this->loadModel($key);
 						$model->status = MrsDetail::STATUS_DONE;
-						$model->saveAttributes(['status']);
+						$model->updateAttributes(['status']);
 						if(isset($mrsIdAll ['adjust_qty'] [$key])){
 						$mrsadjust = MrsAdjust::findOne( [
 								'item_id' => $model->item_id,
@@ -1151,7 +1151,7 @@ class MrsDetailController extends BaseUiController {
 						if($mrsadjust->save()){
 							$adjusteditem = $this->loadModel($mrsadjust->item_id, Item::class);
 							$adjusteditem->adjustment_time = date('Y-m-d H:i:s');
-							$adjusteditem->saveAttributes(['adjustment_time']);
+							$adjusteditem->updateAttributes(['adjustment_time']);
 						}else{
 							
 						}
@@ -1163,7 +1163,7 @@ class MrsDetailController extends BaseUiController {
 						$mrs = $this->loadModel($id, Mrs::class);
 							
 						$mrs->status = Mrs::STATUS_DONE;
-						$mrs->saveAttributes(['status']);
+						$mrs->updateAttributes(['status']);
 					}else{
 					$mrs->status = $status;
 					if($mrs->save ()){
@@ -1193,7 +1193,7 @@ class MrsDetailController extends BaseUiController {
 			
 			if ($mrs && ($mrs->status != Mrs::STATUS_DONE)) {
 				$mrs->status = Mrs::STATUS_REJECT;
-				$mrs->saveAttributes ( [
+				$mrs->updateAttributes( [
 						'status' 
 				] );
 				$mrsdetailmodels = MrsDetail::findAll( [
@@ -1202,7 +1202,7 @@ class MrsDetailController extends BaseUiController {
 				if ($mrsdetailmodels) {
 					foreach ( $mrsdetailmodels as $mrsdetailmodel ) {
 						$mrsdetailmodel->status = MrsDetail::STATUS_REJECT;
-						$mrsdetailmodel->saveAttributes ( [
+						$mrsdetailmodel->updateAttributes( [
 								'status' 
 						] );
 					}

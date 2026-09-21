@@ -252,7 +252,7 @@ class PurchaseBill extends ActiveRecord
 
                                 if ($qty > $purchaseBillDetail->approved_qty || $qty = $purchaseBillDetail->approved_qty) {
                                     $purchaseBillDetail->is_consignment_checked = PurchaseBill::IS_CONSIGNMENT_CHECK;
-                                    $purchaseBillDetail->saveAttributes ( [
+                                    $purchaseBillDetail->updateAttributes( [
                                             'is_consignment_checked'
                                     ] );
                                 }
@@ -261,7 +261,7 @@ class PurchaseBill extends ActiveRecord
                     } else {
                         $purchaseBill->is_consignment_checked = PurchaseBill::IS_CONSIGNMENT_CHECK;
                         $purchaseBill->start_date = date ( 'Y-m-d' );
-                        $purchaseBill->saveAttributes ( [
+                        $purchaseBill->updateAttributes( [
                                 'is_consignment_checked',
                                 'start_date'
                         ] );
@@ -1261,4 +1261,21 @@ class PurchaseBill extends ActiveRecord
             $setting->create_time = date ( 'Y-m-d H:i:s' );
             $setting->save ();
         }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
+    }
 }

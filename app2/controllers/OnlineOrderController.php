@@ -518,7 +518,7 @@ class OnlineOrderController extends BaseUiController {
 		}
 		/* if ($set == true) {
 			$model->status = OnlineOrder::STATUS_PROCESSING;
-			$model->saveAttributes(array('status'));
+			$model->updateAttributes(array('status'));
 			$transaction->commit ();
 		} else {
 			$transaction->rollback ();
@@ -648,7 +648,7 @@ class OnlineOrderController extends BaseUiController {
 		if($orders){
 			foreach($orders as $order){
 				$order->type_id = OnlineOrder::TYPE_OPEN;
-				$order->saveAttributes(['type_id']);
+				$order->updateAttributes(['type_id']);
 			}
 		}
 		$this->updateMenuItems ( $model );

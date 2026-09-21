@@ -1161,7 +1161,7 @@ class User extends ActiveRecord
         {
             if ( !Yii::$app->user->isGuest) {
                 $this->last_action_time = date( 'Y-m-d H:i:s');
-                $this->saveAttributes(['last_action_time']);
+                $this->updateAttributes(['last_action_time']);
             }
         }
 
@@ -1188,13 +1188,13 @@ class User extends ActiveRecord
     public function updateLastActionTime()
         {
             $this->last_action_time = date( 'Y-m-d H:i:s');
-            $this->saveAttributes(['last_action_time']);
+            $this->updateAttributes(['last_action_time']);
         }
 
     public function updateLastVisit()
         {
             $this->last_visit_time = date( 'Y-m-d H:i:s');
-            $this->saveAttributes(['last_visit_time']);
+            $this->updateAttributes(['last_visit_time']);
         }
 
     public static function searchByName($keyword, $limit = 20)
@@ -1281,7 +1281,7 @@ class User extends ActiveRecord
     public function generateActivationKey($activate = false)
         {
             $this->activation_key = $activate? User::encrypt(microtime()): User::encrypt(microtime() . $this->password);
-            $this->saveAttributes(['activation_key']);
+            $this->updateAttributes(['activation_key']);
             return $this->activation_key;
         }
 
@@ -1295,7 +1295,7 @@ class User extends ActiveRecord
                 if ($this->activation_key == $key)
                 {
                     $this->state_id = self::STATUS_ACTIVE;
-                    if ($this->saveAttributes([ 'state_id']))
+                    if ($this->updateAttributes([ 'state_id']))
                     {
                         return 1;
                     }
@@ -1368,5 +1368,22 @@ class User extends ActiveRecord
 			}
 		}
 		return $list;
+    }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
     }
 }

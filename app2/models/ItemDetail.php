@@ -1420,6 +1420,33 @@ class ItemDetail extends ActiveRecord
      * created or changed it and when. Yii 1 ran this on every save, so a
      * row written by the port has to carry the same stamps.
      */
+    /**
+     * Yii 1's beforeDelete(): the cascade the schema does not declare.
+     *
+     * There are no foreign keys on these fourteen tables, so nothing but this
+     * removes an item detail's rows from them. Without it the port deletes the
+     * detail and leaves every one of them behind.
+     */
+    public function beforeDelete()
+    {
+        ItemDiscount::deleteAll(['item_detail_id' => $this->id]);
+        ItemTax::deleteAll(['item_detail_id' => $this->id]);
+        ItemStock::deleteAll(['item_detail_id' => $this->id]);
+        OrderItem::deleteAll(['item_detail_id' => $this->id]);
+        OrderHoldItem::deleteAll(['item_detail_id' => $this->id]);
+        OrderRefundItem::deleteAll(['item_detail_id' => $this->id]);
+        StockLog::deleteAll(['item_detail_id' => $this->id]);
+        StockAdjustLog::deleteAll(['item_detail_id' => $this->id]);
+        MrsDetail::deleteAll(['item_detail_id' => $this->id]);
+        MrnDetail::deleteAll(['item_detail_id' => $this->id]);
+        PurchaseOrderDetail::deleteAll(['item_detail_id' => $this->id]);
+        PurchaseBillDetail::deleteAll(['item_detail_id' => $this->id]);
+        ItemReturnItem::deleteAll(['item_detail_id' => $this->id]);
+        ItemExpireItem::deleteAll(['item_detail_id' => $this->id]);
+
+        return parent::beforeDelete();
+    }
+
     public function beforeValidate()
     {
         if (!parent::beforeValidate()) {
@@ -1813,4 +1840,21 @@ class ItemDetail extends ActiveRecord
     public static function getBarcode($optionsArray) {
             Yii::$app->getController ()->widget ( 'application.extensions.Yii-Barcode-Generator.Barcode', $optionsArray );
         }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
+    }
 }

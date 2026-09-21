@@ -46,7 +46,7 @@ class PurchaseBillDetailController extends BaseUiController {
 					$itemDetail = ItemDetail::findOne($purchaseBillDetail->item_detail_id);
 					if($itemDetail){
 						$itemDetail->mrp = $purchaseBillDetail->mrp;
-						$itemDetail->saveAttributes(['mrp']);
+						$itemDetail->updateAttributes(['mrp']);
 					}
 				}
 			}
@@ -636,11 +636,11 @@ class PurchaseBillDetailController extends BaseUiController {
 							$itemtax = $query->one();
 							if ($itemtax) {
 								$itemtax->tax_id = $poIdAll ['taxselectData'] [$key];
-								$itemtax->saveAttributes ( [
+								$itemtax->updateAttributes( [
 										'tax_id' 
 								] );
 								$itemdetail->tax_id = $poIdAll ['taxselectData'] [$key];
-								$itemdetail->saveAttributes ( [
+								$itemdetail->updateAttributes( [
 									'tax_id'
 							] );
 							}
@@ -653,11 +653,11 @@ class PurchaseBillDetailController extends BaseUiController {
 							$itemtax = $query_2->one();
 							if ($itemtax) {
 								$itemtax->tax_id = $poIdAll ['saletaxselectData'] [$key];
-								$itemtax->saveAttributes ( [
+								$itemtax->updateAttributes( [
 										'tax_id' 
 								] );
 								$itemdetail->tax_id = $poIdAll ['saletaxselectData'] [$key];
-								$itemdetail->saveAttributes ( [
+								$itemdetail->updateAttributes( [
 									'tax_id'
 							] );
 							}
@@ -771,7 +771,7 @@ class PurchaseBillDetailController extends BaseUiController {
 								$itemdetail->tax_id = $model->tax_id;
 								$itemdetail->update_time = date('Y-m-d H:i:s');
 								
-								$itemdetail->saveAttributes ( [
+								$itemdetail->updateAttributes( [
 										'tax_id' ,'mrp','update_time'
 								] );
 							}

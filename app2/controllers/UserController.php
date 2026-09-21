@@ -53,13 +53,13 @@ class UserController extends BaseUiController {
 			$id = 1;
 			$setting = Setting::findOne($id);
 			$setting->api_key = $_POST['User']['api_key'];
-			$setting->saveAttributes(['api_key']);
+			$setting->updateAttributes(['api_key']);
 		}
 		if(isset($_POST['User']['ivr_username']) && ($_POST['User']['ivr_username'] != '')){
 			$id = 1;
 			$setting = Setting::findOne($id);
 			$setting->ivr_username = $_POST['User']['ivr_username'];
-			$setting->saveAttributes(['ivr_username']);
+			$setting->updateAttributes(['ivr_username']);
 		}
 		return $this->redirect(['dashboard']);
 	}
@@ -191,7 +191,7 @@ class UserController extends BaseUiController {
 				if ($products) {
 					foreach ( $products as $product ) {
 						$product->state_id = Product::STATE_UNAPPROVE;
-						$product->saveAttributes ( [
+						$product->updateAttributes( [
 								'state_id' 
 						] );
 					}
@@ -213,7 +213,7 @@ class UserController extends BaseUiController {
 			$model->state_id = User::STATUS_INACTIVE;
 		}
 		
-		if ($model->saveAttributes ( [
+		if ($model->updateAttributes( [
 				'state_id' 
 		] ));
 		
@@ -609,7 +609,7 @@ class UserController extends BaseUiController {
 					if ($model->setPassword($_POST['User']['password'], $_POST['User']['password_2']))
 					{
 						$model->last_password_change = date("Y-m-d H:i:s");
-						$model->saveAttributes(['last_password_change']);
+						$model->updateAttributes(['last_password_change']);
 						$passmodel->password = $_POST['User']['password'];
 						$passmodel->create_time =  date("Y-m-d H:i:s");
 						$passmodel->create_user_id =  $model->id;
@@ -648,7 +648,7 @@ class UserController extends BaseUiController {
 			if ($model->setPassword($_POST['User']['password'], $_POST['User']['password_2']))
 			{
 			$model->last_password_change = date("Y-m-d H:i:s");
-			$model->saveAttributes(['last_password_change']);
+			$model->updateAttributes(['last_password_change']);
 			$passmodel->password = $_POST['User']['password'];
 			$passmodel->create_time =  date("Y-m-d H:i:s");
 			$passmodel->create_user_id =  $model->id;
@@ -779,10 +779,10 @@ class UserController extends BaseUiController {
 				break;
 			
 			case UserIdentity::ERROR_PASSWORD_INVALID :
-				Yii::log ( Yii::t ( 'app', 'Password invalid for user {username} (Ip-Address: {ip})', [
+				Yii::error( Yii::t ( 'app', 'Password invalid for user {username} (Ip-Address: {ip})', [
 						'{ip}' => Yii::$app->request->getUserHostAddress (),
 						'{username}' => $this->loginForm->username 
-				] ), 'error' );
+				] ));
 				
 				if (! $this->loginForm->hasErrors ())
 					$this->loginForm->addError ( "password", Yii::t ( 'app', 'Username or Password is incorrect' ) );
@@ -924,7 +924,7 @@ class UserController extends BaseUiController {
 			$username = $user->full_name;
 			$user->logout ();
 			
-			Yii::log ( Yii::t ( 'app', 'User {username} logged off', [
+			Yii::info( Yii::t ( 'app', 'User {username} logged off', [
 					'{username}' => $username 
 			] ) );
 			

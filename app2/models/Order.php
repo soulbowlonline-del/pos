@@ -3,6 +3,13 @@ namespace app\models;
 
 use app\components\Criteria;
 
+// processLoyaltyEarning() and the two loyalty getters below name this class
+// unqualified, and it is a component, not a model - so in app\models it
+// resolved to app\models\LoyaltyService, which does not exist. Nothing
+// noticed until afterSave() was ported and became the first caller: every
+// order the API saved then answered 500.
+use app\components\LoyaltyService;
+
 use app\components\Ui;
 
 use yii\data\ActiveDataProvider;
@@ -1713,6 +1720,29 @@ class Order extends ActiveRecord
      * created or changed it and when. Yii 1 ran this on every save, so a
      * row written by the port has to carry the same stamps.
      */
+    /**
+     * Yii 1's beforeDelete(): an order takes its items with it.
+     */
+    public function beforeDelete()
+    {
+        OrderItem::deleteAll(['order_id' => $this->id]);
+
+        return parent::beforeDelete();
+    }
+
+    /**
+     * Yii 1's afterSave(): loyalty is earned when the order is saved.
+     *
+     * processLoyaltyEarning() came across with the model and nothing called
+     * it, so the port saved orders without ever crediting a customer.
+     */
+    public function afterSave($insert, $changedAttributes)
+    {
+        parent::afterSave($insert, $changedAttributes);
+
+        $this->processLoyaltyEarning();
+    }
+
     public function beforeValidate()
     {
         if (!parent::beforeValidate()) {
@@ -1929,4 +1959,21 @@ class Order extends ActiveRecord
             }
             return $json_entry;
         }
+
+    /**
+     * GxActiveRecord::isAllowed(): whether this row belongs to the
+     * operator who is signed in.
+     *
+     * False for a model with no create_user_id, which is what Yii 1
+     * answers. bill/delete asks it before deleting, and died on a
+     * method the port did not have.
+     */
+    public function isAllowed()
+    {
+        if (!$this->hasAttribute('create_user_id')) {
+            return false;
+        }
+
+        return $this->create_user_id == Yii::$app->user->id;
+    }
 }

@@ -100,7 +100,7 @@ class CustomerUiController extends BaseUiController {
 						}
 						//echo '<pre>';
 						//print_r($customer);
-						//$customer->saveAttributes(array('address','contact_no','zip_code'));
+						//$customer->updateAttributes(array('address','contact_no','zip_code'));
 						 if($customer->save()){
 								
 						}else{
@@ -225,7 +225,7 @@ class CustomerUiController extends BaseUiController {
 		if($oldcustomers){
 			foreach($oldcustomers as $oldcustomer){
 				$oldcustomer->is_email = Customer::Is_Email_pending;
-				$oldcustomer->saveAttributes(['is_email']);
+				$oldcustomer->updateAttributes(['is_email']);
 			}
 		}
 		
@@ -280,7 +280,7 @@ class CustomerUiController extends BaseUiController {
 				foreach($customers as $customer){
 					$customer->is_email =  Customer::Is_Email_sent;
 					$customer->email_date = date('Y-m-d');
-					$customer->saveAttributes(['is_email','email_date']);
+					$customer->updateAttributes(['is_email','email_date']);
 					$from = 'marketing@soulbowl.in' ;
 			
 					$to  = $customer->email;
@@ -373,7 +373,7 @@ class CustomerUiController extends BaseUiController {
 		if($orders){
 			foreach($orders as $order){
 				$order->customer_id = 1;
-				$order->saveAttributes(['customer_id']);
+				$order->updateAttributes(['customer_id']);
 			}
 		}
 		//if (Yii::$app->request->isPost) {

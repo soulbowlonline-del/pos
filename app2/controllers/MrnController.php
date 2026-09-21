@@ -71,7 +71,7 @@ class MrnController extends BaseUiController {
 				}
 			}
 			$model->status = Mrn::STATUS_APPROVED;
-			$model->saveAttributes(['status']);
+			$model->updateAttributes(['status']);
 		}
 	}
 		

@@ -131,7 +131,11 @@ for c in PORTED:
         if SESSION_WRITE.search(deep):
             why.append('sets session')
         needs = [p for p in params.split(',') if p.strip() and '=' not in p]
-        rows.append({'ctrl': c, 'action': act, 'args': len(needs), 'blocked': why})
+        # The names too, so write-sweep.py can build the query string: almost
+        # every one of these takes a single $id.
+        names = [re.sub(r'^.*\$', '', p).strip() for p in needs]
+        rows.append({'ctrl': c, 'action': act, 'args': len(needs),
+                     'params': names, 'blocked': why})
 
 safe = [r for r in rows if not r['blocked']]
 # Actions whose only reason to be held back is a session write. They touch no
@@ -139,6 +143,13 @@ safe = [r for r in rows if not r['blocked']]
 # cannot leak into another action's request, which is what the separate cookie
 # jar in action-sweep.py is for.
 session_only = [r for r in rows if r['blocked'] == ['sets session']]
+# Actions that write, and do nothing else. They cannot be swept for a status
+# alone - the point of them is what they change - so write-sweep.py runs each
+# one against a reloaded fixture on both stacks and compares what each wrote,
+# read out of the binary log. Anything that also reaches outward stays out:
+# a stubbed call is still a call, and the stub is not what is being compared.
+write_only = [r for r in rows if r['blocked'] and
+              set(r['blocked']) <= {'writes', 'sets session'} and 'writes' in r['blocked']]
 blocked = [r for r in rows if r['blocked']]
 print('uncovered actions:        %d' % len(rows))
 print('safe for a read-only GET: %d' % len(safe))
@@ -158,3 +169,6 @@ print('\nwrote /tmp/sweep-targets.json with %d targets' % len(safe))
 
 json.dump(session_only, open('/tmp/sweep-session-targets.json', 'w'), indent=1)
 print('wrote /tmp/sweep-session-targets.json with %d session-only targets' % len(session_only))
+
+json.dump(write_only, open('/tmp/sweep-write-targets.json', 'w'), indent=1)
+print('wrote /tmp/sweep-write-targets.json with %d write targets' % len(write_only))
