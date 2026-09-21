@@ -277,16 +277,90 @@ class ActiveForm extends \yii\widgets\ActiveForm
         return (string) $this->field($model, $attribute)->textInput($htmlOptions);
     }
 
-    /** CKEditor is not part of this port; the underlying textarea is. */
-    public function ckEditorRow($model, $attribute, $htmlOptions = [], $options = [])
+    /**
+     * Yii 1's CJavaScript::encode(): a value written as 'js:...' is raw
+     * javascript rather than a string.
+     *
+     * The views rely on it - ckEditorRow is called with
+     * ['fullpage' => 'js:true'], which has to reach CKEditor as the boolean
+     * true and not as the string "js:true".
+     */
+    private static function encodeOptions(array $options)
     {
-        return (string) $this->field($model, $attribute)->textarea($htmlOptions);
+        $json = json_encode($options, JSON_UNESCAPED_SLASHES);
+
+        return preg_replace('/"js:(.*?)"/', '$1', $json);
     }
 
-    /** Redactor is not part of this port; the underlying textarea is. */
+    /**
+     * TbActiveForm::ckEditorRow(): a textarea with CKEditor on it.
+     *
+     * Yii 1 publishes CKEditor from its bootstrap extension and replaces the
+     * textarea with `CKEDITOR.replace('Model_attribute', {...})`. The same
+     * library is served here from /v2/js/ckeditor and the same call is made
+     * against the same id.
+     *
+     * Used by twelve views. Until now the textarea was rendered bare, so the
+     * remarks and payment-terms fields on a purchase bill were a plain box.
+     */
+    public function ckEditorRow($model, $attribute, $htmlOptions = [], $options = [])
+    {
+        $options = array_merge(ArrayHelper::remove($htmlOptions, 'options', []), $options);
+        $hint = ArrayHelper::remove($htmlOptions, 'hint');
+
+        $field = (string) $this->field($model, $attribute)->textarea($htmlOptions);
+        if ($hint !== null && $hint !== '') {
+            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+        }
+
+        $id = $htmlOptions['id'] ?? \yii\helpers\Html::getInputId($model, $attribute);
+        $view = $this->getView();
+        $view->registerJsFile('/v2/js/ckeditor/ckeditor.js',
+                              ['depends' => \yii\web\JqueryAsset::class]);
+        $view->registerJs(sprintf("CKEDITOR.replace( '%s', %s);",
+                                  $id, self::encodeOptions($options)));
+
+        return $field;
+    }
+
+    /**
+     * TbActiveForm::redactorRow(): a textarea with Redactor on it.
+     *
+     * TbRedactorJs sizes the textarea itself - width 100%, height 400px,
+     * unless the caller gives its own style - and then calls
+     * `$('#Model_attribute').redactor({...})`. Reproduced, including the
+     * language, which Yii 1 takes from the application's own.
+     *
+     * Used by eleven views, on the same fields ckEditorRow serves: the form
+     * picks between them on a setting.
+     */
     public function redactorRow($model, $attribute, $htmlOptions = [], $options = [])
     {
-        return (string) $this->field($model, $attribute)->textarea($htmlOptions);
+        $options = array_merge(ArrayHelper::remove($htmlOptions, 'options', []), $options);
+        $hint = ArrayHelper::remove($htmlOptions, 'hint');
+        $width = ArrayHelper::remove($htmlOptions, 'width', '100%');
+        $height = ArrayHelper::remove($htmlOptions, 'height', '400px');
+        if (!isset($htmlOptions['style'])) {
+            $htmlOptions['style'] = "width:$width;height:$height;";
+        }
+        if (!isset($options['lang'])) {
+            $options['lang'] = substr(Yii::$app->language, 0, 2);
+        }
+
+        $field = (string) $this->field($model, $attribute)->textarea($htmlOptions);
+        if ($hint !== null && $hint !== '') {
+            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+        }
+
+        $id = $htmlOptions['id'] ?? \yii\helpers\Html::getInputId($model, $attribute);
+        $view = $this->getView();
+        $view->registerCssFile('/v2/css/redactor.css');
+        $view->registerJsFile('/v2/js/redactor.min.js',
+                              ['depends' => \yii\web\JqueryAsset::class]);
+        $view->registerJs(sprintf("jQuery('#%s').redactor(%s);",
+                                  $id, self::encodeOptions($options)));
+
+        return $field;
     }
 
     // ------------------------------------------------- plain CActiveForm
