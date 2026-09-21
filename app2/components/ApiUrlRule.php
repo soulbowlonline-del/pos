@@ -1,0 +1,79 @@
+<?php
+namespace app\components;
+
+use yii\base\BaseObject;
+use yii\web\UrlRuleInterface;
+
+/**
+ * Keeps the Yii 1 API URL shape working under /v2.
+ *
+ * The web UI has LegacyUrlRule for this. The API did not: its routes were
+ * plain string rules that passed `<action>` through untouched, so the port
+ * answered only the hyphenated spelling Yii 2 prefers -
+ * /v2/api/customer/country-list - while Yii 1, and every client built against
+ * it, sends /api/customer/countryList.
+ *
+ * Every multi-word action in the API was therefore a 404 on the port:
+ * countryList, stateList, cityList, getLatestBill, getLastOrder, orderList,
+ * getOnlineOrder, preRedeemPoints and the rest. The .NET application and the
+ * Android app could not call the port at all, and the suites did not notice
+ * because they were written against the port's own spelling rather than the
+ * one the clients use.
+ *
+ * Both spellings resolve here: toYii2Id() leaves an already-hyphenated id
+ * alone, so nothing that worked before stops working.
+ *
+ * The controllers are listed rather than matched with a pattern, because the
+ * API's names and the ported web UI's overlap - `item`, `order`, `customer`
+ * are both - and only these six belong to the Yii 1 api module. loyalty and
+ * emp answer POST alone, as their string rules did.
+ */
+class ApiUrlRule extends BaseObject implements UrlRuleInterface
+{
+    /** Yii 1's api module, and which of them are POST-only. */
+    private const CONTROLLERS = [
+        'customer' => null, 'order' => null, 'tally' => null, 'item' => null,
+        'loyalty'  => 'POST', 'emp' => 'POST',
+    ];
+
+    public function parseRequest($manager, $request)
+    {
+        $parts = explode('/', trim($request->getPathInfo(), '/'));
+        if (count($parts) !== 3 || $parts[0] !== 'api') {
+            return false;
+        }
+
+        [, $controller, $action] = $parts;
+        if (!array_key_exists($controller, self::CONTROLLERS)) {
+            return false;
+        }
+
+        $method = self::CONTROLLERS[$controller];
+        if ($method !== null && strtoupper($request->getMethod()) !== $method) {
+            return false;
+        }
+
+        if ($action === '' || !preg_match('/^[\w-]+$/', $action)) {
+            return false;
+        }
+
+        return [$controller . '/' . Ui::toYii2Id($action, false), []];
+    }
+
+    /**
+     * Yii 1's own spelling, so a link the port generates is one the clients
+     * already understand.
+     */
+    public function createUrl($manager, $route, $params)
+    {
+        $parts = explode('/', $route);
+        if (count($parts) !== 2 || !array_key_exists($parts[0], self::CONTROLLERS)) {
+            return false;
+        }
+
+        $url = 'api/' . $parts[0] . '/' . Ui::toYii1Id($parts[1]);
+        $query = http_build_query($params);
+
+        return $query === '' ? $url : $url . '?' . $query;
+    }
+}

@@ -74,17 +74,18 @@ return [
                 'GET health' => 'site/health',
                 // Ported from the Yii 1 api module. Yii 1 still serves
                 // /api/<controller>/* for everything not yet moved across.
-                // Yii 1 action ids are camelCase and Yii 2 routes them
-                // hyphenated, so /v2/api/loyalty/pre-redeem-points answers
-                // what Yii 1 serves at /api/loyalty/preRedeemPoints.
-                'POST api/loyalty/<action:[\w-]+>' => 'loyalty/<action>',
-                'POST api/emp/<action:[\w-]+>' => 'emp/<action>',
-                // No method prefix: the Yii 1 routes answer GET and POST alike,
-                // and several of these take an id from the query string.
-                'api/customer/<action:[\w-]+>' => 'customer/<action>',
-                'api/order/<action:[\w-]+>' => 'order/<action>',
-                'api/tally/<action:[\w-]+>' => 'tally/<action>',
-                'api/item/<action:[\w-]+>' => 'item/<action>',
+                //
+                // This was six string rules, one per controller, passing
+                // <action> through untouched - so the port answered only the
+                // hyphenated spelling Yii 2 prefers, and every multi-word
+                // action in the API was a 404 for anything built against
+                // Yii 1: countryList, getLatestBill, getLastOrder,
+                // preRedeemPoints and the rest. The .NET application and the
+                // Android app could not call it at all. ApiUrlRule converts
+                // the action id the way LegacyUrlRule already did for the web
+                // UI, and accepts both spellings; it keeps loyalty and emp
+                // POST-only, as the rules it replaces did.
+                ['class' => \app\components\ApiUrlRule::class],
 
                 // The ported web-UI controllers, at the same paths Yii 1 uses.
                 // Listed after the API rules so those still win. The rule only

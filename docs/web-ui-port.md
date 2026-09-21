@@ -761,3 +761,62 @@ reason four fatals could sit in it.
 The `UserIdentity` entry in `class-refs.py`'s exception list is gone rather
 than reworded. An exception that outlives its reason is how a check stops
 checking.
+
+## The API port changed the URL contract, and no suite could see it
+
+The .NET application and the Android app could not call the port at all. Every
+multi-word action in the API answered 404.
+
+Yii 1 spells API action ids in camelCase - `/api/customer/countryList`. Yii 2
+wants lowercase and hyphens, and the six API routes in `config/web.php` were
+plain string rules that passed `<action>` through untouched, so the port
+answered `/v2/api/customer/country-list` and nothing else. `countryList`,
+`stateList`, `cityList`, `getLatestBill`, `getLastOrder`, `orderList`,
+`getOnlineOrder`, `preRedeemPoints` - all 404. Single-word actions like
+`order/modes` worked, which is what made it look intermittent.
+
+The web UI had solved this on day one: `LegacyUrlRule` converts the ids in
+both directions, which is why `/v2/paymentMode/admin` works. The API never got
+one. `ApiUrlRule` is that rule, and it accepts both spellings so nothing that
+worked before stops working.
+
+### Why 69 of 69 green API comparisons proved nothing about this
+
+The suites call each action twice with two different names:
+
+    run_case "getGRNItems, bill with 3 lines"  getGRNItems get-grnitems "?id=9990010"
+    #                                          ^ Yii 1     ^ the port
+
+`$a1` for Yii 1 and `$a2` for the port. The harness was written to accommodate
+the divergence rather than report it, and so every case exercised a URL no
+client would ever send. The comparison was real - same data, same payloads,
+byte for byte - and it was answering a question nobody had asked.
+
+This is the sharpest example so far of a green suite meaning less than it
+looks. A differential test compares what it is told to compare. If both halves
+are given the wrong address, they will agree perfectly at it.
+
+`tests/port/api-routes.py` asks the other question: for every action in the
+Yii 1 api module, does the port answer at *Yii 1's* URL? 39 read-only actions,
+status compared, the 30 that write left alone. It runs as `apiroutes_difftest`,
+and the GRN cases now pass the same name to both halves.
+
+### Where the two disagreed, the 5.6 baseline settled it
+
+`tally/cashsale`, `tally/b2btaxwise` and `tally/paymentreport` answer 500 on
+Yii 1 under PHP 8.3 - a CDbException wrapping a PDOException - and 200 on the
+untouched 5.6 tree. The port returns what 5.6 returns, byte for byte. So the
+port is right and the 8.3 copy of Yii 1 is the regression, and the check asks
+:8082 rather than carrying a list somebody has to maintain.
+
+One action needed renaming: `actionGetGrnitems` became `actionGetGrnItems`, so
+that Yii 1's `getGRNItems` converts to `get-grn-items` and resolves. Yii 2
+matches the method name case-sensitively, which is why the old spelling could
+not be reached from the Yii 1 URL.
+
+### Not ported, deliberately
+
+`/api/` with no controller renders Yii 1's Gii scaffolding - the skeleton text
+for a generated action, which also prints the absolute path of the view file
+on the server. The port answers 404 there. That is the better answer and it
+stays.

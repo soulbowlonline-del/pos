@@ -335,7 +335,7 @@ class ItemController extends Controller
     }
 
     /**
-     * POST /v2/api/item/get-grnitems?id=N
+     * POST /v2/api/item/getGRNItems?id=N, as Yii 1 spells it
      *
      * The lines of one purchase bill. Yii 1 loads the bill itself into a
      * variable it never uses, and logs the id at warning level on every call;
@@ -343,7 +343,7 @@ class ItemController extends Controller
      *
      * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
      */
-    public function actionGetGrnitems($id)
+    public function actionGetGrnItems($id)
     {
         $out = [
             'controller' => 'item',
