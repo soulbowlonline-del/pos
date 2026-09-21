@@ -56,6 +56,13 @@ def actions():
     return sorted(set(out))
 
 
+def body(url):
+    """The response itself, for the cases where the payload is the point."""
+    r = subprocess.run(['curl', '-sS', '--max-time', '120', url],
+                       capture_output=True, text=True)
+    return r.stdout
+
+
 def status(url, method):
     r = subprocess.run(['curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
                         '--max-time', '90', '-X', method, url],
@@ -91,6 +98,25 @@ def main():
     for ctrl, action, a, b in bad:
         note = ' - the port does not route it' if b == '404' else ''
         print('  /api/%s/%s  yii1 %s, port %s%s' % (ctrl, action, a, b, note))
+    # Yii 1's path-format parameters, which is how the .NET application asks.
+    # CUrlManager appends GET arguments to the route as alternating name and
+    # value segments, so the billing screen's item search sends
+    # /api/item/search/name//rate//title/pepsi on every keystroke. The port
+    # answered 404 to all of them - its rule took exactly three segments - and
+    # no item ever reached the till, while every suite stayed green because
+    # they all ask with a query string instead.
+    for path in ('item/search/name//rate//title/pepsi',
+                 'item/search/name//rate//title/pe',
+                 'order/modes/type/1',
+                 'customer/index/id/1'):
+        a = body('%s/api/%s' % (BASE, path))
+        b = body('%s/v2/api/%s' % (BASE, path))
+        if a == b:
+            passed += 1
+        else:
+            bad.append(('path-format', path, 'yii1 %db' % len(a),
+                        'port %db' % len(b)))
+
     for ctrl, action, a, ref in regressed:
         print('  /api/%s/%s  Yii 1 under 8.3 answers %s where the 5.6 baseline'
               ' and the port both answer %s' % (ctrl, action, a, ref))

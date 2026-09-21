@@ -39,11 +39,12 @@ class ApiUrlRule extends BaseObject implements UrlRuleInterface
     public function parseRequest($manager, $request)
     {
         $parts = explode('/', trim($request->getPathInfo(), '/'));
-        if (count($parts) !== 3 || $parts[0] !== 'api') {
+        if (count($parts) < 3 || $parts[0] !== 'api') {
             return false;
         }
 
-        [, $controller, $action] = $parts;
+        $controller = $parts[1];
+        $action = $parts[2];
         if (!array_key_exists($controller, self::CONTROLLERS)) {
             return false;
         }
@@ -57,7 +58,38 @@ class ApiUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
-        return [$controller . '/' . Ui::toYii2Id($action, false), []];
+        return [$controller . '/' . Ui::toYii2Id($action, false),
+                self::pathParams(array_slice($parts, 3))];
+    }
+
+    /**
+     * Yii 1's path-format parameters: /name//rate//title/pepsi.
+     *
+     * CUrlManager appends GET arguments to the route as alternating name and
+     * value segments, and that is what the .NET application sends - the
+     * billing screen's item search asks for
+     * /api/item/search/name//rate//title/pepsi on every keystroke. An empty
+     * value is an empty segment, which is why the doubled slashes.
+     *
+     * This rule used to require exactly three segments, so every one of those
+     * requests was a 404 and no item ever reached the till. The suites ask
+     * with a query string, which both stacks have always accepted, so nothing
+     * had ever sent the other form at the port.
+     *
+     * A trailing name with no value is an empty value, as in Yii 1.
+     */
+    private static function pathParams(array $rest)
+    {
+        $params = [];
+        for ($i = 0; $i < count($rest); $i += 2) {
+            $name = urldecode($rest[$i]);
+            if ($name === '') {
+                continue;
+            }
+            $params[$name] = isset($rest[$i + 1]) ? urldecode($rest[$i + 1]) : '';
+        }
+
+        return $params;
     }
 
     /**
