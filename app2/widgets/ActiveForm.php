@@ -217,17 +217,55 @@ class ActiveForm extends \yii\widgets\ActiveForm
     }
 
     /**
-     * TbActiveForm::datepickerRow() renders a text input wired to
-     * bootstrap-datepicker. The picker is not part of this port, so the field
-     * is the text input on its own, carrying the same class the theme's own
-     * scripts look for.
+     * TbActiveForm::datepickerRow(): the field and the picker on it.
+     *
+     * The picker used not to be ported - the text input was rendered and
+     * nothing bound to it - so every date field in the application was a box
+     * you had to type into, and the screens that search by a date range could
+     * not be driven at all.
+     *
+     * Yii 1 publishes bootstrap-datepicker from its bootstrap extension and
+     * registers `jQuery('#Model_attribute').datepicker({...})` per field. The
+     * same script and stylesheet are served here from /v2/js and /v2/css, and
+     * the same call is registered against the same id, which is Yii 1's id now
+     * (see app2/helpers/Html.php).
      */
     public function datepickerRow($model, $attribute, $htmlOptions = [], $options = [])
     {
+        // TbActiveForm carries the picker's own options inside $htmlOptions
+        // under 'options', and its hint and prepend beside them. Left in
+        // place they became attributes on the input - the port was rendering
+        // hint="Click inside! to select a date." into the tag - and the
+        // picker options never reached the picker, so a field asking for a
+        // different format silently got the default one.
+        $options = array_merge(ArrayHelper::remove($htmlOptions, 'options', []),
+                               $options);
+        $hint = ArrayHelper::remove($htmlOptions, 'hint');
+        ArrayHelper::remove($htmlOptions, 'prepend');
+        ArrayHelper::remove($htmlOptions, 'append');
+
         $htmlOptions['class'] = trim('form-control datepicker '
             . ArrayHelper::getValue($htmlOptions, 'class', ''));
 
-        return (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        $field = (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        if ($hint !== null && $hint !== '') {
+            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+        }
+
+        $view = $this->getView();
+        $view->registerCssFile('/v2/css/bootstrap-datepicker.css');
+        $view->registerJsFile('/v2/js/bootstrap.datepicker.js',
+                              ['depends' => \yii\web\JqueryAsset::class]);
+
+        // Yii 1's defaults, which every call in the application relies on:
+        // the format the models store and parse, and a week starting Sunday.
+        $options = array_merge(['format' => 'yyyy-mm-dd', 'language' => 'en',
+                                'weekStart' => 0], $options);
+        $id = $htmlOptions['id'] ?? \yii\helpers\Html::getInputId($model, $attribute);
+        $view->registerJs(sprintf("jQuery('#%s').datepicker(%s);",
+                                  $id, json_encode($options, JSON_UNESCAPED_SLASHES)));
+
+        return $field;
     }
 
     /** As datepickerRow: the picker is not ported, the text input is. */
