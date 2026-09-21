@@ -39,7 +39,16 @@ for f in sorted(os.listdir(PORT)):
     y1 = read(f'{Y1}/{cls}.php', f'{Y1}/_base/Base{cls}.php')
     if not y1:
         continue
-    missing = sorted(m for m in methods(y1) - methods(read(f'{PORT}/{f}'))
+    port_methods = methods(read(f'{PORT}/{f}'))
+    # toArray() is Yii 2's own - yii\base\ArrayableTrait defines it, with
+    # different semantics - so the port carries Yii 1's version under
+    # toArray1() and its callers were renamed with it. Reported as missing,
+    # it was seventeen of the twenty rows here and buried the three that were
+    # real: groupTaxsearch, getTotalNetAmt and LoyaltySettings::search.
+    if 'toArray1' in port_methods:
+        port_methods.add('toArray')
+
+    missing = sorted(m for m in methods(y1) - port_methods
                      if called.get(m) and not m.startswith('__'))
     if missing:
         rows.append((cls, missing))
@@ -49,3 +58,6 @@ print('%d methods the port is missing and something calls, across %d models\n'
       % (total, len(rows)))
 for cls, missing in sorted(rows, key=lambda r: -len(r[1])):
     print('  %-24s %s' % (cls, ', '.join(missing)[:110]))
+print('  passed: %d   mismatched: %d' % (len(rows) and 0 or 1, total))
+import sys
+sys.exit(1 if total else 0)

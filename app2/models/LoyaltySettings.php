@@ -1,6 +1,10 @@
 <?php
 namespace app\models;
 
+use yii\data\ActiveDataProvider;
+
+use app\components\Criteria;
+
 use Yii;
 use yii\db\ActiveRecord;
 
@@ -140,5 +144,22 @@ class LoyaltySettings extends ActiveRecord
     public static function getExpiryMonths()
     {
         return (int) self::getValue('expiry_months', 12);
+    }
+
+    /**
+     * Yii 1's search(): the settings listing, filtered by its own columns.
+     */
+    public function search($params = [])
+    {
+        $query = static::find();
+        $this->load($params, $this->formName());
+
+        Criteria::compare($query, 'id', $this->id);
+        Criteria::compare($query, 'setting_key', $this->setting_key, true);
+        Criteria::compare($query, 'setting_value', $this->setting_value, true);
+        Criteria::compare($query, 'description', $this->description, true);
+        Criteria::compare($query, 'updated_at', $this->updated_at, true);
+
+        return new ActiveDataProvider(['query' => $query]);
     }
 }

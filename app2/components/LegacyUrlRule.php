@@ -51,14 +51,31 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
+        // Yii 1's own rules, in its own order (config/main.php):
+        //
+        //   <controller>/<id:\d+>              -> <controller>/view
+        //   <controller>/<action>/<id:\d+>     -> <controller>/<action>
+        //   <controller>/<action>
+        //
+        // and, failing those, the path format's alternating name and value
+        // segments - which is what the application's javascript uses:
+        // purchaseBillDetail's bill-number lookup posts to
+        // /purchaseBillDetail/ajaxBillNo/id/63677.
+        //
+        // The numeric forms have to come first. Reading /customer/view/7385
+        // as a name and value gives the parameter "7385" with no value and no
+        // id at all, and Yii 2 answers 400 "Missing required parameters: id"
+        // for every view link in the application.
+        if (count($parts) === 2 && ctype_digit($parts[1])) {
+            return [$controller . '/view', ['id' => $parts[1]]];
+        }
+
         $action = isset($parts[1]) ? $this->toYii2($parts[1], false) : 'index';
 
-        // Yii 1's path format puts GET arguments in the path as alternating
-        // name and value segments, and the application's own javascript uses
-        // it: purchaseBillDetail's bill-number lookup posts to
-        // /purchaseBillDetail/ajaxBillNo/id/63677. This rule took exactly two
-        // segments and refused anything longer, so every ajax call built that
-        // way answered 404 - the page rendered and nothing on it worked.
+        if (count($parts) === 3 && ctype_digit($parts[2])) {
+            return [$controller . '/' . $action, ['id' => $parts[2]]];
+        }
+
         // A trailing name with no value is an empty value, as in Yii 1.
         $params = [];
         $rest = array_slice($parts, 2);

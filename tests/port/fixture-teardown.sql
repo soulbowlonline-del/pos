@@ -1,4 +1,19 @@
 DELETE FROM tbl_outbound_stub_log;
+
+-- First, because everything below depends on it. These are the orders the
+-- item/order, ordertest and punchorder suites raise, and the held orders and
+-- lines that go with them. tbl_order has a foreign key to tbl_customer, so
+-- deleting the fixture customer while one of its orders is still here aborts
+-- the whole teardown on line 17 - and then nothing after that line runs
+-- either, so the next run starts on top of what this one left. A killed run
+-- leaves orders behind, and three suites then compare two piles of them and
+-- report seven mismatches that are nobody's bug.
+--
+-- Real orders are all below 1,581,602; 9990001 and 9990500 are fixtures.
+DELETE FROM tbl_order_item                 WHERE order_id > 9990000 AND order_id NOT IN (9990001, 9990500);
+DELETE FROM tbl_order_hold_item            WHERE order_hold_id > 9990000 AND order_hold_id <> 9990002;
+DELETE FROM tbl_order                      WHERE id > 9990000 AND id NOT IN (9990001, 9990500);
+DELETE FROM tbl_order_hold                 WHERE id > 9990000 AND id <> 9990002;
 -- `number = '' OR number IS NULL` is not scoped to a fixture either. It
 -- matches no row in the 5.6 baseline, so unlike the credit notes below it has
 -- never deleted anything real; a per-table row-count comparison against that
@@ -52,13 +67,6 @@ DELETE FROM tbl_item_stock       WHERE item_id = 9990600;
 DELETE FROM tbl_item_detail      WHERE item_id = 9990600;
 DELETE FROM tbl_item             WHERE id = 9990600;
 DELETE FROM tbl_vendor           WHERE id = 9990600;
--- orders and held orders raised by the item/order, ordertest and punchorder
--- suites, and the PDF bills punchorder writes. Real orders are all below
--- 1,581,602; 9990001 and 9990500 are fixtures.
-DELETE FROM tbl_order_item                 WHERE order_id > 9990000 AND order_id NOT IN (9990001, 9990500);
-DELETE FROM tbl_order_hold_item            WHERE order_hold_id > 9990000 AND order_hold_id <> 9990002;
-DELETE FROM tbl_order                      WHERE id > 9990000 AND id NOT IN (9990001, 9990500);
-DELETE FROM tbl_order_hold                 WHERE id > 9990000 AND id <> 9990002;
 DELETE FROM tbl_user                       WHERE id = 9990002;
 -- GRN fixture (see item-grn-fixture-setup.sql). The user row has to go
 -- before the emp row it points at.

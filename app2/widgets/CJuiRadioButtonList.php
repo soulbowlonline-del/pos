@@ -38,7 +38,27 @@ class CJuiRadioButtonList extends Widget
             ? Html::activeRadioList($this->model, $this->attribute, $this->data, $options)
             : Html::radioList(ArrayHelper::getValue($options, 'name', ''), null, $this->data, $options);
 
-        return Html::tag($this->htmlTag, $list, ArrayHelper::getValue($this->htmlOptions, 'id')
-            ? ['id' => $this->htmlOptions['id']] : []);
+        $id = ArrayHelper::getValue($this->htmlOptions, 'id');
+        if ($id === null) {
+            $id = $this->model !== null
+                ? Html::getInputId($this->model, $this->attribute)
+                : $this->getId();
+        }
+
+        // Yii 1's widget is a CJuiInputWidget: it loads jQuery UI and calls
+        // buttonset() on the group, which is what turns the radios into the
+        // joined button bar the search panels show. The port rendered plain
+        // radios and bound nothing.
+        //
+        // Unlike the typeahead this is styling rather than function - a plain
+        // radio still selects - which is why it was never reported as broken,
+        // only as not looking right.
+        $view = $this->getView();
+        $view->registerCssFile('/v2/css/jquery-ui-bootstrap.css');
+        $view->registerJsFile('/v2/js/jquery-ui.min.js',
+                              ['depends' => \yii\web\JqueryAsset::class]);
+        $view->registerJs(sprintf("jQuery('#%s').buttonset();", $id));
+
+        return Html::tag($this->htmlTag, $list, ['id' => $id]);
     }
 }

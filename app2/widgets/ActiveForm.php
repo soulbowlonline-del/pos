@@ -268,13 +268,47 @@ class ActiveForm extends \yii\widgets\ActiveForm
         return $field;
     }
 
-    /** As datepickerRow: the picker is not ported, the text input is. */
+    /**
+     * TbActiveForm::timepickerRow(): the field and the picker on it.
+     *
+     * As datepickerRow. TbTimePicker publishes bootstrap-timepicker and emits
+     * jQuery('#id').timepicker({...}) with any events chained onto it; the
+     * same files are served from /v2 and the same call is made. Two views use
+     * it - the discount form and the shift form - and in both the field was a
+     * box you had to type a time into.
+     */
     public function timepickerRow($model, $attribute, $htmlOptions = [], $options = [])
     {
+        $options = array_merge(ArrayHelper::remove($htmlOptions, 'options', []),
+                               $options);
+        $hint = ArrayHelper::remove($htmlOptions, 'hint');
+        $events = ArrayHelper::remove($htmlOptions, 'events', []);
+        ArrayHelper::remove($htmlOptions, 'prepend');
+        ArrayHelper::remove($htmlOptions, 'append');
+
         $htmlOptions['class'] = trim('form-control timepicker '
             . ArrayHelper::getValue($htmlOptions, 'class', ''));
 
-        return (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        $field = (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        if ($hint !== null && $hint !== '') {
+            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+        }
+
+        $id = $htmlOptions['id'] ?? \yii\helpers\Html::getInputId($model, $attribute);
+        $view = $this->getView();
+        $view->registerCssFile('/v2/css/bootstrap-timepicker.css');
+        $view->registerJsFile('/v2/js/bootstrap.timepicker.js',
+                              ['depends' => \yii\web\JqueryAsset::class]);
+
+        $js = sprintf("jQuery('#%s').timepicker(%s)", $id,
+                      $options ? self::encodeOptions($options) : '');
+        foreach ($events as $event => $handler) {
+            $js .= sprintf(".on('%s', %s)", $event,
+                           \yii\helpers\Json::encode($handler));
+        }
+        $view->registerJs($js . ';');
+
+        return $field;
     }
 
     /**

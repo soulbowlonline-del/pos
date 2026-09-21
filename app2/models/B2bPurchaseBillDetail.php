@@ -1506,6 +1506,23 @@ class B2bPurchaseBillDetail extends ActiveRecord
             return $total;
         }
 
+    /**
+     * Yii 1's getTotalNetAmt(): the bill's own lines summed.
+     *
+     * Not ported, and the B2B purchase bill report calls it, so that column
+     * was a fatal waiting for the first person to open the page.
+     */
+    public function getTotalNetAmt()
+    {
+        $total = 0;
+        foreach (B2bPurchaseBillDetail::findAll(
+                     ['purchase_bill_id' => $this->purchase_bill_id]) as $detail) {
+            $total = $total + $detail->amount;
+        }
+
+        return $total;
+    }
+
     public function getTotalCgstAmt()
         {
             $total = 0;

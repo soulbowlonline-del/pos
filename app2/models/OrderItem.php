@@ -3474,6 +3474,71 @@ class OrderItem extends ActiveRecord
     /**
      * Yii 1's groupHSNTaxsearch(): a listing of its own, converted as written.
      */
+    /**
+     * Yii 1's BaseOrderItem::groupTaxsearch(), which order/groupTax is built
+     * on. It was not ported, so that menu item answered 500 - "Calling
+     * unknown method OrderItem::groupTaxsearch()" - while Yii 1 answered.
+     *
+     * The last two statements are Yii 1's and are deliberate here. It prints
+     * the SQL it built and stops:
+     *
+     *     echo $this->getCommandBuilder()->createFindCommand(...)->getText();
+     *     die;
+     *
+     * so the page never renders past that point - 5,550 bytes of half a page
+     * and a query - and the CSV export writes the query instead of the rows.
+     * That is what the application does today, on the 5.6 baseline as well,
+     * and reproducing it is what keeps the two stacks comparable. It is a
+     * one-line fix in both trees whenever its owner wants it; see
+     * docs/live-bugs-found.md.
+     */
+    public function groupTaxsearch()
+    {
+        $order_ids = [];
+        $query1 = Order::find()->alias('t');
+        if ((Yii::$app->session['order_item_start_date'] != '')
+                && (Yii::$app->session['order_item_end_date'] != '')) {
+            $query1->andWhere(['between', 't.bill_date',
+                               Yii::$app->session['order_item_start_date'],
+                               Yii::$app->session['order_item_end_date']]);
+        } else {
+            $query1->andWhere(['between', 't.bill_date',
+                               $this->start_date, $this->end_date]);
+        }
+        if ($this->mode_of_payment != null) {
+            $query1->andWhere('t.mode_of_payment =' . $this->mode_of_payment);
+        }
+        foreach ($query1->all() as $order) {
+            $order_ids[] = $order->id;
+        }
+
+        $query = OrderItem::find()->alias('t');
+        $query->andWhere(['order_id' => $order_ids]);
+        $query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); },
+                          'item' => function ($q) { $q->alias('item'); },
+                          'order' => function ($q) { $q->alias('order'); }]);
+        $query->groupBy('t.tax_id,t.create_date');
+        // MySQL 5.7 sorted GROUP BY results implicitly; MySQL 8.0 does not.
+        $query->orderBy(['t.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
+
+        Criteria::compare($query, 'item.title', $this->item_id, true);
+        Criteria::compare($query, 'order.bill_no', $this->order_id);
+        Criteria::compare($query, 'order.bill_date', $this->bill_date);
+        Criteria::compare($query, 'order.customer_id', $this->customer_id);
+        Criteria::compare($query, 'itemDetail.bar_code', $this->item_detail_id, true);
+        Criteria::compare($query, 't.tax_id', $this->tax_id);
+        Criteria::compare($query, 't.tax_amount', $this->tax_amount);
+        Criteria::compare($query, 't.date(create_date)', $this->create_date);
+        Criteria::compare($query, 't.qty', $this->qty);
+        Criteria::compare($query, 't.price', $this->price);
+        Criteria::compare($query, 't.discount_id', $this->discount_id);
+        Criteria::compare($query, 't.discount_amt', $this->discount_amt);
+
+        // Yii 1's own debugging, reproduced. See the note above.
+        echo $query->createCommand()->getRawSql();
+        exit;
+    }
+
     public function groupHSNTaxsearch()
     {
 
