@@ -164,21 +164,12 @@ def main():
             own.setdefault(fq.rsplit('\\', 1)[-1].lower(), set()).add(fq)
     y1 = yii1_classes()
 
-    # UserIdentity is not ported, and deliberately. app2/components/BridgedUser
-    # says it: "Login and logout stay entirely with Yii 1 for now. Yii 2 only
-    # observes." The component is configured with enableSession = false and
-    # reads the signed-in user id out of the Yii 1 session, so a Yii 2 login
-    # would have nowhere to write. The two lines that name UserIdentity are
-    # the ones that would perform a login - UserController::authenticate() and
-    # AuthSession's session resume - and both belong to Yii 1's half of that
-    # arrangement.
-    #
-    # The consequence is real and worth stating: a POST to /v2/user/login
-    # fatals. GET renders, which is why the page comparison passes, and the
-    # suites sign in through the bridge rather than the form, which is why
-    # nothing else noticed. Users log in at /, which is where login lives.
-    ALLOWED = {('controllers/UserController.php', 'UserIdentity'),
-               ('models/AuthSession.php', 'UserIdentity')}
+    # Nothing here is excused any more. UserIdentity used to be: the port did
+    # not own login, BridgedUser only observed Yii 1's session, and a POST to
+    # /v2/user/login was a fatal that no suite could reach. It is ported now,
+    # and the entry is gone rather than kept as a comment, because an
+    # exception list that outlives its reason is how a check stops checking.
+    ALLOWED = set()
 
     misplaced, missing, inherited = [], [], []
     for rel, n, fq in bad:

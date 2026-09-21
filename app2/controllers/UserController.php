@@ -2,6 +2,8 @@
 namespace app\controllers;
 
 use app\components\Ui;
+use app\components\UserIdentity;
+use app\models\Identity;
 use app\models\Item;
 use app\models\ItemVendor;
 use app\models\LoginForm;
@@ -755,7 +757,12 @@ class UserController extends BaseUiController {
 		switch ($identity->errorCode) {
 			case UserIdentity::ERROR_NONE :
 				$duration = $this->loginForm->rememberMe ? 3600 * 24 * 30 : 0; // 30 days
-				Yii::$app->user->login ( $identity, $duration );
+				// Yii 1 stores the object that did the authenticating; Yii 2
+				// stores an IdentityInterface and restores it on the next
+				// request through identityClass::findIdentity(). Logging in the
+				// Identity for the id this resolved keeps the signed-in
+				// identity the same type on every request, including this one.
+				Yii::$app->user->login ( Identity::findIdentity ( $identity->id ), $duration );
 				return $user;
 				break;
 			case UserIdentity::ERROR_EMAIL_INVALID :
@@ -780,7 +787,11 @@ class UserController extends BaseUiController {
 			
 			case UserIdentity::ERROR_PASSWORD_INVALID :
 				Yii::error( Yii::t ( 'app', 'Password invalid for user {username} (Ip-Address: {ip})', [
-						'{ip}' => Yii::$app->request->getUserHostAddress (),
+						// Yii 1's CHttpRequest::getUserHostAddress(); Yii 2 calls
+						// it getUserIP(). This sits on the wrong-password branch,
+						// so nothing reached it until something tried a wrong
+						// password - which nothing did until the login suite.
+						'{ip}' => Yii::$app->request->getUserIP (),
 						'{username}' => $this->loginForm->username 
 				] ));
 				
@@ -790,6 +801,17 @@ class UserController extends BaseUiController {
 				return false;
 		}
 	}
+	/**
+	 * Yii 1's first accessRules() entry - the actions granted to `'*'`.
+	 * `deleteAssets`, `download`, `thumbnail` and `setSession` are on that
+	 * list too and are not ported, so they are left off rather than named.
+	 */
+	public function guestActions()
+	{
+		return ['login', 'recover', 'passwordexpired', 'ajaxuserquestion',
+				'timer', 'reorder'];
+	}
+
 	public function actionLogin() {
 		$this->layout = 'column1';
 		$this->loginForm = new LoginForm ();

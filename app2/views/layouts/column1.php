@@ -7,7 +7,7 @@
  * this, user/recover answered 500 on a layout that does not exist.
  */
 ?>
-<?php $this->beginContent('@app/views/layouts/main.php'); ?>
+<?php $this->beginContent('@app/views/layouts/guest.php'); ?>
 <div class="container-fluid">
 
 <div class="row-fluid main_inner">

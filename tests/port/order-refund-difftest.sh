@@ -18,7 +18,7 @@ ORDER=9990500
 reset() {
   docker exec -i pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE' < /root/pos/refund_fixture.sql >/dev/null 2>&1
   docker exec pos-mysql-8 sh -c 'mysql -uroot -p$MYSQL_ROOT_PASSWORD $MYSQL_DATABASE -e "
-    DELETE FROM tbl_credit_note WHERE amt IN (0, 100, 200, 300, 1000);"' >/dev/null 2>&1
+    DELETE FROM tbl_credit_note WHERE id > 15972;"' >/dev/null 2>&1
 }
 
 norm() { sed -E 's/"credit_number":"[0-9]+"/"credit_number":"<RND>"/g'; }

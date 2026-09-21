@@ -2,6 +2,7 @@
 namespace app\models;
 
 use app\components\Criteria;
+use app\components\UserIdentity;
 use app\components\Gx;
 use app\components\Ui;
 use Yii;
@@ -559,7 +560,9 @@ class AuthSession extends ActiveRecord
                 switch($identity->errorCode) {
                     case UserIdentity::ERROR_NONE:
                         $duration = 3600*24*30; // 30 days
-                        Yii::$app->user->login($identity,$duration);
+                        // See UserController::authenticate() - Yii 2 stores an
+                        // IdentityInterface, and UserIdentity is the checker.
+                        Yii::$app->user->login(Identity::findIdentity($identity->id), $duration);
                         Yii::warning( var_export(Yii::$app->user->model, true), '$$user');
                         $auth_session->save(); // update time is changed here
                         return true;

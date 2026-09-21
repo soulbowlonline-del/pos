@@ -523,3 +523,34 @@ as its only allowed exception so that the gap stays visible.
 
 Whoever owns this has to decide what deleting a user should do before either
 stack can do it.
+
+## The same delete, written twice
+
+The teardown's `DELETE FROM tbl_credit_note WHERE amt IN (100, 200, 300, 1000)`
+was scoped by id, the 601 real credit notes were restored from the 5.6
+database, and the row-loss check went green. The next full run took the same
+601 rows again.
+
+The predicate was in two files. `refund_difftest.sh` carries its own reset, and
+its copy read `WHERE amt IN (0, 100, 200, 300, 1000)` - the same fault plus
+`amt = 0`, which is where the 52 zero-value notes in the original loss came
+from. Fixing the teardown and not the suite fixed nothing at all.
+
+Two things follow, and the second matters more than the first:
+
+  - `tests/port/delete-scope.py` reads every DELETE in the harness - 261 of
+    them across the shell suites and the fixture SQL - and checks that its
+    WHERE clause names something the harness made: a fixture id from 9990000
+    up, a shell variable holding one, one of the two test phone numbers, or
+    the credit-note high-water mark. Anything else is reported. It runs as
+    `deletes_difftest`, before any suite writes a row.
+  - The row-loss check earned its place. It caught the second deletion on the
+    first run after it was introduced, which is exactly the job: the first
+    deletion went unnoticed for four days across every green run, because a
+    harness that compares two stacks against each other cannot see damage they
+    share. Both read the same database. Only the 5.6 copy, which nothing
+    writes to, could tell them apart.
+
+The restore is idempotent and still on the server at
+`/root/pos/restore/credit_note_BASELINE.sql` - 15,971 REPLACE statements, the
+whole table as the baseline holds it.

@@ -696,3 +696,68 @@ It is worth saying what this was not: nothing in the port was wrong, and the
 sweep reported a difference for four days. A differential harness is a program
 like any other, and its own state is as capable of producing a difference as
 the code it is comparing.
+
+## The port owns login
+
+Until now Yii 2 only observed: `BridgedUser` read the signed-in user id out of
+the Yii 1 session, `enableSession` was false, and `POST /v2/user/login` was a
+fatal. The port could not be exercised without Yii 1 in front of it.
+
+It can now. `app\components\UserIdentity` is the port of Yii 1's
+`CUserIdentity` subclass, split the way Yii 2 splits it: this class checks the
+credentials and carries the error code the login controller switches on, and
+`app\models\Identity` is what gets logged in. Both call sites - the login form
+and the API's auth-code resume in `AuthSession` - log in the Identity for the
+id that was resolved, so the signed-in identity is the same type on the login
+request as on every request after it.
+
+`BridgedUser` keeps its own session now and falls back to the Yii 1 bridge:
+
+  - Yii 2's session keys are read first. Reading the bridge first would let a
+    stale Yii 1 session override a login performed here.
+  - The bridge is still read, and still with `setIdentity()` rather than
+    `switchIdentity()`, so observing Yii 1's state writes nothing. A session
+    made at `/` continues to work at `/v2`.
+  - It does not work the other way. Yii 1's `WebUser::init()` rewrites
+    `pos_bridge_auth` on every request and clears it whenever Yii 1 thinks it
+    is a guest, so anything Yii 2 wrote there would not survive the next
+    request to `/`. **A login at `/v2` signs you in to `/v2` only; a login at
+    `/` signs you in to both.** That asymmetry goes away when Yii 1 does.
+  - `enableAutoLogin` stays off. `Identity::getAuthKey()` returns null and
+    `validateAuthKey()` returns false, because `tbl_user` has no column to hold
+    one, so an auto-login cookie could not be validated if one were issued. The
+    visible effect is that "remember me" does not survive closing the browser
+    on `/v2`. Giving it one is a schema change.
+
+Three things had to be fixed before the form could render at all, and all three
+are the same story as the lifecycle hooks - code that was copied, never called,
+and therefore never checked:
+
+  - `new UserIdentity(...)` resolved to `app\controllers\UserIdentity`.
+  - `BaseUiController::beforeAction()` sent **every** guest to `/user/login`,
+    including a guest asking for `/v2/user/login`, so the port's own form
+    answered 302 to Yii 1's whoever asked. There is now a `guestActions()`
+    hook - empty for every controller but `User`, which returns the actions
+    Yii 1's first `accessRules()` entry grants to `'*'` - and a guest is sent
+    to the login form of the stack they were already on.
+  - `column1` wrapped `main.php`, which is the port of `admin_layout.php` and
+    reads the signed-in user's `role_id`. Yii 1's `column1` wraps the theme's
+    `main.php`, a plain shell with no user in it. That file is now ported as
+    `guest.php`, and the three pages a guest can reach - login, recover,
+    passwordexpired - render in it, as they do in Yii 1.
+
+A fourth turned up once the suite could try a wrong password:
+`Yii::$app->request->getUserHostAddress()`, Yii 1's name for `getUserIP()`, on
+the `ERROR_PASSWORD_INVALID` branch. A correct password never reached it.
+
+`tools/port/login_difftest.sh` covers the flow on both stacks: the form
+renders, the right credentials make a session that works, a session made at `/`
+still reaches `/v2`, a wrong password and an unknown user are refused with no
+session and the same message, a POST with no CSRF token is refused by the port,
+logout ends the session, and a guest on `/v2` is sent to the port's own form.
+Eight cases, and before them the login path had none - which is the whole
+reason four fatals could sit in it.
+
+The `UserIdentity` entry in `class-refs.py`'s exception list is gone rather
+than reworded. An exception that outlives its reason is how a check stops
+checking.

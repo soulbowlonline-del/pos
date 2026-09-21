@@ -62,6 +62,21 @@ abstract class BaseUiController extends Controller
         return [];
     }
 
+    /**
+     * Actions Yii 1's accessRules() allows a guest, by lower-case action id.
+     *
+     * Empty here, because every ported controller but one requires a signed-in
+     * user. UserController overrides it: its first rule lists the actions
+     * granted to `'users' => array('*')`, and the login form is among them.
+     * Without this hook the guard below sent a guest asking for the port's own
+     * login page to Yii 1's, so /v2/user/login could never render - it
+     * answered 302 to /user/login, whoever asked.
+     */
+    public function guestActions()
+    {
+        return [];
+    }
+
     public function beforeAction($action)
     {
         if (!parent::beforeAction($action)) {
@@ -70,10 +85,15 @@ abstract class BaseUiController extends Controller
 
         Yii::$app->response->format = Response::FORMAT_HTML;
 
-        if (Yii::$app->user->getIsGuest()) {
-            // Yii 1 owns the login form, so send them there rather than
-            // rendering one here. loginUrl in config/main.php is user/login.
-            Yii::$app->response->redirect('/user/login')->send();
+        if (Yii::$app->user->getIsGuest()
+                && !in_array(strtolower($action->id), array_map('strtolower',
+                                                                $this->guestActions()), true)) {
+            // Yii 1's loginUrl is user/login, and the port has one of its own
+            // now; a guest asking for a page that needs a session is sent to
+            // whichever application they were already using.
+            $login = strpos(Yii::$app->request->getUrl(), '/v2/') === 0
+                ? '/v2/user/login' : '/user/login';
+            Yii::$app->response->redirect($login)->send();
             return false;
         }
 
