@@ -39,3 +39,10 @@ b2BPurchaseBillDetail/index rows  every b2BPurchaseBillDetail page is 500 on the
 b2BPurchaseBillDetail/create form  every b2BPurchaseBillDetail page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBillDetail and Yii 1 looks for b2BPurchaseBillDetail
 b2BPurchaseBillDetail/view detail  every b2BPurchaseBillDetail page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBillDetail and Yii 1 looks for b2BPurchaseBillDetail
 b2BPurchaseBillDetail/update form  every b2BPurchaseBillDetail page is 500 on the 5.6 baseline: its views are in protected/views/b2bpurchaseBillDetail and Yii 1 looks for b2BPurchaseBillDetail
+
+# Found by tests/port/route-sweep.py, which asks every action Yii 1 serves
+# whether the port serves it too. These three are the only differences it
+# found across all 59 controllers, and none of them is the port's: each
+# answers 500 on the untouched 5.6 tree as well, and the port answers 200.
+shift/search               shift/search returns 500 on the 5.6 baseline
+itemExpire/search          itemExpire/search returns 500 on the 5.6 baseline

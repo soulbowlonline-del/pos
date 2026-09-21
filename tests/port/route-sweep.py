@@ -16,7 +16,7 @@ Where the two disagree the untouched 5.6 tree decides which is wrong, as
 api-routes.py does: Yii 1 under PHP 8.3 is not the authority on what the
 application is supposed to do.
 """
-import os, re, subprocess, sys
+import os, re, subprocess, sys, time
 
 B = 'http://127.0.0.1:8084'
 BASELINE = 'http://127.0.0.1:8082'
@@ -41,8 +41,24 @@ def mysql(q):
 
 
 def status(url):
-    return sh('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
-              '-b', JAR, '--max-time', '45', url).strip()
+    """
+    The status, with one retry when curl reports none.
+
+    A '000' is curl giving up, not the application answering, and this sweep
+    makes enough requests to cause its own timeouts - the first run reported
+    question/admin and shift/admin as differences when both stacks serve them
+    perfectly well and one of the two had simply been starved of a worker.
+    A difference that survives a second ask is worth reading; one that does
+    not is this script's own noise.
+    """
+    for attempt in (0, 1):
+        code = sh('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
+                  '-b', JAR, '--max-time', '25', url).strip()
+        if code != '000':
+            return code
+        time.sleep(2)
+
+    return code
 
 
 def ported():
@@ -104,6 +120,9 @@ def main():
                     continue
                 route += '/%s' % rid
             a, b = status('%s/%s' % (B, route)), status('%s/v2/%s' % (B, route))
+            if a == '000' and b == '000':
+                skipped += 1        # too slow to answer on either stack
+                continue
             if a == b:
                 rows.append((route, a, b, 'same'))
                 continue

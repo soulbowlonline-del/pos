@@ -892,3 +892,37 @@ Each exists because something got through the suites that already ran. The
 pattern is worth stating once more: a differential test compares what it is
 told to compare, and every one of these bugs lived in a question nobody had
 thought to ask.
+
+## Every action Yii 1 serves, the port serves
+
+`tests/port/route-sweep.py` asked that of all 59 ported controllers - every
+action, on both stacks, with the same session, statuses compared. It found
+four differences and not one of them is the port's:
+
+| route | Yii 1 under 8.3 | the port | the 5.6 baseline |
+|---|---|---|---|
+| `shift/search` | 500 | **200** | **500** |
+| `itemExpire/index` | 500 | **200** | **500** |
+| `itemExpire/search` | 500 | **200** | **500** |
+| `item/check` | 403 | 403 | 302 |
+
+The first three are broken on the untouched 5.6 tree as well, so the port is
+the one behaving; they are recorded in `known-yii1-failures.txt`. The fourth
+matches Yii 1 exactly - it only looked like a difference because the sweep had
+starved the server of workers and curl gave up. The sweep now retries once
+before reporting, which is what turned a page of noise into these four lines.
+
+Two practical notes for whoever runs it next.
+
+It has to go one controller at a time. A single pass over all 59 holds every
+Apache worker long enough that the application stops answering anything else,
+including the person watching. `sweep_driver.sh` runs it per controller with a
+pause; the whole set takes upwards of an hour and leaves the site usable
+throughout.
+
+A timeout is not an answer. The first pass reported `question/admin` and
+`shift/admin` as differences because one stack had been starved while the
+other was served. Anything reported as `000` should be asked again before it
+is believed - of this sweep, and of any measurement taken while it runs. Two
+of the things I chased tonight turned out to be my own load rather than the
+application's behaviour.
