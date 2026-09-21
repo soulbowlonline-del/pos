@@ -73,6 +73,15 @@ $this->beginPage();
   <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
   <![endif]-->
 <?php $this->head(); ?>
+  <!--
+    Bootstrap's javascript, after jQuery and before the theme's plugins.
+    Yii 1 publishes this from ext-prod/bootstrap and serves it as
+    /assets/<hash>/js/bootstrap.js; the port loaded no bootstrap at all, so
+    AdminLTE had no collapse or dropdown to build the sidebar on. The file
+    here is a copy of that same one rather than the theme's, which is a
+    different version - the point is to behave as Yii 1 does.
+  -->
+  <script src="/v2/js/bootstrap.js"></script>
 </head>
 <body class="hold-transition skin-blue sidebar-mini" id="main">
 <?php $this->beginBody(); ?>

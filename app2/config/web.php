@@ -61,6 +61,22 @@ return [
         'assetManager' => [
             'basePath' => '@webroot/assets',
             'baseUrl' => '@web/assets',
+            // Into the head, which is where Yii 1's CClientScript puts its
+            // core scripts. Yii 2 registers a bundle at the end of the body
+            // by default, and the theme's own script tags are hard-coded
+            // above that in the layout - so jQuery arrived *after* the twelve
+            // plugins that need it and after AdminLTE's app.min.js. Every one
+            // of them threw on `$`, app.min.js never ran, and the sidebar
+            // menu did not open: the markup was right, the 80 links were all
+            // there, and nothing was listening for the click.
+            'bundles' => [
+                \yii\web\JqueryAsset::class => [
+                    'jsOptions' => ['position' => \yii\web\View::POS_HEAD],
+                ],
+                \yii\web\YiiAsset::class => [
+                    'jsOptions' => ['position' => \yii\web\View::POS_HEAD],
+                ],
+            ],
         ],
         'db' => require __DIR__ . '/db.php',
         'urlManager' => [
