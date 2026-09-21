@@ -290,7 +290,15 @@ class ItemTax extends ActiveRecord
         // part of the result and not just an optimisation: where the
         // listing has no ORDER BY, the join decides which rows the
         // first page shows.
-        $query->joinWith(['itemDetail.item' => function ($q) { $q->alias('item'); }, 'tax' => function ($q) { $q->alias('tax'); }]);
+        // itemDetail is aliased in its own right, not only through
+        // itemDetail.item. A dotted relation aliases the last segment
+        // alone, so itemDetail kept the table name, and the filter below
+        // - itemDetail.bar_code - asked for a column MySQL had never
+        // heard of. The grid answered 200 with no rows, so searching an
+        // item tax by barcode silently found nothing where Yii 1 finds it.
+        $query->joinWith(['itemDetail' => function ($q) { $q->alias('itemDetail'); },
+                          'itemDetail.item' => function ($q) { $q->alias('item'); },
+                          'tax' => function ($q) { $q->alias('tax'); }]);
         $provider = new ActiveDataProvider([
             'query' => $query,
             // The order goes on the query, not on the provider's sort.

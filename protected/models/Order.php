@@ -1190,6 +1190,16 @@ class Order extends BaseOrder
 		return $billno;
 	}
 	public function SendSms() {
+		// uengage removed on the owner's instruction, 21 Sep 2026. The order
+		// confirmation SMS is no longer sent; WhatsApp through Interakt is
+		// unaffected. Removed in both trees at once so the two stacks keep
+		// agreeing - the order suites compare what an order sends, and a
+		// change on one side alone would show up as a mismatch.
+		//
+		// The body below is left in place rather than deleted: the API token
+		// it reads is one of the credentials that still needs rotating, and
+		// restoring the call is a matter of deleting this return.
+		return;
 		$customer = Customer::model()->findByPk($this->customer_id);
 		$pdfurl = "http://61.2.241.71/pos/order/pdf?id=".$this->id;
 		if($customer){

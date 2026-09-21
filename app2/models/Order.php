@@ -446,6 +446,11 @@ class Order extends ActiveRecord
      */
     public function SendSms()
     {
+        // uengage removed on the owner's instruction, 21 Sep 2026. See the
+        // Yii 1 model, which is disabled at the same point so that the two
+        // stacks keep agreeing. WhatsApp through Interakt is unaffected.
+        return;
+
         $customer = Customer::findOne($this->customer_id);
         if (!$customer) {
             return;

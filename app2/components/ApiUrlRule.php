@@ -93,19 +93,28 @@ class ApiUrlRule extends BaseObject implements UrlRuleInterface
     }
 
     /**
-     * Yii 1's own spelling, so a link the port generates is one the clients
-     * already understand.
+     * Never generates a URL.
+     *
+     * The API and the web UI share controller names - order, item, customer,
+     * emp are both - and a rule that matched `order/<action>` when *building*
+     * a link claimed every web link to an order page as well. The sidebar's
+     * 24 report links came out as /v2/api/order/userWise, /v2/api/item/admin
+     * and so on, which route to the API controller and answer nothing a
+     * browser can use.
+     *
+     * The six string rules this class replaced did the same thing, for the
+     * same reason: a Yii 2 string rule matches createUrl() on its route, and
+     * `api/order/<action> => order/<action>` matches the route `order/admin`
+     * wherever it comes from. It went unnoticed because the sidebar's menu
+     * did not open - jQuery was loading after the script that wires it up -
+     * so nobody had ever clicked one of those links.
+     *
+     * Nothing in the port needs to generate an API URL: the API answers with
+     * data, and the clients build their own addresses. Declining here leaves
+     * every link to LegacyUrlRule, which knows about the -ui controllers.
      */
     public function createUrl($manager, $route, $params)
     {
-        $parts = explode('/', $route);
-        if (count($parts) !== 2 || !array_key_exists($parts[0], self::CONTROLLERS)) {
-            return false;
-        }
-
-        $url = 'api/' . $parts[0] . '/' . Ui::toYii1Id($parts[1]);
-        $query = http_build_query($params);
-
-        return $query === '' ? $url : $url . '?' . $query;
+        return false;
     }
 }
