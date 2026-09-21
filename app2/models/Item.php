@@ -1192,6 +1192,69 @@ class Item extends ActiveRecord
 
         $this->load($params, $this->formName());
 
+        // What follows was in Yii 1's BaseItem::search() and not here. The
+        // generated version kept the plain compares and dropped every
+        // hand-written condition, so the item master's own search box did
+        // nothing: a title or a barcode filtered nothing out and the grid
+        // answered with the first hundred items either way.
+
+        // Always applied, even when the box is empty - `LIKE '%'`, which is
+        // every row whose title is not null. With `name` as well, both apply.
+        $title = trim((string) $this->title);
+        $query->andWhere(['like', 'title', $title . '%', false]);
+        if (Yii::$app->session['item_name'] !== null
+                && Yii::$app->session['item_name'] !== '') {
+            $this->name = Yii::$app->session['item_name'];
+        }
+        if ($this->name !== null && $this->name !== '') {
+            $query->andWhere(['like', 'title', trim((string) $this->name)]);
+        }
+
+        // A vendor sees only the items they supply.
+        $user = Yii::$app->user->model;
+        if ($user !== null && $user->role_id == 6) {
+            $ids = [];
+            $vendor = Vendor::findOne(['create_user_id' => $user->id]);
+            if ($vendor) {
+                foreach (ItemVendor::findAll(['vendor_id' => $vendor->id]) as $iv) {
+                    $ids[] = $iv->item_detail_id;
+                }
+            }
+            // An empty list matches nothing, as CDbCriteria::addInCondition
+            // does - it writes 0=1 rather than dropping the condition.
+            $query->andWhere(['id' => $ids]);
+        }
+
+        // The barcode box names an item detail; the grid lists items.
+        if ($this->bar_code !== null && $this->bar_code !== '') {
+            $detail = ItemDetail::findOne(['bar_code' => $this->bar_code]);
+            if ($detail) {
+                Criteria::compare($query, 'id', $detail->item_id);
+            }
+        }
+
+        if ($this->tax_id !== null && $this->tax_id !== '') {
+            $ids = ItemDetail::find()
+                ->select('item_id')
+                ->where(['tax_id' => $this->tax_id])
+                ->groupBy('item_id')
+                ->orderBy(['id' => SORT_DESC])
+                ->column();
+            $query->andWhere(['id' => $ids]);
+        }
+
+        if ($this->vendor_id !== null && $this->vendor_id !== ''
+                && ($user === null || $user->role_id != 6)) {
+            $ids = [];
+            foreach (ItemVendor::findAll(['vendor_id' => $this->vendor_id]) as $iv) {
+                $ids[] = $iv->item_detail_id;
+            }
+            // Yii 1 only adds the condition when the vendor has rows at all.
+            if ($ids) {
+                $query->andWhere(['id' => $ids]);
+            }
+        }
+
         foreach ([['id', 'id'], ['item_type', 'item_type'], ['status', 'status'], ['type_id', 'type_id'], ['mrp', 'mrp'], ['is_tax', 'is_tax'], ['is_discount', 'is_discount'], ['sale_price', 'sale_price'], ['purchase_price', 'purchase_price'], ['sub_category_id', 'sub_category_id'], ['opening_stock', 'opening_stock'], ['weight', 'weight'], ['sub_category_id', 'sub_category_id'], ['category_id', 'category_id'], ['sub_company_id', 'sub_company_id'], ['company_id', 'company_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
             Criteria::compare($query, $col, $this->$attr);
         }

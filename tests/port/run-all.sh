@@ -3,7 +3,7 @@
 # and prints one summary. The suites are order-independent: each reloads the
 # fixtures it needs.
 cd /root/pos
-SUITES="rows_difftest deletes_difftest hooks_difftest classrefs_difftest staticcalls_difftest login_difftest apiroutes_difftest difftest emp_difftest cust_difftest order_difftest tally_difftest item_difftest
+SUITES="rows_difftest deletes_difftest hooks_difftest classrefs_difftest staticcalls_difftest login_difftest apiroutes_difftest searchparity_difftest difftest emp_difftest cust_difftest order_difftest tally_difftest item_difftest
         otp_difftest update_difftest cust_last_difftest sendotp_difftest add_difftest
         uploadbill_difftest grn_difftest discount_difftest online_difftest orderwrite_difftest item3_difftest refund_difftest barcode_difftest updstock_difftest adjust_difftest itemorder_difftest ordertest_difftest punch_difftest search_difftest"
 FIXTURES="setup_test emp_fixture otp_fixture cust_last_fixture grn_fixture online_fixture refund_fixture adjust_fixture"

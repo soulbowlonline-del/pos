@@ -1511,6 +1511,36 @@ class ItemDetail extends ActiveRecord
 
         $this->load($params, $this->formName());
 
+        // Yii 1's BaseItemDetail::search() hands six of the filter boxes to
+        // getItemOptionIdsInBarcode() and restricts the grid to the item ids
+        // it returns. The generated search kept only the plain compares, so
+        // filtering a barcode listing by item, MRP, HSN code, product code,
+        // purchase price or company narrowed nothing at all - the helper was
+        // ported and then never called.
+        $matchItemId       = $this->item_id       != null ? $this->item_id       : null;
+        $matchMrp          = $this->mrp           != null ? $this->mrp           : null;
+        $matchPurchase     = $this->purchase_price != null ? $this->purchase_price : null;
+        $matchHsn          = $this->hsn_code      != null ? $this->hsn_code      : null;
+        $matchProductCode  = $this->product_code  != null ? $this->product_code  : null;
+        $matchCompany      = $this->company_id    != null ? $this->company_id    : null;
+
+        $isVendor = 0;
+        $role = UserRole::findOne(['title' => 'Vendor']);
+        $user = Yii::$app->user->model;
+        if ($user !== null && $role !== null && $user->role_id == $role->id) {
+            $isVendor = 1;
+        }
+
+        if ($matchItemId !== null || $matchMrp !== null || $matchHsn !== null
+                || $matchProductCode !== null || $matchPurchase !== null
+                || $matchCompany !== null || $isVendor == 1) {
+            $itemIds = $this->getItemOptionIdsInBarcode(
+                $matchItemId, $matchMrp, $matchHsn, $matchProductCode,
+                $matchPurchase, $matchCompany, $isVendor);
+            // An empty list matches nothing, as addInCondition does.
+            $query->andWhere(['item_id' => $itemIds]);
+        }
+
         foreach ([['id', 'id'], ['open_stock_qty', 'open_stock_qty'], ['mrp', 'mrp'], ['reorder_qty', 'reorder_qty'], ['status', 'status'], ['type_id', 'type_id'], ['tax_id', 'tax_id'], ['create_user_id', 'create_user_id'], ['updated_by', 'updated_by']] as [$col, $attr]) {
             Criteria::compare($query, $col, $this->$attr);
         }
