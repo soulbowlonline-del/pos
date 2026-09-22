@@ -16,8 +16,15 @@ pattern: both applications serve from one container against one database, Yii 1
 at `/` and the port at `/v2`, so any page can be compared against its original
 at the same moment on the same data.
 
-The port is complete. 59 of 59 controllers and 69 of 69 API actions, verified
-by 35 differential suites.
+The port is complete and has been through a first day of real use. 59 of 59
+controllers, 69 of 69 API actions, **7,382 differential cases green**, and a
+sweep confirming that every action Yii 1 serves the port serves at the same
+URL. The invoice canary matches byte for byte and the PHP error log is empty.
+
+What that first day taught is in *The four lessons* below, and it is the most
+useful thing in this file: the suites were green throughout while the
+application was unusable, because they were all asking about markup and every
+fault was in the wiring behind it.
 
 ## Where it runs
 
@@ -67,8 +74,8 @@ end; it prints one `passed / mismatched` line per suite. A suite reports
 to compare — those are not passes, and the count is there so a coverage gap
 cannot hide inside a green run.
 
-The last full green run: **7,186 cases, 0 mismatched**, invoice canary 6/6,
-PHP error log empty. The two suites added after it bring the count higher.
+The last full green run: **7,382 cases, 0 mismatched**, invoice canary 6/6,
+PHP error log empty, 0 fixture rows left behind.
 
 ### The suites, and what each is for
 
@@ -85,8 +92,9 @@ The first seven are structural and need no HTTP:
 | `apiroutes_difftest` | does every API action answer at *Yii 1's* URL |
 | `searchparity_difftest` | does every search filter Yii 1 applies get applied |
 
-And three more that are run by hand rather than in the runner, because each
-takes a while and none of them needs fixtures:
+And five more that are run by hand rather than by the runner, because each
+takes a while and none of them needs fixtures. The last three exist because
+something reached the owner that every suite above had passed:
 
 | check | asks |
 |---|---|
@@ -101,7 +109,7 @@ rendered pages. `pmui_difftest` is the slow one — 359 pages, about 50 minutes.
 `writes_difftest` reads the MySQL binary log to compare what an action *wrote*
 rather than what it answered.
 
-## The three lessons, which are the point of this file
+## The four lessons, which are the point of this file
 
 Everything painful in this port had the same shape, and the suites did not see
 any of it until something forced the question.
@@ -169,15 +177,42 @@ Both API failures above were sitting in it with their 404s.
    two stacks agree. Each was fixed once and reverted on the owner's
    instruction; the diffs are recoverable from this file's history if wanted.
 
+5. **Order SMS is off in both trees.** `Order::SendSms()` returned early on
+   the owner's instruction, 21 Sep 2026, in `app2/models/Order.php` and
+   `protected/models/Order.php` at the same point, so the stacks keep
+   agreeing. The uengage call below the `return` is dead but left in place as
+   the record of what it sent. WhatsApp through Interakt is untouched and
+   still live. Turning order SMS back on is an owner's decision, and it must
+   be made in both files or the suites will diverge.
+
 ## Known coverage gaps
 
-- 27 `pmui` comparisons verify nothing — both stacks refuse or crash on those
-  pages, so the case passes without asserting anything.
+- 26 `pmui` comparisons verify nothing. The suite prints the reason for each,
+  which is the point of counting them separately: ten answered 500 on both
+  stacks, eight 403, four 404, two 302, one 400, and one renders an empty
+  page on both. Not port defects — the two stacks agree, and the 500s are on
+  the untouched 5.6 baseline as well — but not coverage either. Run
+  `pmui_difftest.sh` and read the `none` lines for the current list.
+- The `toArray()` of ten models is not ported. Nothing on the port calls them:
+  the payload builders that would (`Order::toArray1`, `ItemDetail::toArray1`,
+  `toOnlineOrderArray`) are themselves unreached. Latent, not live — but this
+  is exactly the shape that produced four fatals when the lifecycle hooks were
+  put back, so treat wiring any of them up as work that needs its own pass.
 - 19 write actions are refused by `writes_difftest` because they save inside a
   loop without reading the request. Thirteen deserve it; six are ordinary
   row-scoped work whose writes nobody has compared.
 - Actions whose name begins with `delete` are refused outright, since
   `itemExpireItem/delete` removed four real rows on a plain GET.
+- Three `creditNote` actions answer 403 on both stacks and nobody has
+  explained why. The permission rows exist under both spellings of the
+  controller name and both are granted to role 1. Unresolved, and both stacks
+  agree, so no suite reports it.
+- The owner reported the search button failing on `mrsDetail/admin` after the
+  element-id fix went in; it could not be reproduced from here — the filter
+  posts and the rows come back. Most likely a cached copy of the old
+  javascript in the browser. If it recurs, get the browser console error
+  before writing a test: this was the shape of every fault in lesson 4, and
+  none of them was visible in the markup.
 
 ## What was done, in order
 
@@ -194,10 +229,68 @@ web-UI work. Then, roughly:
    `login_difftest` cases.
 5. The API URL contract: `ApiUrlRule`, camelCase action ids, and Yii 1's
    path-format parameters — which is what the .NET client and the APK send.
+6. The first day of real use, which found six systemic faults in a day and is
+   worth reading as a group rather than a list: element ids the application's
+   own javascript could not find, CSRF the port validated and Yii 1 never
+   sends, seventy-two actions appending an error to their own output, path and
+   numeric-id routes answering 404 and 400, and six widgets that rendered an
+   input and bound nothing to it. See *The four lessons*.
+7. The three behaviour sweeps written in response — widget, route and ajax —
+   plus `search-parity` and `crud-sweep`. Each exists because something got
+   past every suite that already ran.
 
 `docs/web-ui-port.md` is the long form, written as the work happened.
 `docs/live-bugs-found.md` records the application's own bugs, found by
 comparison and left alone.
+
+## What the owner asked for, and what each request produced
+
+The owner's instructions drove the order of this work, and several of them are
+the only record of a decision. Condensed, in sequence:
+
+- *"Finish the port to Yii 2"* — the API first, then the 59 web-UI
+  controllers, then the differential suites that verify them.
+- *"Fix the live application bugs"* → *"on second thoughts let the bugs be"*
+  → *"revert"*. The five bugs in `docs/live-bugs-found.md` were fixed and
+  then reverted on this instruction. **They are reproduced deliberately**, so
+  that the two stacks agree. Do not "fix" one without fixing Yii 1 in the
+  same commit, or every suite comparing it will go red.
+- *"Show me the URL where I can access the migrated code"* — cutover scope was
+  set here: port the login, keep both stacks running. Hence `/` and `/v2`
+  side by side, and open decision 3.
+- *"The /api is not working in the .NET application and the Android APK"* —
+  produced `ApiUrlRule` and lesson 3. The clients were never pointed at the
+  port during the API work; they send camelCase action ids and path-format
+  parameters, and every multi-word endpoint was a 404.
+- *"Items are not coming for billing, I can't access the item master"* — the
+  generated `Item::search()` had lost its hand-written conditions. Restored:
+  prefix `LIKE`, the session item name, vendor scoping, the barcode lookup
+  through `ItemDetail`, the tax subquery.
+- *"Most of the menus inside the ERP are broken"*, *"the search button is not
+  working"*, *"the GRN is showing the wrong vendor's items"* — one report
+  after another, each a different symptom of the six faults in lesson 4. They
+  are listed together there because they were found separately and are one
+  problem.
+- *"Not getting any WhatsApp bill"* → *"turn it off, I will only test with my
+  personal number"* → *"remove the uengage API"*. See open decision 5 and the
+  stub note under *Before this goes to production*.
+- *"Test all the menus with search, add, save, update"* → *"everything, in one
+  sweep"* — `crud-sweep.py`, `form-sweep.py`, `search-parity.py`.
+- *"Port the ckeditor and redactor widgets too"* → *"sweep the rest of the
+  widgets for the same thing"* — the six stub widgets, and `widget-sweep.py`
+  so that the next stub is found by a test rather than by the owner.
+- *"Ensure every button, every menu, every widget and every function is
+  working the way it is supposed to"* — the route, ajax and widget sweeps run
+  across all 59 controllers. Four differences, none of them a page the port
+  gets wrong: `shift/search`, `itemExpire/index` and `itemExpire/search`
+  answer 500 on Yii 1 — confirmed on the untouched 5.6 baseline — where the
+  port answers 200; and `item/check`, where Yii 1 did not answer at all
+  (curl 000, it is slow) and the port refused it with a 403. That last one is
+  unresolved rather than explained.
+
+Two standing instructions from the owner: pushes go to
+`phase2/php83-yii1132` only, `main` is untouched; and no real secret is ever
+committed — `.env` is gitignored and the code reads `getenv()`.
 
 ## Conventions
 
@@ -210,6 +303,19 @@ comparison and left alone.
   `deletes_difftest` enforces it.
 - The generators are mirrored between `/root/pos/` and `tools/port/`; change
   one and copy it, or the next regeneration will surprise you.
+
+## Before this goes to production
+
+Two things exist only for testing and must be removed at cutover:
+
+- `POS_STUB_OUTBOUND=1` in `pos83/.env`. It makes `lib/PosOutbound.php`
+  record outbound calls instead of placing them. The database is a copy of
+  production with real customer phone numbers in it, so with the stub off
+  every test order messages a real customer — which is why it is on. In
+  production it must be **off**, and nothing should depend on it being set.
+- `porttestadmin`, user id 9990003, role 1. Created for the crawls and still
+  present in `pos_live.tbl_user`. Delete it before cutover; the sweeps that
+  need it recreate it.
 
 ## Secrets — outstanding
 
