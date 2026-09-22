@@ -34,8 +34,37 @@ class GridView extends \yii\grid\GridView
      */
     public $pager = ['class' => TbPager::class];
 
+    /**
+     * @var string|callable CGridView::$rowCssClassExpression - a PHP
+     *      expression evaluated per row with `$data` and `$row` in scope,
+     *      whose result becomes the <tr> class.
+     *
+     * Four views set this to `$data->getCssClass()`, which is how
+     * mrsDetail/admin colours a row red, green or orange by its purchase and
+     * sale figures. Until this property existed the trait above swallowed it
+     * - the assignment raised UnknownPropertyException and was discarded - so
+     * every one of those rows rendered with no class and the colour coding
+     * was simply absent. The trait's own note says ignoring an option is safe
+     * only where it does not affect what the page says; this one does.
+     */
+    public $rowCssClassExpression;
+
     public function init()
     {
+        // CGridView evaluates the expression itself and uses the result in
+        // place of the alternating row classes. Yii 2 has no expression, but
+        // rowOptions takes a callable, which is the same hook one level up.
+        if ($this->rowCssClassExpression !== null) {
+            $expression = $this->rowCssClassExpression;
+            $this->rowOptions = static function ($model, $key, $index, $grid) use ($expression) {
+                $class = is_string($expression)
+                    ? self::evaluateRowExpression($expression, $model, $index)
+                    : call_user_func($expression, $model, $index, $grid);
+
+                return ($class === null || $class === '') ? [] : ['class' => $class];
+            };
+        }
+
         // Plain columns go through the shim too, so a column written with
         // Yii 1's htmlOptions does not fail to construct.
         if ($this->dataColumnClass === null) {
@@ -129,5 +158,24 @@ class GridView extends \yii\grid\GridView
         }
 
         parent::init();
+    }
+
+    /**
+     * CComponent::evaluateExpression(), for the row-class expression only.
+     *
+     * The expression is view source from this repository - all four call
+     * sites are the literal string `$data->getCssClass()` - and never request
+     * data, which is the same trust boundary Yii 1 evaluated it under. The
+     * parameter names are what the expression refers to, so they are `$data`
+     * and `$row` rather than Yii 2's `$model` and `$index`.
+     *
+     * @param string $expression the Yii 1 expression
+     * @param mixed  $data       the row's model
+     * @param int    $row        the row index
+     * @return string|null
+     */
+    private static function evaluateRowExpression($expression, $data, $row)
+    {
+        return eval('return ' . $expression . ';');
     }
 }

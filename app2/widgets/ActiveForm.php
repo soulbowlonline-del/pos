@@ -33,6 +33,27 @@ class ActiveForm extends \yii\widgets\ActiveForm
     public $htmlOptions = [];
 
     /**
+     * CActiveForm::$validateOnSubmit, whose default is false. Yii 2's is true,
+     * and the difference stops a form submitting at all.
+     *
+     * 156 views set `enableAjaxValidation => true` on a form whose controller
+     * action never answers a validation request - it renders its page and
+     * returns HTML. Yii 1 does not mind, because with validateOnSubmit false
+     * it never asks: the submit handler falls through and the browser posts
+     * the form. Yii 2's ActiveForm, defaulting to true, POSTs to validationUrl
+     * expecting JSON, gets that HTML, fails to parse it, runs its `error`
+     * branch - which sets `submitting = false` and returns - and the form is
+     * never submitted. The click does nothing at all, with a 200 in the
+     * network log and no error on the page. Reported as the search button on
+     * mrsDetail/admin doing nothing.
+     *
+     * The 13 views that do want validation on submit say so themselves, in
+     * clientOptions, exactly as they do in the Yii 1 tree; those still win,
+     * because init() copies clientOptions over this default.
+     */
+    public $validateOnSubmit = false;
+
+    /**
      * CActiveForm's clientOptions.
      *
      * Yii 1 takes the client-side validation settings as one array;
