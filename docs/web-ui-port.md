@@ -926,3 +926,34 @@ other was served. Anything reported as `000` should be asked again before it
 is believed - of this sweep, and of any measurement taken while it runs. Two
 of the things I chased tonight turned out to be my own load rather than the
 application's behaviour.
+
+## What the UI crawl still cannot compare, and why
+
+26 of its cases end with both stacks producing nothing to compare. That is not
+a pass and the suite says so; it is also not a port defect, because both
+stacks do the same thing. The reasons, read out of pmui's own output rather
+than its count:
+
+| both stacks answer | cases | what it means |
+|---|---|---|
+| 500 | 10 | the page crashes in the application, on 5.6 as well |
+| 403 | 6 | refused to every role |
+| 404 | 4 | the action does not exist |
+| 302 | 2 | redirects before rendering |
+| 400 | 1 | a required parameter the crawl does not supply |
+| empty | 1 | renders nothing at all |
+
+Of the 403s, `mrs/view` was fixable and is fixed: it has a permission row and
+was granted to no role, so the fixture links the existing row and the page is
+now compared for real.
+
+The other six are not the fixture's business, and the attempt is recorded so
+that nobody repeats it. `user/index` and `onlineOrder/index` never call
+checkPermission at all - their 403 comes from Yii 1's `accessRules()`, and no
+permission row can lift that. The three `creditNote` cases have rows under
+both spellings, both granted to role 1, and refuse anyway; that one is
+unexplained and was left alone rather than worked around.
+
+The ten 500s are the application's own crashes and are the most useful thing
+in this table: each is a page that does not work in production either, and
+`tools/port/baseline_check.sh` will say so against the untouched 5.6 tree.
