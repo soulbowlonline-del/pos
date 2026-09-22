@@ -46,6 +46,13 @@ uploadbills/*
 *.sql
 *.sql.gz
 !db_changes/*.sql
+# The suites' fixtures are not dumps. Eight of them - the permission rows the
+# UI crawl needs, the teardown every run ends with, the emp, otp, loyalty and
+# customer-last setups - were caught by the blanket rule above and never
+# committed, so a clone of this repository could not run the suites at all.
+# Together they are 80 KB.
+!tests/port/*.sql
+!tools/port/*.sql
 
 # ── Large data exports / scratch files ──────────────────────
 Products.txt
