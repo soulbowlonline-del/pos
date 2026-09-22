@@ -70,7 +70,30 @@ return [
             // menu did not open: the markup was right, the 80 links were all
             // there, and nothing was listening for the click.
             'bundles' => [
+                // jQuery 1.12.4, the same file Yii 1 publishes from
+                // framework/web/js/source, rather than the 3.7.1 composer
+                // resolves for yii2.
+                //
+                // The theme's bootstrap.js - itself a copy of Yii 1's, for the
+                // same reason, see the layout - reads an anchor's href as a
+                // selector in getParent(). For `href="#"` that selector is
+                // "#", which 1.12.4 answers with an empty set and 3.7.1
+                // rejects: "Syntax error, unrecognized expression: #". It
+                // throws inside the click handler, so the dropdown never
+                // opens. 33 such anchors on mrsDetail/admin alone, and every
+                // dropdown and toggle in the theme is built this way.
+                //
+                // Pinned rather than patched: bootstrap is not the only caller
+                // of a Yii 1-era jQuery idiom in this tree, and the port's
+                // whole premise is to behave as Yii 1 does. Yii 2 supports
+                // jQuery >= 1.11, so its own yii.js, yii.activeForm.js and
+                // yii.gridView.js are in spec on this version.
+                //
+                // sourcePath null because the file is served from the /v2
+                // docroot, not published from vendor - framework/ is 403.
                 \yii\web\JqueryAsset::class => [
+                    'sourcePath' => null,
+                    'js' => ['/v2/js/jquery.js'],
                     'jsOptions' => ['position' => \yii\web\View::POS_HEAD],
                 ],
                 \yii\web\YiiAsset::class => [
