@@ -254,7 +254,7 @@ the action is registered as a known failure instead.
 It looks like a maintenance script that ended up on a web route. Whether it is
 still needed - and if so, in batches - is a product decision.
 
-### Two report pages print debugging output instead of a report — **found, not fixed**
+### Two report pages print debugging output instead of a report — **`order/groupTax` fixed on request; `item/adjustStock` still open**
 
 `order/groupTax` ends like this, on the untouched 5.6 baseline as well as on
 8.3:
@@ -278,10 +278,36 @@ stops. It has never shown a report.
 does `echo "<pre>"; print_r($criteria); echo "</pre>";`, and the page carries a
 dump of the CDbCriteria object above the grid.
 
-Not fixed here: deleting a line from the Yii 1 tree is not porting it, and
-which of these reports is still wanted is a product question. The port cannot
-match either page - reproducing a debug dump is not a port - so `order/groupTax`
-is registered in `tests/port/known-action-failures.txt`.
+`order/groupTax` was fixed on the owner's instruction, in both trees in one
+commit, after the page was reported again. The `echo ... die;` is gone from
+`BaseOrderItem::groupTaxsearch()` and from the port's `OrderItem`, which now
+returns its data provider the way `groupHSNTaxsearch()` does. It is no longer
+in `tests/port/known-action-failures.txt`.
+
+Removing the `die` reached code that had never run. The eight
+`getGroupTax*Amount()` / `getGroupHsnTax*Amount()` column callbacks each build
+a refund lookup, and the port built it against the wrong model and fetched it
+the wrong way:
+
+| | Yii 1 | the port, before |
+|---|---|---|
+| model | `OrderItem::model()->find()` | `OrderRefundItem::find()` |
+| rows | one | `->all()` |
+
+`tbl_order_refund_item` has no `order_id`, so the first callback the grid
+reached answered `SQLSTATE[42S22] Unknown column 'order_id'`, and had it not,
+the next line reads `$order->cgst_amt` off an array. Eight methods, both
+faults each, none of them ever executed while the `die` was there - the shape
+CLAUDE.md's second lesson describes. The two `getB2BGroupTax*Amount()` methods
+look similar and are not the same: Yii 1 has no `order_id` block in them, so
+they were left alone.
+
+Both stacks now render the report, and the rows agree - 2 rows of 13 columns,
+identical.
+
+`item/adjustStock` is untouched and still dumps its CDbCriteria above the
+grid. It is the same class of fault but not the same severity: there is no
+`die`, so the page works, and nobody has asked for it.
 
 ### Six more pages that are 500 on the untouched 5.6 baseline — **found, not fixed**
 

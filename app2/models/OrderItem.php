@@ -2303,11 +2303,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                    $order = $query->all();
+                    $order = $query->one();
                     if($order){
                         $ordercgst = $order->cgst_amt / $order->qty;
                         $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2358,11 +2358,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->sgst_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2416,11 +2416,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->igst_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2471,11 +2471,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->cess_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2574,11 +2574,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                    $order = $query->all();
+                    $order = $query->one();
                     if($order){
                         $ordercgst = $order->cgst_amt / $order->qty;
                         $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2631,11 +2631,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->sgst_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2691,11 +2691,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->igst_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -2748,11 +2748,11 @@ class OrderItem extends ActiveRecord
                 foreach($orderRefundItems as $orderRefundItem){
                     $orderRefund = OrderRefund::findOne( $orderRefundItem->order_refund_id );
                     if($orderRefund){
-                        $query = OrderRefundItem::find();
+                        $query = OrderItem::find();
                         $query->andWhere('order_id =' . $orderRefund->order_id);
                         $query->andWhere('item_detail_id =' . $orderRefundItem->item_detail_id);
                         $query->andWhere('item_id =' . $orderRefundItem->item_id);
-                        $order = $query->all();
+                        $order = $query->one();
                         if($order){
                             $ordercgst = $order->cess_amt / $order->qty;
                             $refund = $refund + ($ordercgst * $orderRefundItem->qty);
@@ -3479,18 +3479,16 @@ class OrderItem extends ActiveRecord
      * on. It was not ported, so that menu item answered 500 - "Calling
      * unknown method OrderItem::groupTaxsearch()" - while Yii 1 answered.
      *
-     * The last two statements are Yii 1's and are deliberate here. It prints
-     * the SQL it built and stops:
+     * Yii 1 ended this method with a debugging line that was left in -
      *
      *     echo $this->getCommandBuilder()->createFindCommand(...)->getText();
      *     die;
      *
-     * so the page never renders past that point - 5,550 bytes of half a page
-     * and a query - and the CSV export writes the query instead of the rows.
-     * That is what the application does today, on the 5.6 baseline as well,
-     * and reproducing it is what keeps the two stacks comparable. It is a
-     * one-line fix in both trees whenever its owner wants it; see
-     * docs/live-bugs-found.md.
+     * - so the page printed the SQL it was about to run and stopped, before
+     * the layout, and the CSV export wrote the query instead of the rows. The
+     * report had never been shown, on the 5.6 baseline either. The port
+     * reproduced it to keep the two stacks comparable; both trees have now
+     * had it removed in one commit. See docs/live-bugs-found.md.
      */
     public function groupTaxsearch()
     {
@@ -3534,9 +3532,15 @@ class OrderItem extends ActiveRecord
         Criteria::compare($query, 't.discount_id', $this->discount_id);
         Criteria::compare($query, 't.discount_amt', $this->discount_amt);
 
-        // Yii 1's own debugging, reproduced. See the note above.
-        echo $query->createCommand()->getRawSql();
-        exit;
+        // totalCount counted the same way groupHSNTaxsearch does: the query
+        // groups, so the default count(*) counts one group rather than the
+        // groups, and the pager would read "1".
+        return new ActiveDataProvider([
+            'query' => $query,
+            'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
+            'sort' => ['defaultOrder' => []],
+            'pagination' => ['pageSize' => Ui::PAGE_SIZE],
+        ]);
     }
 
     public function groupHSNTaxsearch()

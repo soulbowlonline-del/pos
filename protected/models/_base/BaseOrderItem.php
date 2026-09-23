@@ -521,8 +521,16 @@ abstract class BaseOrderItem extends GxActiveRecord {
 	     	Yii::app ()->session ['group_tax_total']=number_format($total,2);
 	     	Yii::app ()->session ['group_taxable_total']=number_format($taxable,2);
 	     } */
-		// print_r query for debugging
-	 				echo $this->getCommandBuilder()->createFindCommand($this->getTableSchema(), $criteria)->getText(); die;
+		// A debugging line that was left in:
+		//
+		//   echo $this->getCommandBuilder()->createFindCommand(
+		//       $this->getTableSchema(), $criteria)->getText(); die;
+		//
+		// It echoed the query and stopped, so order/groupTax rendered its
+		// search form, printed the SQL it was about to run and ended there -
+		// before the layout, which is why the page had no styling either. The
+		// report has never been shown. Removed in both trees in one commit so
+		// the two stacks keep agreeing; see docs/live-bugs-found.md.
 
 		return new CActiveDataProvider($this, array(
 				'criteria' => $criteria,
