@@ -102,6 +102,7 @@ something reached the owner that every suite above had passed:
 | `tests/port/route-sweep.py` | does every web action answer at the same URL |
 | `tests/port/ajax-sweep.py` | do the 72 ajax endpoints answer byte for byte |
 | `tests/port/crud-sweep.py` | do the grids' search filters return the same rows |
+| `tests/port/view-refs.py` | does every view the port renders exist on disk |
 | `tools/port/missing_methods.py` | is a method called on the port that it does not define |
 
 The rest drive HTTP and compare responses, database rows, outbound calls and
