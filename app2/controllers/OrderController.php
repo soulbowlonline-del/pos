@@ -1066,7 +1066,8 @@ class OrderController extends Controller
                 // Yii 1 reads it unconditionally here and warns - see the
                 // docblock.
                 $refundModel->total_amt = $totalAmount;
-                $refundModel->save(false, ['total_amt']);
+                // Yii 1's saveAttributes(): updateByPk, no events.
+                $refundModel->updateAttributes(['total_amt']);
 
                 $out['status'] = 'OK';
                 $out['refund_date'] = date('Y-m-d');

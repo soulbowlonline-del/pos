@@ -301,7 +301,9 @@ class Order extends ActiveRecord
         $itemDetail = ItemDetail::findOne($itemDetailId);
         // touched before the null check below, as in Yii 1
         $itemDetail->update_time = date('Y-m-d H:i:s');
-        $itemDetail->save(false, ['update_time']);
+        // Yii 1's saveAttributes(): updateByPk, no events. save() would run
+        // updateInternal() and fire this model's afterSave.
+        $itemDetail->updateAttributes(['update_time']);
 
         if (!$itemDetail) {
             return;
@@ -314,7 +316,7 @@ class Order extends ActiveRecord
         $vendorId = 0;
         if ($item !== null) {
             $item->update_time = date('Y-m-d H:i:s');
-            $item->save(false, ['update_time']);
+            $item->updateAttributes(['update_time']);
             // item_detail_id matched against the ITEM id - the same mismatch
             // noted on Item::getItemVendors()
             $vendor = ItemVendor::find()

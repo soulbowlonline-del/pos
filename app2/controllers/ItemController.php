@@ -884,13 +884,14 @@ class ItemController extends Controller
             ->one();
         if ($mrsAdjust) {
             $mrsAdjust->status = MrsAdjust::STATUS_DONE;
-            $mrsAdjust->save(false, ['status']);
+            // Yii 1's saveAttributes(): updateByPk, no events.
+            $mrsAdjust->updateAttributes(['status']);
         }
 
         $itemDetail->update_time = date('Y-m-d H:i:s');
-        $itemDetail->save(false, ['update_time']);
+        $itemDetail->updateAttributes(['update_time']);
         $item->update_time = date('Y-m-d H:i:s');
-        $item->save(false, ['update_time']);
+        $item->updateAttributes(['update_time']);
 
         $log = new StockAdjustLog();
         $log->date = date('Y-m-d');
@@ -1418,7 +1419,8 @@ class ItemController extends Controller
         }
 
         $onlineOrder->order_status = OnlineOrder::ORDERSTATUS_PACKED;
-        $onlineOrder->save(false, ['order_status']);
+        // Yii 1's saveAttributes(): updateByPk, no events.
+        $onlineOrder->updateAttributes(['order_status']);
 
         $fields = [
             'sKeY' => getenv('POS_SOULBOWL_KEY'),
