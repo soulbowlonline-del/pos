@@ -1185,6 +1185,8 @@ class MrsDetailController extends BaseUiController {
 				
 			}
 			} catch ( \Exception $e ) {
+				Yii::error('mrsDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
+					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$transaction->rollback ();
 			}
 			
