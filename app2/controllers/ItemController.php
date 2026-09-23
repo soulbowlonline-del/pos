@@ -1305,7 +1305,13 @@ class ItemController extends Controller
                 ->orderBy(['bill_no' => SORT_DESC])
                 ->one();
             $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            $order->save(false, ['bill_no']);
+            // updateAttributes(), not save(): this stands in for Yii 1's
+            // saveAttributes(), which writes through updateByPk and raises no
+            // events. save() runs updateInternal(), which fires afterSave() a
+            // second time - and Order::afterSave() credits loyalty points, so
+            // the bill number write earned the customer a second time. See the
+            // note on actionPunchorder below.
+            $order->updateAttributes(['bill_no']);
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -1617,7 +1623,8 @@ class ItemController extends Controller
                 ->orderBy(['bill_no' => SORT_DESC])
                 ->one();
             $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            $order->save(false, ['bill_no']);
+            // Yii 1's saveAttributes() - no events. See actionPunchorder.
+            $order->updateAttributes(['bill_no']);
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post, 'http://soulbowl.in/rest/api');
@@ -1972,7 +1979,15 @@ class ItemController extends Controller
                 ->one();
             $billNo = $latest ? $latest->bill_no + 1 : 1;
             $order->bill_no = $billNo;
-            $order->save(false, ['bill_no']);
+            // Yii 1 writes the bill number with saveAttributes(), which goes
+            // through updateByPk() and raises no events. Yii 2's
+            // save(false, ['bill_no']) is not the same call: it runs
+            // updateInternal(), which fires afterSave() - and Order::afterSave()
+            // calls processLoyaltyEarning(). processOrderEarn() has no
+            // idempotency guard, so the second afterSave credited the customer
+            // a second time and every order earned twice its points. The Yii 2
+            // equivalent of saveAttributes() is updateAttributes().
+            $order->updateAttributes(['bill_no']);
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
