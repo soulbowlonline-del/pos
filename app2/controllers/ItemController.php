@@ -1198,7 +1198,8 @@ class ItemController extends Controller
             if (isset($post['online_order_id'])) {
                 $order->online_order_id = $post['online_order_id'];
             }
-            if (isset($post['is_mobile'])) {
+            // tbl_order_hold has no is_mobile column - see actionPunchorder
+            if (isset($post['is_mobile']) && $order->hasAttribute('is_mobile')) {
                 $order->is_mobile = $post['is_mobile'];
             }
             $order->create_user_id = $loginId;
@@ -1523,7 +1524,8 @@ class ItemController extends Controller
             if (isset($post['online_order_id'])) {
                 $order->online_order_id = $post['online_order_id'];
             }
-            if (isset($post['is_mobile'])) {
+            // tbl_order_hold has no is_mobile column - see actionPunchorder
+            if (isset($post['is_mobile']) && $order->hasAttribute('is_mobile')) {
                 $order->is_mobile = $post['is_mobile'];
             }
             $order->create_user_id = $loginId;
@@ -1886,7 +1888,18 @@ class ItemController extends Controller
             if (isset($post['online_order_id'])) {
                 $order->online_order_id = $post['online_order_id'];
             }
-            $order->is_mobile = 1;   // forced, unlike item/order
+            // forced, unlike item/order - but only where the column exists.
+            // is_mobile is on tbl_order and not on tbl_order_hold, and $order
+            // is an OrderHold whenever status_id is not '1'. Assigning an
+            // undefined attribute throws (UnknownPropertyException here,
+            // CException on the Yii 1 side) inside the transaction, which then
+            // rolls back and answers NOK: every held (draft) order failed to
+            // save, on both stacks, with nothing surfaced to the client.
+            // item-punchorder-difftest's "held order" case passed throughout,
+            // because both halves failed in the same way.
+            if ($order->hasAttribute('is_mobile')) {
+                $order->is_mobile = 1;
+            }
             $order->create_user_id = $loginId;
 
             if (!$order->save()) {

@@ -130,7 +130,8 @@ class ItemController extends GxController {
 	 									if(isset($_POST ['online_order_id'])){
 	 										$order->online_order_id = $_POST ['online_order_id'];
 	 									}
-	 									if(isset($_POST ['is_mobile'])){
+	 									// tbl_order_hold has no is_mobile column - see actionPunchorder
+	 									if(isset($_POST ['is_mobile']) && $order->hasAttribute('is_mobile')){
 	 										$order->is_mobile = $_POST ['is_mobile'];
 	 									}
 	 									
@@ -1074,7 +1075,8 @@ class ItemController extends GxController {
 	 									if(isset($_POST ['online_order_id'])){
 	 										$order->online_order_id = $_POST ['online_order_id'];
 	 									}
-	 									if(isset($_POST ['is_mobile'])){
+	 									// tbl_order_hold has no is_mobile column - see actionPunchorder
+	 									if(isset($_POST ['is_mobile']) && $order->hasAttribute('is_mobile')){
 	 										$order->is_mobile = $_POST ['is_mobile'];
 	 									}
 	 									
@@ -2135,8 +2137,18 @@ class ItemController extends GxController {
 				// 	$order->is_mobile = $_POST ['is_mobile'];
 				// }
 
-				$order->is_mobile = 1;
-				
+				// is_mobile is a column on tbl_order only; tbl_order_hold has no
+				// such column. $order is an OrderHold whenever status_id is not
+				// '1', and assigning an undefined attribute throws - CException
+				// here, UnknownPropertyException on the Yii 2 side - inside the
+				// transaction, which then rolls back and answers NOK. Every
+				// held (draft) order failed to save, on both stacks, silently.
+				// item-punchorder-difftest's "held order" case passed throughout
+				// because both halves failed the same way.
+				if ($order->hasAttribute('is_mobile')) {
+					$order->is_mobile = 1;
+				}
+
 				$order->create_user_id = $loginid;
 				if ($order->save ()) {
 					if ($status == '1') {
