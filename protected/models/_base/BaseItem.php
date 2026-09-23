@@ -785,8 +785,12 @@ abstract class BaseItem extends GxActiveRecord {
 		$criteria->compare ( 'create_user_id', $this->create_user_id );
 		$criteria->compare ( 'updated_by', $this->updated_by );
 		
-		echo "<pre>"; print_r($criteria); echo "</pre>";
-		//die;
+		// Debugging left in, the sibling of the one removed from
+		// BaseOrderItem::groupTaxsearch(): `echo "<pre>"; print_r($criteria);`
+		// put a dump of the criteria object above item/adjustStock's grid.
+		// There was no die() after it, so the page worked - it just carried
+		// the dump. Removed in both trees in one commit; see
+		// docs/live-bugs-found.md.
 		return new CActiveDataProvider ( $this, array (
 				'criteria' => $criteria,
 				'pagination' => array (

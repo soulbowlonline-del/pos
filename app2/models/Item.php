@@ -2945,8 +2945,10 @@ class Item extends ActiveRecord
 		Criteria::compare($query, 'create_user_id', $this->create_user_id);
 		Criteria::compare($query, 'updated_by', $this->updated_by);
 		
-		echo "<pre>"; print_r($query); echo "</pre>";
-		//die;
+		// Yii 1's debugging, which the port reproduced: `print_r($criteria)`
+		// there, the ActiveQuery here, dumped above item/adjustStock's grid.
+		// No die() after it, so the page rendered and simply carried the dump.
+		// Removed in both trees in one commit; see docs/live-bugs-found.md.
 		$query->orderBy(['adjustment_time' => SORT_DESC]);
 
 		return new ActiveDataProvider([

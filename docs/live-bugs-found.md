@@ -254,7 +254,7 @@ the action is registered as a known failure instead.
 It looks like a maintenance script that ended up on a web route. Whether it is
 still needed - and if so, in batches - is a product decision.
 
-### Two report pages print debugging output instead of a report — **`order/groupTax` fixed on request; `item/adjustStock` still open**
+### Two report pages print debugging output instead of a report — **both fixed on request**
 
 `order/groupTax` ends like this, on the untouched 5.6 baseline as well as on
 8.3:
@@ -305,9 +305,18 @@ they were left alone.
 Both stacks now render the report, and the rows agree - 2 rows of 13 columns,
 identical.
 
-`item/adjustStock` is untouched and still dumps its CDbCriteria above the
-grid. It is the same class of fault but not the same severity: there is no
-`die`, so the page works, and nobody has asked for it.
+`item/adjustStock` was fixed in the same way, in a commit of its own, again in
+both trees. `BaseItem::adjust()` had `echo "<pre>"; print_r($criteria);` and
+the port the same line against its ActiveQuery. There was no `die` after
+either, so that page had always rendered and merely carried the dump above its
+grid - and with the dump gone nothing else changed: both stacks return the
+same 20 rows, cell for cell, as they did before. Nothing to deregister, since
+the page had never failed outright and so was never in
+`tests/port/known-action-failures.txt`.
+
+The `print_R($model->getErrors())` calls scattered through `Item`, `Customer`
+and `Vendor` are a different thing and are left alone: they sit on error
+paths, Yii 1 has every one of them, and the port reproduced them faithfully.
 
 ### Six more pages that are 500 on the untouched 5.6 baseline — **found, not fixed**
 
