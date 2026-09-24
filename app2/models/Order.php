@@ -2,6 +2,7 @@
 namespace app\models;
 
 use app\components\Criteria;
+use app\components\GroupedDataProvider;
 
 // processLoyaltyEarning() and the two loyalty getters below name this class
 // unqualified, and it is a component, not a model - so in app\models it
@@ -1695,9 +1696,8 @@ class Order extends ActiveRecord
 		Yii::$app->session ['gross_total_amt']=round($total);
 		$query->orderBy(['create_user_id' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);

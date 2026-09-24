@@ -2,6 +2,7 @@
 namespace app\models;
 
 use app\components\Ui;
+use app\components\GroupedDataProvider;
 
 use app\components\Criteria;
 
@@ -3463,9 +3464,8 @@ class OrderItem extends ActiveRecord
 	
 		$query->orderBy(['t.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -3532,20 +3532,11 @@ class OrderItem extends ActiveRecord
         Criteria::compare($query, 't.discount_id', $this->discount_id);
         Criteria::compare($query, 't.discount_amt', $this->discount_amt);
 
-        // No explicit totalCount. The pattern elsewhere in the port passes
-        // one, on the grounds that a grouped query's count(*) counts a single
-        // group and the pager reads "1". That is not what Yii 2 does:
-        // Query::queryScalar() wraps the whole query in `SELECT COUNT(*) FROM
-        // (...) c` as soon as groupBy is set, so the default is already right.
-        // Measured on this query over a fortnight - 68 groups - the explicit
-        // count, a plain count() and ActiveDataProvider's own all answer 68.
-        //
-        // Passing it costs, because it is eager. grouptax.php calls
-        // groupTaxsearch() twice, once at the top of the view discarding the
-        // result, so an eager count ran two counts per page where the pager
-        // needs one - and a CActiveDataProvider builds nothing until asked,
-        // which is why Yii 1 never paid for the discarded call.
-        return new ActiveDataProvider([
+        // GroupedDataProvider rather than an eager totalCount: the count is
+        // built the same way, `SELECT 1` and all, but only when something
+        // reads it. grouptax.php calls this twice, discarding the first, so
+        // the eager form ran two counts where the pager needs one.
+        return new GroupedDataProvider([
             'query' => $query,
             'sort' => ['defaultOrder' => []],
             'pagination' => ['pageSize' => Ui::PAGE_SIZE],
@@ -3629,9 +3620,8 @@ class OrderItem extends ActiveRecord
 	
 		$query->orderBy(['t.item_id' => SORT_ASC, 't.tax_id' => SORT_ASC, 't.create_date' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -3851,9 +3841,8 @@ class OrderItem extends ActiveRecord
 		} */
 		$query->orderBy(['item_detail_id' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);

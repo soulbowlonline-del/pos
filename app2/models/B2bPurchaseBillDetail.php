@@ -2,6 +2,7 @@
 namespace app\models;
 
 use app\components\Ui;
+use app\components\GroupedDataProvider;
 
 use app\components\Criteria;
 
@@ -2113,9 +2114,8 @@ class B2bPurchaseBillDetail extends ActiveRecord
 	
 		$query->orderBy(['purchase_bill_id' => SORT_ASC, 'tax_id' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -2242,9 +2242,8 @@ class B2bPurchaseBillDetail extends ActiveRecord
 		} */
 		$query->orderBy(['item_detail_id' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => Ui::PAGE_SIZE],
 		]);
@@ -2680,9 +2679,8 @@ class B2bPurchaseBillDetail extends ActiveRecord
 
 		$query->orderBy(['t.tax_id' => SORT_ASC, 'b2bPurchaseBill.id' => SORT_ASC]);
 
-		return new ActiveDataProvider([
+		return new GroupedDataProvider([
 		    'query' => $query,
-		    'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(),
 		    'sort' => ['defaultOrder' => []],
 		    'pagination' => ['pageSize' => 100],
 		]);

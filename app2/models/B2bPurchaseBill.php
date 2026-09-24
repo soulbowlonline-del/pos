@@ -2,6 +2,7 @@
 namespace app\models;
 
 use app\components\Ui;
+use app\components\GroupedDataProvider;
 
 use app\components\Criteria;
 
@@ -1982,7 +1983,7 @@ class B2bPurchaseBill extends ActiveRecord
 		Yii::$app->session ['gross_total']=round($taxable);
 		Yii::$app->session ['gross_total_amt']=round($total);
 		//echo "<pre>"; print_r($criteria);
-		$modeldata = new ActiveDataProvider(['query' => $query, 'totalCount' => (clone $query)->select(new \yii\db\Expression('1'))->count(), 'sort'=>[
+		$modeldata = new GroupedDataProvider(['query' => $query, 'sort'=>[
 					'defaultOrder'=>['id' => SORT_DESC],
 			]]);
 
