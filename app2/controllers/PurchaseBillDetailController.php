@@ -845,7 +845,24 @@ class PurchaseBillDetailController extends BaseUiController {
 								
 								$itemId = (int)$itemdetail->item_id;
 
-								// Lock stock rows
+								// Lock stock rows.
+								//
+								// The parameters go to createCommand(), and the
+								// fetch mode to queryAll(). Yii 1 spells it
+								// queryAll($fetchAssociative, $params) and this
+								// was carried across unchanged - but Yii 2's
+								// queryAll() takes only a fetch mode, PHP drops
+								// the extra argument without a word, and
+								// :item_id was left unbound. Every save of a
+								// purchase bill died on "Syntax error ... near
+								// ':item_id'" inside the transaction, was
+								// swallowed by the catch below, and answered
+								// 200 with an empty body - which the page reads
+								// as neither Success nor Failed, so the Save
+								// button did nothing at all. FETCH_NUM because
+								// calculateLockedStockQty() reads $row[0].
+								// Order::lockedStockQty() builds the same query
+								// correctly; this is the copy that did not.
 								$rows = Yii::$app->db->createCommand("
 										SELECT balance_qty
 										FROM tbl_item_stock
@@ -853,7 +870,7 @@ class PurchaseBillDetailController extends BaseUiController {
 										AND item_detail_id IS NOT NULL
 										ORDER BY id ASC
 										FOR UPDATE
-								")->queryAll(false, [':item_id' => $itemId]);
+								", [':item_id' => $itemId])->queryAll(\PDO::FETCH_NUM);
 
 								// Calculate from locked rows
 								$currentQty = $itemdetail->calculateLockedStockQty($rows);
@@ -904,6 +921,8 @@ class PurchaseBillDetailController extends BaseUiController {
 					
 			}
 			} catch ( \Exception $e ) {
+				Yii::error('purchaseBillDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
+					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$transaction->rollback ();
 			}
 			}

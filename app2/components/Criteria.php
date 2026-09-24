@@ -37,6 +37,19 @@ class Criteria
      */
     public static function compare($query, $column, $value, $partial = false)
     {
+        // Yii 1 pastes the column into SQL - `mrs_id =:ycp0` - so whitespace
+        // around it is just whitespace. Yii 2 quotes it, and `mrs_id ` with the
+        // trailing space is a column no table has. Five call sites carry that
+        // typo across from the Yii 1 tree, four of them "mrs_id ", and one of
+        // those sits in the purchase-bill save: the count threw inside the
+        // transaction, the catch swallowed it, and the Save button did nothing.
+        //
+        // Only the ends are trimmed, which is all Yii 1 effectively ignored.
+        // BaseUser's 'last_a ction_time' has the space in the middle and is a
+        // real typo for last_action_time; it is broken on Yii 1 too and is left
+        // that way.
+        $column = is_string($column) ? trim($column) : $column;
+
         // CDbCriteria::compare() turns an array into addInCondition(), and
         // only an empty array into no condition at all.
         if (is_array($value)) {
