@@ -646,6 +646,8 @@ public function actionReport($id = null) {
   					$transaction->rollback ();
   				}
   				} catch ( \Exception $e ) {
+  					Yii::error('itemReturnItem/ajaxupdate rolled back: ' . get_class($e) . ': '
+  						. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
   					$transaction->rollback ();
   				}
   		}
@@ -1219,6 +1221,8 @@ public function actionReport($id = null) {
                             $transaction->rollback();
                         }
                     } catch (\Exception $e) {
+                    	Yii::error('itemReturnItem/ajaxsavedata rolled back: ' . get_class($e) . ': '
+                    		. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
                         $transaction->rollback();
                     }
                 }

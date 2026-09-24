@@ -191,6 +191,8 @@ class VendorController extends BaseUiController {
 				$transaction->rollback();
 			}
 			  } catch (\Exception $e) {
+			  	Yii::error('vendor/create rolled back: ' . get_class($e) . ': '
+			  		. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				 $transaction->rollback();
 				 } 
 		}

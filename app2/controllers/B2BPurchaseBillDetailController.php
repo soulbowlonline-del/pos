@@ -917,6 +917,8 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 					
 			}
 			} catch ( \Exception $e ) {
+				Yii::error('b2BPurchaseBillDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
+					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				
 				
 				echo $e; die;

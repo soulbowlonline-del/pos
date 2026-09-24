@@ -1006,6 +1006,8 @@ class PurchaseOrderDetailController extends BaseUiController {
 			}
 			
 			} catch ( \Exception $e ) {
+				Yii::error('purchaseOrderDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
+					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$transaction->rollback ();
 			}
 		}

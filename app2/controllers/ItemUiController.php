@@ -3289,6 +3289,8 @@ curl_close($ch);
 			}
 
 		} catch (\Exception $e) {
+			Yii::error('itemUi/batchUpdatePrices rolled back: ' . get_class($e) . ': '
+				. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 			$results['status'] = 'error';
 			$results['message'] = 'Error during batch processing: ' . $e->getMessage();
 			$results['error_details'] = $e->getTraceAsString();
@@ -3386,6 +3388,8 @@ curl_close($ch);
 				}
 				
 			} catch (\Exception $e) {
+				Yii::error('itemUi/checkUpdateStatus rolled back: ' . get_class($e) . ': '
+					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$results['errors']++;
 				$results['details'][] = "Error processing item ID: {$item->id} - " . $e->getMessage();
 			}
