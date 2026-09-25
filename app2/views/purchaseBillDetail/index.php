@@ -1281,8 +1281,7 @@ $(document).ready(function(){
 	var credit_note_id =   $('#credit_note_id').val();
 	var credit_note_disc =   $('#credit_note_disc').val();
 
-	var grossNetBillAmount = parseFloat(parseFloat(+(+gross_amt).toFixed() + +(+tax_amount).toFixed()) - parseFloat(+(+total_discount).toFixed() + +(+bill_other_discount).toFixed())).toFixed();
-	console.log('grossNetBillAmount', grossNetBillAmount, (+net_bill_amount).toFixed());
+	var grossNetBillAmount = parseFloat(parseFloat(+(+gross_amt) + +(+tax_amount)) - parseFloat(+(+total_discount) + +(+bill_other_discount))).toFixed();
 	if (grossNetBillAmount != (+net_bill_amount).toFixed()) {
 		alert('Net Bill Amount not matching with (Gross Amount + Tax Amount - Total Discount - Other Discount)');
 		return;
