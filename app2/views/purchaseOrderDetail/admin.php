@@ -334,7 +334,14 @@ $form = ActiveForm::begin([
 																echo Button::widget([
 																		'buttonType' => 'button',
 																		'type' => 'primary',
-																		'label' => 'Add Item' 
+																		'label' => 'Add Item',
+																		// Yii 1's CWidget numbers its widgets yw0, yw1, ... across the whole
+																		// page, and this view's javascript addresses this button by the id it
+																		// happened to get. The port's widgets render no such id, so the click
+																		// handler bound to nothing and Add Item did nothing. Set explicitly
+																		// rather than by reproducing Yii 1's counter, which spans every widget
+																		// on the page - here yw0 is the List link and yw1 the Search button.
+																		'htmlOptions' => ['id' => 'yw2'],
 																]
 																 );
 																?>
