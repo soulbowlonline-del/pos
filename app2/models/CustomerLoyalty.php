@@ -9,7 +9,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 use Throwable;
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/CustomerLoyalty.php (Yii 1). */
 class CustomerLoyalty extends ActiveRecord

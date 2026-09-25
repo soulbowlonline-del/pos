@@ -9,7 +9,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/Emp.php (Yii 1). Only outlet_id is read here. */
 class Emp extends ActiveRecord

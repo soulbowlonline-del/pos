@@ -9,7 +9,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/Outlet.php (Yii 1). */
 class Outlet extends ActiveRecord

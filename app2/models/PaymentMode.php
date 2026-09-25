@@ -5,7 +5,7 @@ use app\components\Criteria;
 use app\components\Ui;
 use Yii;
 use yii\data\ActiveDataProvider;
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /**
  * Ported from protected/models/PaymentMode.php and its Gii base class.

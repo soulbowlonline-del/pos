@@ -6,7 +6,7 @@ use yii\data\ActiveDataProvider;
 use app\components\Criteria;
 
 use Yii;
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/LoyaltySettings.php (Yii 1). */
 class LoyaltySettings extends ActiveRecord

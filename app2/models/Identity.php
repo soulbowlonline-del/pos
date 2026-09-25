@@ -3,7 +3,7 @@ namespace app\models;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 use yii\web\IdentityInterface;
 
 /**

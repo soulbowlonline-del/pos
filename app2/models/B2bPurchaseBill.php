@@ -10,7 +10,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/B2bPurchaseBill.php (Yii 1). */
 class B2bPurchaseBill extends ActiveRecord

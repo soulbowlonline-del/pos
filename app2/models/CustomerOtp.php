@@ -1,7 +1,7 @@
 <?php
 namespace app\models;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /**
  * Ported from protected/models/CustomerOtp.php (Yii 1).

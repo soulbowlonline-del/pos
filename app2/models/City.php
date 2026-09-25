@@ -9,7 +9,7 @@ use app\components\Ui;
 
 use app\components\Criteria;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/City.php (Yii 1). */
 class City extends ActiveRecord

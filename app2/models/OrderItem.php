@@ -10,7 +10,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /**
  * Partial Yii 2 port of protected/models/OrderItem.php (2,809 lines).

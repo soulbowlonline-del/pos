@@ -6,7 +6,7 @@ use app\components\Gx;
 use app\components\Ui;
 use Yii;
 use yii\data\ActiveDataProvider;
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 use yii\helpers\Html;
 
 /**

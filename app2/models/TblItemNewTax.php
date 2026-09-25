@@ -3,7 +3,7 @@ namespace app\models;
 
 use app\components\Criteria;
 use yii\data\ActiveDataProvider;
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /**
  * Ported from protected/models/TblItemNewTax.php.

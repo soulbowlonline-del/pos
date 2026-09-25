@@ -9,7 +9,7 @@ use yii\data\ActiveDataProvider;
 
 use Yii;
 
-use yii\db\ActiveRecord;
+use app\components\LegacyActiveRecord as ActiveRecord;
 
 /** Ported from protected/models/RolePermission.php (Yii 1). */
 class RolePermission extends ActiveRecord
