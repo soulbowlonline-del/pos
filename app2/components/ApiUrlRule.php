@@ -43,7 +43,10 @@ class ApiUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
-        $controller = $parts[1];
+        // Lower-cased first: the keys below are the Yii 1 module's own
+        // spellings, and Yii 1 answers /api/Customer/... as readily as
+        // /api/customer/... because it never minded the case of either segment.
+        $controller = strtolower($parts[1]);
         $action = $parts[2];
         if (!array_key_exists($controller, self::CONTROLLERS)) {
             return false;
@@ -58,7 +61,10 @@ class ApiUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
-        return [$controller . '/' . Ui::toYii2Id($action, false),
+        // resolveActionId(), not toYii2Id(): the clients spell the action the
+        // way Yii 1 let them, which is any way at all, because PHP matched the
+        // method name without regard to case. holdorderList is one they send.
+        return [$controller . '/' . Ui::resolveActionId($controller, $action),
                 self::pathParams(array_slice($parts, 3))];
     }
 

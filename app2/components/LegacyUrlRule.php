@@ -44,12 +44,15 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
             return false;
         }
 
-        $controller = $this->toYii2($parts[0]);
         // Only for controllers this application actually serves, so an unported
-        // path still falls through to a 404 rather than resolving oddly.
-        if (!Ui::isPorted($parts[0]) && !Ui::isPorted($this->toYii1($parts[0]))) {
+        // path still falls through to a 404 rather than resolving oddly. Matched
+        // without regard to case, as Yii 1 matches it - /mrsdetail/admin is a
+        // page there and was a 404 here.
+        $known = Ui::resolveControllerId($parts[0]) ?: Ui::resolveControllerId($this->toYii1($parts[0]));
+        if ($known === null) {
             return false;
         }
+        $controller = $this->toYii2($known);
 
         // Yii 1's own rules, in its own order (config/main.php):
         //
@@ -70,7 +73,12 @@ class LegacyUrlRule extends BaseObject implements UrlRuleInterface
             return [$controller . '/view', ['id' => $parts[1]]];
         }
 
-        $action = isset($parts[1]) ? $this->toYii2($parts[1], false) : 'index';
+        // resolveActionId() rather than toYii2(): Yii 1 reaches actionItemWise()
+        // from /order/itemwise, /order/itemWise and /order/ITEMWISE alike,
+        // because PHP does not mind the case of a method name. Hyphenating the
+        // caller's own spelling does mind - /order/itemwise became order/itemwise
+        // and 404'd where Yii 1 answered 200.
+        $action = isset($parts[1]) ? Ui::resolveActionId($controller, $parts[1]) : 'index';
 
         if (count($parts) === 3 && ctype_digit($parts[2])) {
             return [$controller . '/' . $action, ['id' => $parts[2]]];

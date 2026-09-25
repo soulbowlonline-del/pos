@@ -163,6 +163,37 @@ class Ui
     }
 
     /**
+     * The canonical PORTED spelling of a controller named any which way.
+     *
+     * The same indifference to case that resolveActionId() restores for the
+     * action, for the segment before it: Yii 1 answers /mrsdetail/admin and
+     * /api/Customer/... as readily as the spellings its own links use, and the
+     * port matched the id exactly, so those 404'd. Compared on letters and
+     * digits alone; the 59 ported controllers do not collide under it.
+     *
+     * @return string|null the PORTED spelling, or null if it is not one
+     */
+    public static function resolveControllerId($controller)
+    {
+        if (in_array($controller, self::PORTED, true)) {
+            return $controller;
+        }
+
+        $wanted = preg_replace('/[^a-z0-9]/', '', strtolower((string) $controller));
+        if ($wanted === '') {
+            return null;
+        }
+
+        foreach (self::PORTED as $known) {
+            if (preg_replace('/[^a-z0-9]/', '', strtolower($known)) === $wanted) {
+                return $known;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Controllers whose name the API port already uses.
      *
      * Emp, Customer, Item and Order are each an API controller in
@@ -207,6 +238,58 @@ class Ui
         // adding it there asked for the route vendor/item-ui, which does not
         // exist: vendor/item answered 404 on the port and 200 on Yii 1.
         return $isController && self::needsUiSuffix($id) ? $hyphenated . '-ui' : $hyphenated;
+    }
+
+    /**
+     * The Yii 2 action id for an action spelled the way a client spelled it.
+     *
+     * PHP matches method names without regard to case, so Yii 1 answers
+     * api/customer/holdorderList, holdOrderList, holdorderlist and
+     * HoldOrderList alike - every one of them reaches actionHoldOrderList().
+     * Yii 2 matches the hyphenated id exactly, and toYii2Id() hyphenates from
+     * whatever capitalisation the caller used, so holdOrderList becomes
+     * hold-order-list and answers while holdorderList becomes holdorder-list
+     * and 404s. The .NET client and the APK send the spelling they always
+     * sent, and the port is the only thing that minds.
+     *
+     * So the id is resolved against the controller's own actions, compared on
+     * letters and digits alone. Across the 59 controllers that is 698 actions
+     * and no two of them collide under that comparison, so the match is never
+     * ambiguous.
+     *
+     * Falls back to toYii2Id() whenever the controller cannot be found or has
+     * no such action, which leaves an unknown route 404ing as it did before.
+     *
+     * @param string $controllerId the Yii 2 controller id, `customer-ui` and all
+     * @param string $action       the action as the URL spells it
+     */
+    public static function resolveActionId($controllerId, $action)
+    {
+        $fallback = self::toYii2Id($action, false);
+
+        $class = 'app\\controllers\\'
+            . str_replace(' ', '', ucwords(str_replace('-', ' ', $controllerId)))
+            . 'Controller';
+        if (!class_exists($class)) {
+            return $fallback;
+        }
+
+        $wanted = preg_replace('/[^a-z0-9]/', '', strtolower($action));
+        if ($wanted === '') {
+            return $fallback;
+        }
+
+        foreach (get_class_methods($class) as $method) {
+            if (strncmp($method, 'action', 6) !== 0 || $method === 'actions') {
+                continue;
+            }
+            $name = substr($method, 6);
+            if (preg_replace('/[^a-z0-9]/', '', strtolower($name)) === $wanted) {
+                return self::toYii2Id($name, false);
+            }
+        }
+
+        return $fallback;
     }
 
     /** payment-mode -> paymentMode */
