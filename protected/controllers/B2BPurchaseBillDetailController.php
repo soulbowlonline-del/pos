@@ -233,7 +233,7 @@ class B2BPurchaseBillDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {
@@ -382,7 +382,7 @@ class B2BPurchaseBillDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition ( 'status !=' . B2bPurchaseBill::STATUS_APPROVED );
 			$mrslist = B2bPurchaseBill::model ()->findAll ( $criteria );
 			
@@ -1360,7 +1360,7 @@ class B2BPurchaseBillDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition ( 'status !=' . B2BPurchaseBill::STATUS_APPROVED );
 			$Getpendingbill = B2BPurchaseBill::model ()->findAll ( $criteria );
 			
@@ -1392,7 +1392,7 @@ class B2BPurchaseBillDetailController extends GxController {
 	
 	public function actionGetpendingbilldate(){
 		$criteria = new CDbCriteria ();
-			$criteria->compare('id', (int) $_POST['bill_id']);
+			$criteria->compare('id', PostId::get('bill_id'));
 			$criteria->addCondition ( 'status !=' . B2BPurchaseBill::STATUS_APPROVED );
 			$Getpendingbill = B2BPurchaseBill::model ()->find ( $criteria );
 			$date=$Getpendingbill->start_date;

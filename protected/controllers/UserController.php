@@ -166,7 +166,7 @@ class UserController extends GxController {
 		if (isset ( $_POST ['selected'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->compare('id', '<>' . (int) $_POST['selected']);
+			$criteria->compare('id', '<>' . PostId::get('selected'));
 			$criteria->order = 'title asc';
 			$questions = Question::model ()->findAll ( $criteria );
 			// $option .= '<option value="" id="ckbCheckAll">-Select-</option>';
@@ -191,7 +191,7 @@ class UserController extends GxController {
 		if (isset ( $_POST ['selected'] )) {
 				
 			$criteria = new CDbCriteria ();
-			$criteria->compare('id', '<>' . (int) $_POST['selected']);
+			$criteria->compare('id', '<>' . PostId::get('selected'));
 			if($id != null){
 				$userques = UserQuestion::model()->findAllByAttributes(array('create_user_id'=>$id));
 				if($userques){

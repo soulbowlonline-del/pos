@@ -140,7 +140,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 			$query = PurchaseOrder::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !='.PurchaseOrderDetail::STATUS_DONE);
 			$mrslist = $query->all();
 				
@@ -180,7 +180,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 			$query = ItemDetail::find();
 			$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
-			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 				
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" onChange="checkTaxes()" name="PurchaseOrderDetail[item_detail_id]" id="PurchaseOrderDetail_item_detail_id"><option value="" id="ckbCheckAll">-Select-</option>';

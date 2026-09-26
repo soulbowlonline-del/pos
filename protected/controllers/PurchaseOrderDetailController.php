@@ -133,7 +133,7 @@ class PurchaseOrderDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 	
 			$criteria = new CDbCriteria();
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition('status !='.PurchaseOrderDetail::STATUS_DONE);
 			$mrslist = PurchaseOrder::model ()->findAll($criteria);
 				
@@ -173,7 +173,7 @@ class PurchaseOrderDetailController extends GxController {
 	
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 				
 			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" onChange="checkTaxes()" name="PurchaseOrderDetail[item_detail_id]" id="PurchaseOrderDetail_item_detail_id"><option value="" id="ckbCheckAll">-Select-</option>';

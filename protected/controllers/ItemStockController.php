@@ -52,7 +52,7 @@ class ItemStockController extends GxController {
 		if (isset ( $_POST ['item_detail_id'] )) {
 			$itemDetail = ItemDetail::model()->findByPk( $_POST ['item_detail_id'] );
 			$criteria = new CDbCriteria();
-			$criteria->compare('item_detail_id', (int) $_POST['item_detail_id']);
+			$criteria->compare('item_detail_id', PostId::get('item_detail_id'));
 	        $itemstock = ItemStock::model()->find($criteria);
 
 	        if($itemDetail){
@@ -79,7 +79,7 @@ class ItemStockController extends GxController {
 	  $item = Item::model()->findByPk( $_POST ['item_id'] );
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('status ='.ItemDetail::STATUS_ACTIVE);
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 	
 			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" id="ItemStock_item_detail_id" name="ItemStock[item_detail_id]" onChange="BarCodeData()"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -114,7 +114,7 @@ class ItemStockController extends GxController {
 		if (isset ( $_POST ['item_id'] )) {
 			$vendor_ids = array();
 			$criteria = new CDbCriteria();
-		    $criteria->compare('item_detail_id', (int) $_POST['item_id']);
+		    $criteria->compare('item_detail_id', PostId::get('item_id'));
 	       $itemvendors = ItemVendor::model()->findAll($criteria);
 	       if($itemvendors){
 	       	foreach($itemvendors as $itemvendor){

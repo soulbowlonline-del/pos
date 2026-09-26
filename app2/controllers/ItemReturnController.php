@@ -184,7 +184,7 @@ class ItemReturnController extends BaseUiController {
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
 			$query = ItemReturn::find();
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$query->andWhere(['id' => (int) $_POST['idList']['0']]);
+			$query->andWhere(['id' => \app\components\PostId::get('idList', '0')]);
 			$returnItem = $query->one();
 			
 			if($returnItem){

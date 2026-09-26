@@ -117,7 +117,7 @@ class UserController extends BaseUiController {
 		if (isset ( $_POST ['selected'] )) {
 			
 			$query = Question::find();
-			$query->andWhere(['!=', 'id', (int) $_POST['selected']]);
+			$query->andWhere(['!=', 'id', \app\components\PostId::get('selected')]);
 			$query->orderBy(['title' => SORT_ASC]);
 			$questions = $query->all();
 			// $option .= '<option value="" id="ckbCheckAll">-Select-</option>';
@@ -142,7 +142,7 @@ class UserController extends BaseUiController {
 		if (isset ( $_POST ['selected'] )) {
 				
 			$query = Question::find();
-			$query->andWhere(['!=', 'id', (int) $_POST['selected']]);
+			$query->andWhere(['!=', 'id', \app\components\PostId::get('selected')]);
 			if($id != null){
 				$userques = UserQuestion::findAll(['create_user_id'=>$id]);
 				if($userques){

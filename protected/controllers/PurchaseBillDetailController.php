@@ -224,7 +224,7 @@ class PurchaseBillDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {
@@ -364,7 +364,7 @@ class PurchaseBillDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition ( 'status !=' . PurchaseBill::STATUS_APPROVED );
 			$mrslist = PurchaseBill::model ()->findAll ( $criteria );
 			

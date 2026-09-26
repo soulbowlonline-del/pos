@@ -211,7 +211,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {
@@ -361,7 +361,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$mrslist = $query->all();
 			
@@ -1329,7 +1329,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->all();
 			
@@ -1361,7 +1361,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 	
 	public function actionGetpendingbilldate(){
 		$query = B2bPurchaseBill::find();
-			$query->andWhere(['id' => (int) $_POST['bill_id']]);
+			$query->andWhere(['id' => \app\components\PostId::get('bill_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->one();
 			$date=$Getpendingbill->start_date;

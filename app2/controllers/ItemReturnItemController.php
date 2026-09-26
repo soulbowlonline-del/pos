@@ -172,7 +172,7 @@ public function actionReport($id = null) {
 				
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere(['grn_refrence_no' => (int) $_POST['grn_no']]);
+			$query->andWhere(['grn_refrence_no' => \app\components\PostId::get('grn_no')]);
 			
 				
 			$bill = $query->one();
@@ -237,7 +237,7 @@ public function actionReport($id = null) {
 				
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 				
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="ItemReturnItem_item_detaill_id" name="ItemReturnItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';

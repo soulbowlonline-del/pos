@@ -64,7 +64,7 @@ class MrsDetailController extends BaseUiController {
 			
 			$query = Mrs::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . Mrs::STATUS_DONE);
 			$query->andWhere('status !=' . Mrs::STATUS_REJECT);
 			
@@ -92,7 +92,7 @@ class MrsDetailController extends BaseUiController {
 				
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {
@@ -111,7 +111,7 @@ class MrsDetailController extends BaseUiController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', \app\components\PostId::get('item_id'));
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="MrsDetail_item_detaill_id" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -167,7 +167,7 @@ class MrsDetailController extends BaseUiController {
 			$query = ItemVendor::find();
 			$query->orderBy(['id' => SORT_DESC]);
 			$query->andWhere('item_detail_id ='.$item->id);
-			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$vendor =  $query->one();
 			if($vendor->vendor_id == $_POST ['vendor_id'] ){
 				$msg = 'success';
