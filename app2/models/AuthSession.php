@@ -444,8 +444,13 @@ class AuthSession extends ActiveRecord
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+            $this->update_time = date('Y-m-d H:i:s');
+        } else {
+            // update_time: always set, as Yii 1 did on insert and update.
+            $this->update_time = date('Y-m-d H:i:s');
+            if ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+                $this->updated_by = Yii::$app->user->id;
+            }
         }
 
         return true;

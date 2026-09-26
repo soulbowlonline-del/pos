@@ -1142,8 +1142,14 @@ class Item extends ActiveRecord
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+        } else {
+            // update_time: set on update when empty, as Yii 1 did.
+            if ($this->hasAttribute('update_time') && !isset($this->update_time)) {
+                $this->update_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+                $this->updated_by = Yii::$app->user->id;
+            }
         }
 
         return true;
