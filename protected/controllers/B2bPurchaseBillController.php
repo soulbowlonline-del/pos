@@ -77,7 +77,7 @@ exit;
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
 			$criteria = new CDbCriteria();
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$criteria->compare('id', (int) $_POST['idList']['0']);
+			$criteria->compare('id', PostId::get('idList', '0'));
 			$bill = PurchaseBill::model()->find($criteria);
 			
 			if($bill){

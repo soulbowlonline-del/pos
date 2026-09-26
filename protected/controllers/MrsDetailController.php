@@ -82,7 +82,7 @@ class MrsDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition ( 'status !=' . Mrs::STATUS_DONE );
 			$criteria->addCondition ( 'status !=' . Mrs::STATUS_REJECT );
 			
@@ -110,7 +110,7 @@ class MrsDetailController extends GxController {
 				
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {
@@ -129,7 +129,7 @@ class MrsDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="MrsDetail_item_detaill_id" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -185,7 +185,7 @@ class MrsDetailController extends GxController {
 			$criteria = new CDbCriteria();
 			$criteria->order = 'id desc';
 			$criteria->addCondition('item_detail_id ='.$item->id);
-			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$vendor =  ItemVendor::model()->find($criteria);
 			if($vendor->vendor_id == $_POST ['vendor_id'] ){
 				$msg = 'success';

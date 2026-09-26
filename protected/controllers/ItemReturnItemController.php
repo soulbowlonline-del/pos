@@ -163,7 +163,7 @@ public function actionReport($id = null) {
 		if (isset ( $_POST ['grn_no'] )) {
 				
 			$criteria = new CDbCriteria ();
-			$criteria->compare('grn_refrence_no', (int) $_POST['grn_no']);
+			$criteria->compare('grn_refrence_no', PostId::get('grn_no'));
 			
 				
 			$bill = PurchaseBill::model ()->find ( $criteria );
@@ -228,7 +228,7 @@ public function actionReport($id = null) {
 				
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->compare('item_id', (int) $_POST['item_id']);
+			$criteria->compare('item_id', PostId::get('item_id'));
 				
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="ItemReturnItem_item_detaill_id" name="ItemReturnItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
