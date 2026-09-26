@@ -699,13 +699,9 @@ class OrderController extends GxController {
 												'order' => 'id DESC' 
 										) );
 										if ($model) {
-											$purchase = ($model->purchase_qty) + $item_array->is_return;
-											$balance = ($model->balance_qty) + $item_array->is_return;
-											
-											$model->purchase_qty = $purchase;
-											$model->balance_qty = $balance;
-											
-											if ($model->save ()) {
+											// Return the quantity to stock in the database (addToBalance), so a
+											// concurrent sale or GRN is not overwritten.
+											if ($model->saveExceptQty () && $model->addToBalance ( $item_array->is_return, $item_array->is_return )) {
 												$stocklog = new StockLog ();
 												$stocklog->item_detail_id = $model->item_detail_id;
 												$stocklog->item_id = $model->item_id;

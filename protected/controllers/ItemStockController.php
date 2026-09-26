@@ -169,17 +169,19 @@ class ItemStockController extends GxController {
 				//$model->purchase_qty = $_POST['ItemStock']['purchase_qty'];
 			}else{
 				$model->setAttributes($_POST['ItemStock']);
+				$existingStock = true;
 			if($_POST['ItemStock']['type_id'] == ItemStock::TYPE_ADDED){
 				$model->purchase_qty = $model->purchase_qty + $_POST['ItemStock']['purchase_qty'] ;
-				$model->balance_qty = $model->balance_qty +  $_POST['ItemStock']['purchase_qty'] ;
+				$stockDelta = $_POST['ItemStock']['purchase_qty'];
 			}else{
 				$model->purchase_qty = $model->purchase_qty - $_POST['ItemStock']['purchase_qty'] ;
-			$model->balance_qty = $model->balance_qty -  $_POST['ItemStock']['purchase_qty'] ;
+				$stockDelta = - $_POST['ItemStock']['purchase_qty'];
 			$cal = true;
 			}
 			}
-
-			if ($model->save()) {
+			// An existing batch's balance changes in the database (addToBalance),
+			// so a sale or GRN landing at the same moment is not overwritten.
+			if (!empty($existingStock) ? ($model->saveExcept(array('balance_qty')) && $model->addToBalance($stockDelta)) : $model->save()) {
 				$itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
 			$itemDetail->update_time = date('Y-m-d H:i:s');
 				$itemDetail->saveAttributes(array('update_time'));
