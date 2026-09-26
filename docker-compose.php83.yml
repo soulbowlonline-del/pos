@@ -12,6 +12,7 @@ services:
   php:
     build: ./docker/php83
     container_name: pos-php-83
+    restart: unless-stopped
     ports:
       - "8084:80"
     volumes:

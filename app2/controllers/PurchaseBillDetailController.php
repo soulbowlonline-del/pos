@@ -204,7 +204,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {

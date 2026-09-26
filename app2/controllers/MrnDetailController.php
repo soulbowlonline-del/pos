@@ -96,7 +96,7 @@ class MrnDetailController extends BaseUiController {
 	
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-			$criteria->addCondition('item_id ='.$_POST ['item_id']);
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 				
 			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" id="MrnDetail_item_detaill_id" onChange="checkTaxes()"  name="MrnDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -125,7 +125,7 @@ class MrnDetailController extends BaseUiController {
 				
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {

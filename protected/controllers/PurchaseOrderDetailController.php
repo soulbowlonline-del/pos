@@ -173,7 +173,7 @@ class PurchaseOrderDetailController extends GxController {
 	
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-			$criteria->addCondition('item_id ='.$_POST ['item_id']);
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 				
 			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" onChange="checkTaxes()" name="PurchaseOrderDetail[item_detail_id]" id="PurchaseOrderDetail_item_detail_id"><option value="" id="ckbCheckAll">-Select-</option>';

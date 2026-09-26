@@ -237,7 +237,7 @@ public function actionReport($id = null) {
 				
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 				
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="ItemReturnItem_item_detaill_id" name="ItemReturnItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';

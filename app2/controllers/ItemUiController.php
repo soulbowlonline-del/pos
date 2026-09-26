@@ -1443,7 +1443,7 @@ curl_close($ch);
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 			
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -2488,7 +2488,7 @@ curl_close($ch);
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 			
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" id="ItemExpire_item_detaill_id" onChange="checkTaxes()"  name="ItemExpireItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';

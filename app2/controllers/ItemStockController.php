@@ -79,7 +79,7 @@ class ItemStockController extends BaseUiController {
 	  $item = Item::findOne( $_POST ['item_id'] );
 			$query = ItemDetail::find();
 			$query->andWhere('status ='.ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id ='.$_POST ['item_id']);
+			$query->andWhere(['item_id' => (int) $_POST['item_id']]);
 	
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" id="ItemStock_item_detail_id" name="ItemStock[item_detail_id]" onChange="BarCodeData()"><option value="" id="ckbCheckAll">-Select-</option>';

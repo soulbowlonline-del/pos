@@ -110,7 +110,7 @@ class MrsDetailController extends GxController {
 				
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {
@@ -129,7 +129,7 @@ class MrsDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="MrsDetail_item_detaill_id" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';

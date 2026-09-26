@@ -228,7 +228,7 @@ public function actionReport($id = null) {
 				
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 				
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="ItemReturnItem_item_detaill_id" name="ItemReturnItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
