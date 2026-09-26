@@ -83,7 +83,7 @@ exit;
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$query->andWhere('id ='.$_POST['idList']['0']);
+			$query->andWhere(['id' => (int) $_POST['idList']['0']]);
 			$bill = $query->one();
 			
 			if($bill){

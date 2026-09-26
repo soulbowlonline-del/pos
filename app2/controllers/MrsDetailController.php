@@ -64,7 +64,7 @@ class MrsDetailController extends BaseUiController {
 			
 			$query = Mrs::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
 			$query->andWhere('status !=' . Mrs::STATUS_DONE);
 			$query->andWhere('status !=' . Mrs::STATUS_REJECT);
 			
@@ -167,7 +167,7 @@ class MrsDetailController extends BaseUiController {
 			$query = ItemVendor::find();
 			$query->orderBy(['id' => SORT_DESC]);
 			$query->andWhere('item_detail_id ='.$item->id);
-			$query->andWhere('vendor_id ='.$_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
 			$vendor =  $query->one();
 			if($vendor->vendor_id == $_POST ['vendor_id'] ){
 				$msg = 'success';

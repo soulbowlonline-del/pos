@@ -347,7 +347,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
 			$query->andWhere('status !=' . PurchaseBill::STATUS_APPROVED);
 			$mrslist = $query->all();
 			

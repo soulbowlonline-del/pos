@@ -36,7 +36,7 @@ class MrsController extends GxController {
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
 			$criteria = new CDbCriteria();
 			$criteria->addInCondition('id', $_POST['idList']);
-			$criteria->addCondition('vendor_id ='.$_POST['vendor_id']);
+			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
 			$mrs = Mrs::model()->find($criteria);
 			if($mrs){
 				$criteria = new CDbCriteria();

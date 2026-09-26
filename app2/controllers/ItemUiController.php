@@ -529,7 +529,7 @@ curl_close($ch);
 		if (isset ( $_POST ['item_detail_id'] )) {
 			
 			$query = ItemDetail::find();
-			$query->andWhere('id =' . $_POST ['item_detail_id']);
+			$query->andWhere(['id' => (int) $_POST['item_detail_id']]);
 			$item_detail = $query->one();
 			if ($item_detail) {
 				$remaining_quantity = '0.000';

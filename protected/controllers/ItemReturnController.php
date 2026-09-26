@@ -184,7 +184,7 @@ class ItemReturnController extends GxController {
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
 			$criteria = new CDbCriteria();
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$criteria->addCondition('id ='.$_POST['idList']['0']);
+			$criteria->compare('id', (int) $_POST['idList']['0']);
 			$returnItem = ItemReturn::model()->find($criteria);
 			
 			if($returnItem){

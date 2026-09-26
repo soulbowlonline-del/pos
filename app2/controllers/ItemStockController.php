@@ -52,7 +52,7 @@ class ItemStockController extends BaseUiController {
 			$itemDetail = ItemDetail::findOne( $_POST ['item_detail_id'] );
 			$query = ItemStock::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('item_detail_id ='.$_POST ['item_detail_id']);
+			$query->andWhere(['item_detail_id' => (int) $_POST['item_detail_id']]);
 	        $itemstock = $query->one();
 
 	        if($itemDetail){
@@ -115,7 +115,7 @@ class ItemStockController extends BaseUiController {
 			$vendor_ids = [];
 			$query = ItemVendor::find();
         $query->orderBy(['id' => SORT_DESC]);
-		    $query->andWhere('item_detail_id ='.$_POST ['item_id']);
+		    $query->andWhere(['item_detail_id' => (int) $_POST['item_id']]);
 	       $itemvendors = $query->all();
 	       if($itemvendors){
 	       	foreach($itemvendors as $itemvendor){

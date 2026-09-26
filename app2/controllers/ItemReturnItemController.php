@@ -172,7 +172,7 @@ public function actionReport($id = null) {
 				
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('grn_refrence_no =' . $_POST ['grn_no']);
+			$query->andWhere(['grn_refrence_no' => (int) $_POST['grn_no']]);
 			
 				
 			$bill = $query->one();

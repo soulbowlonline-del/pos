@@ -52,7 +52,7 @@ class ItemStockController extends GxController {
 		if (isset ( $_POST ['item_detail_id'] )) {
 			$itemDetail = ItemDetail::model()->findByPk( $_POST ['item_detail_id'] );
 			$criteria = new CDbCriteria();
-			$criteria->addCondition('item_detail_id ='.$_POST ['item_detail_id']);
+			$criteria->compare('item_detail_id', (int) $_POST['item_detail_id']);
 	        $itemstock = ItemStock::model()->find($criteria);
 
 	        if($itemDetail){
@@ -114,7 +114,7 @@ class ItemStockController extends GxController {
 		if (isset ( $_POST ['item_id'] )) {
 			$vendor_ids = array();
 			$criteria = new CDbCriteria();
-		    $criteria->addCondition('item_detail_id ='.$_POST ['item_id']);
+		    $criteria->compare('item_detail_id', (int) $_POST['item_id']);
 	       $itemvendors = ItemVendor::model()->findAll($criteria);
 	       if($itemvendors){
 	       	foreach($itemvendors as $itemvendor){

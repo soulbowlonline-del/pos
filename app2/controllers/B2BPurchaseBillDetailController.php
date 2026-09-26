@@ -361,7 +361,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$mrslist = $query->all();
 			
@@ -1329,7 +1329,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => (int) $_POST['vendor_id']]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->all();
 			
@@ -1361,7 +1361,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 	
 	public function actionGetpendingbilldate(){
 		$query = B2bPurchaseBill::find();
-			$query->andWhere('id =' . $_POST ['bill_id']);
+			$query->andWhere(['id' => (int) $_POST['bill_id']]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->one();
 			$date=$Getpendingbill->start_date;

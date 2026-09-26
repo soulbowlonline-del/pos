@@ -565,7 +565,7 @@ curl_close($ch);
 		if (isset ( $_POST ['item_detail_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'id =' . $_POST ['item_detail_id'] );
+			$criteria->compare('id', (int) $_POST['item_detail_id']);
 			$item_detail = ItemDetail::model ()->find ( $criteria );
 			if ($item_detail) {
 				$remaining_quantity = '0.000';
