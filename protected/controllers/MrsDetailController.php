@@ -82,7 +82,7 @@ class MrsDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'vendor_id =' . $_POST ['vendor_id'] );
+			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
 			$criteria->addCondition ( 'status !=' . Mrs::STATUS_DONE );
 			$criteria->addCondition ( 'status !=' . Mrs::STATUS_REJECT );
 			
@@ -185,7 +185,7 @@ class MrsDetailController extends GxController {
 			$criteria = new CDbCriteria();
 			$criteria->order = 'id desc';
 			$criteria->addCondition('item_detail_id ='.$item->id);
-			$criteria->addCondition('vendor_id ='.$_POST ['vendor_id']);
+			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
 			$vendor =  ItemVendor::model()->find($criteria);
 			if($vendor->vendor_id == $_POST ['vendor_id'] ){
 				$msg = 'success';

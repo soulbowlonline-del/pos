@@ -364,7 +364,7 @@ class PurchaseBillDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'vendor_id =' . $_POST ['vendor_id'] );
+			$criteria->compare('vendor_id', (int) $_POST['vendor_id']);
 			$criteria->addCondition ( 'status !=' . PurchaseBill::STATUS_APPROVED );
 			$mrslist = PurchaseBill::model ()->findAll ( $criteria );
 			

@@ -163,7 +163,7 @@ public function actionReport($id = null) {
 		if (isset ( $_POST ['grn_no'] )) {
 				
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'grn_refrence_no =' . $_POST ['grn_no']);
+			$criteria->compare('grn_refrence_no', (int) $_POST['grn_no']);
 			
 				
 			$bill = PurchaseBill::model ()->find ( $criteria );
