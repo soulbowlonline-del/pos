@@ -224,7 +224,7 @@ class PurchaseBillDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {

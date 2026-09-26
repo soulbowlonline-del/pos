@@ -1479,7 +1479,7 @@ curl_close($ch);
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -2524,7 +2524,7 @@ curl_close($ch);
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', (int) $_POST['item_id']);
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" id="ItemExpire_item_detaill_id" onChange="checkTaxes()"  name="ItemExpireItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
