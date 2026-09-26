@@ -989,10 +989,9 @@ class OrderController extends Controller
                     ->one() : null;
 
                 if ($stock) {
-                    $stock->purchase_qty = $stock->purchase_qty + $itemArray->is_return;
-                    $stock->balance_qty = $stock->balance_qty + $itemArray->is_return;
-
-                    if ($stock->save()) {
+                    // Return the quantity to stock in the database (addToBalance), so a
+                    // concurrent sale or GRN is not overwritten.
+                    if ($stock->saveExceptQty() && $stock->addToBalance($itemArray->is_return, $itemArray->is_return)) {
                         $stockLog = new StockLog();
                         $stockLog->item_detail_id = $stock->item_detail_id;
                         $stockLog->item_id = $stock->item_id;

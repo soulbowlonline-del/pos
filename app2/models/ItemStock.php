@@ -27,6 +27,51 @@ class ItemStock extends ActiveRecord
     }
 
     /**
+     * Add $delta (negative to deduct) to balance_qty, and $purchaseDelta to
+     * purchase_qty, in one UPDATE, then reload both.
+     *
+     * GRNs and orders used to read the row, work out the new balance in PHP
+     * and save the whole number back. When a GRN and a sale of the same item
+     * landed together, the later save overwrote the earlier one: the GRN's
+     * quantity vanished from stock (or a sale was never deducted). A single
+     * "balance_qty = balance_qty + delta" statement cannot lose a concurrent
+     * change. Same as the Yii 1 ItemStock::addToBalance().
+     */
+    public function addToBalance($delta, $purchaseDelta = 0)
+    {
+        $db = static::getDb();
+        $db->createCommand('UPDATE ' . static::tableName()
+                . ' SET balance_qty = balance_qty + :delta, purchase_qty = purchase_qty + :pdelta WHERE id = :id',
+                [':delta' => $delta, ':pdelta' => $purchaseDelta, ':id' => $this->id])
+            ->execute();
+        $row = $db->createCommand('SELECT balance_qty, purchase_qty FROM ' . static::tableName() . ' WHERE id = :id',
+                [':id' => $this->id])
+            ->queryOne();
+        if ($row) {
+            foreach (['balance_qty', 'purchase_qty'] as $column) {
+                $this->setAttribute($column, $row[$column]);
+                $this->setOldAttribute($column, $row[$column]);
+            }
+        }
+        return (bool) $row;
+    }
+
+    /**
+     * save() for every column except the two quantities, which only change
+     * through addToBalance(). Validation and the save hooks still run.
+     */
+    public function saveExceptQty()
+    {
+        return $this->saveExcept(['balance_qty', 'purchase_qty']);
+    }
+
+    /** save() for every column except id and $columns. */
+    public function saveExcept(array $columns)
+    {
+        return $this->save(true, array_values(array_diff($this->attributes(), array_merge(['id'], $columns))));
+    }
+
+    /**
      * Yii 1's isnetLessMin(): true when the stock of this item detail at this
      * outlet has fallen to or below the item's minimum.
      *

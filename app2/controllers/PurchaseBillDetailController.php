@@ -783,15 +783,13 @@ class PurchaseBillDetailController extends BaseUiController {
 									'vendor_id' => $purchasebill->vendor_id 
 							] );
 							$qty = number_format($qty, 3, '.', '');
-							if ($itemstock == null) {
+							$newStockRow = ($itemstock == null);
+							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
 								$itemstock = new ItemStock ();
 								$purchase = $qty;
 								$balance = $qty;
 								$itemstock->batch_number = $batch_no;
-							} else {
-								$purchase = ($itemstock->purchase_qty) + $qty;
-								$balance = ($itemstock->balance_qty) + $qty;
 							}
 							
 							$itemstock->item_detail_id = $itemdetail->id;
@@ -801,10 +799,19 @@ class PurchaseBillDetailController extends BaseUiController {
 							$itemstock->outlet_id = $model->outlet_id;
 							$itemstock->tax_id = $model->tax_id;
 							$itemstock->item_id = $itemdetail->item_id;
-							$itemstock->purchase_qty = $purchase;
-							$itemstock->balance_qty = $balance;
 							$itemstock->create_user_id = Yii::$app->user->id;
-							if ($itemstock->save ()) {
+							if ($newStockRow) {
+								$itemstock->purchase_qty = $purchase;
+								$itemstock->balance_qty = $balance;
+								$stockSaved = $itemstock->save ();
+							} else {
+								// Add in the database, not to the balance read above: a
+								// sale of this item can land at the same moment, and the
+								// later of two whole-row saves used to erase the other
+								// (the GRN's quantity went missing from stock).
+								$stockSaved = $itemstock->saveExceptQty () && $itemstock->addToBalance ( $qty, $qty );
+							}
+							if ($stockSaved) {
 								$remain = $item->getTotalRemainingQuantity();
 								$min_qty = $item->min_qty;
 								if($remain >$min_qty){

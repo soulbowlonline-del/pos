@@ -623,6 +623,7 @@ curl_close($ch);
 								$posted ['type'] [$key] = ItemStock::TYPE_ADDED;
 							}
 							
+							$existingStock = ($itemStock != null);
 							if ($itemStock == null) {
 								
 								$itemStock = new ItemStock ();
@@ -646,12 +647,15 @@ curl_close($ch);
 									$itemStock->outlet_id = $outlet;
 								}
 							} else {
+								// Existing batch: the change is applied in the database when
+								// the row is saved below (addToBalance), so a sale or GRN
+								// landing at the same moment is not overwritten.
 								if ($posted ['type'] [$key] == ItemStock::TYPE_ADDED) {
-									$itemStock->purchase_qty = $itemStock->purchase_qty + $posted ['qtyData'] [$key];
-									$itemStock->balance_qty = $itemStock->balance_qty + $posted ['qtyData'] [$key];
+									$stockDelta = $posted ['qtyData'] [$key];
+									$purchaseDelta = $posted ['qtyData'] [$key];
 								} else {
-									
-									$itemStock->balance_qty = $itemStock->balance_qty - $posted ['qtyData'] [$key];
+									$stockDelta = - $posted ['qtyData'] [$key];
+									$purchaseDelta = 0;
 								}
 							}
 							$current = $item->getOutletTotalRemainingQuantity ( $itemDetail->id, $outlet );
@@ -682,7 +686,7 @@ curl_close($ch);
 								$adjusted = '-' . $posted ['qtyData'] [$key];
 							}
 						
-							if ($itemStock->save ()) {
+							if ($existingStock ? ($itemStock->saveExceptQty () && $itemStock->addToBalance ( $stockDelta, $purchaseDelta )) : $itemStock->save ()) {
 								$query_2 = MrsAdjust::find();
 								Criteria::compare($query_2, 'status', MrsAdjust::STATUS_PENDING);
 								Criteria::compare($query_2, 'item_id', $itemStock->item_id);
@@ -2536,9 +2540,8 @@ curl_close($ch);
 								$current = $itemStock->balance_qty;
 								
 								if ($itemStock != null) {
-									$itemStock->balance_qty = ($itemStock->balance_qty) - ($eitem->qty);
 									
-									if ($itemStock->save ()) {
+									if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-($eitem->qty))) {
 										$log = new StockLog ();
 										
 										$log->item_detail_id = $itemDetail->id;

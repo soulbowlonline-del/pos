@@ -68,12 +68,11 @@ class ItemExpireController extends BaseUiController {
 					$current = $itemStock->balance_qty;
 					
 					if($itemStock != null){
-				           $itemStock->balance_qty = ($itemStock->balance_qty) - ($model->qty);
 						
 					
 					
 						
-					if($itemStock->save()){
+					if($itemStock->saveExceptQty() && $itemStock->addToBalance(-($model->qty))){
 						$log = new StockLog();
 						
 						$log->item_detail_id = $itemDetail->id;

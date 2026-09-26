@@ -262,9 +262,9 @@ class B2bOrder extends BaseB2bOrder
             if ($itemstock) {
                 if (($itemstock->balance_qty) >= $quantity) {
                     $balance = $itemstock->balance_qty;
-                    $itemstock->balance_qty = $itemstock->balance_qty - $quantity;
                     $itemstock->tax_id = $item_detail->tax_id;
-                    if ($itemstock->save()) {
+                    // Change stock in the database (addToBalance), so a concurrent sale or GRN is not overwritten.
+                    if ($itemstock->saveExceptQty() && $itemstock->addToBalance(-$quantity)) {
                         $log = new StockLog();
 
                         $log->item_detail_id = $item_detail->id;
@@ -290,10 +290,10 @@ class B2bOrder extends BaseB2bOrder
                 } else {
                     $balance = $itemstock->balance_qty;
 
-                    $itemstock->balance_qty = 0;
+                    // takes this batch's balance as read, see addToBalance below
                     $itemstock->tax_id = $item_detail->tax_id;
                     Yii::log(CVarDumper::dumpAsString($itemstock), CLogger::LEVEL_WARNING, '$itemstock');
-                    if ($itemstock->save()) {
+                    if ($itemstock->saveExceptQty() && $itemstock->addToBalance(-$balance)) {
                         $log = new StockLog();
 
                         $log->item_detail_id = $item_detail->id;
@@ -346,19 +346,12 @@ class B2bOrder extends BaseB2bOrder
                 if ($itemstock) {
                     Yii::log(CVarDumper::dumpAsString($itemstock->balance_qty), CLogger::LEVEL_WARNING, '$balance1');
                     $balance = $itemstock->balance_qty;
-                    if ($balance == 0) {
-                        $itemstock->balance_qty = bcsub($itemstock->balance_qty, $quantity, 3);
-                    }
                     Yii::log(CVarDumper::dumpAsString($itemstock->balance_qty), CLogger::LEVEL_WARNING, '$balance2');
                     Yii::log(CVarDumper::dumpAsString($quantity), CLogger::LEVEL_WARNING, '$quantit3');
 
-                    if ($balance < 0) {
-                        $bquantity = abs($itemstock->balance_qty);
-                        $remain = bcadd($bquantity, $quantity, 3);
-                        $itemstock->balance_qty = '-' . $remain;
-                    }
+                    // Change stock in the database (addToBalance), so a concurrent sale or GRN is not overwritten.
                     $itemstock->tax_id = $item_detail->tax_id;
-                    if ($itemstock->save()) {
+                    if ($itemstock->saveExceptQty() && $itemstock->addToBalance(-$quantity)) {
                         $log = new StockLog();
 
                         $log->item_detail_id = $item_detail->id;

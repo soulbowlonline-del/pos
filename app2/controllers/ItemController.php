@@ -823,6 +823,7 @@ class ItemController extends Controller
             $type = ItemStock::TYPE_ADDED;
         }
 
+        $existingStock = ($itemStock !== null);
         if ($itemStock === null) {
             $itemStock = new ItemStock();
             if ($type == ItemStock::TYPE_ADDED) {
@@ -841,11 +842,15 @@ class ItemController extends Controller
                 $itemStock->outlet_id = $outlet;
             }
         } else {
+            // Existing batch: the change is applied in the database when the
+            // row is saved below (addToBalance), so a sale or GRN landing at
+            // the same moment is not overwritten.
             if ($type == ItemStock::TYPE_ADDED) {
-                $itemStock->purchase_qty = $itemStock->purchase_qty + $qty;
-                $itemStock->balance_qty = $itemStock->balance_qty + $qty;
+                $stockDelta = $qty;
+                $purchaseDelta = $qty;
             } else {
-                $itemStock->balance_qty = $itemStock->balance_qty - $qty;
+                $stockDelta = -$qty;
+                $purchaseDelta = 0;
             }
         }
 
@@ -874,7 +879,10 @@ class ItemController extends Controller
 
         $adjusted = ($type == ItemStock::TYPE_ADDED) ? $qty : '-' . $qty;
 
-        if (!$itemStock->save()) {
+        $stockSaved = $existingStock
+            ? ($itemStock->saveExceptQty() && $itemStock->addToBalance($stockDelta, $purchaseDelta))
+            : $itemStock->save();
+        if (!$stockSaved) {
             return $out;
         }
 

@@ -341,9 +341,10 @@ class Order extends ActiveRecord
 
         if ($itemStock) {
             if ($itemStock->balance_qty >= $quantity) {
-                $itemStock->balance_qty = $itemStock->balance_qty - $quantity;
                 $itemStock->tax_id = $itemDetail->tax_id;
-                if ($itemStock->save()) {
+                // Deduct in the database, not from the balance read above: a GRN
+                // or another sale may have changed the row since (see addToBalance).
+                if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$quantity)) {
                     $currentQty = $this->lockedStockQty($itemDetail);
                     $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                         $currentQty, $currentQty + $quantity, $quantity);
@@ -355,9 +356,10 @@ class Order extends ActiveRecord
             }
 
             $balance = $itemStock->balance_qty;
-            $itemStock->balance_qty = 0;
             $itemStock->tax_id = $itemDetail->tax_id;
-            if ($itemStock->save()) {
+            // Take this batch's balance as read (it was < the order), rather
+            // than writing 0 over whatever the row holds now.
+            if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$balance)) {
                 $currentQty = $this->lockedStockQty($itemDetail);
                 $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                     $currentQty, $currentQty + $balance, abs($balance));
@@ -387,16 +389,12 @@ class Order extends ActiveRecord
             return;
         }
 
-        $balance = $itemStock->balance_qty;
-        if ($balance == 0) {
-            $itemStock->balance_qty = bcsub((string)$itemStock->balance_qty, (string)$quantity, 3);
-        }
-        if ($balance < 0) {
-            $itemStock->balance_qty = '-' . bcadd((string)abs($itemStock->balance_qty), (string)$quantity, 3);
-        }
+        // No batch has stock left: the sale drives this one further below zero.
+        // The old code computed the new negative balance in PHP and saved it,
+        // so a GRN landing at the same moment was overwritten.
         $itemStock->tax_id = $itemDetail->tax_id;
 
-        if ($itemStock->save()) {
+        if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$quantity)) {
             // getStockQty() after the save, so this reads the new figure
             $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                 $itemDetail->getStockQty(), $itemDetail->getStockQty() + $quantity, $quantity);

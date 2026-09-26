@@ -1411,6 +1411,7 @@ class ItemController extends GxController {
 								$posted ['type'] [$key] = ItemStock::TYPE_ADDED;
 							}
 								
+							$existingStock = ($itemStock != null);
 							if ($itemStock == null) {
 								
 								$itemStock = new ItemStock ();
@@ -1434,12 +1435,15 @@ class ItemController extends GxController {
 									$itemStock->outlet_id = $outlet;
 								}
 							} else {
+								// Existing batch: the change is applied in the database when
+								// the row is saved below (addToBalance), so a sale or GRN
+								// landing at the same moment is not overwritten.
 								if ($posted ['type'] [$key] == ItemStock::TYPE_ADDED) {
-									$itemStock->purchase_qty = $itemStock->purchase_qty + $posted ['qtyData'] [$key];
-									$itemStock->balance_qty = $itemStock->balance_qty + $posted ['qtyData'] [$key];
+									$stockDelta = $posted ['qtyData'] [$key];
+									$purchaseDelta = $posted ['qtyData'] [$key];
 								} else {
-									
-									$itemStock->balance_qty = $itemStock->balance_qty - $posted ['qtyData'] [$key];
+									$stockDelta = - $posted ['qtyData'] [$key];
+									$purchaseDelta = 0;
 								}
 							}
 							$current = $item->getOutletTotalRemainingQuantity ( $itemDetail->id, $outlet );
@@ -1470,7 +1474,7 @@ class ItemController extends GxController {
 								$adjusted = '-' . $posted ['qtyData'] [$key];
 							}
 						
-							if ($itemStock->save ()) {
+							if ($existingStock ? ($itemStock->saveExceptQty () && $itemStock->addToBalance ( $stockDelta, $purchaseDelta )) : $itemStock->save ()) {
 								$criteria = new CDbCriteria();
 								$criteria->compare('status',MrsAdjust::STATUS_PENDING);
 								$criteria->compare('item_id',$itemStock->item_id);
