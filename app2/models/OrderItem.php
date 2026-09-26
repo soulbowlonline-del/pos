@@ -3657,6 +3657,12 @@ class OrderItem extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // Yii 1 set create_date first. Without it the v2 API saved lines
+            // with create_date 0000-00-00, and the group-tax reports, which
+            // group and filter on create_date, showed no tax for them.
+            if ($this->hasAttribute('create_date') && !isset($this->create_date)) {
+                $this->create_date = date('Y-m-d');
+            }
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
                 $this->create_time = date('Y-m-d H:i:s');
             }
