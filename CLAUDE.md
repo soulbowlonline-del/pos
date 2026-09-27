@@ -202,13 +202,12 @@ Both API failures above were sitting in it with their 404s.
    to `/`.** Yii 1 clears the bridge key on every request where it thinks it
    is a guest. This resolves itself when Yii 1 is retired; until then, log in
    at `/` to be signed in to both.
-4. **The live application bugs** in `docs/live-bugs-found.md` — inverted bill
-   prefix, `getSgstPercent()` reading the CGST column, `getIgstPercent()`
-   always 0, `getMainDiscount()` returning a literal `'0'`, `state_id`
-   overwritten with 1 on every API customer write (it is geographic on
-   `tbl_customer`, and 1 is Punjab). All reproduced rather than fixed, so the
-   two stacks agree. Each was fixed once and reverted on the owner's
-   instruction; the diffs are recoverable from this file's history if wanted.
+4. **The live application bugs** in `docs/live-bugs-found.md` were fixed on
+   27 Sep 2026, in both trees, on the owner's instruction (see *What the owner
+   asked for*): bill prefix, `getSgstPercent()`, `getMainDiscount()` and the
+   API customer `state_id`. `getIgstPercent()` returning 0 turned out to be
+   deliberate - a till sale charges IGST as CGST + SGST - and is left, with a
+   comment. The stacks still agree: every fix went to both in one commit.
 
 5. **Order SMS is off in both trees.** `Order::SendSms()` returned early on
    the owner's instruction, 21 Sep 2026, in `app2/models/Order.php` and
@@ -383,9 +382,10 @@ the only record of a decision. Condensed, in sequence:
   controllers, then the differential suites that verify them.
 - *"Fix the live application bugs"* → *"on second thoughts let the bugs be"*
   → *"revert"*. The five bugs in `docs/live-bugs-found.md` were fixed and
-  then reverted on this instruction. **They are reproduced deliberately**, so
-  that the two stacks agree. Do not "fix" one without fixing Yii 1 in the
-  same commit, or every suite comparing it will go red.
+  then reverted on this instruction, and reproduced deliberately until
+  27 Sep 2026, when the owner asked for them to be fixed (below). The rule
+  stands: never fix one stack without the other in the same commit, or every
+  suite comparing them goes red.
 - *"Show me the URL where I can access the migrated code"* — cutover scope was
   set here: port the login, keep both stacks running. Hence `/` and `/v2`
   side by side, and open decision 3.
@@ -440,6 +440,31 @@ the only record of a decision. Condensed, in sequence:
   review it and test before fixing"* → *"do 1 and 2, then commit and push,
   and list the items where this bug erased stock"* — `c08eb31` and open
   decision 8.
+
+27 Sep 2026 (after an overnight audit of the port):
+
+- *"Fix wrong stock batch, crashes, wrong data and display first; after
+  testing commit and push"* — six `Port …` commits: finders return the newest
+  row as Yii 1's id DESC default scope does (`LegacyActiveRecord::findByCondition`),
+  bill/PO/GRN PDFs, imports that queried the wrong tables, user saves, report
+  scenarios, GRN GST recalculation, create_time stamped as Yii 1 does.
+- *"Also fix the database clock, row order and known bugs in both apps"* —
+  the MySQL container runs on +05:30; the 22 `id asc` finders added during
+  porting that reversed production's order are restored in both trees; and
+  the known bugs are fixed in both trees: the four display bugs above, loyalty
+  earned once per order and changed atomically, credit notes and refunds that
+  cannot be over-used, a locked bill-number allocation (`GET_LOCK('pos_bill_no')`),
+  held orders resumed once, B2B GRN stock through `addToBalance()`, PO GST
+  fields, blank-qty GRN approval, payment import, opening-stock re-saves that
+  erased sales, item-detail deletes that erased history, and smaller ones - see
+  the commit messages.
+- *"Also fix the web root hardening"* — `.htaccess` rules deny `.env`, `.git`,
+  logs, docs and internal directories, and no script runs from the upload
+  folders. *"Nothing goes on the main branch as that is live"* — none of this
+  is on `main`.
+- Tested on a local MariaDB built from the code's own schema knowledge (no
+  production data): every read-only web action before/after, plus targeted
+  and concurrent tests on both stacks. `run_all.sh` was not run (see lesson 5).
 
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
