@@ -301,7 +301,7 @@ class Item extends ActiveRecord
 		return $id;
     }
 
-    public static function getTypeKeyOptions($id = null)
+    public static function getTypeKeyOptions($value)
     {
 		$list = [
 				"Finished",
@@ -320,7 +320,7 @@ class Item extends ActiveRecord
 		return '0';
     }
 
-    public static function getStatusKeyOptions($id = null)
+    public static function getStatusKeyOptions($value)
     {
 		$list = [
 				"Active",
@@ -468,7 +468,8 @@ class Item extends ActiveRecord
                         || Yii::$app->session ['stock_start_date'] === '') {
                     return $qty;
                 }
-                $query->andWhere('date(create_time) <"'.Yii::$app->session ['stock_start_date'].'"');
+                // Bound: the date comes from the report form via the session.
+                $query->andWhere('date(create_time) < :start', [':start' => Yii::$app->session ['stock_start_date']]);
                 $query->orderBy(['id' => SORT_DESC]);
                 $stock = $query->one();
                 if($stock){
@@ -596,7 +597,8 @@ class Item extends ActiveRecord
 
             $query = StockLog::find();
             $query->andWhere('item_id ='.$this->id);
-            $query->andWhere('date(create_time) <="'.Yii::$app->session ['stock_end_date'].'"');
+            // Bound: the date comes from the report form via the session.
+            $query->andWhere('date(create_time) <= :end', [':end' => Yii::$app->session ['stock_end_date']]);
             $query->orderBy(['id' => SORT_DESC]);
             $stock = $query->one();
             Yii::warning( var_export( $stock , true), '$stock');
@@ -1136,19 +1138,20 @@ class Item extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
         } else {
-            // update_time: set on update when empty, as Yii 1 did.
+            // update_time when unset, from the database clock, as BaseItem.
+            // No updated_by: Yii 1 never set it here.
             if ($this->hasAttribute('update_time') && !isset($this->update_time)) {
-                $this->update_time = date('Y-m-d H:i:s');
-            }
-            if ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-                $this->updated_by = Yii::$app->user->id;
+                $this->update_time = new \yii\db\Expression('NOW()');
             }
         }
 
@@ -1208,12 +1211,16 @@ class Item extends ActiveRecord
         // every row whose title is not null. With `name` as well, both apply.
         $title = trim((string) $this->title);
         $query->andWhere(['like', 'title', $title . '%', false]);
+        // != null, as Yii 1: loose, so a name of '0' (or '') filters nothing
+        if ($this->name != null) {
+            $query->andWhere(['like', 'title', '%' . trim((string) $this->name) . '%', false]);
+        }
+        // Yii 1 copies the session's item name onto the model only after the
+        // conditions above are built, so it never filters this query - the
+        // controller applies it, and only when the request carries Item[...].
         if (Yii::$app->session['item_name'] !== null
                 && Yii::$app->session['item_name'] !== '') {
             $this->name = Yii::$app->session['item_name'];
-        }
-        if ($this->name !== null && $this->name !== '') {
-            $query->andWhere(['like', 'title', trim((string) $this->name)]);
         }
 
         // A vendor sees only the items they supply.
@@ -1522,7 +1529,7 @@ class Item extends ActiveRecord
                             $item->status = Item:: getStatusKeyOptions($itemcat_values[$arrays['Status']]);
                         } */
                         if (isset($arrays['Item Category']) && ($arrays['Item Category']) != '') {
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Category']]);
                             $category = $query->one();
                             if($category){
@@ -1531,7 +1538,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Item SubCategory']) && ($arrays['Item SubCategory']) != '') {
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item SubCategory']]);
                             $category = $query->one();
                             if($category){
@@ -1540,7 +1547,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Item Company']) && $arrays['Item Company']) {
-                            $query = Item::find();
+                            $query = ItemCompany::find()->orderBy(ItemCompany::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Company']]);
                             $category = $query->one();
                             if($category){
@@ -1549,7 +1556,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Sub Category'])  && $arrays['Sub Category']) {
-                            $query = Item::find();
+                            $query = ItemCompanyCategory::find()->orderBy(ItemCompanyCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Sub Category']]);
                             $category = $query->one();
                             if($category){
@@ -1593,7 +1600,7 @@ class Item extends ActiveRecord
 
                             $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
                         }
-                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
                         $user = Yii::$app->user->model;
                         if($user->role_id != $role->id ){
                             $item->state_id = Item::STATUS_INACTIVE;
@@ -1602,7 +1609,7 @@ class Item extends ActiveRecord
                         if ($item->save()) {
                             $itemdetail = new ItemDetail();
                             if (isset($arrays['Tax'])) {
-                                $query = Item::find();
+                                $query = Tax::find();
                                 Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
                                 $tax = $query->one();
                                 if($tax){
@@ -1624,9 +1631,9 @@ class Item extends ActiveRecord
 
                                 $batch_no =  User::randomBarcode('5');
 
-                                    $itemstock = ItemStock ::model()->findByAttributes(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,
+                                    $itemstock = ItemStock::find()->where(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,
                                             'vendor_id'=>'0'
-                                    ]);
+                                    ])->orderBy(ItemStock::defaultOrder() ?: [])->one();
                                     if($itemstock == null){
                                         $itemstock = new ItemStock;
                                     }
@@ -1764,7 +1771,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Category'])) {
                             $cat = str_replace(";",",",$itemcat_values[$arrays['Item Category']]);
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $cat);
                             $category = $query->one();
                             if($category){
@@ -1774,7 +1781,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Sub Category'])) {
                             $sbcat = str_replace(";",",",$itemcat_values[$arrays['Sub Category']]);
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $sbcat);
                             $category = $query->one();
                             if($category){
@@ -1784,7 +1791,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Company'])) {
                             $com = str_replace(";",",",$itemcat_values[$arrays['Item Company']]);
-                            $query = Item::find();
+                            $query = ItemCompany::find()->orderBy(ItemCompany::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $com);
                             $category = $query->one();
                             if($category){
@@ -1794,7 +1801,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Company Category'])) {
                             $comcat = str_replace(";",",",$itemcat_values[$arrays['Item Company Category']]);
-                            $query = Item::find();
+                            $query = ItemCompanyCategory::find()->orderBy(ItemCompanyCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $comcat);
                             $category = $query->one();
                             if($category){
@@ -1850,7 +1857,7 @@ class Item extends ActiveRecord
                             $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
                             }
                         }
-                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
                         $user = Yii::$app->user->model;
                         if($user->role_id != $role->id ){
                             $item->state_id = Item::STATUS_INACTIVE;
@@ -1865,7 +1872,7 @@ class Item extends ActiveRecord
                                 }
                             } */
                             if (isset($arrays['Barcode']) && ($itemcat_values[$arrays['Barcode']] != '')) {
-                                $query = Item::find();
+                                $query = Outlet::find()->orderBy(Outlet::defaultOrder() ?: []);
                                 $outlet = $query->one();
                                 $itemDetailbars = ItemDetail::find()->where([
                                         'bar_code' =>  $itemcat_values[$arrays['Barcode']],
@@ -1896,7 +1903,7 @@ class Item extends ActiveRecord
                                 $itemDetail->outlet_id = $outlet->id;
                                 $itemDetail->item_id = $item->id;
                                 if (isset($arrays['Tax'])) {
-                                    $query = Item::find();
+                                    $query = Tax::find();
                                     Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
                                     $category = $query->one();
                                     if($category){
@@ -1913,9 +1920,9 @@ class Item extends ActiveRecord
                                 if($itemDetail->save()){
                                     $batch_no =  User::randomBarcode('5');
 
-                                    $itemstock = ItemStock ::model()->findByAttributes(['outlet_id'=>$itemDetail->outlet_id ,
+                                    $itemstock = ItemStock::find()->where(['outlet_id'=>$itemDetail->outlet_id ,
                                             'vendor_id'=>'0','item_detail_id'=>$itemDetail->id ,'item_id'=>$item->id
-                                    ]);
+                                    ])->orderBy(ItemStock::defaultOrder() ?: [])->one();
                                     if($itemstock == null){
                                         $itemstock = new ItemStock;
                                     }
@@ -2021,7 +2028,7 @@ class Item extends ActiveRecord
 
 
                         if (isset($arrays['Vendor'])) {
-                            $query = Item::find();
+                            $query = Vendor::find()->orderBy(Vendor::defaultOrder() ?: []);
                             Criteria::compare($query, 'name', $item_values[$arrays['Vendor']]);
                             $vendor = $query->one();
                             Yii::warning( var_export( $vendor , true), '$$vendor');
@@ -2462,7 +2469,7 @@ class Item extends ActiveRecord
                 $remaining_quantity = '0.000';
                 $add_quantity = '0.000';
                 $sub_quantity = '0.000';
-                $query = ItemDetail::find();
+                $query = ItemStock::find();
                 $query->andWhere('item_detail_id =' . $item_detail->id);
                 $query->orderBy(['id' => SORT_ASC]);
                 $query->andWhere("balance_qty > 0.000");
@@ -2799,8 +2806,13 @@ class Item extends ActiveRecord
 		}
 		if (isset ( $this->tax_id ) && ($this->tax_id != '')) {
 			$detail_ids = [];
+			// Bound, not concatenated: tax_id is the grid's filter box. A
+			// non-integer broke Yii 1's SQL (a 500); it still fails, as a 400.
+			if (!is_scalar($this->tax_id) || !preg_match('/^\s*-?\d+\s*$/', (string) $this->tax_id)) {
+				throw new \yii\web\BadRequestHttpException('Invalid tax_id.');
+			}
 			$query4 = ItemDetail::find();
-			$query4->andWhere('tax_id ='.$this->tax_id);
+			$query4->andWhere(['tax_id' => (int) $this->tax_id]);
 			$query4->orderBy(['id' => SORT_DESC]);
 			$query4->groupBy('item_id');
 			$item_details = $query4->all();

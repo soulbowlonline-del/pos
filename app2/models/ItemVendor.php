@@ -182,13 +182,18 @@ class ItemVendor extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
         } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+            // BaseItemVendor stamps updated_by on update (its update_time line
+            // is commented out there, so update_time is left alone).
             $this->updated_by = Yii::$app->user->id;
         }
 
@@ -199,7 +204,8 @@ class ItemVendor extends ActiveRecord
     {
         return [
             [['item_detail_id', 'vendor_id', 'create_time', 'create_user_id'], 'required'],
-            [['item_code', 'vendor_price'], 'required'],
+            // create only, as BaseItemVendor: rows made by a GRN or an import carry no item code
+            [['item_code', 'vendor_price'], 'required', 'on' => 'create'],
             [['item_detail_id', 'vendor_id', 'status', 'type_id', 'create_user_id', 'updated_by'], 'integer'],
             [['vendor_price', 'item_code'], 'safe'],
             [['status', 'type_id', 'updated_by'], 'default', 'value' => null],

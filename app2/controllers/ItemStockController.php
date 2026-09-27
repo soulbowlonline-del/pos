@@ -153,9 +153,9 @@ class ItemStockController extends BaseUiController {
 		$this->performAjaxValidation($model, 'item-stock-form');
 
 		if (isset($_POST['ItemStock'])) {
-			$model = ItemStock ::model()->findByAttributes(['batch_number'=>$_POST['ItemStock']['batch_number'],'outlet_id'=>$_POST['ItemStock']['outlet_id'],
+			$model = ItemStock::find()->where(['batch_number'=>$_POST['ItemStock']['batch_number'],'outlet_id'=>$_POST['ItemStock']['outlet_id'],
 					'item_detail_id'=>$_POST['ItemStock']['item_detail_id'],'item_id'=>$_POST['ItemStock']['item_id']
-			]);
+			])->orderBy(['id' => SORT_DESC])->one();
 			if($model == null){
 				$model = new ItemStock;
 				$model->load($_POST, 'ItemStock');
@@ -312,7 +312,9 @@ class ItemStockController extends BaseUiController {
 		if (isset($_GET['ItemStock']))
 		{
 			$model->load($_GET, 'ItemStock');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

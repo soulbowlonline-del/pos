@@ -148,7 +148,7 @@ $('.search-form form').submit(function(){
 					//  'data_demanded_quantity' => '$data->demanded_quantity',
 					//  'data-state_id' => '$data->state_id',
 					//  'visible' => function ($data) { return $data->getStateValue($model->id) == 0; },
-				 'value' => "date('Y-m-d')",
+				 'value' => function () { return date('Y-m-d'); }, // Yii 1 evaluated the string as PHP
 					'headerOptions' => ['style' => 'width: 110px'],
 					'editable' => [
 							//'url'     => Ui::to('demandVoucherItem/updated'),

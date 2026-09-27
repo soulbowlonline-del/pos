@@ -62,8 +62,8 @@ class ItemExpireController extends BaseUiController {
 			if($model->save()){
 				$itemDetail = ItemDetail::findOne($model->item_detail_id);
 				if($itemDetail){
-					$itemStock = ItemStock::findOne(['item_detail_id'=>$itemDetail->id,
-							'outlet_id'=> $model->outlet_id]);
+					$itemStock = ItemStock::find()->where(['item_detail_id'=>$itemDetail->id,
+							'outlet_id'=> $model->outlet_id])->orderBy(['id' => SORT_DESC])->one();
 					$item = Item::findOne($itemDetail->item_id);
 					$current = $itemStock->balance_qty;
 					
@@ -179,7 +179,9 @@ class ItemExpireController extends BaseUiController {
 		if (isset($_GET['ItemExpire']))
 		{
 			$model->load($_GET, 'ItemExpire');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

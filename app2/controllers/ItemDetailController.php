@@ -274,9 +274,9 @@ class ItemDetailController extends BaseUiController {
 				$batch_no =  User::randomBarcode('5');
 				$outlet_ids = $_POST ['ItemDetail'] ['outlet_id'];
 				foreach ( $outlet_ids as $outlet_id ) {
-					$itemstock = ItemStock ::model()->findByAttributes(['outlet_id'=>$outlet_id,
+					$itemstock = ItemStock::find()->where(['outlet_id'=>$outlet_id,
 							'vendor_id'=>'0','item_detail_id'=>$model->id,
-					]);
+					])->orderBy(['id' => SORT_DESC])->one();
 					if($itemstock == null){
 						$itemstock = new ItemStock;
 					}
@@ -311,7 +311,7 @@ class ItemDetailController extends BaseUiController {
 					
 					
 				if (isset ( $_POST ['ItemDetail'] ['tax_id'] )) {
-					$itemtax = ItemTax ::model()->findByAttributes(['item_detail_id'=>$model->id,'tax_id'=>$_POST ['ItemDetail'] ['tax_id']
+					$itemtax = ItemTax::findOne(['item_detail_id'=>$model->id,'tax_id'=>$_POST ['ItemDetail'] ['tax_id']
 						
 					]);
 					if($itemtax == null){
@@ -369,7 +369,9 @@ class ItemDetailController extends BaseUiController {
 		
 		if (isset ( $_GET ['ItemDetail'] )) {
 			$model->load($_GET, 'ItemDetail');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );

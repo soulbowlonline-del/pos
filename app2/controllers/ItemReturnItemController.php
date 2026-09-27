@@ -429,8 +429,8 @@ public function actionReport($id = null) {
   			try {
   				$itemDetail = ItemDetail::findOne($model->item_detail_id);
   				if($itemDetail){
-  					$itemStock = ItemStock::findOne(['item_detail_id'=>$itemDetail->id,
-  							'outlet_id'=> $model->outlet_id]);
+  					$itemStock = ItemStock::find()->where(['item_detail_id'=>$itemDetail->id,
+  							'outlet_id'=> $model->outlet_id])->orderBy(['id' => SORT_DESC])->one();
   					$item = Item::findOne($itemDetail->item_id);
   					$current = $itemStock->balance_qty;
   						
@@ -495,9 +495,9 @@ public function actionReport($id = null) {
 										}
 										Yii::warning( var_export($vendor->vendor_id, true), '$mrs_vendor_id');
 										if($vendor->vendor_id != null){
-										$mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor->vendor_id,
+										$mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor->vendor_id,
 										'outlet_id'=>$model->outlet_id
-										]);
+										])->orderBy(['id' => SORT_DESC])->one();
 										Yii::warning( var_export($mrs, true), '$mrs_id');
 										
 										if($item->reorder_qty != ''){
@@ -790,7 +790,9 @@ public function actionReport($id = null) {
 		if (isset($_GET['ItemReturnItem']))
 		{
 			$model->load($_GET, 'ItemReturnItem');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -991,10 +993,10 @@ public function actionReport($id = null) {
                     try {
                         $itemDetail = ItemDetail::findOne($model->item_detail_id);
                         if ($itemDetail) {
-                            $itemStock = ItemStock::findOne([
+                            $itemStock = ItemStock::find()->where([
                                 'item_detail_id' => $itemDetail->id,
                                 'outlet_id' => $model->outlet_id
-                            ]);
+                            ])->orderBy(['id' => SORT_DESC])->one();
                             $item = Item::findOne($itemDetail->item_id);
                             $current = $itemStock->balance_qty;
 
@@ -1066,9 +1068,9 @@ public function actionReport($id = null) {
                                         Yii::warning( var_export($vendor->vendor_id, true), '$mrs_vendor_id');
 										if($vendor->vendor_id != null){
 										
-                                            $mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor->vendor_id,
+                                            $mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor->vendor_id,
 										'outlet_id'=>$model->outlet_id
-										]);
+										])->orderBy(['id' => SORT_DESC])->one();
                                         
 										Yii::warning( var_export($mrs, true), '$mrs_id');
 										
@@ -1246,6 +1248,9 @@ public function actionReport($id = null) {
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 		// if($email != '' && ($role->id != $login->role_id)){
 		// 	$from = (Yii::$app->params['mail_email'] ?? null) ;

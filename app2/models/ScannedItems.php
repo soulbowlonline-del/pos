@@ -612,28 +612,12 @@ class ScannedItems extends ActiveRecord
         }
     }
 
-    /**
-     * Port of the base model's beforeValidate(): stamps the row with who
-     * created or changed it and when. Yii 1 ran this on every save, so a
-     * row written by the port has to carry the same stamps.
-     */
+    /** Port of the base model's beforeValidate(), which stamps nothing. */
     public function beforeValidate()
     {
-        if (!parent::beforeValidate()) {
-            return false;
-        }
-        if ($this->isNewRecord) {
-            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
-            }
-            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
-                $this->create_user_id = Yii::$app->user->id;
-            }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
-        }
-
-        return true;
+        // Nothing is stamped: Yii 1's base beforeValidate() only calls its
+        // parent, so no create_time, create_user_id or updated_by is set here.
+        return parent::beforeValidate();
     }
 
     /**

@@ -3,6 +3,7 @@
  * Ported from protected/views/itemReturnItem/_pdf.php.
  */
 
+use app\components\Criteria;
 use app\models\ItemReturn;
 use app\models\ItemReturnItem;
 use app\models\Outlet;
