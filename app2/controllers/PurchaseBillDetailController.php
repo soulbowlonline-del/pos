@@ -565,7 +565,9 @@ class PurchaseBillDetailController extends BaseUiController {
 						$model = $this->loadModel($key);
 						$itemdetail = ItemDetail::findOne( $model->item_detail_id );
 						$item = Item::findOne( $model->item_id );
-						if($poIdAll ['qty'] [$key] == 0){
+						// PHP 8: a blank qty ('') no longer equals 0 and is not a number, so it threw a TypeError
+						// (PHP 5.6 read it as 0); cast as PHP 5.6 did, here and below.
+						if((float)$poIdAll ['qty'] [$key] == 0){
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == PurchaseBill::STATUS_APPROVED)){
 							// Yii 1's findByAttributes() applied the model's defaultScope,
 							// id DESC: of several batches, the newest one is the row used.
@@ -754,7 +756,7 @@ class PurchaseBillDetailController extends BaseUiController {
 						}
 						if (isset ( $poIdAll ['qty'] )) {
 							$model->approved_qty = $poIdAll ['qty'] [$key];
-							$model->bal_qty = ($model->req_qty - $model->approved_qty);
+							$model->bal_qty = ((float)$model->req_qty - (float)$model->approved_qty);
 						}
 						$model->create_time = date('Y-m-d H:i:s');
 						if ($model->save ()) {
@@ -788,7 +790,7 @@ class PurchaseBillDetailController extends BaseUiController {
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id 
 							] )->orderBy(['id' => SORT_DESC])->one();
-							$qty = number_format($qty, 3, '.', '');
+							$qty = number_format((float)$qty, 3, '.', '');
 							$newStockRow = ($itemstock == null);
 							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
@@ -933,7 +935,8 @@ class PurchaseBillDetailController extends BaseUiController {
 				$transaction->rollback ();
 					
 			}
-			} catch ( \Exception $e ) {
+			// \Throwable: a TypeError is not an \Exception, and escaped the rollback.
+			} catch ( \Throwable $e ) {
 				Yii::error('purchaseBillDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
 					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$transaction->rollback ();

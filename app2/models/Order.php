@@ -80,17 +80,10 @@ class Order extends ActiveRecord
      * The financial year runs April to March, so a bill dated in months 4-12
      * belongs to year..year+1 and one dated in months 1-3 to year-1..year.
      *
-     * The outlet prefix logic is inverted in the Yii 1 original:
-     *
-     *     if ($outlet->bill_prefix == '') { $bill_prefix = $outlet->bill_prefix; }
-     *     else                            { $bill_prefix = 'B'; }
-     *
-     * An outlet with a configured prefix has it discarded in favour of 'B', and
-     * an outlet with an empty one ends up with ''. That looks unintended - the
-     * same logic in toArray1()/toArray2() is written the other way round - but
-     * it is what currently produces every bill number, so it is reproduced here
-     * rather than quietly corrected. Fixing it would change bill numbers on
-     * printed invoices and needs to be a deliberate, separate decision.
+     * The prefix is the outlet's bill_prefix, or 'B' when that is empty. Until
+     * the owner approved the fix this test was inverted in both stacks
+     * (`== ''`), so a configured prefix was replaced by 'B' and an empty one
+     * gave '/-<no>'; see docs/live-bugs-found.md. Fixed in Yii 1 at the same time.
      */
     public function getOrderBillNo()
     {
@@ -109,7 +102,11 @@ class Order extends ActiveRecord
         $billPrefix = 'B';
         $outlet = Outlet::findOne($this->outlet_id);
         if ($outlet) {
-            $billPrefix = ($outlet->bill_prefix == '') ? $outlet->bill_prefix : 'B';
+            // Was == '': an outlet's own bill_prefix was used only when it was empty,
+            // so a configured prefix was always replaced by 'B' and an empty one gave
+            // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+            // order API already do.
+            $billPrefix = ($outlet->bill_prefix != '') ? $outlet->bill_prefix : 'B';
         }
 
         return 'Gst ' . $year . '-' . $yearLast . '/' . $billPrefix . '-' . $billNo;

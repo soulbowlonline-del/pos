@@ -164,16 +164,20 @@ class PurchaseBillDetail extends ActiveRecord
     }
 
     /**
-     * Always '0'.
+     * This bill's discount_amt summed across the lines sharing this tax rate -
+     * the Discount column of the purchase report and tally/paymentreport.
+     * Already netted out of Basic Value (amount - tax).
      *
-     * The Yii 1 version sums discount_amt across the tax group and then returns
-     * the literal string '0', discarding it. The loop has no other effect, so
-     * only the return value is reproduced - but the behaviour is the constant,
-     * not the sum, and anything relying on this column is reading a zero.
+     * Both stacks computed this sum and then returned a literal '0'; fixed in
+     * Yii 1 at the same time.
      */
     public function getMainDiscount()
     {
-        return '0';
+        $amount = 0;
+        foreach ($this->siblings() as $detail) {
+            $amount = $amount + $detail->discount_amt;
+        }
+        return $amount;
     }
 
     public function getCgstAmount()

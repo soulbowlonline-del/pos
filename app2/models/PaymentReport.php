@@ -448,10 +448,10 @@ class PaymentReport extends ActiveRecord
                     'net_bill_amount'=>$itemcat_values [$arrays ['Amt']]
                                     ])->orderBy(['id' => SORT_DESC])->one();
 
-                                    $chq_date = $bill->getChqDate();
-                                    $value_date = date ( 'Y-m-d', strtotime ( $itemcat_values [$arrays ['Value Dt']] ) );
-
+                                    // Called on $bill before checking there was one: a row matching no bill was a fatal.
                                     if($bill){
+                                        $chq_date = $bill->getChqDate();
+                                        $value_date = date ( 'Y-m-d', strtotime ( $itemcat_values [$arrays ['Value Dt']] ) );
                                         //if($itemcat_values [$arrays ['Status']] == 'L' && ($chq_date == $value_date)){
                                             //if($itemcat_values [$arrays ['Status']] == 'L' ){
                                             $bill->payment_done = PurchaseBill::PAYMENT_DONE;
@@ -467,8 +467,9 @@ class PaymentReport extends ActiveRecord
                      /* if($save == true){  */
                     if ($report->save ()) {
                     } else {
-                        print_R ( $report->getErrors () );
-                        exit ();
+                        // Was print_R + exit: the errors were dumped in place of the page and the request
+                        // ended inside the open transaction. Roll back below; the caller flashes the failure.
+                        Yii::warning( var_export($report->getErrors(), true), 'paymentreport' );
                         $set = false;
                     }
                     /*  }else{
@@ -479,6 +480,7 @@ class PaymentReport extends ActiveRecord
                         $transaction->commit ();
                         return 1;
                     }
+                    $transaction->rollback ();
                  } catch ( \Exception $e ) {
                      $transaction->rollback ();
                  }

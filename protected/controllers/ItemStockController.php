@@ -157,6 +157,9 @@ class ItemStockController extends GxController {
 			if($model == null){
 				$model = new ItemStock;
 				$model->setAttributes($_POST['ItemStock']);
+				// The form posts the qty as purchase_qty, so the line above has already put it there
+				// and the sums below counted it twice. A new batch starts from nothing.
+				$model->purchase_qty = 0;
 				if($_POST['ItemStock']['type_id'] == ItemStock::TYPE_ADDED){
 					$model->purchase_qty = $model->purchase_qty + $_POST['ItemStock']['purchase_qty'] ;
 					$model->balance_qty = $model->balance_qty +  $_POST['ItemStock']['purchase_qty'] ;
@@ -170,18 +173,19 @@ class ItemStockController extends GxController {
 			}else{
 				$model->setAttributes($_POST['ItemStock']);
 				$existingStock = true;
+			// The line above has already overwritten purchase_qty with the posted qty, and adding
+			// it again saved twice the posted qty over the batch's purchases. Both quantities now
+			// change once, by the posted qty, in the database (addToBalance).
 			if($_POST['ItemStock']['type_id'] == ItemStock::TYPE_ADDED){
-				$model->purchase_qty = $model->purchase_qty + $_POST['ItemStock']['purchase_qty'] ;
 				$stockDelta = $_POST['ItemStock']['purchase_qty'];
 			}else{
-				$model->purchase_qty = $model->purchase_qty - $_POST['ItemStock']['purchase_qty'] ;
 				$stockDelta = - $_POST['ItemStock']['purchase_qty'];
 			$cal = true;
 			}
 			}
 			// An existing batch's balance changes in the database (addToBalance),
 			// so a sale or GRN landing at the same moment is not overwritten.
-			if (!empty($existingStock) ? ($model->saveExcept(array('balance_qty')) && $model->addToBalance($stockDelta)) : $model->save()) {
+			if (!empty($existingStock) ? ($model->saveExceptQty() && $model->addToBalance($stockDelta, $stockDelta)) : $model->save()) {
 				$itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
 			$itemDetail->update_time = date('Y-m-d H:i:s');
 				$itemDetail->saveAttributes(array('update_time'));

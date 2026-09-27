@@ -196,9 +196,9 @@ class OrderItem extends ActiveRecord
      * The loop is left out here rather than reproduced: it costs a query per
      * summary row and cannot affect the output.
      *
-     * cgst_per and friends come off the Tax row as tax_val1..tax_val4. That
-     * mapping is the one recorded in docs/live-bugs-found.md as suspect
-     * (getSgstPercent() reads tax_val1 elsewhere); reproduced, not corrected.
+     * cgst_per and friends come off the Tax row as tax_val1..tax_val4
+     * (CGST, SGST, CESS, IGST), the mapping ItemDetail::getSgstPercent() now
+     * uses too.
      */
     public function getTaxApiArray()
     {

@@ -644,7 +644,8 @@ class PurchaseOrderDetailController extends BaseUiController {
 			{
 				if (isset ( $_POST ['PurchaseOrderDetail'] ['start_date'] ) && ($_POST ['PurchaseOrderDetail'] ['start_date'] != '')) {
 					if (isset ( $_POST ['PurchaseOrderDetail'] ['purchase_order_id'] ) && ($_POST ['PurchaseOrderDetail'] ['purchase_order_id'] != '')) {
-						$po = PurchaseOrder::findOne($mrsid);
+						// $mrsid was never defined here (copied from mrsDetail/admin): use the id the guard above checks.
+						$po = PurchaseOrder::findOne($_POST ['PurchaseOrderDetail'] ['purchase_order_id']);
 						if($po){
 							$start_date = $po->start_date;
 						}
@@ -896,35 +897,37 @@ class PurchaseOrderDetailController extends BaseUiController {
 					{
 						$model->discount_amt1 = $poIdAll['discount_amt1'][$key];
 					}
-					if(isset( $mrnIdAll['cgstData']))
+					// The tax fields below read $mrnIdAll/$mrsIdAll, which are never defined in this action,
+					// so the posted CGST/SGST/CESS/IGST were silently ignored. They are posted with the rest.
+					if(isset( $poIdAll['cgstData']))
 					{
-						$model->cgst_per = $mrnIdAll['cgstData'][$key];
+						$model->cgst_per = $poIdAll['cgstData'][$key];
 					}
-					if(isset( $mrnIdAll['sgstData']))
+					if(isset( $poIdAll['sgstData']))
 					{
-						$model->sgst_per = $mrnIdAll['sgstData'][$key];
+						$model->sgst_per = $poIdAll['sgstData'][$key];
 					}
-					if(isset( $mrnIdAll['cessData']))
+					if(isset( $poIdAll['cessData']))
 					{
-						$model->cess_per = $mrnIdAll['cessData'][$key];
+						$model->cess_per = $poIdAll['cessData'][$key];
 					}
-					if(isset( $mrnIdAll['cgstamtData']))
+					if(isset( $poIdAll['cgstamtData']))
 					{
-						$model->cgst_amt = $mrnIdAll['cgstamtData'][$key];
+						$model->cgst_amt = $poIdAll['cgstamtData'][$key];
 					}
-					if(isset( $mrnIdAll['sgstamtData']))
+					if(isset( $poIdAll['sgstamtData']))
 					{
-						$model->sgst_amt = $mrnIdAll['sgstamtData'][$key];
+						$model->sgst_amt = $poIdAll['sgstamtData'][$key];
 					}
-					if(isset( $mrnIdAll['cessamtData']))
+					if(isset( $poIdAll['cessamtData']))
 					{
-						$model->cess_amt = $mrnIdAll['cessamtData'][$key];
+						$model->cess_amt = $poIdAll['cessamtData'][$key];
 					}
-					if (isset ( $mrsIdAll ['igstData'] )) {
-						$model->igst_per = $mrsIdAll ['igstData'] [$key];
+					if (isset ( $poIdAll ['igstData'] )) {
+						$model->igst_per = $poIdAll ['igstData'] [$key];
 					}
-					if (isset ( $mrsIdAll ['igstamtData'] )) {
-						$model->igst_amt = $mrsIdAll ['igstamtData'] [$key];
+					if (isset ( $poIdAll ['igstamtData'] )) {
+						$model->igst_amt = $poIdAll ['igstamtData'] [$key];
 					}
 					if(isset( $poIdAll['other_charge']))
 					{

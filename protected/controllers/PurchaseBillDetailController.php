@@ -583,7 +583,9 @@ class PurchaseBillDetailController extends GxController {
 						$model = $this->loadModel ( $key, 'PurchaseBillDetail' );
 						$itemdetail = ItemDetail::model ()->findByPk ( $model->item_detail_id );
 						$item = Item::model ()->findByPk ( $model->item_id );
-						if($poIdAll ['qty'] [$key] == 0){
+						// PHP 8: a blank qty ('') no longer equals 0 and is not a number, so it threw a TypeError
+						// (PHP 5.6 read it as 0); cast as PHP 5.6 did, here and below.
+						if((float)$poIdAll ['qty'] [$key] == 0){
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == PurchaseBill::STATUS_APPROVED)){
 							$billstock = ItemStock::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemdetail->id,
@@ -770,7 +772,7 @@ class PurchaseBillDetailController extends GxController {
 						}
 						if (isset ( $poIdAll ['qty'] )) {
 							$model->approved_qty = $poIdAll ['qty'] [$key];
-							$model->bal_qty = ($model->req_qty - $model->approved_qty);
+							$model->bal_qty = ((float)$model->req_qty - (float)$model->approved_qty);
 						}
 						$model->create_time = date('Y-m-d H:i:s');
 						if ($model->save ()) {
@@ -802,7 +804,7 @@ class PurchaseBillDetailController extends GxController {
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id 
 							) );
-							$qty = number_format($qty, 3, '.', '');
+							$qty = number_format((float)$qty, 3, '.', '');
 							$newStockRow = ($itemstock == null);
 							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
@@ -930,7 +932,8 @@ class PurchaseBillDetailController extends GxController {
 				$transaction->rollback ();
 					
 			}
-			} catch ( Exception $e ) {
+			// Throwable: a TypeError is not an Exception, and escaped the rollback.
+			} catch ( Throwable $e ) {
 				$transaction->rollback ();
 			}
 			}

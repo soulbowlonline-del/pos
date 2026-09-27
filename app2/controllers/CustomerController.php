@@ -448,13 +448,12 @@ class CustomerController extends Controller
      * contact_no together; anything less is silently ignored, as in Yii 1,
      * which leaves the NOK envelope untouched with no message.
      *
-     * Two behaviours carried over deliberately:
+     * Two fixes, each made in Yii 1 as well:
      *
-     *  - state_id is overwritten with 1 immediately after being read from the
-     *    request ("activates account set 1" in the original). Whatever the
-     *    caller sends for state_id is therefore discarded. It looks like the
-     *    column is being used both as a geographic state and as a status flag,
-     *    but changing it would alter stored data.
+     *  - state_id is kept as posted. Both stacks overwrote it with 1 just
+     *    before saving ("activates account set 1" - a line pasted from the
+     *    user controller, where state_id is the account flag). On
+     *    tbl_customer it is the customer's State, and 1 is Punjab.
      *  - the duplicate-phone check excludes the customer being edited. Without
      *    that, getUserByContactNo() matches the customer against itself and
      *    every update that did not also change the phone number was rejected
@@ -497,8 +496,6 @@ class CustomerController extends Controller
             $out['message'] = 'Contact no. already in use.';
             return $out;
         }
-
-        $model->state_id = 1;   // see the note above
 
         // save(), not save(false): Yii 1 validates here and answers the
         // validation errors - a bad or already-taken email, a non-integer id -
@@ -565,7 +562,13 @@ class CustomerController extends Controller
         $out['status'] = 'OK';
         // Rendered before the delete, as in Yii 1.
         $out['order'][] = $order->toApiArray();
-        $order->delete();
+        // Hand the hold only to the caller whose delete removed it. Two tills
+        // resuming the same hold at once both found it above, both were given
+        // it, and the one order was billed twice.
+        if (!$order->delete()) {
+            $out = $this->envelope('getOrderHold');
+            $out['message'] = 'Order not available';
+        }
         return $out;
     }
 
@@ -687,8 +690,6 @@ class CustomerController extends Controller
             $out['message'] = 'Contact no. already in use.';
             return $out;
         }
-
-        $model->state_id = 1;   // "activates account set 1" - see actionUpdate
 
         // Validated, as in Yii 1 - which is also what runs beforeValidate() and
         // stamps create_time; save(false) skipped both.

@@ -1352,7 +1352,8 @@ curl_close($ch);
 			// Read the file as csv
 			while ( ($data = fgetcsv ( $handle, 1000, "," )) !== FALSE ) {
 				$row_count ++;
-				$data = array_map ( "utf8_encode", $data ); // added
+				// utf8_encode() is deprecated from PHP 8.2 (fatal under E_ALL); this is the same conversion.
+				$data = array_map ( function ($s) { return mb_convert_encoding ( (string) $s, 'UTF-8', 'ISO-8859-1' ); }, $data ); // added
 				foreach ( $data as $key => $value ) {
 					
 					$data [$key] = $value;
@@ -2571,6 +2572,11 @@ curl_close($ch);
 				$criteria->addCondition ( 'status =' . ItemExpire::STATUS_PENDING );
 				$eitems = ItemExpireItem::model ()->findAll ( $criteria );
 				if ($eitems) {
+					// One transaction for the lines, their stock and the header: each line used to be
+					// saved as done on its own, so a failed stock update left it expired with the stock
+					// still on hand. $set was already here for this and never used.
+					$transaction = Yii::app ()->db->beginTransaction ();
+					try {
 					foreach ( $eitems as $eitem ) {
 						$eitem->status = ItemExpire::STATUS_DONE;
 						if ($eitem->save ()) {
@@ -2603,6 +2609,8 @@ curl_close($ch);
 											print_r ( $log->getErrors () );
 											exit ();
 										}
+									} else {
+										$set = false;
 									}
 								}
 							}
@@ -2612,6 +2620,15 @@ curl_close($ch);
 					$itemExpire->saveAttributes ( array (
 							'status' 
 					) );
+					if ($set == true) {
+						$transaction->commit ();
+					} else {
+						$transaction->rollback ();
+					}
+					} catch ( Exception $e ) {
+						$transaction->rollback ();
+						throw $e;
+					}
 				}
 			}
 		}

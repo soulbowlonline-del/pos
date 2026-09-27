@@ -87,7 +87,9 @@ class B2BPurchaseBillDetailController extends GxController {
 			// echo"<pre>"; print_t($_POST['B2bPurchaseBillDetail']); die;
 			$model->setAttributes($_POST['B2bPurchaseBillDetail']);
 			$model->outlet_id = '5';
-			if($model->approved_qty != '')
+			// No braces here before: only the next statement was conditional, so a blank
+			// approved_qty went on to use $billmodel without ever setting it.
+			if($model->approved_qty != ''){
 				 $billmodel = B2bPurchaseBill::model()->findByAttributes(array(
                         'vendor_id' => $_POST['vendor'],
                         'start_date' =>  $_POST['date'],
@@ -115,6 +117,7 @@ class B2BPurchaseBillDetailController extends GxController {
 				}else{
 					echo"no";
 				}
+			}
 		}
 		else{
 				
@@ -831,16 +834,14 @@ class B2BPurchaseBillDetailController extends GxController {
 							
 							
 							$qty = number_format($qty, 3, '.', '');
-							if ($itemstock == null) {
+							$newStockRow = ($itemstock == null);
+							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
 								$itemstock = new ItemStock ();
 								$purchase = '-'.$qty;
 								$balance =  '-'.$qty;
 								$itemstock->batch_number = $batch_no;
 								$itemstock->type = 'B2B';
-							} else {
-								$purchase = ($itemstock->purchase_qty) - $qty;
-								$balance = ($itemstock->balance_qty) - $qty;
 							}
 							
 							
@@ -851,10 +852,19 @@ class B2BPurchaseBillDetailController extends GxController {
 							$itemstock->outlet_id = $model->outlet_id;
 							$itemstock->tax_id = $model->tax_id;
 							$itemstock->item_id = $itemdetail->item_id;
-							$itemstock->purchase_qty = $purchase;
-							$itemstock->balance_qty = $balance;
 							$itemstock->create_user_id = Yii::app ()->user->id;
-							if ($itemstock->save ()) {
+							if ($newStockRow) {
+								$itemstock->purchase_qty = $purchase;
+								$itemstock->balance_qty = $balance;
+								$stockSaved = $itemstock->save ();
+							} else {
+								// Take the quantity off in the database, not off the
+								// balance read above: a sale or GRN of the same batch
+								// landing at the same moment was erased by the later
+								// of two whole-row saves. Same as the GRN path.
+								$stockSaved = $itemstock->saveExceptQty () && $itemstock->addToBalance ( -$qty, -$qty );
+							}
+							if ($stockSaved) {
 									$itemstock->createB2bMrs();
 								$remain = $item->getTotalRemainingQuantity();
 								$min_qty = $item->min_qty;

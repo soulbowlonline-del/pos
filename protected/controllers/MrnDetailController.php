@@ -492,7 +492,9 @@ class MrnDetailController extends GxController {
 			$model->bal_qty = ($model->req_qty - $model->approved_qty);
 			if ($model->save()) {
 				if($model->approved_qty != '' && $model->approved_qty != '0'){
-					$pomodel = PurchaseOrder::model()->findByAttributes(array('mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id));
+					// The purchase order belongs to the MRN, not to this detail row: look it up by the MRN's id and
+					// the MRN's vendor, which is what it is saved with below (as actionAjaxupdate does).
+					$pomodel = PurchaseOrder::model()->findByAttributes(array('mrn_id'=>$existmrn->id,'vendor_id'=>$existmrn->vendor_id));
 					$updated = true;
 					if($pomodel == null){
 						$pomodel = new PurchaseOrder();
@@ -500,10 +502,12 @@ class MrnDetailController extends GxController {
 					}
 					$pomodel->start_date = date('Y-m-d');
 					$pomodel->code = "code";
-					$pomodel->outlet_id = $existmrs->outlet_id;
-					$pomodel->vendor_id = $existmrs->vendor_id;
-					$pomodel->mrs_id = $existmrs->id;
-					$pomodel->organization_id = $existmrs->organization_id;
+					// $existmrs was never defined (the MRN loaded above is $existmrn), and purchase orders have
+					// mrn_id, not mrs_id; so approving a quantity here failed. Same fields as actionAjaxCreate.
+					$pomodel->outlet_id = $existmrn->outlet_id;
+					$pomodel->vendor_id = $existmrn->vendor_id;
+					$pomodel->mrn_id = $existmrn->id;
+					$pomodel->organization_id = $existmrn->organization_id;
 					if($pomodel->save()){
 					if($updated){
 						$msg = 'PurchaseOrder is updated';
@@ -519,7 +523,8 @@ class MrnDetailController extends GxController {
 						$type = Notification::TYPE_PO;
 						$model_id = $pomodel->id;
 						Notification::AddNotification($model_id,$msg,$type,$to_id);
-						$podetailmodel = PurchaseOrderDetail::model()->findByAttributes(array('purchase_order_id'=>$pomodel->id,'outlet_id'=>$model->outlet_id));
+						// One order line per item: without the item in the lookup, every new item overwrote the order's first line.
+						$podetailmodel = PurchaseOrderDetail::model()->findByAttributes(array('purchase_order_id'=>$pomodel->id,'outlet_id'=>$model->outlet_id,'item_id'=>$model->item_id,'item_detail_id'=>$model->item_detail_id));
 						if($podetailmodel == null){
 							$podetailmodel = new PurchaseOrderDetail();
 						}
@@ -748,7 +753,8 @@ class MrnDetailController extends GxController {
 			}
 			if (isset ( $_POST ['MrnDetail'] ['mrs_req_date'] ) && ($_POST ['MrnDetail'] ['mrs_req_date'] != '')) {
 				if (isset ( $_POST ['MrnDetail'] ['mrs_id'] ) && ($_POST ['MrnDetail'] ['mrs_id'] != '')) {
-					$mrs = Mrn::model()->findByPk($mrsid);
+					// $mrsid was never defined here (copied from mrsDetail/admin): use the id the guard above checks.
+					$mrs = Mrn::model()->findByPk($_POST ['MrnDetail'] ['mrs_id']);
 					if($mrs){
 						$start_date = $mrs->mrs_req_date;
 					}

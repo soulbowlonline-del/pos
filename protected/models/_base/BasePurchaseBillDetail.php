@@ -107,7 +107,10 @@ abstract class BasePurchaseBillDetail extends GxActiveRecord {
 		if ($this->tax_id && $this->is_free == 0) {
 			$tax = Tax::model()->findByPk($this->tax_id);
 			if ($tax) {
-				$taxable_amount = ($this->approved_qty * $this->price) - ($this->discount_amt + $this->discount_amt1);
+				// (float): a blank approved_qty or discount is '' on a GRN line that is not yet
+				// approved, which PHP 5.6 read as 0 and PHP 8 rejects with a TypeError (the
+				// port's PurchaseBillDetail already casts). The casts give 5.6's figures.
+				$taxable_amount = ((float)$this->approved_qty * (float)$this->price) - ((float)$this->discount_amt + (float)$this->discount_amt1);
 				$this->cgst_per = $tax->tax_val1;
 				$this->sgst_per = $tax->tax_val2;
 				$this->cess_per = $tax->tax_val3;

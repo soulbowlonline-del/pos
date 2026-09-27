@@ -617,7 +617,8 @@ class Vendor extends ActiveRecord
                             $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
                         }
                         $query->andWhere('item_id ='.$orderitem->item_id);
-                        $query->select('sum(total_amt) as total_amt');
+                        // Selected only total_amt but reads tax_amt, so the refunded tax was always 0.
+                        $query->select('sum(tax_amt) as tax_amt');
                         $orderRefundItem = $query->one();
                         if($orderRefundItem){
                             $refund = $refund + ($orderRefundItem->tax_amt);

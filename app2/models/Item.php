@@ -1632,7 +1632,9 @@ class Item extends ActiveRecord
 
                                 $batch_no =  User::randomBarcode('5');
 
-                                    $itemstock = ItemStock::find()->where(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,
+                                    // Only this detail's own batch: a random batch number shared with another item's
+                                    // opening batch used to find that batch and overwrite it.
+                                    $itemstock = ItemStock::find()->where(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,'item_detail_id'=>$itemdetail->id,
                                             'vendor_id'=>'0'
                                     ])->orderBy(ItemStock::defaultOrder() ?: [])->one();
                                     if($itemstock == null){
@@ -1881,12 +1883,27 @@ class Item extends ActiveRecord
                                     //    'item_id' => $item->id,
                                 ])->all();
 
+                                // The detail for this barcode used to be deleted and made again, and deleting a
+                                // detail took its sales, purchases and stock history with it. The newest one is
+                                // now updated in place; any duplicates are deleted as before (beforeDelete refuses
+                                // one that has history).
+                                $itemDetail = null;
                                 if($itemDetailbars){
                                     foreach($itemDetailbars as $itemDetailbar){
-                                        $itemDetailbar->delete();
+                                        if($itemDetail === null || $itemDetailbar->id > $itemDetail->id){
+                                            $itemDetail = $itemDetailbar;
+                                        }
+                                    }
+                                    foreach($itemDetailbars as $itemDetailbar){
+                                        if($itemDetailbar->id != $itemDetail->id){
+                                            $itemDetailbar->delete();
+                                        }
                                     }
                                 }
-                                $itemDetail = new ItemDetail();
+                                if($itemDetail === null){
+                                    $itemDetail = new ItemDetail();
+                                }
+                                $oldOpenStock = $itemDetail->isNewRecord ? 0 : $itemDetail->open_stock_qty;
 
                                 Yii::warning( var_export( $itemDetail , true), '$itemDetail');
                                 $barcodestr = $itemcat_values[$arrays['Barcode']];
@@ -1928,23 +1945,33 @@ class Item extends ActiveRecord
                                         $itemstock = new ItemStock;
                                     }
 
+                                    // An existing opening batch used to be overwritten with the opening stock, erasing
+                                    // the sales already taken from it. It now moves by the change in the opening stock
+                                    // only (nothing when re-imported unchanged); a new batch starts from it as before.
+                                    $openingDelta = (float) trim($itemDetail->open_stock_qty) - (float) $oldOpenStock;
+                                    if($itemstock->isNewRecord){
                                     $itemstock->balance_qty = trim($itemDetail->open_stock_qty);
                                     $itemstock->purchase_qty = trim($itemDetail->open_stock_qty);
+                                    $itemstock->batch_number = $batch_no;
+                                    }
                                     $itemstock->outlet_id = $itemDetail->outlet_id ;
                                     $itemstock->vendor_id = 0;
                                     $itemstock->mrp = $item->mrp;
                                     $itemstock->base_price = $item->sale_price;
-                                    $itemstock->batch_number = $batch_no;
                                     $itemstock->item_id = $item->id;
                                     $itemstock->item_detail_id = $itemDetail->id;
-                                    if($itemstock->save()){
+                                    if($itemstock->isNewRecord ? $itemstock->save() : ($itemstock->saveExceptQty() && $itemstock->addToBalance($openingDelta, $openingDelta))){
 
                                     }else{
                                         print_r($itemstock->getErrors());exit;
                                     }
                                     if ($itemDetail->tax_id != null) {
 
+                                            // The detail is reused now, so reuse its tax row too: one per detail, as before.
+                                            $itemtax = ItemTax::find()->where(['item_detail_id'=>$itemDetail->id])->orderBy(['id' => SORT_DESC])->one();
+                                            if($itemtax == null){
                                             $itemtax= new ItemTax();
+                                            }
                                             $itemtax->item_detail_id =$itemDetail->id;
                                             $itemtax->tax_id =$itemDetail->tax_id;
                                             $itemtax->save();

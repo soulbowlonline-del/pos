@@ -144,8 +144,18 @@ class ItemController extends GxController {
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
-	 														$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-	 														$creditnot->save();
+	 														// Debit the note in the database, and only while it still covers
+	 														// the bill: the check above is on a read, and two bills paying with
+	 														// the same note at once both passed it and both were marked used.
+	 														$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+	 															. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+	 															->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+	 														if ($debited > 0 || $order->total_amt == 0) {
+	 															$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+	 														} else {
+	 															$set = false;
+	 															$arr ['message'] = 'Credit note amount is less than total amount';
+	 														}
 	 													}else{
 	 														$set = false;
 	 														$arr ['message'] = 'Credit note amount is less than total amount';
@@ -256,6 +266,13 @@ class ItemController extends GxController {
 	 											
 	 										if ($set == true) {
 	 											$transaction->commit ();
+	 											// Serialise the bill number: two bills finishing at the same moment
+	 											// both read the same highest bill_no and were given the same number.
+	 											// A named MySQL lock - the same name as the v2 port's, so the two
+	 											// stacks wait for each other - is held from the read to the write and
+	 											// released in the finally below whatever happens in between.
+	 											$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+	 											try {
 	 											$criteria = new CDbCriteria();
 	 											$criteria->order = 'bill_no desc';
 	 											if($start_date != '' && $end_date != ''){
@@ -270,6 +287,11 @@ class ItemController extends GxController {
 	 												
 	 											$order->bill_no = $bill_no;
 	 											$order->saveAttributes(array('bill_no'));
+	 											} finally {
+	 												if ($billNoLock) {
+	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+	 												}
+	 											}
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -1086,8 +1108,18 @@ class ItemController extends GxController {
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
-	 														$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-	 														$creditnot->save();
+	 														// Debit the note in the database, and only while it still covers
+	 														// the bill: the check above is on a read, and two bills paying with
+	 														// the same note at once both passed it and both were marked used.
+	 														$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+	 															. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+	 															->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+	 														if ($debited > 0 || $order->total_amt == 0) {
+	 															$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+	 														} else {
+	 															$set = false;
+	 															$arr ['message'] = 'Credit note amount is less than total amount';
+	 														}
 	 													}else{
 	 														$set = false;
 	 														$arr ['message'] = 'Credit note amount is less than total amount';
@@ -1200,6 +1232,13 @@ class ItemController extends GxController {
 	 											
 	 										if ($set == true) {
 	 											$transaction->commit ();
+	 											// Serialise the bill number: two bills finishing at the same moment
+	 											// both read the same highest bill_no and were given the same number.
+	 											// A named MySQL lock - the same name as the v2 port's, so the two
+	 											// stacks wait for each other - is held from the read to the write and
+	 											// released in the finally below whatever happens in between.
+	 											$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+	 											try {
 	 											$criteria = new CDbCriteria();
 	 											$criteria->order = 'bill_no desc';
 	 											if($start_date != '' && $end_date != ''){
@@ -1214,6 +1253,11 @@ class ItemController extends GxController {
 	 												
 	 											$order->bill_no = $bill_no;
 	 											$order->saveAttributes(array('bill_no'));
+	 											} finally {
+	 												if ($billNoLock) {
+	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+	 												}
+	 											}
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -2159,8 +2203,18 @@ class ItemController extends GxController {
 							if($creditnot){
 								$remain_amt = $creditnot->amt - $creditnot->amt_used;
 								if(($remain_amt) >= ($order->total_amt)){
-									$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-									$creditnot->save();
+									// Debit the note in the database, and only while it still covers
+									// the bill: the check above is on a read, and two bills paying with
+									// the same note at once both passed it and both were marked used.
+									$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+										. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+										->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+									if ($debited > 0 || $order->total_amt == 0) {
+										$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+									} else {
+										$set = false;
+										$arr ['message'] = 'Credit note amount is less than total amount';
+									}
 								}else {
 									$set = false;
 									$arr ['message'] = 'Credit note amount is less than total amount';
@@ -2246,6 +2300,13 @@ class ItemController extends GxController {
 						
 					if ($set == true) {
 						$transaction->commit ();
+						// Serialise the bill number: two bills finishing at the same moment
+						// both read the same highest bill_no and were given the same number.
+						// A named MySQL lock - the same name as the v2 port's, so the two
+						// stacks wait for each other - is held from the read to the write and
+						// released in the finally below whatever happens in between.
+						$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+						try {
 						$criteria = new CDbCriteria();
 						$criteria->order = 'bill_no desc';
 						if($start_date != '' && $end_date != ''){
@@ -2260,6 +2321,11 @@ class ItemController extends GxController {
 							
 						$order->bill_no = $bill_no;
 						$order->saveAttributes(array('bill_no'));
+						} finally {
+							if ($billNoLock) {
+								Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+							}
+						}
 						if ($status == '1') {
 						$data = array();
 						

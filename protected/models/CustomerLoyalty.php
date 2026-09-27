@@ -30,13 +30,33 @@ class CustomerLoyalty extends BaseCustomerLoyalty
         ];
     }
 
+    /**
+     * Moves the balance with one UPDATE in the database. The callers used to
+     * change total_points on the row read at the start of the request and
+     * save() it back, so two requests at the same moment overwrote each other:
+     * points were spent twice, or a credit was lost. With $debit the row only
+     * changes while total_points still covers the amount taken off.
+     * Returns whether the row changed.
+     */
+    public function changePoints($total, $earned, $redeemed, $debit = false) {
+        $sql = 'UPDATE ' . $this->tableName() . ' SET total_points = COALESCE(total_points, 0) + :total,'
+            . ' lifetime_earned = COALESCE(lifetime_earned, 0) + :earned,'
+            . ' lifetime_redeemed = COALESCE(lifetime_redeemed, 0) + :redeemed WHERE id = :id';
+        $params = array(':total' => $total, ':earned' => $earned, ':redeemed' => $redeemed, ':id' => $this->id);
+        if ($debit) {
+            $sql .= ' AND COALESCE(total_points, 0) >= :need';
+            $params[':need'] = -$total;
+        }
+        return $this->getDbConnection()->createCommand($sql)->execute($params) > 0;
+    }
+
     public function addPoints($points, $orderId = null, $description = 'Points earned') {
         // $transaction = Yii::app()->db->beginTransaction();
         try {
-            // Update loyalty totals
+            // Update loyalty totals in the database (see changePoints())
+            $this->changePoints($points, $points, 0);
             $this->total_points += $points;
             $this->lifetime_earned += $points;
-            $this->save();
 
             // Create transaction record
             $loyaltyTrans = new LoyaltyTransaction();
@@ -63,10 +83,15 @@ class CustomerLoyalty extends BaseCustomerLoyalty
 
         $transaction = Yii::app()->db->beginTransaction();
         try {
-            // Update loyalty totals
+            // Update loyalty totals in the database, and only while the
+            // balance still covers it: the check above is on a balance read
+            // earlier, and two redemptions at once both passed it.
+            if (!$this->changePoints(-$points, 0, $points, true)) {
+                $transaction->rollback();
+                return false; // Insufficient points
+            }
             $this->total_points -= $points;
             $this->lifetime_redeemed += $points;
-            $this->save();
 
             // Create transaction record
             $loyaltyTrans = new LoyaltyTransaction();

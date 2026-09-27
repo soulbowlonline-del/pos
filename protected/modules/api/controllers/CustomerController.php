@@ -182,7 +182,17 @@ class CustomerController extends GxController {
 			$arr ['status'] = 'OK';
 			
 			$arr ['order'] [] = $order->toArray ();
-			$order->delete ();
+			// Hand the hold only to the caller whose delete removed it. Two
+			// tills resuming the same hold at once both found it above, both
+			// were given it, and the one order was billed twice.
+			if (! $order->delete ()) {
+				$arr = array (
+						'controller' => $this->id,
+						'action' => $this->action->id,
+						'status' => 'NOK',
+						'message' => 'Order not available' 
+				);
+			}
 		} else {
 			$arr ['message'] = 'Order not available';
 		}
@@ -420,7 +430,10 @@ class CustomerController extends GxController {
 			$user = Customer::getUserByContactNo ( $model->contact_no );
 			if (! $user) {
 				
-				$model->state_id = 1; // activates account set 1
+				// Removed: `$model->state_id = 1; // activates account set 1`. That
+				// line is tbl_user's account flag (UserController), pasted here; on
+				// tbl_customer state_id is the customer's State (1 = Punjab), so it
+				// threw away the posted or stored state on every add and update.
 				if ($model->save ()) {
 					
 					try {
@@ -503,7 +516,10 @@ class CustomerController extends GxController {
 				// change the phone number - which is to say almost all of them.
 				if (! $user || $user->id == $model->id) {
 					
-					$model->state_id = 1; // activates account set 1
+					// Removed: `$model->state_id = 1; // activates account set 1`. That
+					// line is tbl_user's account flag (UserController), pasted here; on
+					// tbl_customer state_id is the customer's State (1 = Punjab), so it
+					// threw away the posted or stored state on every add and update.
 					if ($model->save ()) {
 						
 						$arr ['status'] = 'OK';

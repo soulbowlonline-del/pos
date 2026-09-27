@@ -413,9 +413,11 @@ public function actionReport($id = null) {
   		}
 		
   		$model->status = ItemReturn::STATUS_DONE;
+  		// Begin before saving the line: it used to be saved (status done) on its own, so a
+  		// failed stock update was rolled back while the line stayed saved as returned.
+  		$transaction = Yii::app ()->db->beginTransaction ();
   		if ($model->save ()) {
   			$set = true;
-  			$transaction = Yii::app ()->db->beginTransaction ();
   				
   			try {
   				$itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
@@ -638,6 +640,8 @@ public function actionReport($id = null) {
   				} catch ( Exception $e ) {
   					$transaction->rollback ();
   				}
+  		} else {
+  			$transaction->rollback ();
   		}
   		}
   		}
@@ -967,9 +971,11 @@ public function actionReport($id = null) {
                 }
 
                 $model->status = ItemReturn::STATUS_DONE;
+                // Begin before saving the line: it used to be saved (status done) on its own, so a
+                // failed stock update was rolled back while the line stayed saved as returned.
+                $transaction = Yii::app()->db->beginTransaction();
                 if ($model->save()) {
                     $set = true;
-                    $transaction = Yii::app()->db->beginTransaction();
 
                     try {
                         $itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
@@ -1204,6 +1210,8 @@ public function actionReport($id = null) {
                     } catch (Exception $e) {
                         $transaction->rollback();
                     }
+                } else {
+                	$transaction->rollback();
                 }
             }
         }

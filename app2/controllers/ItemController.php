@@ -1245,9 +1245,19 @@ class ItemController extends Controller
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        // marked used before the lines are known to save
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // marked used before the lines are known to save.
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                            $out['message'] = 'Credit note amount is less than total amount';
+                        }
                     } else {
                         // the message set here is overwritten by 'Try again'
                         // when the rollback below runs, as in Yii 1
@@ -1330,19 +1340,31 @@ class ItemController extends Controller
 
             $transaction->commit();
 
-            // the bill number, read and assigned after the commit
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            // updateAttributes(), not save(): this stands in for Yii 1's
-            // saveAttributes(), which writes through updateByPk and raises no
-            // events. save() runs updateInternal(), which fires afterSave() a
-            // second time - and Order::afterSave() credits loyalty points, so
-            // the bill number write earned the customer a second time. See the
-            // note on actionPunchorder below.
-            $order->updateAttributes(['bill_no']);
+            // the bill number, read and assigned after the commit.
+            // Serialise it: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
+                // updateAttributes(), not save(): this stands in for Yii 1's
+                // saveAttributes(), which writes through updateByPk and raises no
+                // events. save() runs updateInternal(), which fires afterSave() a
+                // second time - and Order::afterSave() credits loyalty points, so
+                // the bill number write earned the customer a second time. See the
+                // note on actionPunchorder below.
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -1573,8 +1595,18 @@ class ItemController extends Controller
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                            $out['message'] = 'Credit note amount is less than total amount';
+                        }
                     } else {
                         $ok = false;
                         $out['message'] = 'Credit note amount is less than total amount';
@@ -1653,13 +1685,25 @@ class ItemController extends Controller
 
             $transaction->commit();
 
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            // Yii 1's saveAttributes() - no events. See actionPunchorder.
-            $order->updateAttributes(['bill_no']);
+            // Serialise the bill number: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
+                // Yii 1's saveAttributes() - no events. See actionPunchorder.
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post, 'http://soulbowl.in/rest/api');
@@ -1947,8 +1991,17 @@ class ItemController extends Controller
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                        }
                     } else {
                         $ok = false;
                     }
@@ -2021,21 +2074,34 @@ class ItemController extends Controller
 
             $transaction->commit();
 
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $billNo = $latest ? $latest->bill_no + 1 : 1;
-            $order->bill_no = $billNo;
-            // Yii 1 writes the bill number with saveAttributes(), which goes
-            // through updateByPk() and raises no events. Yii 2's
-            // save(false, ['bill_no']) is not the same call: it runs
-            // updateInternal(), which fires afterSave() - and Order::afterSave()
-            // calls processLoyaltyEarning(). processOrderEarn() has no
-            // idempotency guard, so the second afterSave credited the customer
-            // a second time and every order earned twice its points. The Yii 2
-            // equivalent of saveAttributes() is updateAttributes().
-            $order->updateAttributes(['bill_no']);
+            // Serialise the bill number: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $billNo = $latest ? $latest->bill_no + 1 : 1;
+                $order->bill_no = $billNo;
+                // Yii 1 writes the bill number with saveAttributes(), which goes
+                // through updateByPk() and raises no events. Yii 2's
+                // save(false, ['bill_no']) is not the same call: it runs
+                // updateInternal(), which fires afterSave() - and Order::afterSave()
+                // calls processLoyaltyEarning(). processOrderEarn() had no
+                // idempotency guard then (it skips an order already earned on
+                // now), so the second afterSave credited the customer
+                // a second time and every order earned twice its points. The Yii 2
+                // equivalent of saveAttributes() is updateAttributes().
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
