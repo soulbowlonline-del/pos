@@ -59,6 +59,10 @@ class OrderUiController extends BaseUiController {
 	
 				# Renders image
 				//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+				// RAW, so mPDF's own Content-Type: application/pdf is what goes out.
+				// BaseUiController sets HTML, whose formatter replaced it with text/html
+				// and the browser showed the PDF bytes as text.
+				Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 				$mPDF1->Output();
 		
 				
@@ -223,7 +227,12 @@ class OrderUiController extends BaseUiController {
 	}
 	public function actionUpdateOrders($id) {
 		$query = Order::find();
-		$query->andWhere('id >='.$id);
+		// $id is the GET parameter: bound, not concatenated. A non-integer
+		// still fails the request, as the broken SQL did in Yii 1.
+		if (!preg_match('/^\s*-?\d+\s*$/', (string) $id)) {
+			throw new BadRequestHttpException('Invalid id.');
+		}
+		$query->andWhere('id >= :id', [':id' => (int) $id]);
 		$query->limit(1000);
 		$orders = $query->all();
 		if($orders){
@@ -656,7 +665,9 @@ if($oldgst != $newgst){
 		
 		if (isset ( $_GET ['Order'] )) {
 			$model->load($_GET, 'Order');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -948,6 +959,10 @@ if($oldgst != $newgst){
 		
 		// Renders image
 		// $mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out.
+		// BaseUiController sets HTML, whose formatter replaced it with text/html
+		// and the browser showed the PDF bytes as text.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output ();
 		
 		/*

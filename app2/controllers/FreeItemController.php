@@ -103,7 +103,7 @@ class FreeItemController extends BaseUiController {
             	}
             }
             $user = Yii::$app->user->model;
-            $role = UserRole::findOne(['title'=>'Admin']);
+            $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
             if($user->role_id != $role->id ){
             	$model->status = FreeItem::STATUS_INACTIVE;
             }
@@ -180,7 +180,9 @@ class FreeItemController extends BaseUiController {
 		if (isset($_GET['FreeItem']))
 		{
 			$model->load($_GET, 'FreeItem');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

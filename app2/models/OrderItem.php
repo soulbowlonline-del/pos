@@ -261,6 +261,10 @@ class OrderItem extends ActiveRecord
                 if ($gst) {
                     return $gst->id;
                 }
+                // Yii 1 overwrote $tax with the failed lookup and fell off the
+                // end: an IGST tax with no matching GST pair gives null, not
+                // the IGST id the final return below would hand back.
+                return null;
             } else {
                 return $tax->id;
             }
@@ -402,9 +406,20 @@ class OrderItem extends ActiveRecord
                 get_class($this) . ' does not have relation "' . $relation . '".');
         }
 
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
+        $query = $this->$getter();
+        $base = ['query' => $query, 'pagination' => ['pageSize' => Ui::PAGE_SIZE]];
+        // Yii 1's CActiveDataProvider ran the related model's defaultScope, so
+        // a relation that names no order lists newest first (id DESC) there.
+        // On the sort rather than the query: a query order would be put ahead
+        // of any column the user sorts by, and id is unique, so it would win.
+        if ($query->orderBy === null && method_exists($query->modelClass, 'defaultOrder')) {
+            $order = call_user_func([$query->modelClass, 'defaultOrder']);
+            if ($order) {
+                $base['sort'] = ['defaultOrder' => $order];
+            }
+        }
+
+        return new ActiveDataProvider(array_merge($base, $config));
     }
 
     public static function getStatusOptions($id = null)
@@ -1855,7 +1870,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -1907,7 +1922,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -1989,10 +2004,12 @@ class OrderItem extends ActiveRecord
                 foreach ( $orders as $order ) {
                     $qty = $order->qty;
                     $refund = 0;
-                    $query = OrderItem::find();
+                    // Yii 1: OrderRefund::model()->find() - one refund, not this
+                    // order's items (the same fault getGroupTax*Amount() had)
+                    $query = OrderRefund::find();
                     $query->andWhere('order_id =' . $order->order_id);
                     Criteria::compare($query, 'date(create_time)', $date);
-                    $orderRefund = $query->all();
+                    $orderRefund = $query->one();
                     if ($orderRefund) {
                         $query = OrderRefundItem::find();
                         $query->andWhere('order_refund_id =' . $orderRefund->id);
@@ -2021,10 +2038,12 @@ class OrderItem extends ActiveRecord
             if ($orders) {
                 foreach ( $orders as $order ) {
                     $qty = $order->qty;
-                    $query = OrderItem::find();
+                    // Yii 1: OrderRefund::model()->find() - one refund, not this
+                    // order's items (the same fault getGroupTax*Amount() had)
+                    $query = OrderRefund::find();
                     $query->andWhere('order_id =' . $order->order_id);
                     Criteria::compare($query, 'date(create_time)', $date);
-                    $orderRefund = $query->all();
+                    $orderRefund = $query->one();
                     if ($orderRefund) {
                         $query = OrderRefundItem::find();
                         $query->andWhere('order_refund_id =' . $orderRefund->id);
@@ -2060,10 +2079,12 @@ class OrderItem extends ActiveRecord
             if ($orders) {
                 foreach ( $orders as $order ) {
                     $qty = $order->qty;
-                    $query = OrderItem::find();
+                    // Yii 1: OrderRefund::model()->find() - one refund, not this
+                    // order's items (the same fault getGroupTax*Amount() had)
+                    $query = OrderRefund::find();
                     $query->andWhere('order_id =' . $order->order_id);
                     Criteria::compare($query, 'date(create_time)', $date);
-                    $orderRefund = $query->all();
+                    $orderRefund = $query->one();
                     if ($orderRefund) {
                         $query = OrderRefundItem::find();
                         $query->andWhere('order_refund_id =' . $orderRefund->id);
@@ -2099,10 +2120,12 @@ class OrderItem extends ActiveRecord
             if ($orders) {
                 foreach ( $orders as $order ) {
                     $qty = $order->qty;
-                    $query = OrderItem::find();
+                    // Yii 1: OrderRefund::model()->find() - one refund, not this
+                    // order's items (the same fault getGroupTax*Amount() had)
+                    $query = OrderRefund::find();
                     $query->andWhere('order_id =' . $order->order_id);
                     Criteria::compare($query, 'date(create_time)', $date);
-                    $orderRefund = $query->all();
+                    $orderRefund = $query->one();
                     if ($orderRefund) {
                         $query = OrderRefundItem::find();
                         $query->andWhere('order_refund_id =' . $orderRefund->id);
@@ -2138,10 +2161,12 @@ class OrderItem extends ActiveRecord
             if ($orders) {
                 foreach ( $orders as $order ) {
                     $qty = $order->qty;
-                    $query = OrderItem::find();
+                    // Yii 1: OrderRefund::model()->find() - one refund, not this
+                    // order's items (the same fault getGroupTax*Amount() had)
+                    $query = OrderRefund::find();
                     $query->andWhere('order_id =' . $order->order_id);
                     Criteria::compare($query, 'date(create_time)', $date);
-                    $orderRefund = $query->all();
+                    $orderRefund = $query->one();
                     if ($orderRefund) {
                         $query = OrderRefundItem::find();
                         $query->andWhere('order_refund_id =' . $orderRefund->id);
@@ -2174,7 +2199,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2225,7 +2250,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2274,7 +2299,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2329,7 +2354,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2387,7 +2412,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2442,7 +2467,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2543,7 +2568,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2600,7 +2625,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2660,7 +2685,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2717,7 +2742,7 @@ class OrderItem extends ActiveRecord
                 $order_ids = [];
                 $query = Order::find();
 
-                $query->andWhere('mode_of_payment =' . Yii::$app->session ['order_mode_payment']);
+                $query->andWhere(['mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 
                 $orders = $query->all();
                 if ($orders) {
@@ -2848,7 +2873,7 @@ class OrderItem extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -2912,7 +2937,8 @@ class OrderItem extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // newest first, as Yii 1's findByAttributes() under GxActiveRecord's id DESC scope
+        $vendor = Vendor::find()->where($condition)->orderBy(['id' => SORT_DESC])->one();
         if ($vendor === null) {
             return [];
         }
@@ -3292,7 +3318,7 @@ class OrderItem extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -3427,7 +3453,7 @@ class OrderItem extends ActiveRecord
 			$query1->andWhere(['between', 't.bill_date', $this->start_date, $this->end_date]);
 		}
 		if(Yii::$app->session ['order_mode_payment'] != ''){
-		$query1->andWhere('t.mode_of_payment ='.Yii::$app->session ['order_mode_payment']);
+		$query1->andWhere(['t.mode_of_payment' => Yii::$app->session ['order_mode_payment']]); // bound: set from ?OrderItem[mode_of_payment]
 		}
 		$orders = $query1->all();
 		if($orders){
@@ -3504,7 +3530,7 @@ class OrderItem extends ActiveRecord
                                $this->start_date, $this->end_date]);
         }
         if ($this->mode_of_payment != null) {
-            $query1->andWhere('t.mode_of_payment =' . $this->mode_of_payment);
+            $query1->andWhere(['t.mode_of_payment' => $this->mode_of_payment]); // bound: loaded from ?OrderItem[mode_of_payment]
         }
         foreach ($query1->all() as $order) {
             $order_ids[] = $order->id;
@@ -3555,7 +3581,7 @@ class OrderItem extends ActiveRecord
 			$query1->andWhere(['between', 't.bill_date', $this->start_date, $this->end_date]);
 		}
 		if ( $this->mode_of_payment != null) {
-			$query1->andWhere('t.mode_of_payment ='.$this->mode_of_payment);
+			$query1->andWhere(['t.mode_of_payment' => $this->mode_of_payment]); // bound: loaded from ?OrderItem[mode_of_payment]
 		}
 		Yii::warning( var_export(Yii::$app->session ['order_item_start_date'], true), 'start_date');
 		Yii::warning( var_export(Yii::$app->session ['order_item_end_date'], true), 'end_date');
@@ -3663,15 +3689,18 @@ class OrderItem extends ActiveRecord
             if ($this->hasAttribute('create_date') && !isset($this->create_date)) {
                 $this->create_date = date('Y-m-d');
             }
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }

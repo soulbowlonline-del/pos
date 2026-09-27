@@ -64,6 +64,10 @@ class OnlineOrderController extends BaseUiController {
 	
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out.
+		// BaseUiController sets HTML, whose formatter replaced it with text/html
+		// and the browser showed the PDF bytes as text.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 	
 	
@@ -138,9 +142,10 @@ class OnlineOrderController extends BaseUiController {
 					$transaction = Yii::$app->db->beginTransaction ();
 					try {
 	
-						$onlineorder = OnlineOrder::findOne( [
+						// newest first: Yii 1's findByAttributes() ran GxActiveRecord's id DESC scope
+						$onlineorder = OnlineOrder::find()->where( [
 								'order_id' => $result ['order_id']
-						] );
+						] )->orderBy(['id' => SORT_DESC])->one();
 						if ($onlineorder == null) {
 							$onlineorder = new OnlineOrder ();
 						}
@@ -255,10 +260,10 @@ class OnlineOrderController extends BaseUiController {
 							
 							$items = $result ['items'];
 							foreach ( $items as $item ) {
-								$orderitem = OnlineOrderItem::findOne( [
+								$orderitem = OnlineOrderItem::find()->where( [
 										'order_id' => $onlineorder->id,
 										'product_code'=>$item ['sku']
-								] );
+								] )->orderBy(['id' => SORT_DESC])->one();
 								if ($orderitem == null) {
 									$orderitem = new OnlineOrderItem ();
 								}
@@ -632,7 +637,9 @@ class OnlineOrderController extends BaseUiController {
 		
 		if (isset ( $_GET ['OnlineOrder'] )) {
 			$model->load($_GET, 'OnlineOrder');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
