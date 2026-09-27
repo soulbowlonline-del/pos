@@ -101,8 +101,22 @@ class SiteUiController extends BaseUiController
 	/**
 	 * This is the action to handle external exceptions.
 	 */
+	/**
+	 * Yii 1's SiteController has no access rules, so its error page renders
+	 * for a guest too. It is the application's errorAction; refusing it to a
+	 * guest would answer an error on user/login with a redirect to user/login.
+	 */
+	public function guestActions()
+	{
+		return ['error'];
+	}
+
 	public function actionError()
 	{
+		// Yii 1 gives a guest column2, the plain shell; main needs a user.
+		if (Yii::$app->user->isGuest) {
+			$this->layout = 'column1';
+		}
 		if($error=Ui::errorArray())
 		{
 			if(Yii::$app->request->isAjax)

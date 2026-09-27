@@ -349,6 +349,11 @@ abstract class BaseUiController extends Controller
     {
         $request = Yii::$app->request;
         if ($request->isAjax && ($form === null || $request->post('ajax') === $form)) {
+            // CActiveForm::validate() assigns $_POST[<Model>] to the model
+            // before validating it; Yii 2's ActiveForm::validate() does not.
+            // Without this every field was judged on the empty model, so the
+            // form marked a field "cannot be blank" as soon as it was filled.
+            $model->load($_POST);
             Yii::$app->response->format = Response::FORMAT_JSON;
             Yii::$app->response->data = \yii\widgets\ActiveForm::validate($model);
             Yii::$app->response->send();

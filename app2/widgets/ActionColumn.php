@@ -60,6 +60,18 @@ class ActionColumn extends \yii\grid\ActionColumn
                 }
                 $href = isset($b['url']) ? $this->resolve($b['url'], $model, $key) : $url;
 
+                // CButtonColumn gives the delete button a default 'click' that
+                // asks "Are you sure...?" and POSTs to the link. As a bare link
+                // it was a GET: a 400 from every delete action that insists on
+                // POST, and an unconfirmed delete from the ones that do not.
+                // yii.js does the same with these two attributes.
+                if ($name === 'delete' && !isset($b['click'])) {
+                    $options += [
+                        'data-confirm' => 'Are you sure you want to delete this item?',
+                        'data-method' => 'post',
+                    ];
+                }
+
                 // FaButtonColumn renders the icon in place of the label for the
                 // three standard buttons, so the cell shows an icon and a title
                 // attribute and no text. The trailing space inside the link is

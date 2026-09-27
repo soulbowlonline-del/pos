@@ -72,7 +72,9 @@ class SiteController extends Controller
         try {
             $db = Yii::$app->db->createCommand('SELECT VERSION()')->queryScalar();
         } catch (\Throwable $e) {
-            $db = 'ERROR: ' . $e->getMessage();
+            // the message can carry the DSN or the user name; the log keeps it
+            Yii::error($e->getMessage(), __METHOD__);
+            $db = 'ERROR';
         }
 
         $bridge = Yii::$app->user->readBridge();
@@ -83,9 +85,11 @@ class SiteController extends Controller
             'framework' => 'Yii ' . Yii::getVersion(),
             'php' => PHP_VERSION,
             'mysql' => $db,
+            // Not the id itself: the cookie is HttpOnly, and echoing its value
+            // in a guest-readable body hands it to any script on the page.
             'session' => [
                 'name' => session_name(),
-                'id' => session_id() ?: null,
+                'active' => session_id() !== '',
             ],
             'auth' => [
                 'bridged' => $bridge !== null,

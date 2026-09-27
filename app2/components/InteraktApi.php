@@ -5,11 +5,7 @@ use app\models\WhatsappLogs;
 use PosOutbound;
 
 /**
- * Yii 2 port of the Interakt client, limited to the OTP path.
- *
- * Only sendOtpMessage and the sendTemplate/sendRequest chain beneath it are
- * ported - enough for customer/sendOTP. The other six methods on the Yii 1
- * component belong with the purchase-order and upload flows that use them.
+ * Yii 2 port of protected/components/InteraktApi.php.
  *
  * The request payload and the target URL are built exactly as Yii 1 builds
  * them, because both are recorded by the stub and compared: the test checks
@@ -21,9 +17,13 @@ class InteraktApi
     public $apiUrl = 'https://api.interakt.ai/v1/public';
     public $apiKey;
 
+    /**
+     * Yii 1 configures the key as getenv('POS_INTERAKT_API_KEY') or '', so it
+     * is never null there; callers here pass `?: null`, which is kept as ''.
+     */
     public function __construct($apiKey = null)
     {
-        $this->apiKey = $apiKey;
+        $this->apiKey = $apiKey === null ? '' : $apiKey;
     }
 
     private function sendRequest($method, $endpoint, $data = [], $queryParams = [])
@@ -44,6 +44,8 @@ class InteraktApi
         // Not stubbed: this path is intentionally not implemented on the Yii 2
         // side yet. Yii 1 still serves every route that sends for real, so
         // reaching here means a route moved across before its transport did.
+        // The live transport is ready as a separate change for cutover, when
+        // the owner decides the port may message real customers.
         throw new \RuntimeException(
             'InteraktApi: live outbound is not implemented in the Yii 2 port; '
             . 'set POS_STUB_OUTBOUND=1 or use the Yii 1 route.'
@@ -88,6 +90,50 @@ class InteraktApi
     public function createCustomer($data)
     {
         return $this->sendRequest('POST', '/track/users/', $data);
+    }
+
+    public function getTemplates($queryParams = [])
+    {
+        return $this->sendRequest('GET', '/track/organization/templates', [], $queryParams);
+    }
+
+    /** Returns null, as the Yii 1 method has no return statement. */
+    public function sendApprovalOrderMessage($phone, $poId, $pdfUrl, $template = 'purchase_order_approved')
+    {
+        $data = [
+            'countryCode' => '+91',
+            'phoneNumber' => $phone,
+            'type' => 'Template',
+            'template' => [
+                'name' => $template,
+                'languageCode' => 'en',
+                'headerValues' => [$pdfUrl],
+                'fileName' => 'mpdf.pdf',
+                'bodyValues' => [$poId],
+            ],
+        ];
+
+        $this->sendTemplate($data);
+        return null;
+    }
+
+    /**
+     * Puts a file on the webshop's FTP server. Yii 1 dies with a bare message
+     * when it cannot connect, which is reproduced.
+     */
+    public function uploadFileToSoulBowl($fileName, $id)
+    {
+        if (class_exists('PosOutbound') && PosOutbound::isStubbed()) {
+            return PosOutbound::intercept(
+                PosOutbound::CHANNEL_FTP, 'ftp-upload', ['file' => $fileName, 'id' => $id]
+            );
+        }
+
+        // Not stubbed: held back with sendRequest()'s live path, see there.
+        throw new \RuntimeException(
+            'InteraktApi: live outbound is not implemented in the Yii 2 port; '
+            . 'set POS_STUB_OUTBOUND=1 or use the Yii 1 route.'
+        );
     }
 
     /**
