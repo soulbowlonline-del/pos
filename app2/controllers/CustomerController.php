@@ -66,6 +66,16 @@ class CustomerController extends Controller
         ];
     }
 
+    /** Yii 1's message for a failed save: each attribute's errors joined by '.', run together. */
+    private static function errorText($model)
+    {
+        $err = '';
+        foreach ($model->getErrors() as $errors) {
+            $err .= implode('.', $errors);
+        }
+        return $err;
+    }
+
     /** POST /v2/api/customer/discounts */
     public function actionDiscounts()
     {
@@ -215,7 +225,8 @@ class CustomerController extends Controller
     {
         $out = $this->envelope('setting');
 
-        $model = Setting::find()->one();
+        // Setting::model()->find(): the default scope's id DESC, so the newest row
+        $model = Setting::find()->orderBy(['id' => SORT_DESC])->one();
         if (!$model) {
             $out['message'] = 'Setting not found';
             return $out;
@@ -407,7 +418,7 @@ class CustomerController extends Controller
         }
 
         $model->is_enable_wa = 2;   // verified
-        $model->save(false);
+        $model->save();
 
         // toApiArray1() casts is_enable_wa to a string, because every other
         // caller reads it from the database where Yii 1 yields a string. Here the
@@ -487,8 +498,11 @@ class CustomerController extends Controller
 
         $model->state_id = 1;   // see the note above
 
-        if (!$model->save(false)) {
-            $out['message'] = '';
+        // save(), not save(false): Yii 1 validates here and answers the
+        // validation errors - a bad or already-taken email, a non-integer id -
+        // rather than writing them.
+        if (!$model->save()) {
+            $out['message'] = self::errorText($model);
             return $out;
         }
 
@@ -521,7 +535,7 @@ class CustomerController extends Controller
 
         if (CustomerOtpVerification::verifyOtp($model->id, $otp)) {
             $model->is_enable_wa = 2;
-            $model->save(false);
+            $model->save();
             $out['status'] = 'OK';
             $out['message'] = 'verified';
         }
@@ -607,7 +621,7 @@ class CustomerController extends Controller
             OTPService::sendOTPWhatsApp($phoneNumber, $model->name, $otpResult['otp_code']);
 
             $model->is_enable_wa = 1;
-            $model->save(false);
+            $model->save();
 
             $out['status'] = 'OK';
             $out['message'] = 'OTP sent successfully via WhatsApp';
@@ -674,8 +688,10 @@ class CustomerController extends Controller
 
         $model->state_id = 1;   // "activates account set 1" - see actionUpdate
 
-        if (!$model->save(false)) {
-            $out['message'] = '';
+        // Validated, as in Yii 1 - which is also what runs beforeValidate() and
+        // stamps create_time; save(false) skipped both.
+        if (!$model->save()) {
+            $out['message'] = self::errorText($model);
             return $out;
         }
 

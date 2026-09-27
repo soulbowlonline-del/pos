@@ -494,7 +494,8 @@ class OrderController extends Controller
             return $out;
         }
 
-        if ($id === null) {
+        // Yii 1 tests $id != null, which an empty /id/ segment also fails
+        if ($id === null || $id === '') {
             return $out;   // no message key, as in Yii 1
         }
 
@@ -592,7 +593,8 @@ class OrderController extends Controller
     {
         $out = $this->envelope('orderUpdate');
 
-        if ($id === null) {
+        // $id != null in Yii 1, so an empty id is the bare envelope too
+        if ($id === null || $id === '') {
             return $out;
         }
 
@@ -882,7 +884,8 @@ class OrderController extends Controller
         $out = $this->envelope('refund');
 
         $post = Yii::$app->request->post();
-        $loginId = $this->headerUserId();
+        // userlogin only, no login_id fallback, as Yii 1's refund reads it
+        $loginId = Yii::$app->request->getHeaders()->get('userlogin');
 
         if (!isset($post['item_details']) || !isset($post['order_id']) || !isset($post['type_id'])) {
             $out['message'] = 'No data posted';

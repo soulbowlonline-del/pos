@@ -29,6 +29,7 @@ use app\models\CreditNote;
 use app\models\OnlineOrder;
 use app\models\Discount;
 use app\components\InteraktApi;
+use PosOutbound;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -272,12 +273,23 @@ class ItemController extends Controller
     }
 
     /**
+     * 'userlogin' alone. order, ordertest and punchorder in Yii 1 read only
+     * that header, with no login_id fallback, so a request carrying just
+     * login_id is answered NOK there rather than billed.
+     */
+    private function headerUserlogin()
+    {
+        $v = Yii::$app->request->getHeaders()->get('userlogin');
+        return ($v === null || $v === '') ? null : $v;
+    }
+
+    /**
      * POST /v2/api/item/get-grn
      *
      * The unapproved purchase bills for the outlet the caller belongs to, as
      * bare ids. The outlet comes from the caller's employee record; if the user
-     * has no employee row, Yii 1 falls back to whichever outlet the database
-     * returns first, and if there are no outlets at all it goes on to use an
+     * has no employee row, Yii 1 falls back to the newest outlet (the default
+     * scope's id DESC), and if there are no outlets at all it goes on to use an
      * undefined $outlet_id - a 500 on PHP 8. Reproduced, since a deployment
      * with no outlets is not a real state.
      *
@@ -308,7 +320,9 @@ class ItemController extends Controller
         if ($emp) {
             $outletId = $emp->outlet_id;
         } else {
-            $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+            // Outlet::model()->find() with no criteria: GxActiveRecord's
+            // defaultScope orders it id DESC, so Yii 1 takes the newest outlet
+            $outlet = Outlet::find()->orderBy(['id' => SORT_DESC])->one();
             if ($outlet) {
                 $outletId = $outlet->id;
             }
@@ -695,13 +709,14 @@ class ItemController extends Controller
             $billDetail->order = $stock->entry_position;
             $billDetail->save();
 
+            // findByAttributes() with no order in Yii 1: the default scope's id DESC
             $itemStock = ItemStock::find()
                 ->where([
                     'item_detail_id' => $itemDetail->id,
                     'item_id' => $itemDetail->item_id,
                     'batch_number' => $batchNo,
                 ])
-                ->orderBy(['id' => SORT_ASC])
+                ->orderBy(['id' => SORT_DESC])
                 ->one();
 
             if ($itemStock === null) {
@@ -1147,7 +1162,7 @@ class ItemController extends Controller
     {
         $out = $this->envelope('order');
 
-        $loginId = $this->headerUserId();
+        $loginId = $this->headerUserlogin();
         if (!$loginId) {
             return $out;
         }
@@ -1477,7 +1492,7 @@ class ItemController extends Controller
     {
         $out = $this->envelope('ordertest');
 
-        $loginId = $this->headerUserId();
+        $loginId = $this->headerUserlogin();
         if (!$loginId) {
             return $out;
         }
@@ -1700,7 +1715,7 @@ class ItemController extends Controller
         $out = $this->envelope('punchorder');
 
         try {
-            $loginId = $this->headerUserId();
+            $loginId = $this->headerUserlogin();
             if (!$loginId) {
                 return $out;
             }

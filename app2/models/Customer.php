@@ -246,8 +246,8 @@ class Customer extends ActiveRecord
     }
 
     /**
-     * Port of the base model's beforeValidate(): stamps the row with who
-     * created or changed it and when. Yii 1 ran this on every save, so a
+     * Port of the base model's beforeValidate(): stamps a new row with who
+     * created it and when. Yii 1 ran this on every validated save, so a
      * row written by the port has to carry the same stamps.
      */
     public function beforeValidate()
@@ -262,9 +262,9 @@ class Customer extends ActiveRecord
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // No updated_by on an update: BaseCustomer::beforeValidate() in Yii 1
+        // has an empty else branch, so the column is never stamped there.
 
         return true;
     }
@@ -445,7 +445,7 @@ class Customer extends ActiveRecord
                             $customer->zip_code = $itemcat_values[$arrays['Zip Code']];
                         }
                         if (isset($arrays['City'])) {
-                            $query = City::find();
+                            $query = City::find()->orderBy(['id' => SORT_DESC]);   // Yii 1's defaultScope
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['City']]);
                             $city = $query->one();
                             if($city){
@@ -454,7 +454,7 @@ class Customer extends ActiveRecord
 
                         }
                         if (isset($arrays['State'])) {
-                            $query = City::find();
+                            $query = State::find()->orderBy(['id' => SORT_DESC]);   // Yii 1's defaultScope
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['State']]);
                             $state = $query->one();
                             if($state){
@@ -463,7 +463,7 @@ class Customer extends ActiveRecord
 
                         }
                         if (isset($arrays['Country'])) {
-                            $query = City::find();
+                            $query = Country::find()->orderBy(['id' => SORT_DESC]);   // Yii 1's defaultScope
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Country']]);
                             $country = $query->one();
                             if($country){
