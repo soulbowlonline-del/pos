@@ -249,6 +249,9 @@ exit;
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 	} 
 	public function actionPrint(){
@@ -541,6 +544,9 @@ exit;
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 		
 	
@@ -648,6 +654,9 @@ exit;
 
         // Renders image
         // $mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+        // RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+        // the HTML format BaseUiController sets would replace it with text/html.
+        Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
         $mPDF1->Output();
 
         /*

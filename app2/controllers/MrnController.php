@@ -158,7 +158,9 @@ class MrnController extends BaseUiController {
 		if (isset($_GET['Mrn']))
 		{
 			$model->load($_GET, 'Mrn');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -241,6 +243,9 @@ class MrnController extends BaseUiController {
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 		
 		

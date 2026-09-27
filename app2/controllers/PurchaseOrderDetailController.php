@@ -298,7 +298,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 				$model->purchase_order_id = $id;
 				if ($model->save()) {
 					if($model->approved_qty != '' && $model->approved_qty != '0'){
-						$billmodel = PurchaseBill::findOne(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+						$billmodel = PurchaseBill::find()->where(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 						$updated = true;
 						if($billmodel == null){
 							$billmodel = new PurchaseBill();
@@ -386,7 +386,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 			$model->purchase_order_id = $id;
 			if ($model->save()) {
 				if($model->approved_qty != '' && $model->approved_qty != '0'){
-					$billmodel = PurchaseBill::findOne(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+					$billmodel = PurchaseBill::find()->where(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if($billmodel == null){
 						$billmodel = new PurchaseBill();
@@ -547,7 +547,9 @@ class PurchaseOrderDetailController extends BaseUiController {
 		if (isset($_GET['PurchaseOrderDetail']))
 		{
 			$model->load($_GET, 'PurchaseOrderDetail');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -765,7 +767,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 			$purchaseorder->tax_amount = $_POST ['tax_amount'];
 			if (isset ( $_POST ['bill_amount'] ))
 			$purchaseorder->bill_amount = $_POST ['bill_amount'];
-			$purchasebill = PurchaseBill::findOne(['purchase_order_id'=>$id,'vendor_id'=>$purchaseorder->vendor_id]);
+			$purchasebill = PurchaseBill::find()->where(['purchase_order_id'=>$id,'vendor_id'=>$purchaseorder->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 			$updated = true;
 			if($purchasebill == null){
 				$purchasebill = new PurchaseBill();

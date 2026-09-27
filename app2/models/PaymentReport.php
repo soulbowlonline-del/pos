@@ -213,15 +213,18 @@ class PaymentReport extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }
@@ -438,9 +441,12 @@ class PaymentReport extends ActiveRecord
                             if (isset ( $arrays ['Bene Acct No'] )) {
 
                                 if($itemcat_values [$arrays ['Bene Acct No']] == $acc_no){
-                                    $bill = PurchaseBill::findOne(['vendor_id'=>$vendor->id,
+                                    // Yii 1's findByAttributes() applied PurchaseBill's
+                                    // defaultScope, id DESC: of the vendor's bills with
+                                    // this amount, the newest is the one marked paid.
+                                    $bill = PurchaseBill::find()->where(['vendor_id'=>$vendor->id,
                     'net_bill_amount'=>$itemcat_values [$arrays ['Amt']]
-                                    ]);
+                                    ])->orderBy(['id' => SORT_DESC])->one();
 
                                     $chq_date = $bill->getChqDate();
                                     $value_date = date ( 'Y-m-d', strtotime ( $itemcat_values [$arrays ['Value Dt']] ) );

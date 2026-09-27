@@ -361,9 +361,9 @@ class Mrs extends ActiveRecord
            $existmrsdetail = MrsDetail::findOne($id);
             $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
             $item = Item::findOne($this->item_id);
-            $mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$this->vendor_id,
+            $mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$this->vendor_id,
                     'outlet_id'=>$this->outlet_id
-            ]);
+            ])->orderBy(['id' => SORT_DESC])->one();
             if($mrs == null){
                 $mrs = new Mrs();
             }

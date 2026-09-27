@@ -449,7 +449,9 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_GET ['B2bPurchaseBillDetail'] )) {
 			$model->load($_GET, 'B2bPurchaseBillDetail');
 			
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -618,11 +620,13 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							
 							
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == B2bPurchaseBill::STATUS_APPROVED)){
-							$billstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$billstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							
 							
 							 if($billstock){
@@ -798,12 +802,14 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							}
 							
 							
-							$itemstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$itemstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id ,
 									'type' => 'B2B'
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							
 							
 							$qty = number_format($qty, 3, '.', '');

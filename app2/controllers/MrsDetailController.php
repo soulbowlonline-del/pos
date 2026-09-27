@@ -273,10 +273,10 @@ class MrsDetailController extends BaseUiController {
 				$model->bal_qty = ($model->req_qty - $model->approved_qty);
 			if ($model->save ()) {
 				if ($model->approved_qty != '' && $model->approved_qty != '0') {
-					$mrnmodel = Mrn::findOne( [
+					$mrnmodel = Mrn::find()->where( [
 							'mrs_id' => $model->id,
 							'vendor_id' => $model->vendor_id 
-					] );
+					] )->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if ($mrnmodel == null) {
 						$mrnmodel = new Mrn ();
@@ -366,10 +366,10 @@ class MrsDetailController extends BaseUiController {
 				$model->bal_qty = ($model->req_qty - $model->approved_qty);
 			if ($model->save ()) {
 				if ($model->approved_qty != '' && $model->approved_qty != '0') {
-					$mrnmodel = Mrn::findOne( [
+					$mrnmodel = Mrn::find()->where( [
 							'mrs_id' => $model->id,
 							'vendor_id' => $model->vendor_id 
-					] );
+					] )->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if ($mrnmodel == null) {
 						$mrnmodel = new Mrn ();
@@ -523,7 +523,9 @@ class MrsDetailController extends BaseUiController {
 		
 		if (isset ( $_GET ['MrsDetail'] )) {
 			$model->load($_GET, 'MrsDetail');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -818,11 +820,11 @@ class MrsDetailController extends BaseUiController {
 						$model->status = MrsDetail::STATUS_DONE;
 						$model->updateAttributes(['status']);
 						
-						$mrsadjust = MrsAdjust::findOne( [
+						$mrsadjust = MrsAdjust::find()->where( [
 								'item_id' => $model->item_id,
 								'item_detail_id' => $model->item_detail_id,
 								'status'=>MrsAdjust::STATUS_PENDING
-						] );
+						] )->orderBy(['id' => SORT_DESC])->one();
 						if($mrsadjust == null){
 						$mrsadjust = new MrsAdjust();
 						}
@@ -860,10 +862,10 @@ class MrsDetailController extends BaseUiController {
 				if (isset ( $_POST ['bill_amount'] ))
 					$mrs->bill_amount = $_POST ['bill_amount'];
 				
-				$mrnmodel = Mrn::findOne( [
+				$mrnmodel = Mrn::find()->where( [
 						'mrs_id' => $id,
 						'vendor_id' => $mrs->vendor_id 
-				] );
+				] )->orderBy(['id' => SORT_DESC])->one();
 				$updated = true;
 				if ($mrnmodel == null) {
 					$mrnmodel = new Mrn ();
@@ -1131,11 +1133,11 @@ class MrsDetailController extends BaseUiController {
 						$model->status = MrsDetail::STATUS_DONE;
 						$model->updateAttributes(['status']);
 						if(isset($mrsIdAll ['adjust_qty'] [$key])){
-						$mrsadjust = MrsAdjust::findOne( [
+						$mrsadjust = MrsAdjust::find()->where( [
 								'item_id' => $model->item_id,
 								'item_detail_id' => $model->item_detail_id,
 								'status'=>MrsAdjust::STATUS_PENDING
-						] );
+						] )->orderBy(['id' => SORT_DESC])->one();
 						if($mrsadjust == null){
 							$mrsadjust = new MrsAdjust();
 						}

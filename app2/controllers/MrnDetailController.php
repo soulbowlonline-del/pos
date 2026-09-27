@@ -413,7 +413,7 @@ class MrnDetailController extends BaseUiController {
 				if ($model->save()) {
 					
 					if($model->approved_qty != '' && $model->approved_qty != '0'){
-						$pomodel = PurchaseOrder::findOne(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+						$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 						$updated = true;
 						if($pomodel == null){
 							$pomodel = new PurchaseOrder();
@@ -500,7 +500,7 @@ class MrnDetailController extends BaseUiController {
 			$model->bal_qty = ($model->req_qty - $model->approved_qty);
 			if ($model->save()) {
 				if($model->approved_qty != '' && $model->approved_qty != '0'){
-					$pomodel = PurchaseOrder::findOne(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+					$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if($pomodel == null){
 						$pomodel = new PurchaseOrder();
@@ -662,7 +662,9 @@ class MrnDetailController extends BaseUiController {
 		if (isset($_GET['MrnDetail']))
 		{
 			$model->load($_GET, 'MrnDetail');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -860,7 +862,7 @@ class MrnDetailController extends BaseUiController {
 			$mrn->tax_amount = $_POST ['tax_amount'];
 		if (isset ( $_POST ['bill_amount'] ))
 			$mrn->bill_amount = $_POST ['bill_amount'];
-		$pomodel = PurchaseOrder::findOne(['mrn_id'=>$id,'vendor_id'=>$mrn->vendor_id]);
+		$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$id,'vendor_id'=>$mrn->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 		$updated = true;
 		if($pomodel == null){
 			$pomodel = new PurchaseOrder();
