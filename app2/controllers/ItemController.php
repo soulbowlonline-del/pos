@@ -296,7 +296,8 @@ class ItemController extends Controller
      * status stays 'NOK' when the caller is unknown or has no bills, and the
      * 'grns' key is absent - not an empty list.
      *
-     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     * The Yii 1 query names no order, so GxActiveRecord::defaultScope()'s
+     * id DESC applies. Ordered the same here.
      */
     public function actionGetGrn()
     {
@@ -333,7 +334,7 @@ class ItemController extends Controller
                 'outlet_id' => $outletId,
                 'status' => PurchaseBill::STATUS_UNAPPROVED,
             ])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if ($bills) {
@@ -812,15 +813,17 @@ class ItemController extends Controller
             return $out;
         }
 
+        // Newest batch and newest vendor row: Yii 1's findByAttributes() names
+        // no order, so GxActiveRecord::defaultScope()'s id DESC decides.
         $itemStock = ItemStock::find()
             ->where(['item_detail_id' => $itemDetail->id, 'outlet_id' => $outlet])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         // both of these are read without a null check in Yii 1
         $itemVendor = ItemVendor::find()
             ->where(['item_detail_id' => $itemDetail->item_id])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
         $itemStock->vendor_id = $itemVendor->vendor_id;
 
@@ -1034,7 +1037,8 @@ class ItemController extends Controller
             return;
         }
 
-        $organization = Organization::find()->orderBy(['id' => SORT_ASC])->one();
+        // id DESC here and for the pending MRS below: GxActiveRecord::defaultScope()
+        $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
         $detailAgain = ItemDetail::findOne($itemDetail->id);
         $tax = null;
         if ($detailAgain) {
@@ -1047,7 +1051,7 @@ class ItemController extends Controller
 
         $mrs = Mrs::find()
             ->where(['status' => Mrs::STATUS_PENDING, 'vendor_id' => $itemStock->vendor_id, 'outlet_id' => $outlet])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         $reorderQty = $item->reorder_qty != '' ? $item->reorder_qty : 10;
@@ -1233,9 +1237,11 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
@@ -1559,9 +1565,11 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
@@ -1931,9 +1939,11 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {

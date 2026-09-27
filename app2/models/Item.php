@@ -130,13 +130,14 @@ class Item extends ActiveRecord
      * matches item_vendor rows whose item_detail_id equals this *item's* id.
      * That looks like a mistake in the relation - the column holds item detail
      * ids elsewhere - but item/barcode reads it, so it is reproduced as
-     * declared rather than corrected. Ordered by id; Yii 1 leaves it unordered
-     * and the caller takes [0].
+     * declared rather than corrected. Ordered id DESC: the relation names no
+     * order of its own, and Yii 1 merges ItemVendor's inherited defaultScope()
+     * (id DESC) into it - so the [0] the caller takes is the newest row.
      */
     public function getItemVendors()
     {
         return $this->hasMany(ItemVendor::class, ['item_detail_id' => 'id'])
-            ->orderBy(['id' => SORT_ASC]);
+            ->orderBy(['id' => SORT_DESC]);
     }
 
     /**

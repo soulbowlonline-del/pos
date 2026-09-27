@@ -140,7 +140,7 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
@@ -445,12 +445,9 @@ class ItemController extends GxController {
 					}
 				}
 						
-					// ORDER BY added: MySQL 8 no longer returns an implicit order, and
-					// the Yii 2 port has to agree with this one. Same fix as the other
-					// unordered API queries.
 					$purchaseBills = PurchaseBill::model ()->findAllByAttributes ( array (
 							'outlet_id' => $outlet_id,'status'=>PurchaseBill::STATUS_UNAPPROVED
-					), array ( 'order' => 'id ASC' ) );
+					) );
 					if ($purchaseBills) {
 						$json_list = array ();
 						foreach ( $purchaseBills as $purchaseBill ) {
@@ -1085,7 +1082,7 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
@@ -1389,13 +1386,13 @@ class ItemController extends GxController {
 							$itemStock = ItemStock::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->id,
 									'outlet_id' => $outlet 
-							), array ( 'order' => 'id asc' ) );
+							) );
 							
 							/*for item vendor*/
 								$ItemVendor = ItemVendor::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->item_id
 								
-							), array ( 'order' => 'id asc' ) );
+							) );
 							$itemStock->vendor_id=$ItemVendor->vendor_id;
 							/*end item vendor*/
 							$item = Item::model ()->findByPk ( $itemDetail->item_id );
@@ -1591,7 +1588,7 @@ class ItemController extends GxController {
 									
 										/*Create MRS*/
 										// $itemdetail = Item::model()->findByPk($item->item_id);
-										$organization = Organization::model()->find(array('order'=>'id asc'));
+										$organization = Organization::model()->find();
 										$itemdetail_ = ItemDetail::model()->findByPk($itemDetail->id);
 										$tax='';
 										$tax_id='';
@@ -1603,7 +1600,7 @@ class ItemController extends GxController {
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
-										), array ( 'order' => 'id asc' ));
+										));
 										Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 										
 										if($item->reorder_qty != ''){
@@ -2158,7 +2155,7 @@ class ItemController extends GxController {
 					if ($status == '1') {
 						if(isset($_POST['credit_note_id'])){
 
-							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 							if($creditnot){
 								$remain_amt = $creditnot->amt - $creditnot->amt_used;
 								if(($remain_amt) >= ($order->total_amt)){

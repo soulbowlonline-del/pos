@@ -134,15 +134,18 @@ class OnlineOrder extends ActiveRecord
      * "title IS NULL" and finds nothing, which is what the first draft of this
      * port did: it disagreed with Yii 1 on 10 of 177 live rows.
      *
-     * Ordered by id so "first" is a defined row rather than whatever MySQL
-     * happened to return; the Yii 1 side is ordered to match.
+     * $direction is the order Yii 1 effectively used for that model: SORT_DESC
+     * where the model inherits GxActiveRecord::defaultScope()'s id DESC and the
+     * lookup names no order (PaymentMode), SORT_ASC where the Yii 1 lookup says
+     * 'id asc' itself (Customer) or the model's defaultScope() is empty (Item,
+     * ItemDetail - no order at all there, and id asc is what MySQL gives).
      */
-    private static function firstBy($query, $column, $value)
+    private static function firstBy($query, $column, $value, $direction = SORT_ASC)
     {
         if ($value !== null && $value !== '') {
             $query->andWhere([$column => $value]);
         }
-        return $query->orderBy(['id' => SORT_ASC])->one();
+        return $query->orderBy(['id' => $direction])->one();
     }
 
     /**
@@ -154,8 +157,8 @@ class OnlineOrder extends ActiveRecord
      */
     public function toApiArray($withItems = false)
     {
-        $paymentMode = self::firstBy(PaymentMode::find(), 'title', $this->payment_method);
-        $deliveryMode = self::firstBy(PaymentMode::find(), 'title', $this->delivery_method);
+        $paymentMode = self::firstBy(PaymentMode::find(), 'title', $this->payment_method, SORT_DESC);
+        $deliveryMode = self::firstBy(PaymentMode::find(), 'title', $this->delivery_method, SORT_DESC);
 
         // Yii 1 orders this by id asc and takes the first match on the phone
         // number, so a duplicated number resolves to the oldest customer - and
@@ -208,9 +211,11 @@ class OnlineOrder extends ActiveRecord
             $list = null;
 
             if ($posOrder === null) {
+                // Yii 1 reads $model->onlineOrderItems: the relation names no
+                // order, so OnlineOrderItem's inherited defaultScope() gives id DESC
                 $lines = OnlineOrderItem::find()
                     ->where(['order_id' => $this->id])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->all();
 
                 foreach ($lines as $onlineItem) {

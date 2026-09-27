@@ -109,8 +109,8 @@ class ItemStock extends BaseItemStock
 		} */
 	}
 	public function createB2bMrs(){
-		$organization = Organization::model()->find(array('order'=>'id asc'));
-		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
+		$organization = Organization::model()->find();
+		$outlet =  Outlet::model()->find();
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -148,7 +148,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		), array('order'=>'id asc'));
+		));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);
@@ -274,8 +274,8 @@ class ItemStock extends BaseItemStock
 	
 	
 	public function createMrs(){
-		$organization = Organization::model()->find(array('order'=>'id asc'));
-		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
+		$organization = Organization::model()->find();
+		$outlet =  Outlet::model()->find();
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -313,7 +313,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		), array('order'=>'id asc'));
+		));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);

@@ -82,11 +82,9 @@ class CustomerController extends GxController {
 		);
 		$json_list = array ();
 		
-		// No ORDER BY leaves the row order to MySQL, so the same request can
-		// return discounts in a different sequence between calls. Order by id.
 		$discounts = Discount::model ()->findAllByAttributes ( array (
 				'status' => Discount::STATUS_ACTIVE 
-		), array ( 'order' => 'id' ) );
+		) );
 		if (! empty ( $discounts )) {
 			
 			foreach ( $discounts as $discount ) {
@@ -111,15 +109,16 @@ class CustomerController extends GxController {
 		$json_list = array ();
 		
 		if ($status == 1) {
-			// Deterministic order for the order list; findAllByAttributes() alone
-			// leaves the sequence to MySQL.
+			// Order's defaultScope() is empty, so without this the sequence was
+			// the storage engine's; id ASC makes it defined. OrderHold below keeps
+			// its inherited id DESC, as in production.
 			$orders = Order::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
 			), array ( 'order' => 'id ASC' ) );
 		} elseif ($status == 2) {
 			$orders = OrderHold::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
-			), array ( 'order' => 'id ASC' ) );
+			) );
 		}
 		if (! empty ( $orders )) {
 			

@@ -81,10 +81,11 @@ class CustomerController extends Controller
     {
         $out = $this->envelope('discounts');
 
-        // Explicit ordering; the Yii 1 route is ordered the same way.
+        // id DESC: Yii 1's findAllByAttributes() names no order, so
+        // GxActiveRecord::defaultScope() applies.
         $discounts = Discount::find()
             ->where(['status' => Discount::STATUS_ACTIVE])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
         if (empty($discounts)) {
             $out['message'] = 'No data to display';
@@ -287,8 +288,9 @@ class CustomerController extends Controller
      * orders and neither framework can serve that. See the note in the commit
      * that added holdOrderList.
      *
-     * The Yii 1 version filters with findAllByAttributes() and no ordering, so
-     * the sequence was left to MySQL; ordered by id on both sides.
+     * Orders by id ASC (Order's defaultScope() is empty, so Yii 1 now names
+     * the order itself). Held orders by id DESC: Yii 1 names no order for
+     * them and OrderHold inherits GxActiveRecord::defaultScope().
      */
     public function actionOrderList($id, $status)
     {
@@ -303,7 +305,7 @@ class CustomerController extends Controller
         } elseif ((string)$status === '2') {
             $orders = OrderHold::find()
                 ->where(['outlet_id' => $id])
-                ->orderBy(['id' => SORT_ASC])
+                ->orderBy(['id' => SORT_DESC])
                 ->all();
         }
 

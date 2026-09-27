@@ -206,9 +206,8 @@ class EmpController extends Controller
             return $out;
         }
 
-        // Explicit ordering: without it MySQL may return these in any order,
-        // and the Yii 1 route is ordered the same way.
-        $users = User::find()->where(['not in', 'role_id', ['1', '6']])->orderBy(['id' => SORT_ASC])->all();
+        // id DESC: Yii 1 names no order, so GxActiveRecord::defaultScope() applies
+        $users = User::find()->where(['not in', 'role_id', ['1', '6']])->orderBy(['id' => SORT_DESC])->all();
         if (!$users) {
             return $out;
         }
@@ -239,7 +238,8 @@ class EmpController extends Controller
             return $out;
         }
 
-        $users = User::find()->where(['role_id' => $role->id])->orderBy(['id' => SORT_ASC])->all();
+        // id DESC, as above
+        $users = User::find()->where(['role_id' => $role->id])->orderBy(['id' => SORT_DESC])->all();
         if (!$users) {
             return $out;
         }

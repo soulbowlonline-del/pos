@@ -299,7 +299,8 @@ class OrderController extends Controller
      * outside its hours returns status OK, a "Discount not available" message
      * and no discountList at all. Reproduced: the client reads status.
      *
-     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     * The Yii 1 query names no order, so GxActiveRecord::defaultScope()'s
+     * id DESC applies. Ordered the same here.
      */
     public function actionDiscount()
     {
@@ -313,7 +314,7 @@ class OrderController extends Controller
             ->andWhere(['>=', 'end_date', $today])
             ->andWhere(['discount_type' => Discount::DISCOUNT_ORDER])
             ->andWhere(['status' => Discount::STATUS_ACTIVE])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if (empty($discounts)) {
@@ -377,7 +378,8 @@ class OrderController extends Controller
      *
      * The Yii 1 query concatenated both the status and the caller id - which
      * comes from a request header - straight into the SQL. Both are bound
-     * parameters now, on both stacks. It also had no ORDER BY; ordered by id.
+     * parameters now, on both stacks. It names no ORDER BY, so
+     * GxActiveRecord::defaultScope()'s id DESC applies; ordered the same here.
      */
     public function actionGetAssignList($status = null)
     {
@@ -402,7 +404,7 @@ class OrderController extends Controller
         }
 
         $orders = $query->andWhere('delivery_boy_id = :dbid', [':dbid' => $loginId])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if (empty($orders)) {
@@ -456,7 +458,8 @@ class OrderController extends Controller
             $query->andWhere(['order_status' => OnlineOrder::ORDERSTATUS_PENDING]);
         }
 
-        $orders = $query->orderBy(['id' => SORT_ASC])->all();
+        // id DESC: GxActiveRecord::defaultScope(), as in actionGetAssignList
+        $orders = $query->orderBy(['id' => SORT_DESC])->all();
 
         if (empty($orders)) {
             $out['message'] = 'Online Order not available';

@@ -103,19 +103,21 @@ class ItemStock extends ActiveRecord
 
     /**
      * Yii 1's createMrs(): raises or tops up a pending requisition for this
-     * item, at the first outlet, with the item's last vendor.
+     * item, at the newest outlet, with the item's last vendor.
      *
-     * Two things worth knowing. It overwrites $this->outlet_id with the first
-     * outlet before doing anything, so the requisition is always raised against
-     * that outlet whatever outlet the stock row belongs to. And the tax lookup
+     * Two things worth knowing. It overwrites $this->outlet_id with the newest
+     * outlet (Yii 1's find() under GxActiveRecord::defaultScope() is id DESC,
+     * as are the organization and pending-MRS lookups) before doing anything,
+     * so the requisition is always raised against that outlet whatever outlet
+     * the stock row belongs to. And the tax lookup
      * reads Item::findOne($this->item_detail_id) - the *Item* table, keyed by
      * an item *detail* id - so it resolves to an unrelated item whenever those
      * ids happen to collide, and to nothing otherwise. Both reproduced.
      */
     public function createMrs()
     {
-        $organization = Organization::find()->orderBy(['id' => SORT_ASC])->one();
-        $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+        $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
+        $outlet = Outlet::find()->orderBy(['id' => SORT_DESC])->one();
         if ($outlet) {
             $this->outlet_id = $outlet->id;
         }
@@ -150,7 +152,7 @@ class ItemStock extends ActiveRecord
 
         $mrs = Mrs::find()
             ->where(['status' => Mrs::STATUS_PENDING, 'vendor_id' => $vendorId, 'outlet_id' => $this->outlet_id])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         $reorderQty = $item->reorder_qty != '' ? $item->reorder_qty : 10;
@@ -533,8 +535,9 @@ class ItemStock extends ActiveRecord
     }
 
     public function createB2bMrs(){
-            $organization = Organization::find()->orderBy('id ASC')->one();
-            $outlet =  Outlet::find()->orderBy('id ASC')->one();
+            // id DESC: Yii 1's find() under GxActiveRecord::defaultScope()
+            $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
+            $outlet =  Outlet::find()->orderBy(['id' => SORT_DESC])->one();
             if($outlet){
             $this->outlet_id = $outlet->id;
             }
@@ -572,7 +575,7 @@ class ItemStock extends ActiveRecord
         if($vendor_id != null){
             $mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
                     'outlet_id'=>$this->outlet_id
-            ])->orderBy(['id' => SORT_ASC])->one();
+            ])->orderBy(['id' => SORT_DESC])->one();
             Yii::warning( var_export( $mrs , true), '$mrs_id');
             // $criteria = new CDbCriteria();
             // $criteria->addCondition('item_id ='.$this->item_id);
