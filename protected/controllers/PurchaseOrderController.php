@@ -147,7 +147,7 @@ class PurchaseOrderController extends GxController {
 			$subject = 'Your purchase order :';
 		
 			$view = $this->renderPartial ( '/mail/purchase_order_pdf', array (
-					'po'=>$po
+					'po'=>$po, 'pomodel'=>$po
 			), true );
 		
 		

@@ -149,7 +149,7 @@ class PurchaseOrderController extends BaseUiController {
 			$subject = 'Your purchase order :';
 		
 			$view = $this->renderPartial ( '/mail/purchase_order_pdf', [
-					'po'=>$po
+					'po'=>$po, 'pomodel'=>$po
 			], true );
 		
 		
