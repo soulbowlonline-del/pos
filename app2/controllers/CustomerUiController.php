@@ -367,8 +367,14 @@ class CustomerUiController extends BaseUiController {
 		if( !($model->checkPermission ('customer/delete')))	throw new ForbiddenHttpException('You are not allowed to access this page.');
 		
 		// if( !($this->isAllowed ( $model))) throw new ForbiddenHttpException('You are not allowed to access this page.');
+		// The id was pasted into the SQL, as in Yii 1. Bound instead; and,
+		// as PostId does for posted ids, anything but an integer still fails
+		// the request before the delete, where the broken SQL used to.
+		if (!preg_match("/^\s*-?\d+\s*$/", (string) $id)) {
+			throw new BadRequestHttpException('Your request is invalid.');
+		}
 		$query1 = Order::find();
-		$query1->andWhere('customer_id ='.$id);
+		$query1->andWhere(['customer_id' => (int) $id]);
 		$orders = $query1->count();
 		if($orders){
 			foreach($orders as $order){
@@ -407,7 +413,9 @@ class CustomerUiController extends BaseUiController {
 		
 		if (isset ( $_GET ['Customer'] )) {
 			$model->load($_GET, 'Customer');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );

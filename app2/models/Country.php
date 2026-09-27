@@ -239,15 +239,18 @@ class Country extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }
@@ -374,7 +377,7 @@ class Country extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -446,7 +449,7 @@ class Country extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -532,7 +535,9 @@ class Country extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // findByAttributes() in Yii 1, under Vendor's `id DESC` default scope:
+        // a user who created two vendors gets the newer one.
+        $vendor = Vendor::find()->where($condition)->orderBy(Vendor::defaultOrder() ?: [])->one();
         if ($vendor === null) {
             return [];
         }

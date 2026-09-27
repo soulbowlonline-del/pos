@@ -32,7 +32,9 @@ class CountryController extends BaseUiController {
 		$option = '';
 		if (isset ( $_POST ['country'] )) {
 	
-			$states = State::findAll(['country_id'=>$_POST ['country']]);
+			// findAllByAttributes() under Yii 1's `id DESC` scope, which is the
+			// order the dropdown lists them in.
+			$states = State::find()->where(['country_id'=>$_POST ['country']])->orderBy(State::defaultOrder() ?: [])->all();
 	
 			if ($states) {
 				
@@ -60,7 +62,7 @@ class CountryController extends BaseUiController {
 		$option = '';
 		if (isset ( $_POST ['state'] )) {
 	
-			$cities = City::findAll(['state_id'=>$_POST ['state']]);
+			$cities = City::find()->where(['state_id'=>$_POST ['state']])->orderBy(City::defaultOrder() ?: [])->all();
 	
 			if ($cities) {
 	
@@ -181,7 +183,9 @@ class CountryController extends BaseUiController {
 		if (isset($_GET['Country']))
 		{
 			$model->load($_GET, 'Country');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

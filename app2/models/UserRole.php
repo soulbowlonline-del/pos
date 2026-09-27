@@ -342,7 +342,7 @@ class UserRole extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -406,7 +406,9 @@ class UserRole extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // findByAttributes() in Yii 1, under Vendor's `id DESC` default scope:
+        // a user who created two vendors gets the newer one.
+        $vendor = Vendor::find()->where($condition)->orderBy(Vendor::defaultOrder() ?: [])->one();
         if ($vendor === null) {
             return [];
         }
@@ -426,7 +428,7 @@ class UserRole extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(

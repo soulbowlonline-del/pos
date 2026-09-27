@@ -69,6 +69,11 @@ class User extends ActiveRecord
     public const GENDER_MALE = 0;
     public const GENDER_FEMALE = 1;
 
+    // Yii 1's statics, which isPasswordExpired() and encrypt() read.
+    public static $password_expiration_day = 15;
+    protected static $salt1 = "rome" ;
+    protected static $hashFunc='md5' ;
+
     public static function tableName()
     {
         return '{{%user}}';
@@ -598,19 +603,20 @@ class User extends ActiveRecord
 
     public static function getUsers()
         {
-            $users = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->all();
+            $users = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->orderBy(self::defaultOrder() ?: [])->all();
             return $users;
         }
 
     public static function getUserByEmail($name)
         {
-            $user = User::findOne(['email'=>$name]);
+            // findByAttributes() under Yii 1's `id DESC` scope: the newest match.
+            $user = User::find()->where(['email'=>$name])->orderBy(self::defaultOrder() ?: [])->one();
             return $user;
         }
 
     public static function getUserByName($name)
         {
-            $user = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->andWhere([ 'username'=>$name])->one();
+            $user = User::find()->andWhere('state_id=' . User::STATUS_ACTIVE)->andWhere([ 'username'=>$name])->orderBy(self::defaultOrder() ?: [])->one();
             return $user;
         }
 
@@ -637,8 +643,8 @@ class User extends ActiveRecord
                     'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
             //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-            (class_exists('PosOutbound') && PosOutbound::isStubbed())
-                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+            (class_exists('PosOutbound') && \PosOutbound::isStubbed())
+                    ? \PosOutbound::intercept(\PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
                     : @mail($to, $subject, $body, $headers);
 
             if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
@@ -689,8 +695,8 @@ class User extends ActiveRecord
                     'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
             //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-            (class_exists('PosOutbound') && PosOutbound::isStubbed())
-                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+            (class_exists('PosOutbound') && \PosOutbound::isStubbed())
+                    ? \PosOutbound::intercept(\PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
                     : @mail($to, $subject, $body, $headers);
 
             if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
@@ -712,7 +718,7 @@ class User extends ActiveRecord
     public function getActivationUrl($mode = 'login')
         {
             $this->generateActivationKey();
-            return Yii::$app->createAbsoluteUrl('user/activate', [ 'id' => $this->id, 'key' => $this->activation_key, 'mode'=>$mode]);
+            return Url::to(['user/activate', 'id' => $this->id, 'key' => $this->activation_key, 'mode'=>$mode], true);
         }
 
     public function isUser()
@@ -870,7 +876,7 @@ class User extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -934,7 +940,9 @@ class User extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // findByAttributes() in Yii 1, under Vendor's `id DESC` default scope:
+        // a user who created two vendors gets the newer one.
+        $vendor = Vendor::find()->where($condition)->orderBy(Vendor::defaultOrder() ?: [])->one();
         if ($vendor === null) {
             return [];
         }
@@ -954,7 +962,7 @@ class User extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -1066,18 +1074,32 @@ class User extends ActiveRecord
         if (!parent::beforeValidate()) {
             return false;
         }
+        // date(), not NOW(): BaseUser itself stamps PHP's clock. It sets no
+        // create_user_id on insert and no updated_by on update.
         if ($this->isNewRecord) {
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
                 $this->create_time = date('Y-m-d H:i:s');
             }
-            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
-                $this->create_user_id = Yii::$app->user->id;
-            }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+        }
+        // BaseUser::beforeValidate() stamps this on new and existing rows
+        // alike whenever it is empty; the generated port left it out.
+        if (!isset($this->last_password_change)) {
+            $this->last_password_change = date('Y-m-d H:i:s');
         }
 
         return true;
+    }
+
+    /**
+     * Yii 1 accepts any scenario name, and every rule without an `on` applies
+     * to it. Yii 2 refuses one no rule names, and user/update sets 'update'.
+     */
+    public function scenarios()
+    {
+        $scenarios = parent::scenarios();
+        $scenarios['update'] = $scenarios[self::SCENARIO_DEFAULT];
+
+        return $scenarios;
     }
 
     public function rules()
@@ -1086,8 +1108,13 @@ class User extends ActiveRecord
             [['offline_indication_time', 'password_3', 'password_2'], 'safe'],  // form-only, declared on the Yii 1 model
             [['session_id', 'api_key', 'store_id', 'device_type', 'ivr_username'], 'safe'],  // form-only, declared on the Yii 1 model
             [['username', 'email'], 'required'],
-            [['password', 'username', 'email'], 'required'],
-            [['password', 'password_2'], 'required'],
+            // Yii 1 scopes these two to their scenarios. Without the `on`,
+            // every save demanded a password_2 that only the change-password
+            // form posts - emp/create and emp/update could not save the user
+            // row - and user/create, user/update and the password pages set
+            // scenarios Yii 2 did not know, which it refuses outright.
+            [['password', 'username', 'email'], 'required', 'on' => 'create'],
+            [['password', 'password_2'], 'required', 'on' => 'changepassword'],
             [['postal_code', 'role_id', 'state_id', 'type_id', 'is_active', 'login_error_count'], 'integer'],
             [['full_name', 'username', 'email'], 'string', 'max' => 256],
             [['password', 'address', 'image_file', 'activation_key'], 'string', 'max' => 512],
@@ -1237,8 +1264,8 @@ class User extends ActiveRecord
                         'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
                 //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-                (class_exists('PosOutbound') && PosOutbound::isStubbed())
-                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                (class_exists('PosOutbound') && \PosOutbound::isStubbed())
+                    ? \PosOutbound::intercept(\PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
                     : @mail($to, $subject, $body, $headers);
 
                 //if ( YII_ENV == 'dev' && !isset( Yii::$app->controller->module ) ) echo $body;
@@ -1269,8 +1296,8 @@ class User extends ActiveRecord
                         'Reply-To: ' . (Yii::$app->params['adminEmail'] ?? null) ."\r\n"; // terminator restored: the trailing '.' swallowed the mail() call below
                 //    'Content-type: text/html; charset=iso-8859-1' . "\r\n";
 
-                (class_exists('PosOutbound') && PosOutbound::isStubbed())
-                    ? PosOutbound::intercept(PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
+                (class_exists('PosOutbound') && \PosOutbound::isStubbed())
+                    ? \PosOutbound::intercept(\PosOutbound::CHANNEL_MAIL, $to, ['subject' => $subject, 'body' => $body, 'headers' => $headers])
                     : @mail($to, $subject, $body, $headers);
 
                 //if ( YII_ENV == 'dev' )
@@ -1308,7 +1335,13 @@ class User extends ActiveRecord
         {
             if ($password != '' && $password == $password_2 ) {
                 $this->password = User::encrypt2($password);
-                return $this->save(false,'password');
+                // Yii 1's save(false, 'password'): a string there is not an
+                // attribute list - CActiveRecord::getAttributes() answers every
+                // attribute for anything but an array - so it saved the whole
+                // row without validating. Yii 2 takes the string as the list and
+                // dies in array_flip(), which broke user/create and both
+                // change-password pages.
+                return $this->save(false);
             }
             return false;
         }
@@ -1320,7 +1353,7 @@ class User extends ActiveRecord
             $string = sprintf("%s%s%s", $salt, $string, $salt);
 
             if (!function_exists($hashFunc))
-            throw new CException('Function `' . $hashFunc . '` is not a valid callback for hashing algorithm.');
+            throw new \yii\base\Exception('Function `' . $hashFunc . '` is not a valid callback for hashing algorithm.');
 
             return $hashFunc($string);
         }
@@ -1339,7 +1372,7 @@ class User extends ActiveRecord
             }
             if($current_date == $date){
             $name = $year.'-'.$yearadd;
-            $session = Session::find()->where(['name'=>$name])->one();
+            $session = Session::find()->where(['name'=>$name])->orderBy(Session::defaultOrder() ?: [])->one();
             if($session == null){
                 $session = new Session();
             }

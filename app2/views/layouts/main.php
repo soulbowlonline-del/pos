@@ -31,7 +31,7 @@ $this->beginPage();
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title><?php echo Html::encode(Html::encode($this->title)); ?></title>
+  <title><?php echo Html::encode($this->title); ?></title>
   <!-- Tell the browser to be responsive to screen width -->
   <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
   <!-- Font Awesome -->
@@ -120,7 +120,7 @@ $this->beginPage();
            
              // A vendor sees only the notifications addressed to them; everyone
              // else sees the last 20 regardless of recipient, as in Yii 1.
-             $role = UserRole::findOne(['title' => 'Vendor']);
+             $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
              $query = Notification::find()->orderBy(['id' => SORT_DESC])->limit(20);
              if ($role !== null && $role->id == $user->role_id) {
              	$query->where(['to_id' => Yii::$app->user->id]);

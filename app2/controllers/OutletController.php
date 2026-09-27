@@ -122,7 +122,9 @@ class OutletController extends BaseUiController {
 		if (isset($_GET['Outlet']))
 		{
 			$model->load($_GET, 'Outlet');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

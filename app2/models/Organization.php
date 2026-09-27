@@ -280,15 +280,18 @@ class Organization extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }
@@ -393,9 +396,14 @@ class Organization extends ActiveRecord
 
                             $organization->address =$organization_values[$arrays['Address']];
                         }
+                        // Yii 1 looks each of the three up in its own table,
+                        // under the model's `id DESC` default scope. The port
+                        // looked all three up in tbl_city, so an imported
+                        // state or country got a city's id.
                         if (isset($arrays['City'])) {
                             $query = City::find();
                             Criteria::compare($query, 'title', $organization_values[$arrays['City']]);
+                            $query->orderBy(City::defaultOrder() ?: []);
                             $city = $query->one();
                             if($city){
                                 $organization->city_id =$city->id;
@@ -403,8 +411,9 @@ class Organization extends ActiveRecord
 
                         }
                         if (isset($arrays['State'])) {
-                            $query = City::find();
+                            $query = State::find();
                             Criteria::compare($query, 'title', $organization_values[$arrays['State']]);
+                            $query->orderBy(State::defaultOrder() ?: []);
                             $state = $query->one();
                             if($state){
                                 $organization->state_id =$state->id;
@@ -412,8 +421,9 @@ class Organization extends ActiveRecord
 
                         }
                         if (isset($arrays['Country'])) {
-                            $query = City::find();
+                            $query = Country::find();
                             Criteria::compare($query, 'title', $organization_values[$arrays['Country']]);
+                            $query->orderBy(Country::defaultOrder() ?: []);
                             $country = $query->one();
                             if($country){
                                 $organization->country_id =$country->id;
@@ -470,7 +480,7 @@ class Organization extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -542,7 +552,7 @@ class Organization extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -628,7 +638,9 @@ class Organization extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // findByAttributes() in Yii 1, under Vendor's `id DESC` default scope:
+        // a user who created two vendors gets the newer one.
+        $vendor = Vendor::find()->where($condition)->orderBy(Vendor::defaultOrder() ?: [])->one();
         if ($vendor === null) {
             return [];
         }
