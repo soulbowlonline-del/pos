@@ -33,12 +33,18 @@ fault was in the wiring behind it.
 | host | `31.97.186.151`, SSH is key-only: `ssh -i ~/.ssh/daspos_key root@31.97.186.151` |
 | PHP 5.6 baseline | `/root/pos/pos`, container `pos-php-legacy`, port **8082** |
 | the working tree | `/root/pos/pos83`, container `pos-php-83`, port **8084** — this git repo |
-| database | container `pos-mysql-8`, schema `pos_live` |
+| database | container `pos-mysql-8`, schema `pos_live`, on India time (`+05:30`) since 27 Sep 2026 |
 | baseline database | container `pos-mysql-legacy` — **never written to**, see below |
 | generators and suites | `/root/pos/*.py`, `/root/pos/*_difftest.sh`, mirrored into `tools/port/` and `tests/port/` |
 
 Within `pos83`, `protected/` is the Yii 1 tree running under PHP 8.3 and
 `app2/` is the Yii 2 port. Both are served by the same container.
+
+**This host is the test server.** Production is the store's own machine,
+`61.2.241.71` (on the store's LAN, `192.168.225.51`), running `main`-era code.
+The owner's standing instruction, 27 Sep 2026: **never change anything on
+production.** It appears in this server's logs only as a client IP — the
+store's connection uses this test server too.
 
 The `:8082` baseline matters more than it looks. It is the only copy of the
 application and its data that predates both this work and PHP 8.3, so it is
@@ -345,6 +351,42 @@ web-UI work. Then, roughly:
      fix, 27/27 rounds exact on PHP 5.6 Yii 1, PHP 8.3 Yii 1 and the port;
      single-request results unchanged for negative, zero and multi-batch
      stock. The scratch databases were dropped afterwards.
+9. **27 Sep 2026, deployed to this test server: `7a67ab6` → `2c89118`, then
+   `004592a`.** `2c89118` is the twelve commits of the overnight audit (the
+   six `Port …` commits, row order, the known bugs, the web-root
+   `.htaccess` rules, MySQL on India time, the duplicate-bill guard).
+   - ~10:51 IST, ahead of the rest: `/.env` and `/.git` were **downloadable
+     from the internet** (the repo is the document root; both answered 200).
+     The eleven `.htaccess` files of `16b3611` were applied alone first; after
+     that `/.env` and `/CLAUDE.md` answer 403 and `/.git/*` 404, and every
+     asset of both login pages and the uploaded bills still load. No request
+     for `/.env` or `/.git` from outside the host appears in the container
+     log, which starts at 17 Sep; before that is unknown (see *Secrets*).
+   - Deploy, ~10:52–10:58 IST: full dump
+     `/root/pos/dumps/pos_live-before-deploy-20260927-1052.sql.gz` (369 MB,
+     81 tables); `git pull --ff-only`; `php -l` clean on all 186 changed PHP
+     files; `db_changes/2026-09-27-order-request.sql` (creates
+     `tbl_order_request`, nothing else); `docker compose -f
+     docker-compose.php83.yml up -d db`, which recreated only `pos-mysql-8`
+     on its `pos83_db_data_8` volume — MySQL was down ~32 s (one
+     `countOrders` poll failed at 10:57:18), and `NOW()` now matches IST.
+   - Checked after, by the owner and from the logs: GRN and MRS tabs, a bill
+     print, an MRS edit (68211), an MRN edit and PDF (64050), a GRN approval
+     through `/v2` (bill 62824, RGST-6011 — every stock-log row adds up), and
+     one till-app sale (`/v2/api/item/order`, bill 96794): one request, one
+     order, stock deducted once, `create_date` set. `tbl_order_request` stays
+     empty because the apps send no request id yet; the content-based
+     10-second check covers them meanwhile. The 400s the GRN/MRS/MRN pages
+     log on load are the empty-id lookups of lesson 6, as designed. **Stock
+     adjust was not tested** — the owner has no access to the Android app.
+   - `004592a`: `/v2/purchaseOrder/printPdf` answered 500 after the deploy.
+     Not a regression: the email view `mail/purchase_order_pdf` has read
+     `$pomodel` since the first commit while both controllers pass `po`; Yii 1
+     only logged a warning, Yii 2 raises it. Both controllers now pass both
+     names; the owner confirmed the PDF downloads. `main` is unchanged here —
+     it only logs the warning there.
+   - Rollback, if ever needed: `git checkout 7a67ab6 -- .` for the code and
+     the dump above for data; the table and the time zone are additive.
 
 `docs/web-ui-port.md` is the long form, written as the work happened.
 `docs/live-bugs-found.md` records the application's own bugs, found by
@@ -371,7 +413,11 @@ None of this is in git. Backups are in `/root/pos/dumps/`.
 - **Backfilled:** `create_date = DATE(create_time)` on the 15 lines of orders
   9994376 and 9994377 (see `bba1003`).
 - **Not deleted, and real:** purchase bills 9990013–9990016 — GRNs entered by
-  the store after the counters moved into the fixture range.
+  the store after the counters moved into the fixture range — and, from the
+  27 Sep testing, purchase bill 9990017 ("test 1234", still open) and order
+  9994426 (bill 96794). New rows keep landing in the fixture range until open
+  decision 6 is settled.
+- **Added on 27 Sep by the deploy:** table `tbl_order_request` (empty).
 
 ## What the owner asked for, and what each request produced
 
@@ -465,6 +511,17 @@ the only record of a decision. Condensed, in sequence:
 - Tested on a local MariaDB built from the code's own schema knowledge (no
   production data): every read-only web action before/after, plus targeted
   and concurrent tests on both stacks. `run_all.sh` was not run (see lesson 5).
+- *"Do 3, start with option 1 now"* → *"do the full deploy now"* — the
+  `.htaccess` rules first, alone, then `2c89118` on this server (*What was
+  done*, item 9). *"Make sure you do no changes to the main server on
+  61.2.241.71. That is live and production. Don't touch it"* — nothing in this
+  work reaches it.
+- *"Yes fix the PO PDF, commit and push"* — `004592a`.
+- *"Can you update the .NET and Android code if I upload it on git"* — agreed;
+  waiting for the repositories. The change they need: send a unique
+  `request_id` (or `X-Request-Id`) with each `item/order`, `ordertest` and
+  `punchorder`, and resend the same one on a retry, so the duplicate-bill
+  guard answers from `tbl_order_request` instead of guessing by content.
 
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
@@ -515,11 +572,16 @@ And, since 27 Sep 2026:
   the port does, or the port inherits a database whose stock keeps drifting.
 - The AUTO_INCREMENT question (open decision 6) must be settled before cutover,
   or production ids start at ~9,990,000.
-- `CLAUDE.md`, `README.md`, `docs/`, `tests/` and `tools/` are served over HTTP
-  from this tree (the repo is the document root): `/CLAUDE.md` answers 200.
-  Nothing in them is a credential, but they describe the host, its layout and
-  its open security items. Block them at the web server or move them out of
-  the document root.
+- The repo is the document root. Since 27 Sep the `.htaccess` rules of
+  `16b3611` keep `.env`, `.git`, `CLAUDE.md`, `docs/`, `tests/`, `tools/`,
+  `config/`, `lib/` and the compose/SQL files off the web, and no script runs
+  from the upload folders. They depend on `AllowOverride All` for
+  `/var/www/` (set in the image's `conf-enabled`); a production web server
+  without it would serve all of them again. Moving the application out of
+  the repository root is the lasting fix.
+- The .NET and Android clients should send a request id on checkout (see
+  *What the owner asked for*); until they do, duplicate protection is the
+  content match only.
 
 ## Secrets — outstanding
 
@@ -530,6 +592,10 @@ These were exposed during the work and **have not been rotated**:
 - the `admin` application password
 - the Firebase server key, the soulbowl dispatch key and the uengage SMS
   token, all of which are in git history
+- **everything in `pos83/.env`** — the database, SMTP and Interakt
+  credentials and `POS_V2_COOKIE_KEY`. `/.env` and `/.git` were downloadable
+  over HTTP until 27 Sep 2026 ~10:51 IST. The container log (from 17 Sep)
+  shows no outside request for either; earlier access cannot be ruled out.
 
 Rotating them is outstanding and is the owner's to do. Passwords in
 `tbl_user` are unsalted MD5; changing that is a separate piece of work,
