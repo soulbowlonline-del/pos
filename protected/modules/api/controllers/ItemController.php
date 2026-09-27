@@ -85,6 +85,12 @@ class ItemController extends GxController {
 	 									
 	 								$set = true;
 	 								
+	 								// An exact repeat of a sale already billed - a client retrying after an
+	 								// error or a timeout - is answered with that sale's bill instead of being
+	 								// billed a second time. See OrderDedupe.
+	 								if (($dupOrder = OrderDedupe::check($loginid, $_POST)) !== null) {
+	 									$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'ordertest'));
+	 								}
 	 								 $transaction = Yii::app ()->db->beginTransaction ();
 	 								try { 
 	 									if(isset($_POST ['customer_id'])){
@@ -265,6 +271,7 @@ class ItemController extends GxController {
 	 										}
 	 											
 	 										if ($set == true) {
+	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
 	 											// Serialise the bill number: two bills finishing at the same moment
 	 											// both read the same highest bill_no and were given the same number.
@@ -292,6 +299,8 @@ class ItemController extends GxController {
 	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
 	 												}
 	 											}
+	 											// numbered: an identical request waiting on this one can now see the bill
+	 											OrderDedupe::release();
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -401,7 +410,13 @@ class ItemController extends GxController {
 	 										$set = false;
 	 									}
 	 								 } catch ( Exception $e ) {
-	 									$transaction->rollback ();
+	 									// This rolled back unconditionally, and once the sale had committed that
+	 									// threw again (the transaction is inactive): a 500 for a sale that was in
+	 									// the books, so the cashier billed it again. recover() rolls back only an
+	 									// open transaction, and otherwise hands back the saved order to answer with.
+	 									if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/ordertest')) !== null) {
+	 										$arr = OrderDedupe::envelope($arr, $savedOrder, 'ordertest');
+	 									}
 	 								} 
 	 							}
 	 						}
@@ -1049,6 +1064,12 @@ class ItemController extends GxController {
 	 									
 	 								$set = true;
 	 								
+	 								// An exact repeat of a sale already billed - a client retrying after an
+	 								// error or a timeout - is answered with that sale's bill instead of being
+	 								// billed a second time. See OrderDedupe.
+	 								if (($dupOrder = OrderDedupe::check($loginid, $_POST)) !== null) {
+	 									$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'order'));
+	 								}
 	 								 $transaction = Yii::app ()->db->beginTransaction ();
 	 								try { 
 	 									if(isset($_POST ['customer_id'])){
@@ -1231,6 +1252,7 @@ class ItemController extends GxController {
 	 										}
 	 											
 	 										if ($set == true) {
+	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
 	 											// Serialise the bill number: two bills finishing at the same moment
 	 											// both read the same highest bill_no and were given the same number.
@@ -1258,6 +1280,8 @@ class ItemController extends GxController {
 	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
 	 												}
 	 											}
+	 											// numbered: an identical request waiting on this one can now see the bill
+	 											OrderDedupe::release();
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -1372,7 +1396,13 @@ class ItemController extends GxController {
 	 										$set = false;
 	 									}
 	 								 } catch ( Exception $e ) {
-	 									$transaction->rollback ();
+	 									// This rolled back unconditionally, and once the sale had committed that
+	 									// threw again (the transaction is inactive): a 500 for a sale that was in
+	 									// the books, so the cashier billed it again. recover() rolls back only an
+	 									// open transaction, and otherwise hands back the saved order to answer with.
+	 									if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/order')) !== null) {
+	 										$arr = OrderDedupe::envelope($arr, $savedOrder, 'order');
+	 									}
 	 								} 
 	 							}
 	 						}
@@ -2044,10 +2074,22 @@ class ItemController extends GxController {
 						return;
 					}
 
+					// An exact repeat of a sale already billed is answered with that bill - and
+					// no second WhatsApp - instead of being billed again. See OrderDedupe.
+					if (($dupOrder = OrderDedupe::check($loginid, $_POST, $drt, $arr['netAmount'])) !== null) {
+						$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'punchorder'));
+					}
 					$billNo = $this->processOrder($loginid, $drt, $arr);
 
 					if ($billNo) {
-						$this->generateBillAndSend($arr, $billNo, $loginid);
+						// The sale is committed and numbered by now. A failed PDF or WhatsApp
+						// used to fall to the catch below and answer NOK, so the cashier billed
+						// it again; it is logged instead and the sale answered as saved.
+						try {
+							$this->generateBillAndSend($arr, $billNo, $loginid);
+						} catch (Exception $e) {
+							Yii::log('item/punchorder: bill ' . $billNo . ' saved, sending it failed: ' . $e->getMessage(), CLogger::LEVEL_ERROR, 'application.api.orderdedupe');
+						}
 						$arr['status'] = 'OK';
 						$arr['bill_no'] = $billNo;
 					}
@@ -2299,6 +2341,7 @@ class ItemController extends GxController {
 					}
 						
 					if ($set == true) {
+						OrderDedupe::remember($order->id);
 						$transaction->commit ();
 						// Serialise the bill number: two bills finishing at the same moment
 						// both read the same highest bill_no and were given the same number.
@@ -2326,6 +2369,8 @@ class ItemController extends GxController {
 								Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
 							}
 						}
+						// numbered: an identical request waiting on this one can now see the bill
+						OrderDedupe::release();
 						if ($status == '1') {
 						$data = array();
 						
@@ -2440,7 +2485,13 @@ class ItemController extends GxController {
 					$set = false;
 				}
 			} catch ( Exception $e ) {
-					$transaction->rollback ();
+					// This rolled back unconditionally, and once the sale had committed that
+					// threw again (the transaction is inactive) out to actionPunchorder, which
+					// answered NOK for a sale that was in the books. recover() rolls back only
+					// an open transaction, and otherwise hands back the saved order.
+					if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/punchorder')) !== null) {
+						$bill_no = $savedOrder->bill_no ? (int)$savedOrder->bill_no : null;
+					}
 			} 
 		}
 	 					

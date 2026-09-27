@@ -30,6 +30,7 @@ use app\models\OnlineOrder;
 use app\models\Discount;
 use app\components\InteraktApi;
 use PosOutbound;
+use app\components\OrderDedupe;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -1190,6 +1191,13 @@ class ItemController extends Controller
             return $out;
         }
 
+        // An exact repeat of a sale already billed - a client retrying after an
+        // error or a timeout - is answered with that sale's bill instead of being
+        // billed a second time. See OrderDedupe.
+        if (($dupOrder = OrderDedupe::check($loginId, $post)) !== null) {
+            return OrderDedupe::envelope($out, $dupOrder, 'order');
+        }
+
         $ok = true;
         $transaction = Yii::$app->db->beginTransaction();
 
@@ -1338,6 +1346,7 @@ class ItemController extends Controller
                 return $out;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
 
             // the bill number, read and assigned after the commit.
@@ -1365,6 +1374,8 @@ class ItemController extends Controller
                     Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
                 }
             }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -1416,13 +1427,15 @@ class ItemController extends Controller
             // Exception, not Throwable, as in Yii 1: on PHP 8 an Error is not
             // an Exception, so it escapes this catch on both stacks.
             //
-            // Yii 1 swallows this silently and answers NOK with no message,
-            // which is reproduced - but it is logged here, because a checkout
-            // that fails without saying why is not something to leave
-            // undiagnosable. The log is not part of the response.
-            Yii::error('item/order rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
+            // Rolling back unconditionally was the bug: once the sale had committed
+            // - and the bill number, callback, SMS and tax summary all run after the
+            // commit - a failure there answered NOK for a sale that was in the books,
+            // and the cashier billed it again (Yii 1 threw a 500 out of this catch).
+            // recover() rolls back and logs an open transaction, as before, and
+            // otherwise logs the failure and hands back the saved order to answer with.
+            if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/order')) !== null) {
+                $out = OrderDedupe::envelope($out, $savedOrder, 'order');
+            }
         }
 
         return $out;
@@ -1540,6 +1553,13 @@ class ItemController extends Controller
         } else {
             $out['message'] = 'Order status wrong';
             return $out;
+        }
+
+        // An exact repeat of a sale already billed - a client retrying after an
+        // error or a timeout - is answered with that sale's bill instead of being
+        // billed a second time. See OrderDedupe.
+        if (($dupOrder = OrderDedupe::check($loginId, $post)) !== null) {
+            return OrderDedupe::envelope($out, $dupOrder, 'ordertest');
         }
 
         $ok = true;
@@ -1683,6 +1703,7 @@ class ItemController extends Controller
                 return $out;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
 
             // Serialise the bill number: two bills finishing at the same moment
@@ -1704,6 +1725,8 @@ class ItemController extends Controller
                     Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
                 }
             }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post, 'http://soulbowl.in/rest/api');
@@ -1739,9 +1762,10 @@ class ItemController extends Controller
             $transaction->rollBack();
             throw $e;
         } catch (\Exception $e) {
-            Yii::error('item/ordertest rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
+            // Only an open transaction is rolled back - see actionOrder.
+            if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/ordertest')) !== null) {
+                $out = OrderDedupe::envelope($out, $savedOrder, 'ordertest');
+            }
         }
 
         return $out;
@@ -1858,6 +1882,12 @@ class ItemController extends Controller
             $out['netAmount'] = round($netAmount);
             $out['saving'] = round($totalSaleValue - $netAmount);
 
+            // An exact repeat of a sale already billed is answered with that bill - and
+            // no second WhatsApp - instead of being billed again. See OrderDedupe.
+            if (($dupOrder = OrderDedupe::check($loginId, $post, $basket, $out['netAmount'])) !== null) {
+                return OrderDedupe::envelope($out, $dupOrder, 'punchorder');
+            }
+
             // processOrder builds its own response array and sends it through
             // sendJSONResponse(), which calls Yii::app()->end() - so a bad
             // status_id answers with just {"message":"Order status wrong"} and
@@ -1869,7 +1899,17 @@ class ItemController extends Controller
             }
 
             if ($billNo) {
-                $this->punchGenerateBillAndSend($out, $billNo, $loginId);
+                // The sale is committed and numbered by now. A failed PDF or WhatsApp
+                // used to fall to the catch below and answer NOK, so the cashier billed
+                // it again; it is logged instead and the sale answered as saved. A PHP
+                // warning still goes through as a 500, as it does in Yii 1.
+                try {
+                    $this->punchGenerateBillAndSend($out, $billNo, $loginId);
+                } catch (\yii\base\ErrorException $e) {
+                    throw $e;
+                } catch (\Exception $e) {
+                    Yii::error('item/punchorder: bill ' . $billNo . ' saved, sending it failed: ' . $e->getMessage(), __METHOD__);
+                }
                 $out['status'] = 'OK';
                 $out['bill_no'] = $billNo;
             }
@@ -2072,6 +2112,7 @@ class ItemController extends Controller
                 return null;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
 
             // Serialise the bill number: two bills finishing at the same moment
@@ -2102,6 +2143,8 @@ class ItemController extends Controller
                     Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
                 }
             }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -2111,10 +2154,13 @@ class ItemController extends Controller
             $transaction->rollBack();
             throw $e;
         } catch (\Exception $e) {
-            Yii::error('item/punchorder rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
-            return null;
+            // Only an open transaction is rolled back - see actionOrder. A sale that
+            // committed answers with its bill number instead of NOK.
+            $savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/punchorder');
+            if ($savedOrder === null) {
+                return null;
+            }
+            $billNo = $savedOrder->bill_no ? (int)$savedOrder->bill_no : null;
         }
 
         return $billNo;
