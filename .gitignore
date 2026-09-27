@@ -72,3 +72,6 @@ app2/runtime/*
 # Assets Yii 2 publishes at runtime from vendor/bower-asset.
 v2/assets/
 __pycache__/
+# The upload directories' no-execute rules are part of the source.
+!uploadbills/.htaccess
+!wdir/uploads/.htaccess

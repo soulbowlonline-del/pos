@@ -12,3 +12,13 @@ RewriteCond %{REQUEST_URI} !^/v2
 RewriteRule . index.php
 php_value max_input_vars 10000
 php_value memory_limit 10240M
+
+# Secrets and repository files that live in the web root. .env holds every
+# credential the application uses; .git holds its whole history.
+RedirectMatch 404 /\.git(/|$)
+# Composer packages (vendor/ is gitignored, so it cannot carry its own
+# .htaccess). Two levels deep, so the theme's own js/vendor/*.js still loads.
+RedirectMatch 404 /vendor/[^/]+/[^/]+/
+<FilesMatch "^(\.env.*|\.gitignore|composer\.(json|lock)|phpstan\.neon|docker-compose.*\.yml|.*\.md|.*\.sql|.*\.sql\.gz)$">
+    Require all denied
+</FilesMatch>
