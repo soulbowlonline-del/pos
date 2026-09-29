@@ -35,6 +35,7 @@ $showChrome = Yii::$app->controller->id != 'user'
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>try{if(localStorage.getItem('posUiTheme')!=='classic'){document.documentElement.classList.add('ui-modern');}}catch(e){document.documentElement.classList.add('ui-modern');}</script>
 <meta http-equiv="X-UA-Compatible" content="chrome=1">
 <meta name="language" content="en" />
 <meta name="description" content="">
@@ -57,6 +58,7 @@ $showChrome = Yii::$app->controller->id != 'user'
 <link rel="stylesheet" type="text/css"
 	href="<?php echo $theme; ?>/css/main.css" />
 <?php $this->head(); ?>
+<link rel="stylesheet" type="text/css" href="/v2/css/modern.css?v=20260930" />
 </head>
 
 <body class="hold-transition login-page">
@@ -132,6 +134,7 @@ $showChrome = Yii::$app->controller->id != 'user'
 		type="text/javascript"></script>
 
 <?php $this->endBody(); ?>
+<script src="/v2/js/modern-ui.js?v=20260930"></script>
 </body>
 
 </html>

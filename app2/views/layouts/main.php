@@ -34,6 +34,7 @@ $this->beginPage();
   <title><?php echo Html::encode($this->title); ?></title>
   <!-- Tell the browser to be responsive to screen width -->
   <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+  <script>try{if(localStorage.getItem('posUiTheme')!=='classic'){document.documentElement.classList.add('ui-modern');}}catch(e){document.documentElement.classList.add('ui-modern');}</script>
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.5.0/css/font-awesome.min.css">
 
@@ -82,6 +83,8 @@ $this->beginPage();
     different version - the point is to behave as Yii 1 does.
   -->
   <script src="/v2/js/bootstrap.js"></script>
+  <!-- The modern look: last in <head> so it follows every page's own CSS. -->
+  <link rel="stylesheet" type="text/css" href="/v2/css/modern.css?v=20260930" />
 </head>
 <body class="hold-transition skin-blue sidebar-mini" id="main">
 <?php $this->beginBody(); ?>
@@ -1138,6 +1141,7 @@ $('a[title]').on('mouseenter', function () {
 <!-- jQuery 2.2.3 -->
 
 <?php $this->endBody(); ?>
+<script src="/v2/js/modern-ui.js?v=20260930"></script>
 </body>
 </html>
 
