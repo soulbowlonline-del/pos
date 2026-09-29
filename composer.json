@@ -15,7 +15,9 @@
         "phpmailer/phpmailer": "^6.9",
         "mpdf/mpdf": "^8.2",
         "phpoffice/phpspreadsheet": "^2.3",
-        "yiisoft/yii2": "^2.0"
+        "yiisoft/yii2": "^2.0",
+        "anthropic-ai/sdk": "^0.52",
+        "guzzlehttp/guzzle": "^7.9"
     },
     "config": {
         "platform": {

@@ -108,6 +108,13 @@ $this->beginPage();
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">
           <!-- Messages: style can be found in dropdown.less-->
+          <?php
+          // The AI screens (/v2/ai), for the roles in POS_AI_ROLES. An icon
+          // with a title and no text: the page suites compare the text a
+          // reader sees against Yii 1, which has no such link.
+          if (\app\components\ai\AiConfig::userAllowed()) { ?>
+          <li class="ui-ai-link"><a href="<?php echo \yii\helpers\Url::to(['/ai/index']); ?>" title="AI Assistant" aria-label="AI Assistant"><i class="fa fa-magic"></i></a></li>
+          <?php } ?>
           
           
                <!-- Notifications: style can be found in dropdown.less -->

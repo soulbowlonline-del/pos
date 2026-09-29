@@ -1,0 +1,288 @@
+<?php
+namespace app\components\ai;
+
+use app\components\Ui;
+
+/**
+ * Reads a vendor's bill - a photo or a PDF - into lines, matches each line to
+ * the item master and flags what does not agree.
+ *
+ * The result is a checklist for the storekeeper entering the GRN on the usual
+ * screen: which item each line is, and what to look at before approving (an
+ * MRP different from the master, a GST rate that does not match the item's
+ * slab, a rate above the last purchase, a short expiry, lines that do not add
+ * up to the bill total). Nothing is saved: no GRN, no stock, no price. The
+ * uploaded file is read from PHP's temporary upload and not kept.
+ */
+class BillReader
+{
+    public const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    public const MAX_PDF_BYTES = 10 * 1024 * 1024;
+    public const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+    private const PROMPT = <<<'TXT'
+This is a purchase bill (tax invoice) from a supplier to a retail and grocery store in India. Read it and return its contents in the given JSON shape.
+
+- One entry in "lines" per item line on the bill, in the order printed. Include every item line, across all pages; skip subtotal, tax-summary and scheme-summary rows.
+- description: the item name exactly as printed. barcode: the EAN/UPC code if printed on the line. item_code: the supplier's own item code if printed. hsn: the HSN/SAC code.
+- qty: billed quantity. free_qty: free or scheme quantity if shown separately, else 0. unit: as printed (PCS, KG, BOX...).
+- rate: the unit rate as printed (usually before tax). mrp: the MRP per unit if printed. discount_percent: the line discount % if printed.
+- gst_percent: the total GST rate of the line. If the bill shows CGST and SGST separately, add them (2.5 + 2.5 = 5). If IGST, use it.
+- batch and expiry as printed; write expiry as YYYY-MM-DD, using the last day of the month when only month and year are printed.
+- amount: the line amount as printed (the taxable value or the line total, whichever the bill shows per line).
+- bill_total: the final amount payable. tax_total: total GST on the bill.
+- Use null for anything not printed or not readable. Do not calculate values that are not on the bill, except adding CGST and SGST as above.
+- notes: one short sentence on anything that made the bill hard to read (cut off, blurred, handwritten), or null.
+TXT;
+
+    private static function schema()
+    {
+        $n = function ($t) { return ['anyOf' => [['type' => $t], ['type' => 'null']]]; };
+        $lineProps = [
+            'description' => ['type' => 'string'], 'barcode' => $n('string'), 'item_code' => $n('string'), 'hsn' => $n('string'),
+            'qty' => $n('number'), 'free_qty' => $n('number'), 'unit' => $n('string'), 'rate' => $n('number'), 'mrp' => $n('number'),
+            'discount_percent' => $n('number'), 'gst_percent' => $n('number'), 'batch' => $n('string'), 'expiry' => $n('string'),
+            'amount' => $n('number'),
+        ];
+        $props = [
+            'vendor_name' => $n('string'), 'vendor_gstin' => $n('string'), 'bill_no' => $n('string'), 'bill_date' => $n('string'),
+            'lines' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => $lineProps,
+                'required' => array_keys($lineProps), 'additionalProperties' => false]],
+            'bill_total' => $n('number'), 'tax_total' => $n('number'), 'notes' => $n('string'),
+        ];
+        return ['type' => 'object', 'properties' => $props, 'required' => array_keys($props), 'additionalProperties' => false];
+    }
+
+    /** Checks the upload; returns [mime, bytes] or throws AiException. */
+    public static function validateUpload(array $file)
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+            throw new AiException('Choose a photo or PDF of the bill to upload.');
+        }
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+        $size = filesize($file['tmp_name']);
+        if ($mime === 'application/pdf') {
+            if ($size > self::MAX_PDF_BYTES) {
+                throw new AiException('The PDF is larger than 10 MB.');
+            }
+        } elseif (in_array($mime, self::IMAGE_TYPES, true)) {
+            if ($size > self::MAX_IMAGE_BYTES) {
+                throw new AiException('The photo is larger than 5 MB. Take it at a lower resolution, or save it as a smaller JPEG.');
+            }
+        } else {
+            throw new AiException('Only JPEG, PNG, WebP or GIF photos and PDF files can be read.');
+        }
+        return [$mime, file_get_contents($file['tmp_name'])];
+    }
+
+    /**
+     * @return array ['bill' => extracted header, 'lines' => [...], 'flags' => [...], 'vendor' => matched vendor or null]
+     */
+    public static function read($mime, $bytes, $fileName, $vendorId = null)
+    {
+        $source = ['type' => 'base64', 'mediaType' => $mime, 'data' => base64_encode($bytes)];
+        $block = $mime === 'application/pdf'
+            ? ['type' => 'document', 'source' => $source]
+            : ['type' => 'image', 'source' => $source];
+
+        $message = AiClient::create([
+            'maxTokens' => 16000,
+            'outputConfig' => ['effort' => 'medium', 'format' => ['type' => 'json_schema', 'schema' => self::schema()]],
+            'messages' => [['role' => 'user', 'content' => [$block, ['type' => 'text', 'text' => self::PROMPT]]]],
+        ], 'bill', 'bill: ' . $fileName);
+
+        if ($message->stopReason === 'refusal') {
+            throw new AiException('Claude declined to read this file.');
+        }
+        if ($message->stopReason === 'max_tokens') {
+            throw new AiException('The bill has more lines than can be read in one go. Upload it one page at a time.');
+        }
+        $bill = json_decode(AiClient::text($message), true);
+        if (!is_array($bill) || !isset($bill['lines']) || !is_array($bill['lines'])) {
+            throw new AiException('The bill could not be read. Try a sharper photo, taken straight on and in good light.');
+        }
+        return self::review($bill, $vendorId);
+    }
+
+    /** Matching and checks. Public so it can be tested without an API call. */
+    public static function review(array $bill, $vendorId = null)
+    {
+        try {
+            $vendor = self::findVendor($bill, $vendorId);
+        } catch (\Throwable $e) {
+            \Yii::warning('Bill vendor lookup failed: ' . $e->getMessage(), __METHOD__);
+            $vendor = null;
+        }
+        $lines = [];
+        $sum = 0.0;
+        foreach ($bill['lines'] as $i => $line) {
+            // The reading is already paid for: a lookup that fails for one
+            // line must not throw the whole bill away.
+            try {
+                $match = self::match($line, $vendor ? (int) $vendor['id'] : null);
+                $flags = self::flags($line, $match['item']);
+            } catch (\Throwable $e) {
+                \Yii::warning('Bill line match failed: ' . $e->getMessage(), __METHOD__);
+                $match = ['item' => null, 'how' => null, 'alternatives' => []];
+                $flags = [['danger', 'Could not be checked against the item master - check by hand']];
+            }
+            $lines[] = ['n' => $i + 1, 'line' => $line, 'match' => $match['item'], 'how' => $match['how'],
+                        'alternatives' => $match['alternatives'], 'flags' => $flags];
+            $sum += (float) ($line['amount'] ?? 0);
+        }
+        $flags = [];
+        $total = (float) ($bill['bill_total'] ?? 0);
+        $tax = (float) ($bill['tax_total'] ?? 0);
+        if ($total > 0 && $sum > 0) {
+            // Line amounts are either taxable values or tax-inclusive totals; accept either.
+            $gap = min(abs($sum - $total), abs($sum + $tax - $total));
+            if ($gap > max(1.0, 0.01 * $total)) {
+                $flags[] = sprintf('The lines add up to %s (%s with tax) but the bill total is %s. A line may have been missed or misread - check against the paper bill.',
+                    Insights::money($sum), Insights::money($sum + $tax), Insights::money($total));
+            }
+        }
+        if (!$vendor) {
+            $flags[] = 'The vendor on the bill was not found in DASPOS' . (!empty($bill['vendor_gstin']) ? ' by GSTIN ' . $bill['vendor_gstin'] : '') . '.';
+        }
+        if (!empty($bill['notes'])) {
+            $flags[] = 'Reading note: ' . $bill['notes'];
+        }
+        return ['bill' => $bill, 'vendor' => $vendor, 'lines' => $lines, 'flags' => $flags,
+                'matched' => count(array_filter($lines, function ($l) { return $l['match'] !== null; }))];
+    }
+
+    private static function findVendor(array $bill, $vendorId)
+    {
+        if ($vendorId) {
+            $rows = AiData::rows('SELECT id, name, tax_no FROM tbl_vendor WHERE id = :id', [':id' => (int) $vendorId]);
+            if ($rows) {
+                return $rows[0];
+            }
+        }
+        $gstin = strtoupper(preg_replace('/\s+/', '', (string) ($bill['vendor_gstin'] ?? '')));
+        if (strlen($gstin) === 15) {
+            $rows = AiData::rows("SELECT id, name, tax_no FROM tbl_vendor WHERE UPPER(REPLACE(tax_no, ' ', '')) = :g ORDER BY status, id DESC LIMIT 1", [':g' => $gstin]);
+            if ($rows) {
+                return $rows[0];
+            }
+        }
+        return null;
+    }
+
+    private static function itemSelect()
+    {
+        return 'SELECT d.id, d.bar_code, d.item_id, COALESCE(NULLIF(d.mrp, 0), i.mrp) mrp, i.hsn_code, i.title, i.purchase_price,'
+            . ' COALESCE(NULLIF(t.tax_val1 + t.tax_val2, 0), t.tax_val4, 0) gst'
+            . ' FROM tbl_item_detail d JOIN tbl_item i ON i.id = d.item_id LEFT JOIN tbl_tax t ON t.id = d.tax_id';
+    }
+
+    /** Barcode, then the vendor's own item code, then the name. */
+    private static function match(array $line, $vendorId)
+    {
+        $none = ['item' => null, 'how' => null, 'alternatives' => []];
+        $barcode = preg_replace('/\s+/', '', (string) ($line['barcode'] ?? ''));
+        if ($barcode !== '') {
+            $rows = AiData::rows(self::itemSelect() . ' WHERE d.bar_code = :b AND d.status = 0 AND i.status = 0 ORDER BY d.id DESC LIMIT 1', [':b' => $barcode]);
+            if ($rows) {
+                return ['item' => self::enrich($rows[0]), 'how' => 'barcode', 'alternatives' => []];
+            }
+        }
+        $code = trim((string) ($line['item_code'] ?? ''));
+        if ($code !== '' && $vendorId) {
+            $rows = AiData::rows(self::itemSelect() . ' JOIN tbl_item_vendor iv ON iv.item_detail_id = d.id'
+                . ' WHERE iv.vendor_id = :v AND iv.item_code = :c AND d.status = 0 AND i.status = 0 ORDER BY d.id DESC LIMIT 1',
+                [':v' => (int) $vendorId, ':c' => $code]);
+            if ($rows) {
+                return ['item' => self::enrich($rows[0]), 'how' => 'vendor code', 'alternatives' => []];
+            }
+        }
+        $name = self::normalise((string) ($line['description'] ?? ''));
+        $words = array_values(array_filter(explode(' ', $name), function ($w) {
+            return mb_strlen($w) >= 3 && !preg_match('/^\d+(ml|l|ltr|g|gm|gms|kg|pcs|pc)?$/', $w);
+        }));
+        if (!$words) {
+            return $none;
+        }
+        usort($words, function ($a, $b) { return mb_strlen($b) <=> mb_strlen($a); });
+        $params = [];
+        $conds = [];
+        foreach (array_slice($words, 0, 2) as $k => $w) {
+            $params[':w' . $k] = '%' . strtr($w, ['\\' => '\\\\', '%' => '\%', '_' => '\_']) . '%';
+            $conds[] = 'i.title LIKE :w' . $k;
+        }
+        $rows = AiData::rows(self::itemSelect() . ' WHERE ' . implode(' AND ', $conds) . ' AND d.status = 0 AND i.status = 0 LIMIT 60', $params);
+        if (!$rows && count($conds) > 1) {
+            unset($params[':w1']);
+            $rows = AiData::rows(self::itemSelect() . ' WHERE ' . $conds[0] . ' AND d.status = 0 AND i.status = 0 LIMIT 60', $params);
+        }
+        $scored = [];
+        foreach ($rows as $r) {
+            similar_text($name, self::normalise($r['title']), $pct);
+            $scored[] = [$pct, $r];
+        }
+        usort($scored, function ($a, $b) { return $b[0] <=> $a[0]; });
+        $alts = [];
+        foreach (array_slice($scored, 0, 3) as $s) {
+            $alts[] = ['title' => $s[1]['title'], 'barcode' => $s[1]['bar_code'], 'score' => (int) round($s[0]),
+                       'link' => Ui::to('item/update', ['id' => $s[1]['item_id']])];
+        }
+        if ($scored && $scored[0][0] >= 70) {
+            return ['item' => self::enrich($scored[0][1]), 'how' => 'name ' . (int) round($scored[0][0]) . '%',
+                    'alternatives' => array_slice($alts, 1)];
+        }
+        return ['item' => null, 'how' => null, 'alternatives' => $alts];
+    }
+
+    private static function enrich(array $item)
+    {
+        $item['last_price'] = AiData::scalar(
+            'SELECT price FROM tbl_purchase_bill_detail WHERE item_detail_id = :d AND price > 0 ORDER BY id DESC LIMIT 1',
+            [':d' => (int) $item['id']]);
+        $item['link'] = Ui::to('item/update', ['id' => $item['item_id']]);
+        return $item;
+    }
+
+    private static function flags(array $line, $item)
+    {
+        $flags = [];
+        $expiry = (string) ($line['expiry'] ?? '');
+        if ($expiry !== '' && ($t = strtotime($expiry)) !== false) {
+            $days = (int) floor(($t - strtotime(date('Y-m-d'))) / 86400);
+            if ($days < 0) {
+                $flags[] = ['danger', 'Expired ' . date('d M Y', $t)];
+            } elseif ($days <= 30) {
+                $flags[] = ['warning', 'Expires in ' . $days . ' day' . ($days === 1 ? '' : 's')];
+            }
+        }
+        if ($item === null) {
+            $flags[] = ['info', 'Not found in the item master'];
+            return $flags;
+        }
+        $mrp = $line['mrp'] ?? null;
+        if ($mrp !== null && (float) $item['mrp'] > 0 && abs((float) $mrp - (float) $item['mrp']) > 0.5) {
+            $flags[] = ['warning', 'MRP ' . Insights::money($mrp) . ' on bill, ' . Insights::money($item['mrp']) . ' in master'];
+        }
+        $gst = $line['gst_percent'] ?? null;
+        if ($gst !== null && abs((float) $gst - (float) $item['gst']) > 0.01) {
+            $flags[] = ['warning', 'GST ' . (float) $gst . '% on bill, ' . (float) $item['gst'] . '% in master'];
+        }
+        $hsn = preg_replace('/\D/', '', (string) ($line['hsn'] ?? ''));
+        $masterHsn = preg_replace('/\D/', '', (string) $item['hsn_code']);
+        if ($hsn !== '' && $masterHsn !== '' && substr($hsn, 0, 4) !== substr($masterHsn, 0, 4)) {
+            $flags[] = ['info', 'HSN ' . $hsn . ' on bill, ' . $masterHsn . ' in master'];
+        }
+        $rate = $line['rate'] ?? null;
+        if ($rate !== null && (float) $item['last_price'] > 0 && (float) $rate > 1.02 * (float) $item['last_price']) {
+            $flags[] = ['warning', sprintf('Rate %s is %.1f%% above the last purchase (%s)', Insights::money($rate),
+                100 * ((float) $rate / (float) $item['last_price'] - 1), Insights::money($item['last_price']))];
+        }
+        return $flags;
+    }
+
+    private static function normalise($s)
+    {
+        $s = mb_strtolower($s);
+        $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s);
+        return trim(preg_replace('/\s+/', ' ', $s));
+    }
+}
