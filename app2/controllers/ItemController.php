@@ -1348,6 +1348,8 @@ class ItemController extends Controller
 
             OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
             // the bill number, read and assigned after the commit.
             // Serialise it: two bills finishing at the same moment
@@ -1438,7 +1440,8 @@ class ItemController extends Controller
             }
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
 
     /**
@@ -1705,6 +1708,8 @@ class ItemController extends Controller
 
             OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
             // Serialise the bill number: two bills finishing at the same moment
             // both read the same highest bill_no and were given the same number.
@@ -1768,7 +1773,8 @@ class ItemController extends Controller
             }
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
     /**
      * POST /v2/api/item/punchorder
@@ -1920,7 +1926,8 @@ class ItemController extends Controller
             $out['error_details'] = $e->getTraceAsString();
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
 
     /** Yii 1's getBasePrice(): the sale rate less the tax it already includes. */
@@ -2114,6 +2121,8 @@ class ItemController extends Controller
 
             OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
             // Serialise the bill number: two bills finishing at the same moment
             // both read the same highest bill_no and were given the same number.

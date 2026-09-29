@@ -273,6 +273,8 @@ class ItemController extends GxController {
 	 										if ($set == true) {
 	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
+	 											// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+	 											OrderDedupe::committed($order->id);
 	 											// Serialise the bill number: two bills finishing at the same moment
 	 											// both read the same highest bill_no and were given the same number.
 	 											// A named MySQL lock - the same name as the v2 port's, so the two
@@ -420,7 +422,8 @@ class ItemController extends GxController {
 	 								} 
 	 							}
 	 						}
-	 						$this->sendJSONResponse ( $arr );
+	 						// noted, so that the end of the request can tell whether a sale's answer was OK
+	 						$this->sendJSONResponse ( OrderDedupe::answering($arr) );
 	 						Yii::log ( CVarDumper::dumpAsString ( $this->sendJSONResponse ( $arr ) ), CLogger::LEVEL_WARNING, 'order_response' );
 	 					}
 	public function actionBillUpdate(){
@@ -1254,6 +1257,8 @@ class ItemController extends GxController {
 	 										if ($set == true) {
 	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
+	 											// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+	 											OrderDedupe::committed($order->id);
 	 											// Serialise the bill number: two bills finishing at the same moment
 	 											// both read the same highest bill_no and were given the same number.
 	 											// A named MySQL lock - the same name as the v2 port's, so the two
@@ -1406,7 +1411,8 @@ class ItemController extends GxController {
 	 								} 
 	 							}
 	 						}
-	 						$this->sendJSONResponse ( $arr );
+	 						// noted, so that the end of the request can tell whether a sale's answer was OK
+	 						$this->sendJSONResponse ( OrderDedupe::answering($arr) );
 	 						Yii::log ( CVarDumper::dumpAsString ( $this->sendJSONResponse ( $arr ) ), CLogger::LEVEL_WARNING, 'order_response' );
 	 					}
 
@@ -2102,7 +2108,8 @@ class ItemController extends GxController {
 			$arr['error_details'] = $e->getTraceAsString();
 		}
 		
-		$this->sendJSONResponse($arr);
+		// noted, so that the end of the request can tell whether a sale's answer was OK
+		$this->sendJSONResponse(OrderDedupe::answering($arr));
 	}
 
 	public function generateBillAndSend($billData, $billNo = null, $loginid = null) {
@@ -2343,6 +2350,8 @@ class ItemController extends GxController {
 					if ($set == true) {
 						OrderDedupe::remember($order->id);
 						$transaction->commit ();
+						// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+						OrderDedupe::committed($order->id);
 						// Serialise the bill number: two bills finishing at the same moment
 						// both read the same highest bill_no and were given the same number.
 						// A named MySQL lock - the same name as the v2 port's, so the two

@@ -28,6 +28,16 @@
  * names, the window and the matching rules are the same on purpose: a retry
  * that lands on the other stack is caught as well.
  *
+ * A retry that comes later than that - the till waited its full 100 seconds,
+ * or showed an HTTP 500, kept the cart, and the cashier pressed Save again a
+ * minute later - is recognised by whether the first answer reached the till.
+ * Every sale checked by content is recorded in tbl_order_attempt when it
+ * commits, and at the end of the request marked delivered or not (finish()).
+ * An identical request within RETRY_WINDOW_SECONDS of one whose answer was not
+ * delivered is answered with that order; one whose answer was delivered is a
+ * new sale. See db_changes/2026-09-29-order-attempt.sql; before that table
+ * exists this part is off and nothing else changes.
+ *
  * Nothing in here may stop a sale. Every failure of the check itself is logged
  * and the checkout goes ahead as it did before.
  */
@@ -53,10 +63,53 @@ class OrderDedupe
 	/** How long a request waits for an identical one in flight, in seconds. */
 	const LOCK_WAIT_SECONDS = 10;
 
+	/**
+	 * How long after a sale whose answer did not reach the till an identical
+	 * request is taken for the cashier's retry of it, in seconds.
+	 *
+	 * Only an undelivered answer opens this window, so a cashier ringing up the
+	 * same basket again after a sale that went through is a new sale, as before.
+	 * The trade-off is the other way round: the till gave up on a sale (or showed
+	 * an error for it) that nevertheless went into the books, the cashier did not
+	 * press Save again, and within this time sells the identical basket to the
+	 * same customer (walk-ins count as one) with the same payment mode. That sale
+	 * is answered with the first bill, which is in the books already; the books
+	 * show one sale where there were two attempts at one.
+	 */
+	const RETRY_WINDOW_SECONDS = 600;
+
+	/**
+	 * An answer handed over this long after the request started is counted as
+	 * not delivered. The .NET till's WebClient gives up after 100 seconds and
+	 * shows an error; this is kept below that, so an answer that may have come
+	 * after the till stopped listening counts as lost. (An answer the till did
+	 * get between 90 and 100 seconds therefore opens the retry window above.)
+	 */
+	const DELIVERY_LIMIT_SECONDS = 90;
+
+	/**
+	 * How long a retry waits for an identical sale still being processed - the
+	 * till gave up, the server did not - to finish, in seconds.
+	 */
+	const WAIT_FOR_PENDING_SECONDS = 30;
+
+	/** tbl_order_attempt.status */
+	const ATTEMPT_PENDING = 0;       // committed, the answer not sent yet
+	const ATTEMPT_DELIVERED = 1;
+	const ATTEMPT_NOT_DELIVERED = 2;
+
 	private static $lock = null;
 	private static $requestId = null;
 	private static $requestTableUsable = true;
 	private static $shutdownRegistered = false;
+
+	private static $fingerprint = null;      // md5 of the content key, for a sale checked by content
+	private static $userId = null;
+	private static $attemptTableUsable = true;
+	private static $attemptId = null;        // this request's sale, recorded by committed()
+	private static $answerAttemptId = null;  // the earlier sale this request answers with
+	private static $answeredOk = false;      // the action's answer was the success envelope
+	private static $finishRegistered = false;
 
 	/**
 	 * Called before the order is created. Returns the Order this request
@@ -75,6 +128,13 @@ class OrderDedupe
 	public static function check($loginid, $post, $lines = null, $total = null)
 	{
 		self::$requestId = null;
+		self::$fingerprint = null;
+		// A till that gives up waiting closes the connection. PHP notices that
+		// only when it writes, but when it does it must not stop there: the sale
+		// is committed by then, and finish() still has to record that its answer
+		// was lost. Nothing here writes output before the answer, so this changes
+		// nothing else.
+		ignore_user_abort(true);
 		// Sales only. Holds (status 2) are drafts; a repeated hold is not a bill.
 		if (!isset($post['status_id']) || $post['status_id'] != '1') {
 			return null;
@@ -137,9 +197,36 @@ class OrderDedupe
 					return self::repeatOf($id, 'online order ' . $onlineId);
 				}
 			} elseif (self::$requestId === null) {
+				self::$fingerprint = md5($key);
+				self::$userId = (int)$loginid;
+				$attempt = self::latestAttempt();
 				$id = self::recentRepeat($loginid, $customer, $payment, $total, $basket);
 				if ($id) {
-					return self::repeatOf($id, 'an identical request within ' . self::WINDOW_SECONDS . 's');
+					return self::answerWith($id, 'an identical request within ' . self::WINDOW_SECONDS . 's',
+						$attempt !== null && $attempt['order_id'] == $id ? $attempt : null);
+				}
+				if ($attempt !== null) {
+					if ($attempt['status'] == self::ATTEMPT_PENDING && !$attempt['stale']) {
+						// The same sale is still being processed: the till gave up on it,
+						// the server did not. Its answer decides what this request is.
+						$attempt = self::waitForPending($attempt);
+						if ($attempt['status'] == self::ATTEMPT_DELIVERED) {
+							// Its answer reached a client after all, so that client has
+							// the bill. The identical request is a new sale unless the
+							// short window says otherwise.
+							$id = self::recentRepeat($loginid, $customer, $payment, $total, $basket);
+							if ($id) {
+								return self::answerWith($id, 'an identical request within ' . self::WINDOW_SECONDS . 's', null);
+							}
+							return null;
+						}
+					}
+					if ($attempt['status'] != self::ATTEMPT_DELIVERED) {
+						// Not delivered, or still unanswered: nobody has this bill yet.
+						return self::answerWith($attempt['order_id'], 'a retry within ' . self::RETRY_WINDOW_SECONDS
+							. 's of a sale whose answer did not reach the till (attempt ' . $attempt['id'] . ', status '
+							. $attempt['status'] . ($attempt['stale'] ? ', past ' . self::DELIVERY_LIMIT_SECONDS . 's' : '') . ')', $attempt);
+					}
 				}
 			}
 		} catch (Exception $e) {
@@ -168,6 +255,72 @@ class OrderDedupe
 			}
 			// the mapping is a convenience; failing to write it must not fail the sale
 			Yii::log('OrderDedupe::remember: ' . $e->getMessage(), CLogger::LEVEL_ERROR, 'application.api.orderdedupe');
+		}
+	}
+
+	/**
+	 * Just after the order's commit: records the sale as committed with its
+	 * answer still to come, so that a retry arriving meanwhile waits for it, and
+	 * lets finish() mark it at the end of the request. Only for a sale checked
+	 * by content (check() set the fingerprint).
+	 */
+	public static function committed($orderId)
+	{
+		if (self::$fingerprint === null || !self::$attemptTableUsable) {
+			return;
+		}
+		try {
+			// started_at is when the request started, on the database clock
+			$db = Yii::app()->db;
+			$db->createCommand('INSERT INTO tbl_order_attempt (fingerprint, create_user_id, order_id, status, started_at)'
+				. ' VALUES (:f, :u, :o, ' . self::ATTEMPT_PENDING . ', NOW(3) - INTERVAL ' . self::elapsedMicroseconds() . ' MICROSECOND)')
+				->execute(array(':f' => self::$fingerprint, ':u' => self::$userId, ':o' => $orderId));
+			self::$attemptId = $db->getLastInsertID();
+			self::registerFinish();
+		} catch (Exception $e) {
+			self::attemptTableFailed($e, 'committed');
+		}
+	}
+
+	/**
+	 * Returns the action's answer unchanged, noting whether it is the success
+	 * envelope. finish() counts only that as a delivered sale: a NOK after the
+	 * commit - an order saved without a bill number, say - leaves the till
+	 * showing an error with the cart still on it.
+	 */
+	public static function answering($arr)
+	{
+		self::$answeredOk = is_array($arr) && isset($arr['status']) && $arr['status'] === 'OK';
+		return $arr;
+	}
+
+	/**
+	 * At the end of the request, whatever way it ends - the actions exit, and a
+	 * fatal error runs shutdown functions too. Marks this request's sale
+	 * delivered or not, and marks the earlier sale it answered with delivered
+	 * once that answer has reached the till.
+	 */
+	public static function finish()
+	{
+		if (self::$attemptId === null && self::$answerAttemptId === null) {
+			return;
+		}
+		$delivered = self::delivered();
+		try {
+			$db = Yii::app()->db;
+			if (self::$attemptId !== null) {
+				// Only from pending: a retry may already have delivered it.
+				$db->createCommand('UPDATE tbl_order_attempt SET status = :s, finished_at = NOW(3) WHERE id = :id AND status = ' . self::ATTEMPT_PENDING)
+					->execute(array(':s' => $delivered ? self::ATTEMPT_DELIVERED : self::ATTEMPT_NOT_DELIVERED, ':id' => self::$attemptId));
+			}
+			if (self::$answerAttemptId !== null && $delivered) {
+				$db->createCommand('UPDATE tbl_order_attempt SET status = ' . self::ATTEMPT_DELIVERED . ', finished_at = NOW(3) WHERE id = :id')
+					->execute(array(':id' => self::$answerAttemptId));
+			}
+		} catch (Exception $e) {
+			Yii::log('OrderDedupe::finish: ' . $e->getMessage(), CLogger::LEVEL_ERROR, 'application.api.orderdedupe');
+			// the log router has already run at this point of the request
+			Yii::getLogger()->flush(true);
 		}
 	}
 
@@ -243,6 +396,8 @@ class OrderDedupe
 	 */
 	public static function envelope($arr, $order, $flavour)
 	{
+		// what the action sends, as answering() would note it
+		self::$answeredOk = true;
 		$arr['status'] = 'OK';
 		if ($flavour === 'punchorder') {
 			// processOrder() returns the number itself, an integer
@@ -298,6 +453,122 @@ class OrderDedupe
 		Yii::log('Duplicate checkout suppressed: repeats order ' . $order->id . ' (bill ' . $order->bill_no . ') by ' . $why, CLogger::LEVEL_WARNING, 'application.api.orderdedupe');
 		self::release();
 		return $order;
+	}
+
+	/**
+	 * repeatOf(), and when the answer is an earlier sale whose answer has not
+	 * been delivered, has finish() mark that sale delivered by this one.
+	 */
+	private static function answerWith($orderId, $why, $attempt)
+	{
+		$order = self::repeatOf($orderId, $why);
+		if ($order !== null && $attempt !== null && $attempt['status'] != self::ATTEMPT_DELIVERED) {
+			self::$answerAttemptId = $attempt['id'];
+			self::registerFinish();
+		}
+		return $order;
+	}
+
+	/**
+	 * The most recent sale with this request's content by this cashier inside
+	 * RETRY_WINDOW_SECONDS: id, order_id, status, and stale (started more than
+	 * DELIVERY_LIMIT_SECONDS ago, so its answer can no longer count as
+	 * delivered). Null if none, or if the table is not there.
+	 */
+	private static function latestAttempt()
+	{
+		if (!self::$attemptTableUsable) {
+			return null;
+		}
+		try {
+			$row = Yii::app()->db->createCommand('SELECT id, order_id, status,'
+				. ' (started_at < NOW(3) - INTERVAL ' . (int)self::DELIVERY_LIMIT_SECONDS . ' SECOND) AS stale'
+				. ' FROM tbl_order_attempt WHERE fingerprint = :f AND create_user_id = :u'
+				. ' AND started_at >= NOW(3) - INTERVAL ' . (int)self::RETRY_WINDOW_SECONDS . ' SECOND'
+				. ' ORDER BY id DESC LIMIT 1')
+				->queryRow(true, array(':f' => self::$fingerprint, ':u' => self::$userId));
+			return $row ? $row : null;
+		} catch (Exception $e) {
+			self::attemptTableFailed($e, 'latestAttempt');
+			return null;
+		}
+	}
+
+	/** Polls a pending sale until it is marked, is stale, or the wait is over. */
+	private static function waitForPending($attempt)
+	{
+		$until = microtime(true) + self::WAIT_FOR_PENDING_SECONDS;
+		while ($attempt['status'] == self::ATTEMPT_PENDING && !$attempt['stale'] && microtime(true) < $until) {
+			usleep(500000);
+			$row = Yii::app()->db->createCommand('SELECT status,'
+				. ' (started_at < NOW(3) - INTERVAL ' . (int)self::DELIVERY_LIMIT_SECONDS . ' SECOND) AS stale'
+				. ' FROM tbl_order_attempt WHERE id = :id')
+				->queryRow(true, array(':id' => $attempt['id']));
+			if (!$row) {
+				break;
+			}
+			$attempt['status'] = $row['status'];
+			$attempt['stale'] = $row['stale'];
+		}
+		return $attempt;
+	}
+
+	/**
+	 * Whether the answer reached the till: the success envelope, sent with a
+	 * 2xx status, no fatal error, to a connection still open, inside
+	 * DELIVERY_LIMIT_SECONDS. The answer is flushed first, so that a till that
+	 * has gone away shows as an aborted connection; that is as good as the
+	 * server can tell, and the time limit covers the till's own timeout.
+	 */
+	private static function delivered()
+	{
+		ignore_user_abort(true);
+		while (ob_get_level() > 0) {
+			if (!@ob_end_flush()) {
+				break;
+			}
+		}
+		flush();
+		if (!self::$answeredOk) {
+			return false;
+		}
+		$code = http_response_code();
+		if (!is_int($code) || $code < 200 || $code > 299) {
+			return false;
+		}
+		$error = error_get_last();
+		if ($error !== null && ($error['type'] & (E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR))) {
+			return false;
+		}
+		if (connection_aborted()) {
+			return false;
+		}
+		return self::elapsedMicroseconds() < self::DELIVERY_LIMIT_SECONDS * 1000000;
+	}
+
+	/** Microseconds since the request started. */
+	private static function elapsedMicroseconds()
+	{
+		$start = isset($_SERVER['REQUEST_TIME_FLOAT']) ? $_SERVER['REQUEST_TIME_FLOAT'] : $_SERVER['REQUEST_TIME'];
+		return max(0, (int)round((microtime(true) - $start) * 1000000));
+	}
+
+	private static function registerFinish()
+	{
+		if (!self::$finishRegistered) {
+			self::$finishRegistered = true;
+			register_shutdown_function(array('OrderDedupe', 'finish'));
+		}
+	}
+
+	/** db_changes/2026-09-29-order-attempt.sql not applied: off for the rest of the request. */
+	private static function attemptTableFailed($e, $where)
+	{
+		self::$attemptTableUsable = false;
+		self::$fingerprint = null;
+		if (self::sqlError($e) != 1146) {
+			Yii::log('OrderDedupe::' . $where . ': tbl_order_attempt unusable: ' . $e->getMessage(), CLogger::LEVEL_ERROR, 'application.api.orderdedupe');
+		}
 	}
 
 	/** The order id of the most recent identical sale inside the window, or null. */
