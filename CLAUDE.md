@@ -523,6 +523,42 @@ the only record of a decision. Condensed, in sequence:
   `punchorder`, and resend the same one on a retry, so the duplicate-bill
   guard answers from `tbl_order_request` instead of guessing by content.
 
+29–30 Sep 2026:
+
+- *"Fix the duplicate bill issue"* → *"can you fix the dot net issue at the PHP
+  end without modifying DOT NET?"* — `f824ddd`: a till's late retry is answered
+  with the bill it never received (`tbl_order_attempt`, deployed). The .NET
+  repository (`soulbowlonline-del/pos_dotnet`) was checked: its tills point at
+  `/v2/api`; branch `claude/point-tills-to-v2` makes that the only address in
+  `App.config`. Its per-click `Idempotency-Key` and a MySQL password in
+  `commonclass.cs` are reported, not changed.
+- *"In purchaseBillDetail/index All vendor product tick box is not coming in the
+  new Yii 2 port"* — it is in neither tree nor in git history: it exists only in
+  the code on the store's server (61.2.241.71). Waiting for a copy of that
+  code; nothing on that server is to be touched.
+- *"Build the AI Native features in the Web PHP ... improve the UI to make it
+  more modern without changing the menu options"* (earlier: *"it won't modify
+  the existing formula, calculations"*; .NET and Android later):
+  - **AI screens at `/v2/ai`**, port only, admins only: Insights (twelve
+    rule-based daily checks, no AI cost), Ask DASPOS (questions answered
+    through ten read-only lookups), Read a vendor bill (photo/PDF → matched and
+    checked lines; nothing saved), a written summary of the checks, and a
+    usage/spend page. Official Anthropic PHP SDK (`composer install` adds 11
+    packages), `db_changes/2026-09-30-ai-log.sql`, `ANTHROPIC_API_KEY` in
+    `.env`, a monthly budget. Nothing in them writes to the database except
+    their own log. See `docs/ai-features.md`. **Tested against a stand-in API
+    only**; no real Claude call has been made.
+  - **A modern look for `/v2`**: `v2/css/modern.css` and `v2/js/modern-ui.js`,
+    scoped under `html.ui-modern`, three lines in each layout. Same menu, same
+    words, same ids; a half-circle icon in the top bar switches back to the old
+    look (remembered per browser). Also a Ctrl+K "Go to…" list built from the
+    user's own menu. Yii 1 at `/` is unchanged.
+  - Both were checked with the suites' own rule: every read-only page of the
+    port, 790, compared before/after for visible text and element ids - the
+    same result as before the change (four known differences: `printPdf`
+    error pages that print each copy's own path). Anything new in the shared
+    layout is an icon with a title, or created by javascript, for that reason.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored
