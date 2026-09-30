@@ -565,7 +565,7 @@ curl_close($ch);
 		if (isset ( $_POST ['item_detail_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'id =' . $_POST ['item_detail_id'] );
+			$criteria->compare('id', PostId::get('item_detail_id'));
 			$item_detail = ItemDetail::model ()->find ( $criteria );
 			if ($item_detail) {
 				$remaining_quantity = '0.000';
@@ -659,6 +659,7 @@ curl_close($ch);
 								$posted ['type'] [$key] = ItemStock::TYPE_ADDED;
 							}
 							
+							$existingStock = ($itemStock != null);
 							if ($itemStock == null) {
 								
 								$itemStock = new ItemStock ();
@@ -682,12 +683,15 @@ curl_close($ch);
 									$itemStock->outlet_id = $outlet;
 								}
 							} else {
+								// Existing batch: the change is applied in the database when
+								// the row is saved below (addToBalance), so a sale or GRN
+								// landing at the same moment is not overwritten.
 								if ($posted ['type'] [$key] == ItemStock::TYPE_ADDED) {
-									$itemStock->purchase_qty = $itemStock->purchase_qty + $posted ['qtyData'] [$key];
-									$itemStock->balance_qty = $itemStock->balance_qty + $posted ['qtyData'] [$key];
+									$stockDelta = $posted ['qtyData'] [$key];
+									$purchaseDelta = $posted ['qtyData'] [$key];
 								} else {
-									
-									$itemStock->balance_qty = $itemStock->balance_qty - $posted ['qtyData'] [$key];
+									$stockDelta = - $posted ['qtyData'] [$key];
+									$purchaseDelta = 0;
 								}
 							}
 							$current = $item->getOutletTotalRemainingQuantity ( $itemDetail->id, $outlet );
@@ -718,7 +722,7 @@ curl_close($ch);
 								$adjusted = '-' . $posted ['qtyData'] [$key];
 							}
 						
-							if ($itemStock->save ()) {
+							if ($existingStock ? ($itemStock->saveExceptQty () && $itemStock->addToBalance ( $stockDelta, $purchaseDelta )) : $itemStock->save ()) {
 								$criteria = new CDbCriteria();
 								$criteria->compare('status',MrsAdjust::STATUS_PENDING);
 								$criteria->compare('item_id',$itemStock->item_id);
@@ -1348,7 +1352,8 @@ curl_close($ch);
 			// Read the file as csv
 			while ( ($data = fgetcsv ( $handle, 1000, "," )) !== FALSE ) {
 				$row_count ++;
-				$data = array_map ( "utf8_encode", $data ); // added
+				// utf8_encode() is deprecated from PHP 8.2 (fatal under E_ALL); this is the same conversion.
+				$data = array_map ( function ($s) { return mb_convert_encoding ( (string) $s, 'UTF-8', 'ISO-8859-1' ); }, $data ); // added
 				foreach ( $data as $key => $value ) {
 					
 					$data [$key] = $value;
@@ -1482,7 +1487,7 @@ curl_close($ch);
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', PostId::get('item_id'));
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -2533,7 +2538,7 @@ curl_close($ch);
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', PostId::get('item_id'));
 			
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" id="ItemExpire_item_detaill_id" onChange="checkTaxes()"  name="ItemExpireItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -2567,6 +2572,11 @@ curl_close($ch);
 				$criteria->addCondition ( 'status =' . ItemExpire::STATUS_PENDING );
 				$eitems = ItemExpireItem::model ()->findAll ( $criteria );
 				if ($eitems) {
+					// One transaction for the lines, their stock and the header: each line used to be
+					// saved as done on its own, so a failed stock update left it expired with the stock
+					// still on hand. $set was already here for this and never used.
+					$transaction = Yii::app ()->db->beginTransaction ();
+					try {
 					foreach ( $eitems as $eitem ) {
 						$eitem->status = ItemExpire::STATUS_DONE;
 						if ($eitem->save ()) {
@@ -2580,9 +2590,8 @@ curl_close($ch);
 								$current = $itemStock->balance_qty;
 								
 								if ($itemStock != null) {
-									$itemStock->balance_qty = ($itemStock->balance_qty) - ($eitem->qty);
 									
-									if ($itemStock->save ()) {
+									if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-($eitem->qty))) {
 										$log = new StockLog ();
 										
 										$log->item_detail_id = $itemDetail->id;
@@ -2600,6 +2609,8 @@ curl_close($ch);
 											print_r ( $log->getErrors () );
 											exit ();
 										}
+									} else {
+										$set = false;
 									}
 								}
 							}
@@ -2609,6 +2620,15 @@ curl_close($ch);
 					$itemExpire->saveAttributes ( array (
 							'status' 
 					) );
+					if ($set == true) {
+						$transaction->commit ();
+					} else {
+						$transaction->rollback ();
+					}
+					} catch ( Exception $e ) {
+						$transaction->rollback ();
+						throw $e;
+					}
 				}
 			}
 		}

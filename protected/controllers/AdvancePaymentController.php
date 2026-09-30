@@ -76,7 +76,9 @@ class AdvancePaymentController extends GxController {
 			}
 			if ($model->save()) {
 				$advancelog = new AdvanceLogs();
-				$advancelog->amount = $model->payment;
+				// The log is the history of payments: record the one just made, not the running
+				// total that $model->payment now holds (every entry after the first was inflated).
+				$advancelog->amount = isset($_POST['AdvancePayment']['payment']) ? $_POST['AdvancePayment']['payment'] : $model->payment;
 				$advancelog->advance_payment_id = $model->id;
 				$advancelog->save();
 				if (Yii::app()->getRequest()->getIsAjaxRequest())

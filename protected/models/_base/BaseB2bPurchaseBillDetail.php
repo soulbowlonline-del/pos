@@ -530,7 +530,11 @@ abstract class BaseB2bPurchaseBillDetail extends GxActiveRecord {
         $newyear = $billyear + 1;
         $outlet = Outlet::model()->findByPk($this->outlet_id);
         if ($outlet) {
-            if ($outlet->bill_prefix == '') {
+            // Was == '': an outlet's own bill_prefix was used only when it was empty,
+            // so a configured prefix was always replaced by 'B' and an empty one gave
+            // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+            // order API already do.
+            if ($outlet->bill_prefix != '') {
                 $bill_prefix = $outlet->bill_prefix;
             } else {
                 $bill_prefix = 'B';

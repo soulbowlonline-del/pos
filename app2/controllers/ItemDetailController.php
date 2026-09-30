@@ -264,6 +264,7 @@ class ItemDetailController extends BaseUiController {
 		$this->performAjaxValidation( $model, 'item-detail-form' );
 		
 		if (isset ( $_POST ['ItemDetail'] )) {
+			$oldOpenStock = $model->open_stock_qty;
 			$model->load($_POST, 'ItemDetail');
 			if(isset($_POST ['ItemDetail']['company_bar_code'])){
 				$model->company_bar_code = $_POST ['ItemDetail']['company_bar_code'];
@@ -274,15 +275,21 @@ class ItemDetailController extends BaseUiController {
 				$batch_no =  User::randomBarcode('5');
 				$outlet_ids = $_POST ['ItemDetail'] ['outlet_id'];
 				foreach ( $outlet_ids as $outlet_id ) {
-					$itemstock = ItemStock ::model()->findByAttributes(['outlet_id'=>$outlet_id,
+					$itemstock = ItemStock::find()->where(['outlet_id'=>$outlet_id,
 							'vendor_id'=>'0','item_detail_id'=>$model->id,
-					]);
+					])->orderBy(['id' => SORT_DESC])->one();
 					if($itemstock == null){
 						$itemstock = new ItemStock;
 					}
 				
+					// The opening batch used to be overwritten with open_stock_qty, erasing every sale
+					// already taken from it. An existing batch now moves by the change in the opening
+					// stock only (nothing, when it is saved unchanged); a new one starts from it.
+					$openingDelta = (float) $_POST['ItemDetail']['open_stock_qty'] - (float) $oldOpenStock;
+					if($itemstock->isNewRecord){
 					$itemstock->balance_qty = $_POST['ItemDetail']['open_stock_qty'];
 					$itemstock->purchase_qty = $_POST['ItemDetail']['open_stock_qty'];
+					}
 					$itemstock->outlet_id = $outlet_id;
 					$itemstock->vendor_id = 0;
 					if($_POST ['ItemDetail']['mrp'] != ''){
@@ -295,7 +302,7 @@ class ItemDetailController extends BaseUiController {
 					$itemstock->item_id = $item->id;
 					$itemstock->item_detail_id = $model->id;
 					if($model->status == ItemDetail::STATUS_ACTIVE){
-					if($itemstock->save()){
+					if($itemstock->isNewRecord ? $itemstock->save() : ($itemstock->saveExceptQty() && $itemstock->addToBalance($openingDelta, $openingDelta))){
 							
 					}else{
 						print_r($itemstock->getErrors());exit;
@@ -311,7 +318,7 @@ class ItemDetailController extends BaseUiController {
 					
 					
 				if (isset ( $_POST ['ItemDetail'] ['tax_id'] )) {
-					$itemtax = ItemTax ::model()->findByAttributes(['item_detail_id'=>$model->id,'tax_id'=>$_POST ['ItemDetail'] ['tax_id']
+					$itemtax = ItemTax::findOne(['item_detail_id'=>$model->id,'tax_id'=>$_POST ['ItemDetail'] ['tax_id']
 						
 					]);
 					if($itemtax == null){
@@ -369,7 +376,9 @@ class ItemDetailController extends BaseUiController {
 		
 		if (isset ( $_GET ['ItemDetail'] )) {
 			$model->load($_GET, 'ItemDetail');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );

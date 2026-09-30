@@ -3,6 +3,7 @@
  * Ported from protected/views/order/_billpdf.php.
  */
 
+use app\components\Criteria;
 use app\models\Customer;
 use app\models\Item;
 use app\models\OrderItem;

@@ -529,7 +529,7 @@ curl_close($ch);
 		if (isset ( $_POST ['item_detail_id'] )) {
 			
 			$query = ItemDetail::find();
-			$query->andWhere('id =' . $_POST ['item_detail_id']);
+			$query->andWhere(['id' => \app\components\PostId::get('item_detail_id')]);
 			$item_detail = $query->one();
 			if ($item_detail) {
 				$remaining_quantity = '0.000';
@@ -598,16 +598,19 @@ curl_close($ch);
 						$adjusted = '0.000';
 						$actual = '0.000';
 						if ($itemDetail) {
-							$itemStock = ItemStock::findOne( [
+							// id DESC is Yii 1's defaultScope: findByAttributes() took the
+							// newest batch. findOne() has no order, and MySQL hands back
+							// the oldest, so the change landed on a different batch.
+							$itemStock = ItemStock::find()->where( [
 									'item_detail_id' => $itemDetail->id,
 									'outlet_id' => $outlet 
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							
 							/*for item vendor*/
-								$ItemVendor = ItemVendor::findOne( [
+								$ItemVendor = ItemVendor::find()->where( [
 									'item_detail_id' => $itemDetail->item_id
 								
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							$itemStock->vendor_id=$ItemVendor->vendor_id;
 							/*end item vendor*/
 							$item = Item::findOne( $itemDetail->item_id );
@@ -623,6 +626,7 @@ curl_close($ch);
 								$posted ['type'] [$key] = ItemStock::TYPE_ADDED;
 							}
 							
+							$existingStock = ($itemStock != null);
 							if ($itemStock == null) {
 								
 								$itemStock = new ItemStock ();
@@ -646,12 +650,15 @@ curl_close($ch);
 									$itemStock->outlet_id = $outlet;
 								}
 							} else {
+								// Existing batch: the change is applied in the database when
+								// the row is saved below (addToBalance), so a sale or GRN
+								// landing at the same moment is not overwritten.
 								if ($posted ['type'] [$key] == ItemStock::TYPE_ADDED) {
-									$itemStock->purchase_qty = $itemStock->purchase_qty + $posted ['qtyData'] [$key];
-									$itemStock->balance_qty = $itemStock->balance_qty + $posted ['qtyData'] [$key];
+									$stockDelta = $posted ['qtyData'] [$key];
+									$purchaseDelta = $posted ['qtyData'] [$key];
 								} else {
-									
-									$itemStock->balance_qty = $itemStock->balance_qty - $posted ['qtyData'] [$key];
+									$stockDelta = - $posted ['qtyData'] [$key];
+									$purchaseDelta = 0;
 								}
 							}
 							$current = $item->getOutletTotalRemainingQuantity ( $itemDetail->id, $outlet );
@@ -682,7 +689,7 @@ curl_close($ch);
 								$adjusted = '-' . $posted ['qtyData'] [$key];
 							}
 						
-							if ($itemStock->save ()) {
+							if ($existingStock ? ($itemStock->saveExceptQty () && $itemStock->addToBalance ( $stockDelta, $purchaseDelta )) : $itemStock->save ()) {
 								$query_2 = MrsAdjust::find();
 								Criteria::compare($query_2, 'status', MrsAdjust::STATUS_PENDING);
 								Criteria::compare($query_2, 'item_id', $itemStock->item_id);
@@ -805,9 +812,9 @@ curl_close($ch);
 										}
 										Yii::warning( var_export($itemStock->vendor_id, true), '$mrs_vendor_id');
 										if($itemStock->vendor_id != null){
-										$mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
+										$mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
-										]);
+										])->orderBy(['id' => SORT_DESC])->one();
 										Yii::warning( var_export($mrs, true), '$mrs_id');
 										
 										if($item->reorder_qty != ''){
@@ -1139,7 +1146,12 @@ curl_close($ch);
 		if ($id != null) {
 			$query1 = ItemVendor::find();
         $query1->orderBy(['id' => SORT_DESC]);
-			$query1->andWhere('item_detail_id =' . $id);
+			// Bound, not concatenated. A non-integer id broke Yii 1's SQL
+			// (a 500); it still fails the request, as a 400.
+			if (!is_string($id) || !preg_match('/^\s*-?\d+\s*$/', $id)) {
+				throw new BadRequestHttpException('Invalid id.');
+			}
+			$query1->andWhere(['item_detail_id' => (int) $id]);
 			$itemvendors = $query1->all();
 			if ($itemvendors) {
 				foreach ( $itemvendors as $itemvendor ) {
@@ -1314,7 +1326,8 @@ curl_close($ch);
 			// Read the file as csv
 			while ( ($data = fgetcsv ( $handle, 1000, "," )) !== FALSE ) {
 				$row_count ++;
-				$data = array_map ( "utf8_encode", $data ); // added
+				// utf8_encode() is deprecated from PHP 8.2 (fatal under E_ALL); this is the same conversion.
+				$data = array_map ( function ($s) { return mb_convert_encoding ( (string) $s, 'UTF-8', 'ISO-8859-1' ); }, $data ); // added
 				foreach ( $data as $key => $value ) {
 					
 					$data [$key] = $value;
@@ -1443,7 +1456,7 @@ curl_close($ch);
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" name="MrsDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -1608,9 +1621,14 @@ curl_close($ch);
 	public function actionExtra($id = null) {
 		if ($id != null) {
 			$model = $this->loadModel($id);
+			// Bound, not concatenated. A non-integer id broke Yii 1's SQL
+			// (a 500); it still fails the request, as a 400.
+			if (!is_string($id) || !preg_match('/^\s*-?\d+\s*$/', $id)) {
+				throw new BadRequestHttpException('Invalid id.');
+			}
 			$query1 = ItemDetail::find();
 			$query1->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query1->andWhere('item_id =' . $id);
+			$query1->andWhere(['item_id' => (int) $id]);
 			$query1->orderBy(['id' => SORT_ASC]);
 			$query1->limit(1);
 			$itemdetail = $query1->one();
@@ -1668,11 +1686,11 @@ curl_close($ch);
 							if ($itemdetail->save ()) {
 								$batch_no = User::randomBarcode ( '5' );
 								
-								 $itemstock = ItemStock::findOne( [
+								 $itemstock = ItemStock::find()->where( [
 										'outlet_id' => $itemdetail->outlet_id,
 										'item_detail_id' => $itemdetail->id,
 										'item_id' => $model->id 
-								] );
+								] )->orderBy(['id' => SORT_DESC])->one();
 								if ($itemstock == null) {
 									$itemstock = new ItemStock ();
 									
@@ -1866,7 +1884,9 @@ curl_close($ch);
 		
 		if (isset ( $_GET ['Item'] )) {
 			$model->load($_GET, 'Item');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -2488,7 +2508,7 @@ curl_close($ch);
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" id="ItemExpire_item_detaill_id" onChange="checkTaxes()"  name="ItemExpireItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -2523,22 +2543,26 @@ curl_close($ch);
 				$query->andWhere('status =' . ItemExpire::STATUS_PENDING);
 				$eitems = $query->all();
 				if ($eitems) {
+					// One transaction for the lines, their stock and the header: each line used to be
+					// saved as done on its own, so a failed stock update left it expired with the stock
+					// still on hand. $set was already here for this and never used.
+					$transaction = Yii::$app->db->beginTransaction ();
+					try {
 					foreach ( $eitems as $eitem ) {
 						$eitem->status = ItemExpire::STATUS_DONE;
 						if ($eitem->save ()) {
 							$itemDetail = ItemDetail::findOne( $eitem->item_detail_id );
 							if ($itemDetail) {
-								$itemStock = ItemStock::findOne( [
+								$itemStock = ItemStock::find()->where( [
 										'item_detail_id' => $itemDetail->id,
 										'outlet_id' => $eitem->outlet_id 
-								] );
+								] )->orderBy(['id' => SORT_DESC])->one();
 								$item = Item::findOne( $itemDetail->item_id );
 								$current = $itemStock->balance_qty;
 								
 								if ($itemStock != null) {
-									$itemStock->balance_qty = ($itemStock->balance_qty) - ($eitem->qty);
 									
-									if ($itemStock->save ()) {
+									if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-($eitem->qty))) {
 										$log = new StockLog ();
 										
 										$log->item_detail_id = $itemDetail->id;
@@ -2556,6 +2580,8 @@ curl_close($ch);
 											print_r ( $log->getErrors () );
 											exit ();
 										}
+									} else {
+										$set = false;
 									}
 								}
 							}
@@ -2565,6 +2591,15 @@ curl_close($ch);
 					$itemExpire->updateAttributes( [
 							'status' 
 					] );
+					if ($set == true) {
+						$transaction->commit ();
+					} else {
+						$transaction->rollback ();
+					}
+					} catch ( \Exception $e ) {
+						$transaction->rollback ();
+						throw $e;
+					}
 				}
 			}
 		}
@@ -3560,7 +3595,11 @@ curl_close($ch);
 	 */
 	private function getTotalItemsCount()
 	{
-		return Item::find()->where('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0')->one()->count();
+		// Yii 1 called CActiveRecord::count() on the row find() returned, which
+		// counts every row of tbl_item: the condition only decides whether there
+		// is a row to call it on (none is a fatal on both stacks).
+		$item = Item::find()->where('(price_update_flag = 0 OR price_update_flag IS NULL) AND new_gst IS NOT NULL AND new_gst >= 0')->one();
+		return $item::find()->count();
 	}
 
 	/**

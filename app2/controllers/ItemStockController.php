@@ -52,7 +52,7 @@ class ItemStockController extends BaseUiController {
 			$itemDetail = ItemDetail::findOne( $_POST ['item_detail_id'] );
 			$query = ItemStock::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('item_detail_id ='.$_POST ['item_detail_id']);
+			$query->andWhere(['item_detail_id' => \app\components\PostId::get('item_detail_id')]);
 	        $itemstock = $query->one();
 
 	        if($itemDetail){
@@ -79,7 +79,7 @@ class ItemStockController extends BaseUiController {
 	  $item = Item::findOne( $_POST ['item_id'] );
 			$query = ItemDetail::find();
 			$query->andWhere('status ='.ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id ='.$_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 	
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" id="ItemStock_item_detail_id" name="ItemStock[item_detail_id]" onChange="BarCodeData()"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -115,7 +115,7 @@ class ItemStockController extends BaseUiController {
 			$vendor_ids = [];
 			$query = ItemVendor::find();
         $query->orderBy(['id' => SORT_DESC]);
-		    $query->andWhere('item_detail_id ='.$_POST ['item_id']);
+		    $query->andWhere(['item_detail_id' => \app\components\PostId::get('item_id')]);
 	       $itemvendors = $query->all();
 	       if($itemvendors){
 	       	foreach($itemvendors as $itemvendor){
@@ -153,12 +153,15 @@ class ItemStockController extends BaseUiController {
 		$this->performAjaxValidation($model, 'item-stock-form');
 
 		if (isset($_POST['ItemStock'])) {
-			$model = ItemStock ::model()->findByAttributes(['batch_number'=>$_POST['ItemStock']['batch_number'],'outlet_id'=>$_POST['ItemStock']['outlet_id'],
+			$model = ItemStock::find()->where(['batch_number'=>$_POST['ItemStock']['batch_number'],'outlet_id'=>$_POST['ItemStock']['outlet_id'],
 					'item_detail_id'=>$_POST['ItemStock']['item_detail_id'],'item_id'=>$_POST['ItemStock']['item_id']
-			]);
+			])->orderBy(['id' => SORT_DESC])->one();
 			if($model == null){
 				$model = new ItemStock;
 				$model->load($_POST, 'ItemStock');
+				// The form posts the qty as purchase_qty, so the line above has already put it there
+				// and the sums below counted it twice. A new batch starts from nothing.
+				$model->purchase_qty = 0;
 				if($_POST['ItemStock']['type_id'] == ItemStock::TYPE_ADDED){
 					$model->purchase_qty = $model->purchase_qty + $_POST['ItemStock']['purchase_qty'] ;
 					$model->balance_qty = $model->balance_qty +  $_POST['ItemStock']['purchase_qty'] ;
@@ -171,17 +174,21 @@ class ItemStockController extends BaseUiController {
 				//$model->purchase_qty = $_POST['ItemStock']['purchase_qty'];
 			}else{
 				$model->load($_POST, 'ItemStock');
+				$existingStock = true;
+			// The line above has already overwritten purchase_qty with the posted qty, and adding
+			// it again saved twice the posted qty over the batch's purchases. Both quantities now
+			// change once, by the posted qty, in the database (addToBalance).
 			if($_POST['ItemStock']['type_id'] == ItemStock::TYPE_ADDED){
-				$model->purchase_qty = $model->purchase_qty + $_POST['ItemStock']['purchase_qty'] ;
-				$model->balance_qty = $model->balance_qty +  $_POST['ItemStock']['purchase_qty'] ;
+				$stockDelta = $_POST['ItemStock']['purchase_qty'];
 			}else{
-				$model->purchase_qty = $model->purchase_qty - $_POST['ItemStock']['purchase_qty'] ;
-			$model->balance_qty = $model->balance_qty -  $_POST['ItemStock']['purchase_qty'] ;
+				$stockDelta = - $_POST['ItemStock']['purchase_qty'];
 			$cal = true;
 			}
 			}
 
-			if ($model->save()) {
+			// An existing batch's balance changes in the database (addToBalance),
+			// so a sale or GRN landing at the same moment is not overwritten.
+			if (!empty($existingStock) ? ($model->saveExceptQty() && $model->addToBalance($stockDelta, $stockDelta)) : $model->save()) {
 				$itemDetail = ItemDetail::findOne($model->item_detail_id);
 			$itemDetail->update_time = date('Y-m-d H:i:s');
 				$itemDetail->updateAttributes(['update_time']);
@@ -309,7 +316,9 @@ class ItemStockController extends BaseUiController {
 		if (isset($_GET['ItemStock']))
 		{
 			$model->load($_GET, 'ItemStock');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

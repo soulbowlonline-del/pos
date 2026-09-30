@@ -134,15 +134,18 @@ class OnlineOrder extends ActiveRecord
      * "title IS NULL" and finds nothing, which is what the first draft of this
      * port did: it disagreed with Yii 1 on 10 of 177 live rows.
      *
-     * Ordered by id so "first" is a defined row rather than whatever MySQL
-     * happened to return; the Yii 1 side is ordered to match.
+     * $direction is the order Yii 1 effectively used for that model: SORT_DESC
+     * where the model inherits GxActiveRecord::defaultScope()'s id DESC and the
+     * lookup names no order (PaymentMode), SORT_ASC where the Yii 1 lookup says
+     * 'id asc' itself (Customer) or the model's defaultScope() is empty (Item,
+     * ItemDetail - no order at all there, and id asc is what MySQL gives).
      */
-    private static function firstBy($query, $column, $value)
+    private static function firstBy($query, $column, $value, $direction = SORT_ASC)
     {
         if ($value !== null && $value !== '') {
             $query->andWhere([$column => $value]);
         }
-        return $query->orderBy(['id' => SORT_ASC])->one();
+        return $query->orderBy(['id' => $direction])->one();
     }
 
     /**
@@ -154,8 +157,8 @@ class OnlineOrder extends ActiveRecord
      */
     public function toApiArray($withItems = false)
     {
-        $paymentMode = self::firstBy(PaymentMode::find(), 'title', $this->payment_method);
-        $deliveryMode = self::firstBy(PaymentMode::find(), 'title', $this->delivery_method);
+        $paymentMode = self::firstBy(PaymentMode::find(), 'title', $this->payment_method, SORT_DESC);
+        $deliveryMode = self::firstBy(PaymentMode::find(), 'title', $this->delivery_method, SORT_DESC);
 
         // Yii 1 orders this by id asc and takes the first match on the phone
         // number, so a duplicated number resolves to the oldest customer - and
@@ -208,9 +211,11 @@ class OnlineOrder extends ActiveRecord
             $list = null;
 
             if ($posOrder === null) {
+                // Yii 1 reads $model->onlineOrderItems: the relation names no
+                // order, so OnlineOrderItem's inherited defaultScope() gives id DESC
                 $lines = OnlineOrderItem::find()
                     ->where(['order_id' => $this->id])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->all();
 
                 foreach ($lines as $onlineItem) {
@@ -355,7 +360,7 @@ class OnlineOrder extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -427,7 +432,7 @@ class OnlineOrder extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -513,7 +518,8 @@ class OnlineOrder extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // newest first, as Yii 1's findByAttributes() under GxActiveRecord's id DESC scope
+        $vendor = Vendor::find()->where($condition)->orderBy(['id' => SORT_DESC])->one();
         if ($vendor === null) {
             return [];
         }
@@ -585,9 +591,20 @@ class OnlineOrder extends ActiveRecord
                 get_class($this) . ' does not have relation "' . $relation . '".');
         }
 
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
+        $query = $this->$getter();
+        $base = ['query' => $query, 'pagination' => ['pageSize' => Ui::PAGE_SIZE]];
+        // Yii 1's CActiveDataProvider ran the related model's defaultScope, so
+        // a relation that names no order lists newest first (id DESC) there.
+        // On the sort rather than the query: a query order would be put ahead
+        // of any column the user sorts by, and id is unique, so it would win.
+        if ($query->orderBy === null && method_exists($query->modelClass, 'defaultOrder')) {
+            $order = call_user_func([$query->modelClass, 'defaultOrder']);
+            if ($order) {
+                $base['sort'] = ['defaultOrder' => $order];
+            }
+        }
+
+        return new ActiveDataProvider(array_merge($base, $config));
     }
 
     public static function getTypeOptions($id = null)
@@ -680,15 +697,18 @@ class OnlineOrder extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }

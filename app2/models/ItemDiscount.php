@@ -157,9 +157,20 @@ class ItemDiscount extends ActiveRecord
                 get_class($this) . ' does not have relation "' . $relation . '".');
         }
 
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
+        $query = $this->$getter();
+        $base = ['query' => $query, 'pagination' => ['pageSize' => Ui::PAGE_SIZE]];
+        // Yii 1's CActiveDataProvider ran the related model's defaultScope, so
+        // a relation that names no order lists newest first (id DESC) there.
+        // On the sort rather than the query: a query order would be put ahead
+        // of any column the user sorts by, and id is unique, so it would win.
+        if ($query->orderBy === null && method_exists($query->modelClass, 'defaultOrder')) {
+            $order = call_user_func([$query->modelClass, 'defaultOrder']);
+            if ($order) {
+                $base['sort'] = ['defaultOrder' => $order];
+            }
+        }
+
+        return new ActiveDataProvider(array_merge($base, $config));
     }
 
     public static function getStatusOptions($id = null)
@@ -225,7 +236,7 @@ class ItemDiscount extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -289,7 +300,8 @@ class ItemDiscount extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // newest first, as Yii 1's findByAttributes() under GxActiveRecord's id DESC scope
+        $vendor = Vendor::find()->where($condition)->orderBy(['id' => SORT_DESC])->one();
         if ($vendor === null) {
             return [];
         }
@@ -309,7 +321,7 @@ class ItemDiscount extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -422,15 +434,18 @@ class ItemDiscount extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }

@@ -123,7 +123,7 @@ class AuthSession extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -195,7 +195,7 @@ class AuthSession extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(UserRole::defaultOrder() ?: [])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -281,7 +281,9 @@ class AuthSession extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // findByAttributes() in Yii 1, under Vendor's `id DESC` default scope:
+        // a user who created two vendors gets the newer one.
+        $vendor = Vendor::find()->where($condition)->orderBy(Vendor::defaultOrder() ?: [])->one();
         if ($vendor === null) {
             return [];
         }
@@ -437,15 +439,15 @@ class AuthSession extends ActiveRecord
         if (!parent::beforeValidate()) {
             return false;
         }
+        // As BaseAuthSession: PHP's date(), not NOW(), and unconditional -
+        // no !isset guard, so a loaded column default or a caller's value is
+        // overwritten on insert. No updated_by on update.
         if ($this->isNewRecord) {
-            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
-            }
-            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
-                $this->create_user_id = Yii::$app->user->id;
-            }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+            $this->create_user_id = Yii::$app->user->id;
+            $this->create_time = date('Y-m-d H:i:s');
+            $this->update_time = date('Y-m-d H:i:s');
+        } else {
+            $this->update_time = date('Y-m-d H:i:s');
         }
 
         return true;
@@ -539,7 +541,7 @@ class AuthSession extends ActiveRecord
             {
                 $headers = getallheaders();
                 $auth_code = isset($headers['auth_code']) ? $headers['auth_code'] : null;
-                if ( $auth_code == null ) $auth_code = Yii::$app->request->getQuery('auth_code');
+                if ( $auth_code == null ) $auth_code = Yii::$app->request->get('auth_code');
                 // just exit if auth code is null
                 if (  $auth_code == null ) return;
 
@@ -547,7 +549,7 @@ class AuthSession extends ActiveRecord
 
 
             Yii::warning( var_export($auth_code, true), '$$auth_code');
-            $auth_session = AuthSession::find()->where([ 'auth_code'=>$auth_code])->one();
+            $auth_session = AuthSession::find()->where([ 'auth_code'=>$auth_code])->orderBy(self::defaultOrder() ?: [])->one();
             Yii::warning( var_export($auth_session, true), '$auth_session');
 
             if ($auth_session)

@@ -240,7 +240,8 @@ class ItemDetail extends ActiveRecord
     public function getItemDetailMrp()
     {
         $mrp = $this->mrp;
-        if ($mrp == '0.00' || $mrp === null) {
+        // Loose, as Yii 1: an mrp posted blank ('') falls back to the item's too.
+        if ($mrp == '0.00' || $mrp == null) {
             if (isset($this->item)) {
                 $mrp = $this->item->mrp;
             }
@@ -332,13 +333,12 @@ class ItemDetail extends ActiveRecord
     }
 
     /**
-     * SGST percentage.
+     * SGST percentage: tax_val2, or half the IGST rate when that is zero and
+     * tax_val4 is not (as CGST does).
      *
-     * Reads tax_val1, exactly as the Yii 1 version does - the same field CGST
-     * uses, where CESS reads tax_val3. That looks like a copy-paste slip (one
-     * would expect tax_val2), but it is what every SGST figure this API has
-     * ever returned, so correcting it here would change tax output. Flagged
-     * rather than fixed.
+     * This read tax_val1 (CGST) in both stacks, so a tax row whose halves
+     * differ reported CGST as SGST; rows with equal halves were unaffected.
+     * Fixed in Yii 1 at the same time.
      */
     public function getSgstPercent()
     {
@@ -346,7 +346,7 @@ class ItemDetail extends ActiveRecord
         if (!$tax) {
             return 0;
         }
-        $val = $tax->tax_val1;
+        $val = $tax->tax_val2;
         if ($val == '0.00' && $tax->tax_val4 != '0.00') {
             $val = $tax->tax_val4 / 2;
         }
@@ -360,9 +360,13 @@ class ItemDetail extends ActiveRecord
     }
 
     /**
-     * IGST percentage - always 0. The Yii 1 version has `$val = $tax->tax_val4;`
-     * commented out and assigns 0 in its place, so IGST is effectively disabled
-     * on this payload. Reproduced as-is.
+     * IGST percentage - always 0, deliberately. The Yii 1 version has
+     * `$val = $tax->tax_val4;` commented out. A sale at the till is
+     * intra-state, so an IGST row is charged as CGST + SGST: getCgstPercent()
+     * and getSgstPercent() each fall back to tax_val4 / 2, and item/add maps
+     * the line to the matching GST row (OrderItem::getTaxValueID()). Returning
+     * tax_val4 here as well would put the IGST rate on the line twice
+     * (6 + 6 + 12 on a 12% row, against tax_percent 12). Not a bug; left alone.
      */
     public function getIgstPercent()
     {
@@ -1429,6 +1433,15 @@ class ItemDetail extends ActiveRecord
      */
     public function beforeDelete()
     {
+        // A detail that has been sold, bought, moved or returned is not deleted: the cascade
+        // below used to delete its sales, refunds, purchase bills and stock history with it.
+        foreach ([OrderItem::class, OrderHoldItem::class, OrderRefundItem::class, StockLog::class,
+                StockAdjustLog::class, MrsDetail::class, MrnDetail::class, PurchaseOrderDetail::class,
+                PurchaseBillDetail::class, ItemReturnItem::class, ItemExpireItem::class] as $class) {
+            if ((new \yii\db\Query())->from($class::tableName())->where(['item_detail_id' => $this->id])->exists()) {
+                return false;
+            }
+        }
         ItemDiscount::deleteAll(['item_detail_id' => $this->id]);
         ItemTax::deleteAll(['item_detail_id' => $this->id]);
         ItemStock::deleteAll(['item_detail_id' => $this->id]);
@@ -1453,15 +1466,18 @@ class ItemDetail extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }

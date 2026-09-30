@@ -82,11 +82,9 @@ class CustomerController extends GxController {
 		);
 		$json_list = array ();
 		
-		// No ORDER BY leaves the row order to MySQL, so the same request can
-		// return discounts in a different sequence between calls. Order by id.
 		$discounts = Discount::model ()->findAllByAttributes ( array (
 				'status' => Discount::STATUS_ACTIVE 
-		), array ( 'order' => 'id' ) );
+		) );
 		if (! empty ( $discounts )) {
 			
 			foreach ( $discounts as $discount ) {
@@ -111,15 +109,16 @@ class CustomerController extends GxController {
 		$json_list = array ();
 		
 		if ($status == 1) {
-			// Deterministic order for the order list; findAllByAttributes() alone
-			// leaves the sequence to MySQL.
+			// Order's defaultScope() is empty, so without this the sequence was
+			// the storage engine's; id ASC makes it defined. OrderHold below keeps
+			// its inherited id DESC, as in production.
 			$orders = Order::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
 			), array ( 'order' => 'id ASC' ) );
 		} elseif ($status == 2) {
 			$orders = OrderHold::model ()->findAllByAttributes ( array (
 					'outlet_id' => $id 
-			), array ( 'order' => 'id ASC' ) );
+			) );
 		}
 		if (! empty ( $orders )) {
 			
@@ -183,7 +182,17 @@ class CustomerController extends GxController {
 			$arr ['status'] = 'OK';
 			
 			$arr ['order'] [] = $order->toArray ();
-			$order->delete ();
+			// Hand the hold only to the caller whose delete removed it. Two
+			// tills resuming the same hold at once both found it above, both
+			// were given it, and the one order was billed twice.
+			if (! $order->delete ()) {
+				$arr = array (
+						'controller' => $this->id,
+						'action' => $this->action->id,
+						'status' => 'NOK',
+						'message' => 'Order not available' 
+				);
+			}
 		} else {
 			$arr ['message'] = 'Order not available';
 		}
@@ -421,7 +430,10 @@ class CustomerController extends GxController {
 			$user = Customer::getUserByContactNo ( $model->contact_no );
 			if (! $user) {
 				
-				$model->state_id = 1; // activates account set 1
+				// Removed: `$model->state_id = 1; // activates account set 1`. That
+				// line is tbl_user's account flag (UserController), pasted here; on
+				// tbl_customer state_id is the customer's State (1 = Punjab), so it
+				// threw away the posted or stored state on every add and update.
 				if ($model->save ()) {
 					
 					try {
@@ -504,7 +516,10 @@ class CustomerController extends GxController {
 				// change the phone number - which is to say almost all of them.
 				if (! $user || $user->id == $model->id) {
 					
-					$model->state_id = 1; // activates account set 1
+					// Removed: `$model->state_id = 1; // activates account set 1`. That
+					// line is tbl_user's account flag (UserController), pasted here; on
+					// tbl_customer state_id is the customer's State (1 = Punjab), so it
+					// threw away the posted or stored state on every add and update.
 					if ($model->save ()) {
 						
 						$arr ['status'] = 'OK';

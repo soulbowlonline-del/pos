@@ -3,6 +3,7 @@
  * Ported from protected/views/b2bpurchaseBill/print.php.
  */
 
+use app\components\Criteria;
 use app\components\Ui;
 use app\models\ItemDetail;
 use app\models\PurchaseBillDetail;

@@ -80,17 +80,10 @@ class Order extends ActiveRecord
      * The financial year runs April to March, so a bill dated in months 4-12
      * belongs to year..year+1 and one dated in months 1-3 to year-1..year.
      *
-     * The outlet prefix logic is inverted in the Yii 1 original:
-     *
-     *     if ($outlet->bill_prefix == '') { $bill_prefix = $outlet->bill_prefix; }
-     *     else                            { $bill_prefix = 'B'; }
-     *
-     * An outlet with a configured prefix has it discarded in favour of 'B', and
-     * an outlet with an empty one ends up with ''. That looks unintended - the
-     * same logic in toArray1()/toArray2() is written the other way round - but
-     * it is what currently produces every bill number, so it is reproduced here
-     * rather than quietly corrected. Fixing it would change bill numbers on
-     * printed invoices and needs to be a deliberate, separate decision.
+     * The prefix is the outlet's bill_prefix, or 'B' when that is empty. Until
+     * the owner approved the fix this test was inverted in both stacks
+     * (`== ''`), so a configured prefix was replaced by 'B' and an empty one
+     * gave '/-<no>'; see docs/live-bugs-found.md. Fixed in Yii 1 at the same time.
      */
     public function getOrderBillNo()
     {
@@ -109,7 +102,11 @@ class Order extends ActiveRecord
         $billPrefix = 'B';
         $outlet = Outlet::findOne($this->outlet_id);
         if ($outlet) {
-            $billPrefix = ($outlet->bill_prefix == '') ? $outlet->bill_prefix : 'B';
+            // Was == '': an outlet's own bill_prefix was used only when it was empty,
+            // so a configured prefix was always replaced by 'B' and an empty one gave
+            // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+            // order API already do.
+            $billPrefix = ($outlet->bill_prefix != '') ? $outlet->bill_prefix : 'B';
         }
 
         return 'Gst ' . $year . '-' . $yearLast . '/' . $billPrefix . '-' . $billNo;
@@ -341,9 +338,10 @@ class Order extends ActiveRecord
 
         if ($itemStock) {
             if ($itemStock->balance_qty >= $quantity) {
-                $itemStock->balance_qty = $itemStock->balance_qty - $quantity;
                 $itemStock->tax_id = $itemDetail->tax_id;
-                if ($itemStock->save()) {
+                // Deduct in the database, not from the balance read above: a GRN
+                // or another sale may have changed the row since (see addToBalance).
+                if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$quantity)) {
                     $currentQty = $this->lockedStockQty($itemDetail);
                     $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                         $currentQty, $currentQty + $quantity, $quantity);
@@ -355,9 +353,10 @@ class Order extends ActiveRecord
             }
 
             $balance = $itemStock->balance_qty;
-            $itemStock->balance_qty = 0;
             $itemStock->tax_id = $itemDetail->tax_id;
-            if ($itemStock->save()) {
+            // Take this batch's balance as read (it was < the order), rather
+            // than writing 0 over whatever the row holds now.
+            if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$balance)) {
                 $currentQty = $this->lockedStockQty($itemDetail);
                 $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                     $currentQty, $currentQty + $balance, abs($balance));
@@ -387,16 +386,12 @@ class Order extends ActiveRecord
             return;
         }
 
-        $balance = $itemStock->balance_qty;
-        if ($balance == 0) {
-            $itemStock->balance_qty = bcsub((string)$itemStock->balance_qty, (string)$quantity, 3);
-        }
-        if ($balance < 0) {
-            $itemStock->balance_qty = '-' . bcadd((string)abs($itemStock->balance_qty), (string)$quantity, 3);
-        }
+        // No batch has stock left: the sale drives this one further below zero.
+        // The old code computed the new negative balance in PHP and saved it,
+        // so a GRN landing at the same moment was overwritten.
         $itemStock->tax_id = $itemDetail->tax_id;
 
-        if ($itemStock->save()) {
+        if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-$quantity)) {
             // getStockQty() after the save, so this reads the new figure
             $this->writeOrderStockLog($itemDetail, $item, $itemStock, $vendorId,
                 $itemDetail->getStockQty(), $itemDetail->getStockQty() + $quantity, $quantity);
@@ -679,9 +674,20 @@ class Order extends ActiveRecord
                 get_class($this) . ' does not have relation "' . $relation . '".');
         }
 
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
+        $query = $this->$getter();
+        $base = ['query' => $query, 'pagination' => ['pageSize' => Ui::PAGE_SIZE]];
+        // Yii 1's CActiveDataProvider ran the related model's defaultScope, so
+        // a relation that names no order lists newest first (id DESC) there.
+        // On the sort rather than the query: a query order would be put ahead
+        // of any column the user sorts by, and id is unique, so it would win.
+        if ($query->orderBy === null && method_exists($query->modelClass, 'defaultOrder')) {
+            $order = call_user_func([$query->modelClass, 'defaultOrder']);
+            if ($order) {
+                $base['sort'] = ['defaultOrder' => $order];
+            }
+        }
+
+        return new ActiveDataProvider(array_merge($base, $config));
     }
 
     public function attributeLabels()
@@ -1188,7 +1194,7 @@ class Order extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -1260,7 +1266,7 @@ class Order extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -1346,7 +1352,8 @@ class Order extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // newest first, as Yii 1's findByAttributes() under GxActiveRecord's id DESC scope
+        $vendor = Vendor::find()->where($condition)->orderBy(['id' => SORT_DESC])->one();
         if ($vendor === null) {
             return [];
         }
@@ -1756,15 +1763,15 @@ class Order extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
-            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
-                $this->create_user_id = Yii::$app->user->id;
-            }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }

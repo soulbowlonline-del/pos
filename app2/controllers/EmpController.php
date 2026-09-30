@@ -4,6 +4,7 @@ namespace app\controllers;
 use Yii;
 use app\models\User;
 use app\models\UserRole;
+use app\components\UserIdentity;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -42,6 +43,13 @@ class EmpController extends Controller
         ];
     }
 
+    /** CRequiredValidator::isEmpty($value, true), which LoginForm's rule uses. */
+    private static function isBlank($value)
+    {
+        return $value === null || $value === [] || $value === ''
+            || (is_scalar($value) && trim((string)$value) === '');
+    }
+
     /** The unverified caller id, as getallheaders()['userlogin'] supplied it. */
     private function headerUserId()
     {
@@ -72,31 +80,55 @@ class EmpController extends Controller
             return $out;
         }
 
-        // Yii 1's UserIdentity tries email first, then username.
-        $user = User::findOne(['email' => $username]);
-        if ($user === null) {
-            $user = User::findOne(['username' => $username]);
+        // LoginForm::validate() first: username and password are required, and
+        // CRequiredValidator trims. A failure answers the joined messages and
+        // never reaches the identity.
+        $err = '';
+        if (self::isBlank($username)) {
+            $err .= 'Username or Email cannot be blank.';
         }
-
-        if ($user === null) {
-            $out['message'] = 'User does not exist.';
-            return $out;
+        if (self::isBlank($password)) {
+            $err .= 'Password cannot be blank.';
         }
-        if (!User::validatePassword($password, $user->password)) {
-            $out['message'] = 'Password is incorrect';
-            return $out;
-        }
-        if ((int)$user->state_id === User::STATUS_INACTIVE) {
-            $out['message'] = 'This account is not activated.';
-            return $out;
-        }
-        if ((int)$user->state_id === User::STATUS_BANNED) {
-            $out['message'] = 'This account is blocked.';
+        if ($err !== '') {
+            $out['message'] = $err;
             return $out;
         }
 
+        // The same identity the web login uses, so the state checks match Yii 1
+        // - including a removed account (state_id -2), which Yii 1 refuses
+        // with no message because its branch in UserIdentity is empty. The
+        // hand-written checks here did not test it, so a removed account could
+        // log in through this route.
+        $identity = new UserIdentity($username, $password);
+        $identity->authenticate(true);
+
+        switch ($identity->errorCode) {
+            case UserIdentity::ERROR_NONE:
+                break;
+            case UserIdentity::ERROR_STATUS_INACTIVE:
+                $out['message'] = 'This account is not activated.';
+                return $out;
+            case UserIdentity::ERROR_STATUS_BANNED:
+                $out['message'] = 'This account is blocked.';
+                return $out;
+            case UserIdentity::ERROR_STATUS_USER_DOES_NOT_EXIST:
+                $out['message'] = 'User does not exist.';
+                return $out;
+            case UserIdentity::ERROR_PASSWORD_INVALID:
+                $out['message'] = 'Password is incorrect';
+                return $out;
+            default:
+                // no case in Yii 1's switch: no error added, so an empty message
+                $out['message'] = '';
+                return $out;
+        }
+
+        $user = User::findOne($identity->id);
+
+        // isset() in Yii 1, so an empty deviceID clears the stored token
         $deviceId = $req->post('deviceID');
-        if ($deviceId !== null && $deviceId !== '') {
+        if ($deviceId !== null) {
             $user->device_token = $deviceId;
             $user->updateAttributes(['device_token']);
         }
@@ -169,14 +201,13 @@ class EmpController extends Controller
 
         // The Yii 1 version looks up the Admin role purely as a guard and then
         // ignores it, listing everyone outside roles 1 and 6. Preserved as-is.
-        $role = UserRole::findOne(['title' => 'Admin']);
+        $role = UserRole::find()->where(['title' => 'Admin'])->orderBy(['id' => SORT_DESC])->one();
         if (!$role) {
             return $out;
         }
 
-        // Explicit ordering: without it MySQL may return these in any order,
-        // and the Yii 1 route is ordered the same way.
-        $users = User::find()->where(['not in', 'role_id', ['1', '6']])->orderBy(['id' => SORT_ASC])->all();
+        // id DESC: Yii 1 names no order, so GxActiveRecord::defaultScope() applies
+        $users = User::find()->where(['not in', 'role_id', ['1', '6']])->orderBy(['id' => SORT_DESC])->all();
         if (!$users) {
             return $out;
         }
@@ -200,12 +231,15 @@ class EmpController extends Controller
             return $out;
         }
 
-        $role = UserRole::findOne(['title' => 'Delivery Boy']);
+        // findByAttributes() under GxActiveRecord's default scope: newest first,
+        // which decides the role id when the title is not unique
+        $role = UserRole::find()->where(['title' => 'Delivery Boy'])->orderBy(['id' => SORT_DESC])->one();
         if (!$role) {
             return $out;
         }
 
-        $users = User::find()->where(['role_id' => $role->id])->orderBy(['id' => SORT_ASC])->all();
+        // id DESC, as above
+        $users = User::find()->where(['role_id' => $role->id])->orderBy(['id' => SORT_DESC])->all();
         if (!$users) {
             return $out;
         }

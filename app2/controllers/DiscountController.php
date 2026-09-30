@@ -103,7 +103,7 @@ class DiscountController extends BaseUiController {
 					$items = $_POST['Discount']['item_detail_id'];
 					if($items){
 						foreach($items as $item){
-							$item_discount = ItemDiscount::findOne(['item_detail_id'=>$item]);
+							$item_discount = ItemDiscount::find()->where(['item_detail_id'=>$item])->orderBy(['id' => SORT_DESC])->one(); // Yii 1's defaultScope: newest
 							if($item_discount == null){
 								$item_discount = new ItemDiscount();
 							}
@@ -155,7 +155,7 @@ class DiscountController extends BaseUiController {
 					$items = $_POST['Discount']['item_detail_id'];
 					if($items){
 						foreach($items as $item){
-							$item_discount = ItemDiscount::findOne(['item_detail_id'=>$item]);
+							$item_discount = ItemDiscount::find()->where(['item_detail_id'=>$item])->orderBy(['id' => SORT_DESC])->one(); // Yii 1's defaultScope: newest
 							if($item_discount == null){
 								$item_discount = new ItemDiscount();
 							}
@@ -216,7 +216,9 @@ class DiscountController extends BaseUiController {
 		if (isset($_GET['Discount']))
 		{
 			$model->load($_GET, 'Discount');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

@@ -204,7 +204,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {
@@ -347,7 +347,7 @@ class PurchaseBillDetailController extends BaseUiController {
 			
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . PurchaseBill::STATUS_APPROVED);
 			$mrslist = $query->all();
 			
@@ -434,7 +434,9 @@ class PurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_GET ['PurchaseBillDetail'] )) {
 			$model->load($_GET, 'PurchaseBillDetail');
 			
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -563,13 +565,17 @@ class PurchaseBillDetailController extends BaseUiController {
 						$model = $this->loadModel($key);
 						$itemdetail = ItemDetail::findOne( $model->item_detail_id );
 						$item = Item::findOne( $model->item_id );
-						if($poIdAll ['qty'] [$key] == 0){
+						// PHP 8: a blank qty ('') no longer equals 0 and is not a number, so it threw a TypeError
+						// (PHP 5.6 read it as 0); cast as PHP 5.6 did, here and below.
+						if((float)$poIdAll ['qty'] [$key] == 0){
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == PurchaseBill::STATUS_APPROVED)){
-							$billstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$billstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							 if($billstock){
 							 	$billstock->outlet_id = $itemdetail->outlet_id;
 							 	$billstock->vendor_id = $purchasebill->vendor_id;
@@ -750,7 +756,7 @@ class PurchaseBillDetailController extends BaseUiController {
 						}
 						if (isset ( $poIdAll ['qty'] )) {
 							$model->approved_qty = $poIdAll ['qty'] [$key];
-							$model->bal_qty = ($model->req_qty - $model->approved_qty);
+							$model->bal_qty = ((float)$model->req_qty - (float)$model->approved_qty);
 						}
 						$model->create_time = date('Y-m-d H:i:s');
 						if ($model->save ()) {
@@ -777,21 +783,21 @@ class PurchaseBillDetailController extends BaseUiController {
 							}
 							
 							
-							$itemstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$itemstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id 
-							] );
-							$qty = number_format($qty, 3, '.', '');
-							if ($itemstock == null) {
+							] )->orderBy(['id' => SORT_DESC])->one();
+							$qty = number_format((float)$qty, 3, '.', '');
+							$newStockRow = ($itemstock == null);
+							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
 								$itemstock = new ItemStock ();
 								$purchase = $qty;
 								$balance = $qty;
 								$itemstock->batch_number = $batch_no;
-							} else {
-								$purchase = ($itemstock->purchase_qty) + $qty;
-								$balance = ($itemstock->balance_qty) + $qty;
 							}
 							
 							$itemstock->item_detail_id = $itemdetail->id;
@@ -801,10 +807,19 @@ class PurchaseBillDetailController extends BaseUiController {
 							$itemstock->outlet_id = $model->outlet_id;
 							$itemstock->tax_id = $model->tax_id;
 							$itemstock->item_id = $itemdetail->item_id;
-							$itemstock->purchase_qty = $purchase;
-							$itemstock->balance_qty = $balance;
 							$itemstock->create_user_id = Yii::$app->user->id;
-							if ($itemstock->save ()) {
+							if ($newStockRow) {
+								$itemstock->purchase_qty = $purchase;
+								$itemstock->balance_qty = $balance;
+								$stockSaved = $itemstock->save ();
+							} else {
+								// Add in the database, not to the balance read above: a
+								// sale of this item can land at the same moment, and the
+								// later of two whole-row saves used to erase the other
+								// (the GRN's quantity went missing from stock).
+								$stockSaved = $itemstock->saveExceptQty () && $itemstock->addToBalance ( $qty, $qty );
+							}
+							if ($stockSaved) {
 								$remain = $item->getTotalRemainingQuantity();
 								$min_qty = $item->min_qty;
 								if($remain >$min_qty){
@@ -920,7 +935,8 @@ class PurchaseBillDetailController extends BaseUiController {
 				$transaction->rollback ();
 					
 			}
-			} catch ( \Exception $e ) {
+			// \Throwable: a TypeError is not an \Exception, and escaped the rollback.
+			} catch ( \Throwable $e ) {
 				Yii::error('purchaseBillDetail/ajaxupdate rolled back: ' . get_class($e) . ': '
 					. $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
 				$transaction->rollback ();

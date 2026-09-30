@@ -168,7 +168,9 @@ if(isset($_POST['VendorSchemes']['item_id'])){
 		if (isset($_GET['VendorSchemes']))
 		{
 			$model->load($_GET, 'VendorSchemes');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

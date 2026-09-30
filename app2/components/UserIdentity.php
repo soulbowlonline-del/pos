@@ -64,9 +64,13 @@ class UserIdentity
      */
     public function authenticate($loginByEmail = true)
     {
-        $user = User::findOne(['email' => $this->username]);
+        // findByAttributes() under Yii 1's `id DESC` default scope: where
+        // two accounts share an email or a username, the newer one signs in.
+        $user = User::find()->where(['email' => $this->username])
+            ->orderBy(User::defaultOrder() ?: [])->one();
         if ($user === null) {
-            $user = User::findOne(['username' => $this->username]);
+            $user = User::find()->where(['username' => $this->username])
+                ->orderBy(User::defaultOrder() ?: [])->one();
         }
 
         if (!$user) {

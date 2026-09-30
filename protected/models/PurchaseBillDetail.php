@@ -476,7 +476,11 @@ class PurchaseBillDetail extends BasePurchaseBillDetail
 				$amount= $amount + $detail->discount_amt;
 			}
 		}
-		return '0';
+		// The sum above is this bill's discount_amt across the lines sharing this
+		// tax rate - what the Discount column of the purchase report and tally/
+		// paymentreport show. It was computed and then discarded for a literal
+		// '0'; returned now. Already netted out of Basic Value (amount - tax).
+		return $amount;
 	}
 	/* public function getSchemeDiscount(){
 		$amount = 0;

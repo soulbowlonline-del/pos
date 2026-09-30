@@ -37,15 +37,12 @@ class OnlineOrder extends BaseOnlineOrder
 			$criteria1 = new CDbCriteria ();
 			$criteria1->compare( "title",$model->payment_method );
 			// compare() drops the condition when the title is NULL or '', so this
-			// becomes "the first payment mode" rather than "no match". There was
-			// no ORDER BY, leaving that row up to MySQL; ordered by id so both
-			// stacks name the same one.
-			$criteria1->order = 'id asc';
+			// becomes "the newest payment mode" rather than "no match": with no
+			// order of its own, GxActiveRecord::defaultScope() orders it id DESC.
 			$paymentmode = PaymentMode::model ()->find ( $criteria1 );
 			
 			$criteria2 = new CDbCriteria ();
 			$criteria2->compare( "title",$model->delivery_method );
-			$criteria2->order = 'id asc';
 			$deliverymode = PaymentMode::model ()->find ( $criteria2 );
 			$criteria1 = new CDbCriteria ();
 			$criteria1->compare ( "contact_no", $model->mobile );
@@ -105,12 +102,8 @@ class OnlineOrder extends BaseOnlineOrder
 		     $neworder = Order::model()->findByAttributes(array('online_order_id'=>$model->id));
 			
 			if($neworder == null){
-			// the relation has no order; MySQL 8 does not sort implicitly
-			$criteria0 = new CDbCriteria ();
-			$criteria0->addCondition ( 'order_id = :oid' );
-			$criteria0->params[':oid'] = $model->id;
-			$criteria0->order = 'id asc';
-			$order_items = OnlineOrderItem::model ()->findAll ( $criteria0 );
+			// id DESC: OnlineOrderItem's inherited defaultScope() applies to the relation
+			$order_items = $model->onlineOrderItems;
 			if(!empty($order_items))
 			{
 				foreach ($order_items as $order_item)

@@ -20,6 +20,10 @@ return [
     'basePath' => dirname(__DIR__),
     'bootstrap' => ['log'],
     'timeZone' => 'Asia/Kolkata',
+    // Yii 1's homeUrl is / - site/index, which sends a guest to the login
+    // page and anyone else to the dashboard. Yii 2's default, /v2/, is the
+    // API's JSON directory, which is where user/logout left people.
+    'homeUrl' => '/v2/site/index',
     'aliases' => [
         '@app' => dirname(__DIR__),
         // Yii 2's own @webroot is the directory of this front controller, /v2.
@@ -37,6 +41,14 @@ return [
         '@npm' => dirname(dirname(__DIR__)) . '/vendor/npm-asset',
     ],
     'components' => [
+        // Yii 1 registers this in config/main.php; ItemUi, PurchaseOrderDetail
+        // and Vendor call Yii::$app->interaktApi, which without it was an
+        // "Unknown component" 500. Sends go through the outbound stub; with the
+        // stub off, InteraktApi still refuses live sends until cutover.
+        'interaktApi' => [
+            'class' => \app\components\InteraktApi::class,
+            'apiKey' => getenv('POS_INTERAKT_API_KEY') !== false ? getenv('POS_INTERAKT_API_KEY') : '',
+        ],
         'request' => [
             // Only used for Yii 2's own CSRF/cookie signing. It is read from the
             // environment so it is not committed; the entry script fails loudly
@@ -149,7 +161,12 @@ return [
             ],
         ],
         'errorHandler' => [
-            'errorAction' => 'site/error',
+            // Only reached for an HTML response - Yii 2 answers a JSON one
+            // (the API) with the exception array and never runs this. So it
+            // is the web UI's error page, Yii 1's site/error in the admin
+            // layout. It named the API's site/error, which answered every 403
+            // and 404 in the UI with a bare JSON object.
+            'errorAction' => 'site-ui/error',
         ],
         'log' => [
             'traceLevel' => 0,

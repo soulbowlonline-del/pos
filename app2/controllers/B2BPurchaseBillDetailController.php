@@ -65,7 +65,9 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 			// echo"<pre>"; print_t($_POST['B2bPurchaseBillDetail']); die;
 			$model->load($_POST, 'B2bPurchaseBillDetail');
 			$model->outlet_id = '5';
-			if($model->approved_qty != '')
+			// No braces here before: only the next statement was conditional, so a blank
+			// approved_qty went on to use $billmodel without ever setting it.
+			if($model->approved_qty != ''){
 				 $billmodel = B2bPurchaseBill::findOne([
                         'vendor_id' => $_POST['vendor'],
                         'start_date' =>  $_POST['date'],
@@ -93,6 +95,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 				}else{
 					echo"no";
 				}
+			}
 		}
 		else{
 				
@@ -211,7 +214,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 			
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {
@@ -361,7 +364,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$mrslist = $query->all();
 			
@@ -449,7 +452,9 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_GET ['B2bPurchaseBillDetail'] )) {
 			$model->load($_GET, 'B2bPurchaseBillDetail');
 			
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model 
 			] );
@@ -618,11 +623,13 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							
 							
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == B2bPurchaseBill::STATUS_APPROVED)){
-							$billstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$billstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							
 							
 							 if($billstock){
@@ -798,25 +805,25 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							}
 							
 							
-							$itemstock = ItemStock::findOne( [
+							// Yii 1's findByAttributes() applied the model's defaultScope,
+							// id DESC: of several batches, the newest one is the row used.
+							$itemstock = ItemStock::find()->where( [
 									'item_detail_id' => $itemdetail->id,
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id ,
 									'type' => 'B2B'
-							] );
+							] )->orderBy(['id' => SORT_DESC])->one();
 							
 							
 							$qty = number_format($qty, 3, '.', '');
-							if ($itemstock == null) {
+							$newStockRow = ($itemstock == null);
+							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
 								$itemstock = new ItemStock ();
 								$purchase = '-'.$qty;
 								$balance =  '-'.$qty;
 								$itemstock->batch_number = $batch_no;
 								$itemstock->type = 'B2B';
-							} else {
-								$purchase = ($itemstock->purchase_qty) - $qty;
-								$balance = ($itemstock->balance_qty) - $qty;
 							}
 							
 							
@@ -827,10 +834,19 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 							$itemstock->outlet_id = $model->outlet_id;
 							$itemstock->tax_id = $model->tax_id;
 							$itemstock->item_id = $itemdetail->item_id;
-							$itemstock->purchase_qty = $purchase;
-							$itemstock->balance_qty = $balance;
 							$itemstock->create_user_id = Yii::$app->user->id;
-							if ($itemstock->save ()) {
+							if ($newStockRow) {
+								$itemstock->purchase_qty = $purchase;
+								$itemstock->balance_qty = $balance;
+								$stockSaved = $itemstock->save ();
+							} else {
+								// Take the quantity off in the database, not off the
+								// balance read above: a sale or GRN of the same batch
+								// landing at the same moment was erased by the later
+								// of two whole-row saves. Same as the GRN path.
+								$stockSaved = $itemstock->saveExceptQty () && $itemstock->addToBalance ( -$qty, -$qty );
+							}
+							if ($stockSaved) {
 									$itemstock->createB2bMrs();
 								$remain = $item->getTotalRemainingQuantity();
 								$min_qty = $item->min_qty;
@@ -1329,7 +1345,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$query = B2bPurchaseBill::find();
-			$query->andWhere('vendor_id =' . $_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->all();
 			
@@ -1361,7 +1377,7 @@ class B2BPurchaseBillDetailController extends BaseUiController {
 	
 	public function actionGetpendingbilldate(){
 		$query = B2bPurchaseBill::find();
-			$query->andWhere('id =' . $_POST ['bill_id']);
+			$query->andWhere(['id' => \app\components\PostId::get('bill_id')]);
 			$query->andWhere('status !=' . B2bPurchaseBill::STATUS_APPROVED);
 			$Getpendingbill = $query->one();
 			$date=$Getpendingbill->start_date;

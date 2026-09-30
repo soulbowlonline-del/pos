@@ -224,7 +224,7 @@ class PurchaseBillDetailController extends GxController {
 			
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . UserRole::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', PostId::get('item_id'));
 			$criteria->order = 'id desc';
 			$itemdetail = ItemDetail::model ()->find( $criteria );
 			if ($itemdetail) {
@@ -364,7 +364,7 @@ class PurchaseBillDetailController extends GxController {
 		if (isset ( $_POST ['vendor_id'] )) {
 			
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'vendor_id =' . $_POST ['vendor_id'] );
+			$criteria->compare('vendor_id', PostId::get('vendor_id'));
 			$criteria->addCondition ( 'status !=' . PurchaseBill::STATUS_APPROVED );
 			$mrslist = PurchaseBill::model ()->findAll ( $criteria );
 			
@@ -583,7 +583,9 @@ class PurchaseBillDetailController extends GxController {
 						$model = $this->loadModel ( $key, 'PurchaseBillDetail' );
 						$itemdetail = ItemDetail::model ()->findByPk ( $model->item_detail_id );
 						$item = Item::model ()->findByPk ( $model->item_id );
-						if($poIdAll ['qty'] [$key] == 0){
+						// PHP 8: a blank qty ('') no longer equals 0 and is not a number, so it threw a TypeError
+						// (PHP 5.6 read it as 0); cast as PHP 5.6 did, here and below.
+						if((float)$poIdAll ['qty'] [$key] == 0){
 							if (isset ( $_POST ['status'] ) && ($_POST ['status'] == PurchaseBill::STATUS_APPROVED)){
 							$billstock = ItemStock::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemdetail->id,
@@ -770,7 +772,7 @@ class PurchaseBillDetailController extends GxController {
 						}
 						if (isset ( $poIdAll ['qty'] )) {
 							$model->approved_qty = $poIdAll ['qty'] [$key];
-							$model->bal_qty = ($model->req_qty - $model->approved_qty);
+							$model->bal_qty = ((float)$model->req_qty - (float)$model->approved_qty);
 						}
 						$model->create_time = date('Y-m-d H:i:s');
 						if ($model->save ()) {
@@ -802,16 +804,14 @@ class PurchaseBillDetailController extends GxController {
 									'item_id' => $itemdetail->item_id,
 									'vendor_id' => $purchasebill->vendor_id 
 							) );
-							$qty = number_format($qty, 3, '.', '');
-							if ($itemstock == null) {
+							$qty = number_format((float)$qty, 3, '.', '');
+							$newStockRow = ($itemstock == null);
+							if ($newStockRow) {
 								$batch_no = User::randomBarcode ( '5' );
 								$itemstock = new ItemStock ();
 								$purchase = $qty;
 								$balance = $qty;
 								$itemstock->batch_number = $batch_no;
-							} else {
-								$purchase = ($itemstock->purchase_qty) + $qty;
-								$balance = ($itemstock->balance_qty) + $qty;
 							}
 							
 							$itemstock->item_detail_id = $itemdetail->id;
@@ -821,10 +821,19 @@ class PurchaseBillDetailController extends GxController {
 							$itemstock->outlet_id = $model->outlet_id;
 							$itemstock->tax_id = $model->tax_id;
 							$itemstock->item_id = $itemdetail->item_id;
-							$itemstock->purchase_qty = $purchase;
-							$itemstock->balance_qty = $balance;
 							$itemstock->create_user_id = Yii::app ()->user->id;
-							if ($itemstock->save ()) {
+							if ($newStockRow) {
+								$itemstock->purchase_qty = $purchase;
+								$itemstock->balance_qty = $balance;
+								$stockSaved = $itemstock->save ();
+							} else {
+								// Add in the database, not to the balance read above: a
+								// sale of this item can land at the same moment, and the
+								// later of two whole-row saves used to erase the other
+								// (the GRN's quantity went missing from stock).
+								$stockSaved = $itemstock->saveExceptQty () && $itemstock->addToBalance ( $qty, $qty );
+							}
+							if ($stockSaved) {
 								$remain = $item->getTotalRemainingQuantity();
 								$min_qty = $item->min_qty;
 								if($remain >$min_qty){
@@ -923,7 +932,8 @@ class PurchaseBillDetailController extends GxController {
 				$transaction->rollback ();
 					
 			}
-			} catch ( Exception $e ) {
+			// Throwable: a TypeError is not an Exception, and escaped the rollback.
+			} catch ( Throwable $e ) {
 				$transaction->rollback ();
 			}
 			}

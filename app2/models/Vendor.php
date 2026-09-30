@@ -420,7 +420,10 @@ class Vendor extends ActiveRecord
                     $query->orderBy(['id' => SORT_DESC]);
                     $query->limit(1);
                     $query->andWhere('item_detail_id =' . $itemvendor->item_detail_id);
-                    $selectvendor = $query->all();
+                    // Yii 1 used find(): one row, the latest vendor of this
+                    // item. all() answered an array, and reading ->vendor_id
+                    // off it failed the whole order/vendorwise report.
+                    $selectvendor = $query->one();
                     if($selectvendor->vendor_id == $itemvendor->vendor_id){
                     $item_ids[] = $itemvendor->item_detail_id;
                     }
@@ -614,7 +617,8 @@ class Vendor extends ActiveRecord
                             $query->andWhere(['between', 'date(create_time)', Yii::$app->session['vendor_start_date'], Yii::$app->session['vendor_end_date']]);
                         }
                         $query->andWhere('item_id ='.$orderitem->item_id);
-                        $query->select('sum(total_amt) as total_amt');
+                        // Selected only total_amt but reads tax_amt, so the refunded tax was always 0.
+                        $query->select('sum(tax_amt) as tax_amt');
                         $orderRefundItem = $query->one();
                         if($orderRefundItem){
                             $refund = $refund + ($orderRefundItem->tax_amt);
@@ -866,15 +870,18 @@ class Vendor extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }
@@ -1108,13 +1115,13 @@ class Vendor extends ActiveRecord
                                 if ($outlet) {
                                     $vendor->outlet_id = $outlet->id;
                                 }else{
-                                    $outlet = Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->one();
+                                    $outlet = Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->one();
                                     if($outlet){
                                         $vendor->outlet_id = $outlet->id;
                                     }
                                 }
                             }else{
-                                $outlet = Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->one();
+                                $outlet = Outlet::find()->where(['status'=>Outlet::STATUS_ACTIVE])->orderBy(['id' => SORT_DESC])->one();
                                 if($outlet){
                                     $vendor->outlet_id = $outlet->id;
                                 }

@@ -32,7 +32,9 @@ class Access
 
         if (self::$permIdByUrl === null) {
             self::$permIdByUrl = [];
-            foreach (Permission::find()->all() as $p) {
+            // In Yii 1's order - findAll() under its `id DESC` scope - so that
+            // where two rows share a url, the same one wins the map.
+            foreach (Permission::find()->orderBy(Permission::defaultOrder() ?: [])->all() as $p) {
                 self::$permIdByUrl[$p->url] = $p->id;
             }
         }

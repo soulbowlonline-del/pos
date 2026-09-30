@@ -3,6 +3,7 @@
  * Ported from protected/views/b2bpurchaseBill/_invoicepdf.php.
  */
 
+use app\models\B2bPurchaseBillDetail;
 use app\models\Tax;
 ?>
 <!DOCTYPE html>
@@ -73,7 +74,7 @@ td{
 
 <body>
 <?php
-$billDetail_ = new B2bPurchaseBillDetail ( 'search' );
+$billDetail_ = new B2bPurchaseBillDetail(['scenario' => 'search']);
 $bill=$billDetail_->purchasesearch();
 // $bill->getGSTTrue($poid) == true
 // $billDetail_->getGSTTrue($poid)== false

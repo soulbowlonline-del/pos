@@ -1,0 +1,3 @@
+# Not web content. Apache serves the repository root, so without this the
+# files below this directory are downloadable (or, for PHP, executable).
+Require all denied

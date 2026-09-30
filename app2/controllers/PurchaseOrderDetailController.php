@@ -140,7 +140,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 			$query = PurchaseOrder::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('vendor_id ='.$_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !='.PurchaseOrderDetail::STATUS_DONE);
 			$mrslist = $query->all();
 				
@@ -180,7 +180,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 	
 			$query = ItemDetail::find();
 			$query->andWhere('status ='.UserRole::STATUS_ACTIVE);
-			$query->andWhere('item_id ='.$_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 				
 			$itemdetails = $query->all();
 			$option .= '<select class="form-control" onChange="checkTaxes()" name="PurchaseOrderDetail[item_detail_id]" id="PurchaseOrderDetail_item_detail_id"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -298,7 +298,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 				$model->purchase_order_id = $id;
 				if ($model->save()) {
 					if($model->approved_qty != '' && $model->approved_qty != '0'){
-						$billmodel = PurchaseBill::findOne(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+						$billmodel = PurchaseBill::find()->where(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 						$updated = true;
 						if($billmodel == null){
 							$billmodel = new PurchaseBill();
@@ -386,7 +386,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 			$model->purchase_order_id = $id;
 			if ($model->save()) {
 				if($model->approved_qty != '' && $model->approved_qty != '0'){
-					$billmodel = PurchaseBill::findOne(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+					$billmodel = PurchaseBill::find()->where(['purchase_order_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if($billmodel == null){
 						$billmodel = new PurchaseBill();
@@ -547,7 +547,9 @@ class PurchaseOrderDetailController extends BaseUiController {
 		if (isset($_GET['PurchaseOrderDetail']))
 		{
 			$model->load($_GET, 'PurchaseOrderDetail');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -642,7 +644,8 @@ class PurchaseOrderDetailController extends BaseUiController {
 			{
 				if (isset ( $_POST ['PurchaseOrderDetail'] ['start_date'] ) && ($_POST ['PurchaseOrderDetail'] ['start_date'] != '')) {
 					if (isset ( $_POST ['PurchaseOrderDetail'] ['purchase_order_id'] ) && ($_POST ['PurchaseOrderDetail'] ['purchase_order_id'] != '')) {
-						$po = PurchaseOrder::findOne($mrsid);
+						// $mrsid was never defined here (copied from mrsDetail/admin): use the id the guard above checks.
+						$po = PurchaseOrder::findOne($_POST ['PurchaseOrderDetail'] ['purchase_order_id']);
 						if($po){
 							$start_date = $po->start_date;
 						}
@@ -765,7 +768,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 			$purchaseorder->tax_amount = $_POST ['tax_amount'];
 			if (isset ( $_POST ['bill_amount'] ))
 			$purchaseorder->bill_amount = $_POST ['bill_amount'];
-			$purchasebill = PurchaseBill::findOne(['purchase_order_id'=>$id,'vendor_id'=>$purchaseorder->vendor_id]);
+			$purchasebill = PurchaseBill::find()->where(['purchase_order_id'=>$id,'vendor_id'=>$purchaseorder->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 			$updated = true;
 			if($purchasebill == null){
 				$purchasebill = new PurchaseBill();
@@ -894,35 +897,37 @@ class PurchaseOrderDetailController extends BaseUiController {
 					{
 						$model->discount_amt1 = $poIdAll['discount_amt1'][$key];
 					}
-					if(isset( $mrnIdAll['cgstData']))
+					// The tax fields below read $mrnIdAll/$mrsIdAll, which are never defined in this action,
+					// so the posted CGST/SGST/CESS/IGST were silently ignored. They are posted with the rest.
+					if(isset( $poIdAll['cgstData']))
 					{
-						$model->cgst_per = $mrnIdAll['cgstData'][$key];
+						$model->cgst_per = $poIdAll['cgstData'][$key];
 					}
-					if(isset( $mrnIdAll['sgstData']))
+					if(isset( $poIdAll['sgstData']))
 					{
-						$model->sgst_per = $mrnIdAll['sgstData'][$key];
+						$model->sgst_per = $poIdAll['sgstData'][$key];
 					}
-					if(isset( $mrnIdAll['cessData']))
+					if(isset( $poIdAll['cessData']))
 					{
-						$model->cess_per = $mrnIdAll['cessData'][$key];
+						$model->cess_per = $poIdAll['cessData'][$key];
 					}
-					if(isset( $mrnIdAll['cgstamtData']))
+					if(isset( $poIdAll['cgstamtData']))
 					{
-						$model->cgst_amt = $mrnIdAll['cgstamtData'][$key];
+						$model->cgst_amt = $poIdAll['cgstamtData'][$key];
 					}
-					if(isset( $mrnIdAll['sgstamtData']))
+					if(isset( $poIdAll['sgstamtData']))
 					{
-						$model->sgst_amt = $mrnIdAll['sgstamtData'][$key];
+						$model->sgst_amt = $poIdAll['sgstamtData'][$key];
 					}
-					if(isset( $mrnIdAll['cessamtData']))
+					if(isset( $poIdAll['cessamtData']))
 					{
-						$model->cess_amt = $mrnIdAll['cessamtData'][$key];
+						$model->cess_amt = $poIdAll['cessamtData'][$key];
 					}
-					if (isset ( $mrsIdAll ['igstData'] )) {
-						$model->igst_per = $mrsIdAll ['igstData'] [$key];
+					if (isset ( $poIdAll ['igstData'] )) {
+						$model->igst_per = $poIdAll ['igstData'] [$key];
 					}
-					if (isset ( $mrsIdAll ['igstamtData'] )) {
-						$model->igst_amt = $mrsIdAll ['igstamtData'] [$key];
+					if (isset ( $poIdAll ['igstamtData'] )) {
+						$model->igst_amt = $poIdAll ['igstamtData'] [$key];
 					}
 					if(isset( $poIdAll['other_charge']))
 					{

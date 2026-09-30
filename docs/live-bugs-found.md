@@ -124,6 +124,41 @@ a valid edit always failed as a duplicate. Verified empirically, then fixed.
 `Order::getOrderAfterRefundQty()` passed a NULL `SUM()` to `round()`, which is
 fatal on PHP 8. Affected 407 real orders. Fixed with a null guard.
 
+### Four display bugs reproduced during the port — **fixed on the owner's approval**
+
+Each was reproduced in the port so the stacks agreed; all are now fixed in both
+trees in the same change.
+
+  - **Bill-number prefix inverted.** `Order::getOrderBillNo()` tested
+    `bill_prefix == ''`, so an outlet's prefix was used only when empty: an
+    outlet with prefix `SB` printed `Gst 2026-2027/B-1`, one with none printed
+    `Gst 2026-2027/-1`. Now `SB-1` and `B-1`, as `toArray1()` and the order API
+    already did. The same test was fixed in `B2bPurchaseBill`,
+    `B2bPurchaseBillDetail` (`_base` in Yii 1), `B2bOrder` (Yii 1 only, and
+    unused), `tally/b2btaxwise` and `b2bPurchaseBill/printInvoivePdf`, so B2B
+    numbers stay consistent with each other. An outlet whose prefix is `B` sees
+    no change. `OrderRefundItem` delegates to `Order` and needed nothing. The
+    retail bill PDF prints a literal `B-` and never called this.
+  - **`ItemDetail::getSgstPercent()` read `tax_val1` (CGST).** Now `tax_val2`,
+    keeping the IGST/2 fallback. Only a tax row whose two halves differ changes.
+  - **`getMainDiscount()` returned `'0'`** after summing the tax group's
+    `discount_amt` (`PurchaseBillDetail`, `B2bPurchaseBillDetail`). Now returns
+    the sum: the Discount column of the purchase reports and `Discount` in
+    `tally/paymentreport`, which becomes a number. `Basic Value` is already net
+    of it.
+  - **API customer writes set `state_id = 1`** ("activates account set 1", a line
+    copied from the user controller, where `state_id` is the account flag). On
+    `tbl_customer` it is the State, 1 being Punjab. `customer/add` and
+    `customer/update` now keep the posted state; `add` still defaults to 1 when
+    none is sent. `status` is not set instead: nothing reads a customer's status.
+
+Not changed: **`getIgstPercent()` returning 0 is deliberate.** A till sale is
+intra-state, so an IGST row is charged as CGST + SGST — `getCgstPercent()` and
+`getSgstPercent()` each fall back to `tax_val4 / 2`, and `item/add` maps the
+line to the matching GST row (`OrderItem::getTaxValueID()`). Returning
+`tax_val4` as well would put a 12% IGST rate on the line as 6 + 6 + 12 against
+a `tax_percent` of 12. Commented as such in both trees.
+
 ---
 
 ## Found, not fixed — needs a product decision
@@ -463,11 +498,10 @@ change on both stacks.
   - `customer/uploadbill` reads `$_POST['id']` and `$_FILES['file']['name']`
     unchecked, so a request missing either returns a rendered 500 on PHP 8.
     Reproduced on both stacks; see `php8-fragility-sweep.md`.
-  - `getOrderBillNo()` has its prefix logic inverted, `getSgstPercent()` reads
-    `tax_val1`, `getIgstPercent()` always returns 0, `getMainDiscount()`
-    returns the literal `'0'`, and `state_id` is overwritten with 1 whenever a
-    customer is saved. All reproduced rather than fixed, so the two stacks
-    agree; each needs a decision before it is changed.
+  - `getOrderBillNo()`'s inverted prefix, `getSgstPercent()` reading
+    `tax_val1`, `getMainDiscount()` returning `'0'` and `state_id` overwritten
+    with 1 on API customer writes: fixed in both stacks, see *Four display bugs*
+    under Fixed. `getIgstPercent()` returning 0 turned out to be deliberate.
   - MySQL runs in UTC and PHP in Asia/Kolkata, so `hasPendingOTP()` compares a
     PHP-written timestamp with MySQL's `NOW()` and locks a customer out for
     five and a half hours.

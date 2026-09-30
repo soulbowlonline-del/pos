@@ -130,13 +130,14 @@ class Item extends ActiveRecord
      * matches item_vendor rows whose item_detail_id equals this *item's* id.
      * That looks like a mistake in the relation - the column holds item detail
      * ids elsewhere - but item/barcode reads it, so it is reproduced as
-     * declared rather than corrected. Ordered by id; Yii 1 leaves it unordered
-     * and the caller takes [0].
+     * declared rather than corrected. Ordered id DESC: the relation names no
+     * order of its own, and Yii 1 merges ItemVendor's inherited defaultScope()
+     * (id DESC) into it - so the [0] the caller takes is the newest row.
      */
     public function getItemVendors()
     {
         return $this->hasMany(ItemVendor::class, ['item_detail_id' => 'id'])
-            ->orderBy(['id' => SORT_ASC]);
+            ->orderBy(['id' => SORT_DESC]);
     }
 
     /**
@@ -301,7 +302,7 @@ class Item extends ActiveRecord
 		return $id;
     }
 
-    public static function getTypeKeyOptions($id = null)
+    public static function getTypeKeyOptions($value)
     {
 		$list = [
 				"Finished",
@@ -320,7 +321,7 @@ class Item extends ActiveRecord
 		return '0';
     }
 
-    public static function getStatusKeyOptions($id = null)
+    public static function getStatusKeyOptions($value)
     {
 		$list = [
 				"Active",
@@ -468,7 +469,8 @@ class Item extends ActiveRecord
                         || Yii::$app->session ['stock_start_date'] === '') {
                     return $qty;
                 }
-                $query->andWhere('date(create_time) <"'.Yii::$app->session ['stock_start_date'].'"');
+                // Bound: the date comes from the report form via the session.
+                $query->andWhere('date(create_time) < :start', [':start' => Yii::$app->session ['stock_start_date']]);
                 $query->orderBy(['id' => SORT_DESC]);
                 $stock = $query->one();
                 if($stock){
@@ -596,7 +598,8 @@ class Item extends ActiveRecord
 
             $query = StockLog::find();
             $query->andWhere('item_id ='.$this->id);
-            $query->andWhere('date(create_time) <="'.Yii::$app->session ['stock_end_date'].'"');
+            // Bound: the date comes from the report form via the session.
+            $query->andWhere('date(create_time) <= :end', [':end' => Yii::$app->session ['stock_end_date']]);
             $query->orderBy(['id' => SORT_DESC]);
             $stock = $query->one();
             Yii::warning( var_export( $stock , true), '$stock');
@@ -1136,14 +1139,21 @@ class Item extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+        } else {
+            // update_time when unset, from the database clock, as BaseItem.
+            // No updated_by: Yii 1 never set it here.
+            if ($this->hasAttribute('update_time') && !isset($this->update_time)) {
+                $this->update_time = new \yii\db\Expression('NOW()');
+            }
         }
 
         return true;
@@ -1202,12 +1212,16 @@ class Item extends ActiveRecord
         // every row whose title is not null. With `name` as well, both apply.
         $title = trim((string) $this->title);
         $query->andWhere(['like', 'title', $title . '%', false]);
+        // != null, as Yii 1: loose, so a name of '0' (or '') filters nothing
+        if ($this->name != null) {
+            $query->andWhere(['like', 'title', '%' . trim((string) $this->name) . '%', false]);
+        }
+        // Yii 1 copies the session's item name onto the model only after the
+        // conditions above are built, so it never filters this query - the
+        // controller applies it, and only when the request carries Item[...].
         if (Yii::$app->session['item_name'] !== null
                 && Yii::$app->session['item_name'] !== '') {
             $this->name = Yii::$app->session['item_name'];
-        }
-        if ($this->name !== null && $this->name !== '') {
-            $query->andWhere(['like', 'title', trim((string) $this->name)]);
         }
 
         // A vendor sees only the items they supply.
@@ -1516,7 +1530,7 @@ class Item extends ActiveRecord
                             $item->status = Item:: getStatusKeyOptions($itemcat_values[$arrays['Status']]);
                         } */
                         if (isset($arrays['Item Category']) && ($arrays['Item Category']) != '') {
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Category']]);
                             $category = $query->one();
                             if($category){
@@ -1525,7 +1539,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Item SubCategory']) && ($arrays['Item SubCategory']) != '') {
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item SubCategory']]);
                             $category = $query->one();
                             if($category){
@@ -1534,7 +1548,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Item Company']) && $arrays['Item Company']) {
-                            $query = Item::find();
+                            $query = ItemCompany::find()->orderBy(ItemCompany::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Item Company']]);
                             $category = $query->one();
                             if($category){
@@ -1543,7 +1557,7 @@ class Item extends ActiveRecord
 
                         }
                         if (isset($arrays['Sub Category'])  && $arrays['Sub Category']) {
-                            $query = Item::find();
+                            $query = ItemCompanyCategory::find()->orderBy(ItemCompanyCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Sub Category']]);
                             $category = $query->one();
                             if($category){
@@ -1587,7 +1601,7 @@ class Item extends ActiveRecord
 
                             $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
                         }
-                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
                         $user = Yii::$app->user->model;
                         if($user->role_id != $role->id ){
                             $item->state_id = Item::STATUS_INACTIVE;
@@ -1596,7 +1610,7 @@ class Item extends ActiveRecord
                         if ($item->save()) {
                             $itemdetail = new ItemDetail();
                             if (isset($arrays['Tax'])) {
-                                $query = Item::find();
+                                $query = Tax::find();
                                 Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
                                 $tax = $query->one();
                                 if($tax){
@@ -1618,9 +1632,11 @@ class Item extends ActiveRecord
 
                                 $batch_no =  User::randomBarcode('5');
 
-                                    $itemstock = ItemStock ::model()->findByAttributes(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,
+                                    // Only this detail's own batch: a random batch number shared with another item's
+                                    // opening batch used to find that batch and overwrite it.
+                                    $itemstock = ItemStock::find()->where(['batch_number'=>$batch_no,'outlet_id'=>$itemdetail->outlet_id ,'item_detail_id'=>$itemdetail->id,
                                             'vendor_id'=>'0'
-                                    ]);
+                                    ])->orderBy(ItemStock::defaultOrder() ?: [])->one();
                                     if($itemstock == null){
                                         $itemstock = new ItemStock;
                                     }
@@ -1758,7 +1774,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Category'])) {
                             $cat = str_replace(";",",",$itemcat_values[$arrays['Item Category']]);
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $cat);
                             $category = $query->one();
                             if($category){
@@ -1768,7 +1784,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Sub Category'])) {
                             $sbcat = str_replace(";",",",$itemcat_values[$arrays['Sub Category']]);
-                            $query = Item::find();
+                            $query = ItemCategory::find()->orderBy(ItemCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $sbcat);
                             $category = $query->one();
                             if($category){
@@ -1778,7 +1794,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Company'])) {
                             $com = str_replace(";",",",$itemcat_values[$arrays['Item Company']]);
-                            $query = Item::find();
+                            $query = ItemCompany::find()->orderBy(ItemCompany::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $com);
                             $category = $query->one();
                             if($category){
@@ -1788,7 +1804,7 @@ class Item extends ActiveRecord
                         }
                         if (isset($arrays['Item Company Category'])) {
                             $comcat = str_replace(";",",",$itemcat_values[$arrays['Item Company Category']]);
-                            $query = Item::find();
+                            $query = ItemCompanyCategory::find()->orderBy(ItemCompanyCategory::defaultOrder() ?: []);
                             Criteria::compare($query, 'title', $comcat);
                             $category = $query->one();
                             if($category){
@@ -1844,7 +1860,7 @@ class Item extends ActiveRecord
                             $item->reorder_qty = $itemcat_values[$arrays['Reorder Quantity']];
                             }
                         }
-                        $role = UserRole::find()->where(['title'=>'Admin'])->one();
+                        $role = UserRole::find()->where(['title'=>'Admin'])->orderBy(['id' => SORT_DESC])->one();
                         $user = Yii::$app->user->model;
                         if($user->role_id != $role->id ){
                             $item->state_id = Item::STATUS_INACTIVE;
@@ -1859,7 +1875,7 @@ class Item extends ActiveRecord
                                 }
                             } */
                             if (isset($arrays['Barcode']) && ($itemcat_values[$arrays['Barcode']] != '')) {
-                                $query = Item::find();
+                                $query = Outlet::find()->orderBy(Outlet::defaultOrder() ?: []);
                                 $outlet = $query->one();
                                 $itemDetailbars = ItemDetail::find()->where([
                                         'bar_code' =>  $itemcat_values[$arrays['Barcode']],
@@ -1867,12 +1883,27 @@ class Item extends ActiveRecord
                                     //    'item_id' => $item->id,
                                 ])->all();
 
+                                // The detail for this barcode used to be deleted and made again, and deleting a
+                                // detail took its sales, purchases and stock history with it. The newest one is
+                                // now updated in place; any duplicates are deleted as before (beforeDelete refuses
+                                // one that has history).
+                                $itemDetail = null;
                                 if($itemDetailbars){
                                     foreach($itemDetailbars as $itemDetailbar){
-                                        $itemDetailbar->delete();
+                                        if($itemDetail === null || $itemDetailbar->id > $itemDetail->id){
+                                            $itemDetail = $itemDetailbar;
+                                        }
+                                    }
+                                    foreach($itemDetailbars as $itemDetailbar){
+                                        if($itemDetailbar->id != $itemDetail->id){
+                                            $itemDetailbar->delete();
+                                        }
                                     }
                                 }
-                                $itemDetail = new ItemDetail();
+                                if($itemDetail === null){
+                                    $itemDetail = new ItemDetail();
+                                }
+                                $oldOpenStock = $itemDetail->isNewRecord ? 0 : $itemDetail->open_stock_qty;
 
                                 Yii::warning( var_export( $itemDetail , true), '$itemDetail');
                                 $barcodestr = $itemcat_values[$arrays['Barcode']];
@@ -1890,7 +1921,7 @@ class Item extends ActiveRecord
                                 $itemDetail->outlet_id = $outlet->id;
                                 $itemDetail->item_id = $item->id;
                                 if (isset($arrays['Tax'])) {
-                                    $query = Item::find();
+                                    $query = Tax::find();
                                     Criteria::compare($query, 'title', $itemcat_values[$arrays['Tax']]);
                                     $category = $query->one();
                                     if($category){
@@ -1907,30 +1938,40 @@ class Item extends ActiveRecord
                                 if($itemDetail->save()){
                                     $batch_no =  User::randomBarcode('5');
 
-                                    $itemstock = ItemStock ::model()->findByAttributes(['outlet_id'=>$itemDetail->outlet_id ,
+                                    $itemstock = ItemStock::find()->where(['outlet_id'=>$itemDetail->outlet_id ,
                                             'vendor_id'=>'0','item_detail_id'=>$itemDetail->id ,'item_id'=>$item->id
-                                    ]);
+                                    ])->orderBy(ItemStock::defaultOrder() ?: [])->one();
                                     if($itemstock == null){
                                         $itemstock = new ItemStock;
                                     }
 
+                                    // An existing opening batch used to be overwritten with the opening stock, erasing
+                                    // the sales already taken from it. It now moves by the change in the opening stock
+                                    // only (nothing when re-imported unchanged); a new batch starts from it as before.
+                                    $openingDelta = (float) trim($itemDetail->open_stock_qty) - (float) $oldOpenStock;
+                                    if($itemstock->isNewRecord){
                                     $itemstock->balance_qty = trim($itemDetail->open_stock_qty);
                                     $itemstock->purchase_qty = trim($itemDetail->open_stock_qty);
+                                    $itemstock->batch_number = $batch_no;
+                                    }
                                     $itemstock->outlet_id = $itemDetail->outlet_id ;
                                     $itemstock->vendor_id = 0;
                                     $itemstock->mrp = $item->mrp;
                                     $itemstock->base_price = $item->sale_price;
-                                    $itemstock->batch_number = $batch_no;
                                     $itemstock->item_id = $item->id;
                                     $itemstock->item_detail_id = $itemDetail->id;
-                                    if($itemstock->save()){
+                                    if($itemstock->isNewRecord ? $itemstock->save() : ($itemstock->saveExceptQty() && $itemstock->addToBalance($openingDelta, $openingDelta))){
 
                                     }else{
                                         print_r($itemstock->getErrors());exit;
                                     }
                                     if ($itemDetail->tax_id != null) {
 
+                                            // The detail is reused now, so reuse its tax row too: one per detail, as before.
+                                            $itemtax = ItemTax::find()->where(['item_detail_id'=>$itemDetail->id])->orderBy(['id' => SORT_DESC])->one();
+                                            if($itemtax == null){
                                             $itemtax= new ItemTax();
+                                            }
                                             $itemtax->item_detail_id =$itemDetail->id;
                                             $itemtax->tax_id =$itemDetail->tax_id;
                                             $itemtax->save();
@@ -2015,7 +2056,7 @@ class Item extends ActiveRecord
 
 
                         if (isset($arrays['Vendor'])) {
-                            $query = Item::find();
+                            $query = Vendor::find()->orderBy(Vendor::defaultOrder() ?: []);
                             Criteria::compare($query, 'name', $item_values[$arrays['Vendor']]);
                             $vendor = $query->one();
                             Yii::warning( var_export( $vendor , true), '$$vendor');
@@ -2456,7 +2497,7 @@ class Item extends ActiveRecord
                 $remaining_quantity = '0.000';
                 $add_quantity = '0.000';
                 $sub_quantity = '0.000';
-                $query = ItemDetail::find();
+                $query = ItemStock::find();
                 $query->andWhere('item_detail_id =' . $item_detail->id);
                 $query->orderBy(['id' => SORT_ASC]);
                 $query->andWhere("balance_qty > 0.000");
@@ -2793,8 +2834,13 @@ class Item extends ActiveRecord
 		}
 		if (isset ( $this->tax_id ) && ($this->tax_id != '')) {
 			$detail_ids = [];
+			// Bound, not concatenated: tax_id is the grid's filter box. A
+			// non-integer broke Yii 1's SQL (a 500); it still fails, as a 400.
+			if (!is_scalar($this->tax_id) || !preg_match('/^\s*-?\d+\s*$/', (string) $this->tax_id)) {
+				throw new \yii\web\BadRequestHttpException('Invalid tax_id.');
+			}
 			$query4 = ItemDetail::find();
-			$query4->andWhere('tax_id ='.$this->tax_id);
+			$query4->andWhere(['tax_id' => (int) $this->tax_id]);
 			$query4->orderBy(['id' => SORT_DESC]);
 			$query4->groupBy('item_id');
 			$item_details = $query4->all();

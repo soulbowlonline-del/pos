@@ -31,7 +31,7 @@ class MrsController extends BaseUiController {
 			$query = Mrs::find();
         $query->orderBy(['id' => SORT_DESC]);
 			$query->andWhere(['id' => $_POST['idList']]);
-			$query->andWhere('vendor_id ='.$_POST['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$mrs = $query->one();
 			if($mrs){
 				$query_2 = Mrs::find();
@@ -160,7 +160,9 @@ class MrsController extends BaseUiController {
 		if (isset($_GET['Mrs']))
 		{
 			$model->load($_GET, 'Mrs');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

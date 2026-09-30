@@ -399,7 +399,7 @@ class ActiveForm extends \yii\widgets\ActiveForm
             $htmlOptions['style'] = "width:$width;height:$height;";
         }
         if (!isset($options['lang'])) {
-            $options['lang'] = substr(Yii::$app->language, 0, 2);
+            $options['lang'] = substr(\Yii::$app->language, 0, 2);
         }
 
         $field = (string) $this->field($model, $attribute)->textarea($htmlOptions);

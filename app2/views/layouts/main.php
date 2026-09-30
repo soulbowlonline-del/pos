@@ -31,9 +31,10 @@ $this->beginPage();
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title><?php echo Html::encode(Html::encode($this->title)); ?></title>
+  <title><?php echo Html::encode($this->title); ?></title>
   <!-- Tell the browser to be responsive to screen width -->
   <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+  <script>try{if(localStorage.getItem('posUiTheme')!=='classic'){document.documentElement.classList.add('ui-modern');}}catch(e){document.documentElement.classList.add('ui-modern');}</script>
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.5.0/css/font-awesome.min.css">
 
@@ -82,6 +83,8 @@ $this->beginPage();
     different version - the point is to behave as Yii 1 does.
   -->
   <script src="/v2/js/bootstrap.js"></script>
+  <!-- The modern look: last in <head> so it follows every page's own CSS. -->
+  <link rel="stylesheet" type="text/css" href="/v2/css/modern.css?v=20260930" />
 </head>
 <body class="hold-transition skin-blue sidebar-mini" id="main">
 <?php $this->beginBody(); ?>
@@ -105,6 +108,14 @@ $this->beginPage();
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">
           <!-- Messages: style can be found in dropdown.less-->
+          <?php
+          // The AI screens (/v2/ai), for the roles in POS_AI_ROLES and the
+          // people in POS_AI_USERS. An icon
+          // with a title and no text: the page suites compare the text a
+          // reader sees against Yii 1, which has no such link.
+          if (\app\components\ai\AiConfig::userAllowed()) { ?>
+          <li class="ui-ai-link"><a href="<?php echo \yii\helpers\Url::to(['/ai/index']); ?>" title="AI Assistant" aria-label="AI Assistant"><i class="fa fa-magic"></i></a></li>
+          <?php } ?>
           
           
                <!-- Notifications: style can be found in dropdown.less -->
@@ -120,7 +131,7 @@ $this->beginPage();
            
              // A vendor sees only the notifications addressed to them; everyone
              // else sees the last 20 regardless of recipient, as in Yii 1.
-             $role = UserRole::findOne(['title' => 'Vendor']);
+             $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
              $query = Notification::find()->orderBy(['id' => SORT_DESC])->limit(20);
              if ($role !== null && $role->id == $user->role_id) {
              	$query->where(['to_id' => Yii::$app->user->id]);
@@ -1138,6 +1149,7 @@ $('a[title]').on('mouseenter', function () {
 <!-- jQuery 2.2.3 -->
 
 <?php $this->endBody(); ?>
+<script src="/v2/js/modern-ui.js?v=20260930"></script>
 </body>
 </html>
 

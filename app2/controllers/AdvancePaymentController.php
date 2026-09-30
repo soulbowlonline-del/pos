@@ -50,9 +50,11 @@ class AdvancePaymentController extends BaseUiController {
 
 		if (isset($_POST['AdvancePayment'])) {
 			if (isset($_POST['AdvancePayment']['vendor_id'])) {
-			$model = AdvancePayment::findOne(['vendor_id'=>$_POST['AdvancePayment']['vendor_id'],
+			// newest first: Yii 1's findByAttributes() carried GxActiveRecord's
+			// defaultScope (id DESC), so the payment is added to the latest row
+			$model = AdvancePayment::find()->where(['vendor_id'=>$_POST['AdvancePayment']['vendor_id'],
 					'create_user_id'=>Yii::$app->user->id
-			]);
+			])->orderBy(['id' => SORT_DESC])->one();
 			if($model == null){
 				$model = new AdvancePayment;
 				$oldbal = 0;
@@ -70,7 +72,9 @@ class AdvancePaymentController extends BaseUiController {
 			}
 			if ($model->save()) {
 				$advancelog = new AdvanceLogs();
-				$advancelog->amount = $model->payment;
+				// The log is the history of payments: record the one just made, not the running
+				// total that $model->payment now holds (every entry after the first was inflated).
+				$advancelog->amount = isset($_POST['AdvancePayment']['payment']) ? $_POST['AdvancePayment']['payment'] : $model->payment;
 				$advancelog->advance_payment_id = $model->id;
 				$advancelog->save();
 				if (Yii::$app->request->isAjax)
@@ -146,7 +150,9 @@ class AdvancePaymentController extends BaseUiController {
 		if (isset($_GET['AdvancePayment']))
 		{
 			$model->load($_GET, 'AdvancePayment');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);

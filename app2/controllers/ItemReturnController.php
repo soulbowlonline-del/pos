@@ -134,7 +134,9 @@ class ItemReturnController extends BaseUiController {
 		if (isset($_GET['ItemReturn']))
 		{
 			$model->load($_GET, 'ItemReturn');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -184,7 +186,7 @@ class ItemReturnController extends BaseUiController {
 		if(isset($_POST['idList']) && isset($_POST['vendor_id'])){
 			$query = ItemReturn::find();
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$query->andWhere('id ='.$_POST['idList']['0']);
+			$query->andWhere(['id' => \app\components\PostId::get('idList', '0')]);
 			$returnItem = $query->one();
 			
 			if($returnItem){

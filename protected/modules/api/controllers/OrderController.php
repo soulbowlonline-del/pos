@@ -82,7 +82,6 @@ class OrderController extends GxController {
 			$criteria->params[':dbid'] = $loginid;
 				
 			
-			$criteria->order = 'id ASC';
 			$orders = OnlineOrder::model ()->findAll ( $criteria );
 				
 			if (! empty ( $orders )) {
@@ -434,7 +433,6 @@ class OrderController extends GxController {
 				$criteria->addCondition ( 'order_status =' . OnlineOrder::ORDERSTATUS_PENDING );
 			}
 			
-			$criteria->order = 'id ASC';
 			$orders = OnlineOrder::model ()->findAll ( $criteria );
 			
 			if (! empty ( $orders )) {
@@ -675,21 +673,57 @@ class OrderController extends GxController {
 				$set = true;
 				$transaction = Yii::app ()->db->beginTransaction ();
 				try {
+					// Refunds of one order are taken one at a time, so the check
+					// against what was already refunded (below) cannot pass twice
+					// for two requests arriving together. The order row is locked
+					// before anything else is read, so that a refund of the same
+					// order that got here first has committed before this one
+					// looks at what it refunded.
+					Yii::app ()->db->createCommand ( 'SELECT id FROM {{order}} WHERE id = :id FOR UPDATE' )->queryScalar ( array (
+							':id' => $_POST ['order_id'] 
+					) );
 					foreach ( $item_arrays as $item_array ) {
 						$criteria1 = new CDbCriteria ();
 						$criteria1->compare ( "bar_code ", $item_array->bar_code );
 						$itemdetail = ItemDetail::model ()->find ( $criteria1 );
 						
+						// A refund of nothing, or of a negative quantity, would add stock
+						// the other way round or refund money for nothing returned.
+						if ($itemdetail && (! is_numeric ( $item_array->is_return ) || $item_array->is_return <= 0)) {
+							$set = false;
+							$arr ['message'] = 'Refund quantity must be more than zero';
+							continue;
+						}
 						if ($itemdetail) {
 							$criteria = new CDbCriteria ();
 							
 							$criteria->compare ( "item_detail_id ", $itemdetail->id );
 							$criteria->compare ( "order_id ", $_POST ['order_id'] );
-							$criteria->addCondition ( 'qty >= "' . $item_array->is_return . '" ' );
+							// bound: the posted quantity was pasted into the SQL
+							$criteria->addCondition ( 'qty >= :ret' );
+							$criteria->params [':ret'] = $item_array->is_return;
 							
 							$orderitem = OrderItem::model ()->find ( $criteria );
 							$json_list = array ();
 							if ($orderitem) {
+								// Nothing compared a refund with what had already been
+								// refunded, so the same line could be refunded again and
+								// again - stock back and a credit note every time. Refuse
+								// a line that, with this order's earlier refunds of the
+								// item, returns more than the order sold of it.
+								$sold_qty = Yii::app ()->db->createCommand ( 'SELECT COALESCE(SUM(qty), 0) FROM {{order_item}} WHERE order_id = :oid AND item_detail_id = :did' )->queryScalar ( array (
+										':oid' => $orderitem->order_id,
+										':did' => $itemdetail->id 
+								) );
+								$refunded_qty = Yii::app ()->db->createCommand ( 'SELECT COALESCE(SUM(ri.qty), 0) FROM {{order_refund_item}} ri INNER JOIN {{order_refund}} r ON r.id = ri.order_refund_id WHERE r.order_id = :oid AND ri.item_detail_id = :did' )->queryScalar ( array (
+										':oid' => $orderitem->order_id,
+										':did' => $itemdetail->id 
+								) );
+								if (($refunded_qty + $item_array->is_return) > $sold_qty) {
+									$set = false;
+									$arr ['message'] = 'Refund quantity is more than the quantity sold';
+									continue;
+								}
 								$order = Order::model ()->findByPk ( $orderitem->order_id );
 								
 								$item = Item::model ()->findByPk ( $itemdetail->item_id );
@@ -712,14 +746,11 @@ class OrderController extends GxController {
 								
 								if ($refundmodel->save ()) {
 									
-									$refunditem = OrderRefundItem::model ()->findByAttributes ( array (
-											'order_refund_id' => $refundmodel->id,
-											'item_detail_id' => $itemdetail->id,
-											'item_id' => $itemdetail->item_id 
-									) );
-									if ($refunditem == null) {
-										$refunditem = new OrderRefundItem ();
-									}
+									// A new row for every refund. The item's row from an earlier
+									// refund of this order used to be reused and its quantity
+									// overwritten, which lost the record of what had already been
+									// refunded - the figure the check above needs.
+									$refunditem = new OrderRefundItem ();
 									$refunditem->order_refund_id = $refundmodel->id;
 									$refunditem->item_detail_id = $itemdetail->id;
 									$refunditem->item_id = $itemdetail->item_id;
@@ -741,13 +772,9 @@ class OrderController extends GxController {
 												'order' => 'id DESC' 
 										) );
 										if ($model) {
-											$purchase = ($model->purchase_qty) + $item_array->is_return;
-											$balance = ($model->balance_qty) + $item_array->is_return;
-											
-											$model->purchase_qty = $purchase;
-											$model->balance_qty = $balance;
-											
-											if ($model->save ()) {
+											// Return the quantity to stock in the database (addToBalance), so a
+											// concurrent sale or GRN is not overwritten.
+											if ($model->saveExceptQty () && $model->addToBalance ( $item_array->is_return, $item_array->is_return )) {
 												$stocklog = new StockLog ();
 												$stocklog->item_detail_id = $model->item_detail_id;
 												$stocklog->item_id = $model->item_id;
@@ -828,7 +855,9 @@ class OrderController extends GxController {
 						// Adjust loyalty points proportional to the refunded amount:
 						// deduct earned points and restore any redeemed points for returned items.
 						if (isset($_POST ['order_id'])) {
-							LoyaltyService::processRefundDeductPoints($_POST ['order_id'], $total_amount);
+							// Points, not rupees: the refund's total was passed as the points to
+							// deduct, so a Rs 180 refund took 180 points from a sale that earned 1.
+							LoyaltyService::processRefundDeductPoints($_POST ['order_id'], LoyaltyService::calculateEarnedPoints($total_amount));
 						}
 						if ($_POST ['type_id'] == 2) {
 							$creditnote = new CreditNote ();
@@ -997,9 +1026,6 @@ class OrderController extends GxController {
 		$criteria->addCondition ( 'end_date >= ' . '"' . date ( 'Y-m-d' ) . '"' );
 		$criteria->addCondition ( 'discount_type =' . Discount::DISCOUNT_ORDER );
 		$criteria->addCondition ( 'status =' . Discount::STATUS_ACTIVE );
-		// ORDER BY added: MySQL 8 returns no implicit order, and the Yii 2 port
-		// has to agree with this one.
-		$criteria->order = 'id ASC';
 		$discounts = Discount::model ()->findAll ( $criteria );
 		
 		if (! empty ( $discounts )) {

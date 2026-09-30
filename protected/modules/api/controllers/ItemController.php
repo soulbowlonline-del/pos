@@ -85,6 +85,12 @@ class ItemController extends GxController {
 	 									
 	 								$set = true;
 	 								
+	 								// An exact repeat of a sale already billed - a client retrying after an
+	 								// error or a timeout - is answered with that sale's bill instead of being
+	 								// billed a second time. See OrderDedupe.
+	 								if (($dupOrder = OrderDedupe::check($loginid, $_POST)) !== null) {
+	 									$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'ordertest'));
+	 								}
 	 								 $transaction = Yii::app ()->db->beginTransaction ();
 	 								try { 
 	 									if(isset($_POST ['customer_id'])){
@@ -140,12 +146,22 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
-	 														$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-	 														$creditnot->save();
+	 														// Debit the note in the database, and only while it still covers
+	 														// the bill: the check above is on a read, and two bills paying with
+	 														// the same note at once both passed it and both were marked used.
+	 														$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+	 															. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+	 															->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+	 														if ($debited > 0 || $order->total_amt == 0) {
+	 															$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+	 														} else {
+	 															$set = false;
+	 															$arr ['message'] = 'Credit note amount is less than total amount';
+	 														}
 	 													}else{
 	 														$set = false;
 	 														$arr ['message'] = 'Credit note amount is less than total amount';
@@ -255,7 +271,17 @@ class ItemController extends GxController {
 	 										}
 	 											
 	 										if ($set == true) {
+	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
+	 											// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+	 											OrderDedupe::committed($order->id);
+	 											// Serialise the bill number: two bills finishing at the same moment
+	 											// both read the same highest bill_no and were given the same number.
+	 											// A named MySQL lock - the same name as the v2 port's, so the two
+	 											// stacks wait for each other - is held from the read to the write and
+	 											// released in the finally below whatever happens in between.
+	 											$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+	 											try {
 	 											$criteria = new CDbCriteria();
 	 											$criteria->order = 'bill_no desc';
 	 											if($start_date != '' && $end_date != ''){
@@ -270,6 +296,13 @@ class ItemController extends GxController {
 	 												
 	 											$order->bill_no = $bill_no;
 	 											$order->saveAttributes(array('bill_no'));
+	 											} finally {
+	 												if ($billNoLock) {
+	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+	 												}
+	 											}
+	 											// numbered: an identical request waiting on this one can now see the bill
+	 											OrderDedupe::release();
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -379,11 +412,18 @@ class ItemController extends GxController {
 	 										$set = false;
 	 									}
 	 								 } catch ( Exception $e ) {
-	 									$transaction->rollback ();
+	 									// This rolled back unconditionally, and once the sale had committed that
+	 									// threw again (the transaction is inactive): a 500 for a sale that was in
+	 									// the books, so the cashier billed it again. recover() rolls back only an
+	 									// open transaction, and otherwise hands back the saved order to answer with.
+	 									if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/ordertest')) !== null) {
+	 										$arr = OrderDedupe::envelope($arr, $savedOrder, 'ordertest');
+	 									}
 	 								} 
 	 							}
 	 						}
-	 						$this->sendJSONResponse ( $arr );
+	 						// noted, so that the end of the request can tell whether a sale's answer was OK
+	 						$this->sendJSONResponse ( OrderDedupe::answering($arr) );
 	 						Yii::log ( CVarDumper::dumpAsString ( $this->sendJSONResponse ( $arr ) ), CLogger::LEVEL_WARNING, 'order_response' );
 	 					}
 	public function actionBillUpdate(){
@@ -445,12 +485,9 @@ class ItemController extends GxController {
 					}
 				}
 						
-					// ORDER BY added: MySQL 8 no longer returns an implicit order, and
-					// the Yii 2 port has to agree with this one. Same fix as the other
-					// unordered API queries.
 					$purchaseBills = PurchaseBill::model ()->findAllByAttributes ( array (
 							'outlet_id' => $outlet_id,'status'=>PurchaseBill::STATUS_UNAPPROVED
-					), array ( 'order' => 'id ASC' ) );
+					) );
 					if ($purchaseBills) {
 						$json_list = array ();
 						foreach ( $purchaseBills as $purchaseBill ) {
@@ -1030,6 +1067,12 @@ class ItemController extends GxController {
 	 									
 	 								$set = true;
 	 								
+	 								// An exact repeat of a sale already billed - a client retrying after an
+	 								// error or a timeout - is answered with that sale's bill instead of being
+	 								// billed a second time. See OrderDedupe.
+	 								if (($dupOrder = OrderDedupe::check($loginid, $_POST)) !== null) {
+	 									$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'order'));
+	 								}
 	 								 $transaction = Yii::app ()->db->beginTransaction ();
 	 								try { 
 	 									if(isset($_POST ['customer_id'])){
@@ -1085,12 +1128,22 @@ class ItemController extends GxController {
 	 										if ($status == '1') {
 	 											if(isset($_POST['credit_note_id'])){
 
-	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+	 												$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 	 												if($creditnot){
 	 													$remain_amt = $creditnot->amt - $creditnot->amt_used;
 	 													if(($remain_amt) >= ($order->total_amt)){
-	 														$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-	 														$creditnot->save();
+	 														// Debit the note in the database, and only while it still covers
+	 														// the bill: the check above is on a read, and two bills paying with
+	 														// the same note at once both passed it and both were marked used.
+	 														$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+	 															. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+	 															->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+	 														if ($debited > 0 || $order->total_amt == 0) {
+	 															$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+	 														} else {
+	 															$set = false;
+	 															$arr ['message'] = 'Credit note amount is less than total amount';
+	 														}
 	 													}else{
 	 														$set = false;
 	 														$arr ['message'] = 'Credit note amount is less than total amount';
@@ -1202,7 +1255,17 @@ class ItemController extends GxController {
 	 										}
 	 											
 	 										if ($set == true) {
+	 											OrderDedupe::remember($order->id);
 	 											$transaction->commit ();
+	 											// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+	 											OrderDedupe::committed($order->id);
+	 											// Serialise the bill number: two bills finishing at the same moment
+	 											// both read the same highest bill_no and were given the same number.
+	 											// A named MySQL lock - the same name as the v2 port's, so the two
+	 											// stacks wait for each other - is held from the read to the write and
+	 											// released in the finally below whatever happens in between.
+	 											$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+	 											try {
 	 											$criteria = new CDbCriteria();
 	 											$criteria->order = 'bill_no desc';
 	 											if($start_date != '' && $end_date != ''){
@@ -1217,6 +1280,13 @@ class ItemController extends GxController {
 	 												
 	 											$order->bill_no = $bill_no;
 	 											$order->saveAttributes(array('bill_no'));
+	 											} finally {
+	 												if ($billNoLock) {
+	 													Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+	 												}
+	 											}
+	 											// numbered: an identical request waiting on this one can now see the bill
+	 											OrderDedupe::release();
 	 											if ($status == '1') {
 												$data = array();
 												
@@ -1331,11 +1401,18 @@ class ItemController extends GxController {
 	 										$set = false;
 	 									}
 	 								 } catch ( Exception $e ) {
-	 									$transaction->rollback ();
+	 									// This rolled back unconditionally, and once the sale had committed that
+	 									// threw again (the transaction is inactive): a 500 for a sale that was in
+	 									// the books, so the cashier billed it again. recover() rolls back only an
+	 									// open transaction, and otherwise hands back the saved order to answer with.
+	 									if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/order')) !== null) {
+	 										$arr = OrderDedupe::envelope($arr, $savedOrder, 'order');
+	 									}
 	 								} 
 	 							}
 	 						}
-	 						$this->sendJSONResponse ( $arr );
+	 						// noted, so that the end of the request can tell whether a sale's answer was OK
+	 						$this->sendJSONResponse ( OrderDedupe::answering($arr) );
 	 						Yii::log ( CVarDumper::dumpAsString ( $this->sendJSONResponse ( $arr ) ), CLogger::LEVEL_WARNING, 'order_response' );
 	 					}
 
@@ -1389,13 +1466,13 @@ class ItemController extends GxController {
 							$itemStock = ItemStock::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->id,
 									'outlet_id' => $outlet 
-							), array ( 'order' => 'id asc' ) );
+							) );
 							
 							/*for item vendor*/
 								$ItemVendor = ItemVendor::model ()->findByAttributes ( array (
 									'item_detail_id' => $itemDetail->item_id
 								
-							), array ( 'order' => 'id asc' ) );
+							) );
 							$itemStock->vendor_id=$ItemVendor->vendor_id;
 							/*end item vendor*/
 							$item = Item::model ()->findByPk ( $itemDetail->item_id );
@@ -1411,6 +1488,7 @@ class ItemController extends GxController {
 								$posted ['type'] [$key] = ItemStock::TYPE_ADDED;
 							}
 								
+							$existingStock = ($itemStock != null);
 							if ($itemStock == null) {
 								
 								$itemStock = new ItemStock ();
@@ -1434,12 +1512,15 @@ class ItemController extends GxController {
 									$itemStock->outlet_id = $outlet;
 								}
 							} else {
+								// Existing batch: the change is applied in the database when
+								// the row is saved below (addToBalance), so a sale or GRN
+								// landing at the same moment is not overwritten.
 								if ($posted ['type'] [$key] == ItemStock::TYPE_ADDED) {
-									$itemStock->purchase_qty = $itemStock->purchase_qty + $posted ['qtyData'] [$key];
-									$itemStock->balance_qty = $itemStock->balance_qty + $posted ['qtyData'] [$key];
+									$stockDelta = $posted ['qtyData'] [$key];
+									$purchaseDelta = $posted ['qtyData'] [$key];
 								} else {
-									
-									$itemStock->balance_qty = $itemStock->balance_qty - $posted ['qtyData'] [$key];
+									$stockDelta = - $posted ['qtyData'] [$key];
+									$purchaseDelta = 0;
 								}
 							}
 							$current = $item->getOutletTotalRemainingQuantity ( $itemDetail->id, $outlet );
@@ -1470,7 +1551,7 @@ class ItemController extends GxController {
 								$adjusted = '-' . $posted ['qtyData'] [$key];
 							}
 						
-							if ($itemStock->save ()) {
+							if ($existingStock ? ($itemStock->saveExceptQty () && $itemStock->addToBalance ( $stockDelta, $purchaseDelta )) : $itemStock->save ()) {
 								$criteria = new CDbCriteria();
 								$criteria->compare('status',MrsAdjust::STATUS_PENDING);
 								$criteria->compare('item_id',$itemStock->item_id);
@@ -1587,7 +1668,7 @@ class ItemController extends GxController {
 									
 										/*Create MRS*/
 										// $itemdetail = Item::model()->findByPk($item->item_id);
-										$organization = Organization::model()->find(array('order'=>'id asc'));
+										$organization = Organization::model()->find();
 										$itemdetail_ = ItemDetail::model()->findByPk($itemDetail->id);
 										$tax='';
 										$tax_id='';
@@ -1599,7 +1680,7 @@ class ItemController extends GxController {
 										if($itemStock->vendor_id != null){
 										$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$itemStock->vendor_id,
 										'outlet_id'=>$outlet
-										), array ( 'order' => 'id asc' ));
+										));
 										Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 										
 										if($item->reorder_qty != ''){
@@ -1999,10 +2080,22 @@ class ItemController extends GxController {
 						return;
 					}
 
+					// An exact repeat of a sale already billed is answered with that bill - and
+					// no second WhatsApp - instead of being billed again. See OrderDedupe.
+					if (($dupOrder = OrderDedupe::check($loginid, $_POST, $drt, $arr['netAmount'])) !== null) {
+						$this->sendJSONResponse(OrderDedupe::envelope($arr, $dupOrder, 'punchorder'));
+					}
 					$billNo = $this->processOrder($loginid, $drt, $arr);
 
 					if ($billNo) {
-						$this->generateBillAndSend($arr, $billNo, $loginid);
+						// The sale is committed and numbered by now. A failed PDF or WhatsApp
+						// used to fall to the catch below and answer NOK, so the cashier billed
+						// it again; it is logged instead and the sale answered as saved.
+						try {
+							$this->generateBillAndSend($arr, $billNo, $loginid);
+						} catch (Exception $e) {
+							Yii::log('item/punchorder: bill ' . $billNo . ' saved, sending it failed: ' . $e->getMessage(), CLogger::LEVEL_ERROR, 'application.api.orderdedupe');
+						}
 						$arr['status'] = 'OK';
 						$arr['bill_no'] = $billNo;
 					}
@@ -2015,7 +2108,8 @@ class ItemController extends GxController {
 			$arr['error_details'] = $e->getTraceAsString();
 		}
 		
-		$this->sendJSONResponse($arr);
+		// noted, so that the end of the request can tell whether a sale's answer was OK
+		$this->sendJSONResponse(OrderDedupe::answering($arr));
 	}
 
 	public function generateBillAndSend($billData, $billNo = null, $loginid = null) {
@@ -2154,12 +2248,22 @@ class ItemController extends GxController {
 					if ($status == '1') {
 						if(isset($_POST['credit_note_id'])){
 
-							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']), array('order'=>'id asc'));
+							$creditnot = CreditNote::model()->findByAttributes(array('credit_number'=>$_POST['credit_note_id']));
 							if($creditnot){
 								$remain_amt = $creditnot->amt - $creditnot->amt_used;
 								if(($remain_amt) >= ($order->total_amt)){
-									$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
-									$creditnot->save();
+									// Debit the note in the database, and only while it still covers
+									// the bill: the check above is on a read, and two bills paying with
+									// the same note at once both passed it and both were marked used.
+									$debited = Yii::app()->db->createCommand('UPDATE ' . $creditnot->tableName()
+										. ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need')
+										->execute(array(':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditnot->id));
+									if ($debited > 0 || $order->total_amt == 0) {
+										$creditnot->amt_used = ($creditnot->amt_used) + $order->total_amt;
+									} else {
+										$set = false;
+										$arr ['message'] = 'Credit note amount is less than total amount';
+									}
 								}else {
 									$set = false;
 									$arr ['message'] = 'Credit note amount is less than total amount';
@@ -2244,7 +2348,17 @@ class ItemController extends GxController {
 					}
 						
 					if ($set == true) {
+						OrderDedupe::remember($order->id);
 						$transaction->commit ();
+						// the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+						OrderDedupe::committed($order->id);
+						// Serialise the bill number: two bills finishing at the same moment
+						// both read the same highest bill_no and were given the same number.
+						// A named MySQL lock - the same name as the v2 port's, so the two
+						// stacks wait for each other - is held from the read to the write and
+						// released in the finally below whatever happens in between.
+						$billNoLock = Yii::app()->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+						try {
 						$criteria = new CDbCriteria();
 						$criteria->order = 'bill_no desc';
 						if($start_date != '' && $end_date != ''){
@@ -2259,6 +2373,13 @@ class ItemController extends GxController {
 							
 						$order->bill_no = $bill_no;
 						$order->saveAttributes(array('bill_no'));
+						} finally {
+							if ($billNoLock) {
+								Yii::app()->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+							}
+						}
+						// numbered: an identical request waiting on this one can now see the bill
+						OrderDedupe::release();
 						if ($status == '1') {
 						$data = array();
 						
@@ -2373,7 +2494,13 @@ class ItemController extends GxController {
 					$set = false;
 				}
 			} catch ( Exception $e ) {
-					$transaction->rollback ();
+					// This rolled back unconditionally, and once the sale had committed that
+					// threw again (the transaction is inactive) out to actionPunchorder, which
+					// answered NOK for a sale that was in the books. recover() rolls back only
+					// an open transaction, and otherwise hands back the saved order.
+					if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/punchorder')) !== null) {
+						$bill_no = $savedOrder->bill_no ? (int)$savedOrder->bill_no : null;
+					}
 			} 
 		}
 	 					

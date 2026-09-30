@@ -23,6 +23,16 @@ class ItemDetail extends BaseItemDetail
 	}
 	protected function beforeDelete()
 	{
+		// A detail that has been sold, bought, moved or returned is not deleted: the cascade
+		// below used to delete its sales, refunds, purchase bills and stock history with it.
+		foreach (array('OrderItem', 'OrderHoldItem', 'OrderRefundItem', 'StockLog',
+				'StockAdjustLog', 'MrsDetail', 'MrnDetail', 'PurchaseOrderDetail',
+				'PurchaseBillDetail', 'ItemReturnItem', 'ItemExpireItem') as $class) {
+			if (Yii::app()->db->createCommand()->select('id')->from(CActiveRecord::model($class)->tableName())
+					->where('item_detail_id = :id', array(':id' => $this->id))->limit(1)->queryScalar() !== false) {
+				return false;
+			}
+		}
 		ItemDiscount::model()->deleteAllByAttributes(array ('item_detail_id'=>$this->id));
 		ItemTax::model()->deleteAllByAttributes(array ('item_detail_id'=>$this->id));
 		ItemStock::model()->deleteAllByAttributes(array ('item_detail_id'=>$this->id));
@@ -769,7 +779,9 @@ class ItemDetail extends BaseItemDetail
 		if($itemtax){ */
 		$tax = $this->getItemDetailTax();
 			if($tax){
-				$val = $tax->tax_val1;
+				// SGST is tax_val2. This read tax_val1 (CGST), so a tax row whose two
+				// halves differ reported CGST twice; equal halves were unaffected.
+				$val = $tax->tax_val2;
 				if(($val == '0.00') && ($tax->tax_val4 != '0.00')){
 					$val = ($tax->tax_val4)/2;
 				}
@@ -815,6 +827,9 @@ class ItemDetail extends BaseItemDetail
 		if($itemtax){ */
 		$tax = $this->getItemDetailTax();
 			if($tax){
+				// 0 on purpose: an IGST row is charged at the till as CGST + SGST
+				// (getCgstPercent()/getSgstPercent() each use tax_val4/2), so
+				// tax_val4 here too would count the IGST rate twice.
 				//$val = $tax->tax_val4;
 				$val = 0;
 			}

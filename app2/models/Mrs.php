@@ -291,8 +291,17 @@ class Mrs extends ActiveRecord
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+        } else {
+            // update_time and mrs_update_date: set on update when empty, as Yii 1 did.
+            if ($this->hasAttribute('update_time') && !isset($this->update_time)) {
+                $this->update_time = date('Y-m-d H:i:s');
+            }
+            if ($this->hasAttribute('mrs_update_date') && !isset($this->mrs_update_date)) {
+                $this->mrs_update_date = date('Y-m-d');
+            }
+            if ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
+                $this->updated_by = Yii::$app->user->id;
+            }
         }
 
         return true;
@@ -352,9 +361,9 @@ class Mrs extends ActiveRecord
            $existmrsdetail = MrsDetail::findOne($id);
             $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
             $item = Item::findOne($this->item_id);
-            $mrs = Mrs::findOne(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$this->vendor_id,
+            $mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$this->vendor_id,
                     'outlet_id'=>$this->outlet_id
-            ]);
+            ])->orderBy(['id' => SORT_DESC])->one();
             if($mrs == null){
                 $mrs = new Mrs();
             }

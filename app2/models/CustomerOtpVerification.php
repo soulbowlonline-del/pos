@@ -20,15 +20,15 @@ class CustomerOtpVerification extends ActiveRecord
      * Marks the code verified and returns true, or false if there is no
      * matching unverified code or it has expired.
      *
-     * Ordered by id: the Yii 1 findByAttributes() has no order, so which row
-     * was taken when a customer had several matching codes was the database's
-     * choice.
+     * Newest first: the Yii 1 model extends GxActiveRecord, whose defaultScope
+     * orders every finder id DESC, so findByAttributes() takes the latest of
+     * several matching codes.
      */
     public static function verifyOtp($customerId, $otpCode)
     {
         $entry = static::find()
             ->where(['customer_id' => $customerId, 'otp_code' => $otpCode, 'is_verified' => 0])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         if ($entry && strtotime((string)$entry->expires_at) > time()) {

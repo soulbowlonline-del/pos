@@ -1,0 +1,712 @@
+/*
+ * modern.css - a calmer, more legible skin for the Yii 2 port (/v2).
+ *
+ * Only presentation. Every rule is scoped under html.ui-modern, which a
+ * one-line script in the layout's <head> sets unless the user has chosen the
+ * classic look (localStorage.posUiTheme === 'classic'). Removing that class -
+ * the toggle in the navbar does it - puts the page back exactly as it was.
+ *
+ * Deliberately NOT done here, because the application depends on it:
+ *   - nothing is hidden, renamed or moved out of its container;
+ *   - no column widths, cell paddings or grid widths change (the GRN and MRS
+ *     grids have 20+ inline-edit columns and scroll sideways);
+ *   - no sticky table headers (the grids sit in overflow containers and
+ *     carry a filter row in <thead>);
+ *   - each button keeps its colour family: staff know green Create and
+ *     blue Search by colour.
+ *
+ * Everything is inside @media screen so printed bills and reports are
+ * unaffected. The helpers created by modern-ui.js are styled at the end.
+ */
+
+@media screen {
+
+/* ---------- Tokens --------------------------------------------------- */
+html.ui-modern {
+  --ui-brand: #1e4d8f;
+  --ui-brand-dark: #183f76;
+  --ui-accent: #2a6db5;
+  --ui-accent-soft: #e8f0fa;
+  --ui-focus: rgba(42, 109, 181, .28);
+  --ui-bg: #f1f4f9;
+  --ui-card: #ffffff;
+  --ui-border: #dfe5ee;
+  --ui-border-strong: #cbd5e1;
+  --ui-text: #2d3748;
+  --ui-heading: #1a2433;
+  --ui-muted: #5f6b7c;
+  --ui-side-bg: #1c2536;
+  --ui-side-bg-sub: #161e2c;
+  --ui-side-text: #c7d0dc;
+  --ui-side-icon: #94a3b8;
+  --ui-side-hover: rgba(255, 255, 255, .06);
+  --ui-side-active: rgba(96, 165, 250, .16);
+  --ui-side-accent: #60a5fa;
+  --ui-radius: 10px;
+  --ui-radius-sm: 6px;
+  --ui-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+  --ui-shadow-lg: 0 10px 28px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .08);
+}
+
+/* ---------- Typography ----------------------------------------------- */
+html.ui-modern body,
+html.ui-modern .main-header .logo,
+html.ui-modern h1, html.ui-modern h2, html.ui-modern h3,
+html.ui-modern h4, html.ui-modern h5, html.ui-modern h6,
+html.ui-modern .h1, html.ui-modern .h2, html.ui-modern .h3,
+html.ui-modern .h4, html.ui-modern .h5, html.ui-modern .h6,
+html.ui-modern .tooltip, html.ui-modern .popover {
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+html.ui-modern body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ui-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* Weight only: headings keep inheriting their colour, since some sit on
+   coloured tiles (the dashboard's small boxes). */
+html.ui-modern h3, html.ui-modern h4, html.ui-modern h5, html.ui-modern h6 {
+  font-weight: 600;
+}
+/* Large page headings outside the title bar stay light, as they were. */
+html.ui-modern h1, html.ui-modern h2 { font-weight: 500; }
+
+/* Keyboard focus that can actually be seen. */
+html.ui-modern a:focus-visible,
+html.ui-modern .btn:focus-visible,
+html.ui-modern button:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Header / navbar ------------------------------------------ */
+html.ui-modern .skin-blue .main-header .navbar {
+  background-color: var(--ui-brand);
+  border-bottom: 1px solid rgba(0, 0, 0, .18);
+}
+html.ui-modern .skin-blue .main-header .logo,
+html.ui-modern .skin-blue .main-header .logo:hover {
+  background-color: var(--ui-brand-dark);
+  border-bottom: 1px solid rgba(0, 0, 0, .18);
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+html.ui-modern .skin-blue .main-header .navbar .sidebar-toggle:hover,
+html.ui-modern .skin-blue .main-header .navbar .nav > li > a:hover,
+html.ui-modern .skin-blue .main-header .navbar .nav > li > a:focus,
+html.ui-modern .skin-blue .main-header .navbar .nav > .active > a,
+html.ui-modern .skin-blue .main-header .navbar .nav .open > a,
+html.ui-modern .skin-blue .main-header .navbar .nav .open > a:hover,
+html.ui-modern .skin-blue .main-header .navbar .nav .open > a:focus {
+  background-color: rgba(255, 255, 255, .12);
+  color: #fff;
+}
+/* Icon items in the navbar (the bell, the theme toggle, and anything added
+   later of the same shape) get one consistent size. */
+html.ui-modern .main-header .navbar-custom-menu .navbar-nav > li > a > .fa,
+html.ui-modern .main-header .navbar-custom-menu .navbar-nav > li > a > .glyphicon,
+html.ui-modern .main-header .navbar-custom-menu .navbar-nav > li > a > .ion {
+  font-size: 16px;
+  line-height: 20px;
+  vertical-align: middle;
+}
+html.ui-modern .main-header .navbar-custom-menu .navbar-nav > li > a {
+  transition: background-color .12s ease;
+}
+html.ui-modern .main-header .user-image {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
+}
+
+/* ---------- Dropdown menus ------------------------------------------- */
+html.ui-modern .dropdown-menu {
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  box-shadow: var(--ui-shadow-lg);
+}
+html.ui-modern .dropdown-menu > li > a { border-radius: 0; }
+html.ui-modern .dropdown-menu > li > a:hover,
+html.ui-modern .dropdown-menu > li > a:focus { background-color: var(--ui-accent-soft); color: var(--ui-heading); }
+html.ui-modern .navbar-nav > .notifications-menu > .dropdown-menu > li.footer > a,
+html.ui-modern .navbar-nav > .user-menu > .dropdown-menu > .user-footer {
+  border-radius: 0 0 8px 8px;
+}
+html.ui-modern .navbar-nav > .user-menu > .dropdown-menu > .user-footer { background-color: #f7f9fc; }
+html.ui-modern .navbar-nav > .user-menu > .dropdown-menu { overflow: hidden; }
+
+/* ---------- Sidebar (same entries, same order - only the paint) ------ */
+html.ui-modern .skin-blue .wrapper,
+html.ui-modern .skin-blue .main-sidebar,
+html.ui-modern .skin-blue .left-side {
+  background-color: var(--ui-side-bg);
+}
+html.ui-modern .skin-blue .user-panel {
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+html.ui-modern .skin-blue .user-panel > .info,
+html.ui-modern .skin-blue .user-panel > .info > a { color: #fff; }
+html.ui-modern .skin-blue .sidebar-menu > li {
+  border-top: 0;
+  border-bottom: 0;
+}
+html.ui-modern .skin-blue .sidebar-menu > li > a {
+  color: var(--ui-side-text);
+  border-left: 3px solid transparent;
+  transition: background-color .12s ease, color .12s ease;
+}
+html.ui-modern .skin-blue .sidebar-menu > li > a > .fa,
+html.ui-modern .skin-blue .sidebar-menu > li > a > .glyphicon,
+html.ui-modern .skin-blue .sidebar-menu > li > a > .ion {
+  color: var(--ui-side-icon);
+  width: 22px;
+}
+html.ui-modern .skin-blue .sidebar-menu > li:hover > a,
+html.ui-modern .skin-blue .sidebar-menu > li.active > a,
+html.ui-modern .skin-blue .sidebar-menu > li.menu-open > a {
+  color: #fff;
+  background-color: var(--ui-side-hover);
+  border-left-color: var(--ui-side-accent);
+}
+html.ui-modern .skin-blue .sidebar-menu > li:hover > a > .fa,
+html.ui-modern .skin-blue .sidebar-menu > li.active > a > .fa,
+html.ui-modern .skin-blue .sidebar-menu > li.menu-open > a > .fa { color: #dbeafe; }
+html.ui-modern .skin-blue .sidebar-menu > li > .treeview-menu {
+  background-color: var(--ui-side-bg-sub);
+  margin: 0;
+  padding: 4px 0 6px;
+}
+html.ui-modern .skin-blue .treeview-menu > li > a {
+  color: #aab6c7;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: 26px;
+  line-height: 1.45;
+}
+html.ui-modern .skin-blue .treeview-menu > li > a > .fa { width: 18px; color: #7d8ba0; }
+html.ui-modern .skin-blue .treeview-menu > li.active > a,
+html.ui-modern .skin-blue .treeview-menu > li > a:hover {
+  color: #fff;
+}
+html.ui-modern .skin-blue .treeview-menu > li > a:hover > .fa { color: #dbeafe; }
+
+/* The link of the page being shown (marked at runtime by modern-ui.js). */
+html.ui-modern .skin-blue .sidebar-menu a.ui-current {
+  color: #fff;
+  background-color: var(--ui-side-active);
+  border-left-color: var(--ui-side-accent);
+  font-weight: 600;
+}
+html.ui-modern .skin-blue .treeview-menu > li > a.ui-current {
+  box-shadow: inset 3px 0 0 var(--ui-side-accent);
+}
+html.ui-modern .skin-blue .sidebar-menu a.ui-current > .fa { color: #bfdbfe; }
+html.ui-modern .skin-blue .sidebar-menu > li.ui-current-parent > a { color: #fff; }
+
+/* Rounded highlight while the sidebar is expanded (not in the icon-only
+   collapsed mode, where the items are 50px wide). */
+@media (min-width: 768px) {
+  html.ui-modern body:not(.sidebar-collapse) .sidebar-menu > li > a {
+    margin: 1px 8px;
+    border-radius: 8px;
+    padding-left: 12px;
+  }
+  html.ui-modern body:not(.sidebar-collapse) .sidebar-menu > li > .treeview-menu {
+    margin: 2px 8px 4px 8px;
+    border-radius: 8px;
+  }
+  html.ui-modern body:not(.sidebar-collapse) .treeview-menu > li > a {
+    border-radius: 6px;
+    margin: 0 4px;
+  }
+}
+@media (max-width: 767px) {
+  html.ui-modern .sidebar-menu > li > a { margin: 1px 8px; border-radius: 8px; padding-left: 12px; }
+  html.ui-modern .sidebar-menu > li > .treeview-menu { margin: 2px 8px 4px; border-radius: 8px; }
+  html.ui-modern .treeview-menu > li > a { border-radius: 6px; margin: 0 4px; }
+}
+html.ui-modern .sidebar-counter {
+  border-radius: 999px;
+}
+
+/* ---------- Content area --------------------------------------------- */
+html.ui-modern .content-wrapper,
+html.ui-modern .right-side { background-color: var(--ui-bg); }
+
+html.ui-modern .content-header::after { content: ""; display: table; clear: both; }
+html.ui-modern .content-header > h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ui-heading);
+  letter-spacing: -.1px;
+  line-height: 1.3;
+}
+html.ui-modern .content-header > h1 > small { color: var(--ui-muted); font-weight: 400; }
+html.ui-modern .content-header > .breadcrumb {
+  background: transparent;
+  border-radius: 6px;
+}
+html.ui-modern .breadcrumb > li + li:before { color: #9aa6b8; }
+
+html.ui-modern .main-footer {
+  background-color: #fff;
+  border-top: 1px solid var(--ui-border);
+  color: var(--ui-muted);
+}
+
+/* The row of plain links some admin pages put under the title. */
+html.ui-modern .nav-pills > li > a {
+  color: var(--ui-accent);
+  border-top: 0;
+  border-radius: var(--ui-radius-sm);
+}
+html.ui-modern .nav-pills > li > a:hover { background-color: var(--ui-accent-soft); color: var(--ui-brand); }
+html.ui-modern .nav-pills > li.active > a,
+html.ui-modern .nav-pills > li.active > a:hover,
+html.ui-modern .nav-pills > li.active > a:focus {
+  background-color: var(--ui-accent);
+  color: #fff;
+  border-top: 0;
+}
+
+/* ---------- Boxes -> cards -------------------------------------------- */
+html.ui-modern .box {
+  background: var(--ui-card);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+html.ui-modern .box-header {
+  background: #f7f9fc;
+  color: var(--ui-heading);
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius) var(--ui-radius) 0 0;
+  box-shadow: inset 4px 0 0 var(--ui-accent);
+  padding: 11px 14px;
+}
+html.ui-modern .box-header .box-title,
+html.ui-modern .box-header > .fa,
+html.ui-modern .box-header > .glyphicon,
+html.ui-modern .box-header > .ion {
+  color: var(--ui-heading);
+  font-size: 17px;
+  font-weight: 600;
+}
+html.ui-modern .box-header > .box-tools { top: 7px; }
+html.ui-modern .btn-box-tool { color: var(--ui-muted); border-radius: 6px; }
+html.ui-modern .btn-box-tool:hover,
+html.ui-modern .open .btn-box-tool { color: var(--ui-heading); background: rgba(15, 23, 42, .06); }
+html.ui-modern .box-footer {
+  background: #fbfcfe;
+  border-top: 1px solid var(--ui-border);
+  border-radius: 0 0 var(--ui-radius) var(--ui-radius);
+}
+html.ui-modern .box .form-actions.box-footer { border-radius: 0; background: transparent; }
+html.ui-modern .small-box,
+html.ui-modern .info-box { border-radius: var(--ui-radius); }
+
+/* ---------- Tables and grids ----------------------------------------- */
+/* Header: a soft brand tint with dark text instead of the teal block.
+   Paddings and widths are left exactly as they are. */
+html.ui-modern .table > thead > tr > th,
+html.ui-modern .skin-blue .table-responsive th,
+html.ui-modern .grid-view table > thead > tr > th {
+  background: #e8eff8;
+  color: #1e3a5f;
+  font-weight: 600;
+  border-color: #d3dde9;
+  border-top-color: #d3dde9 !important;
+  border-bottom: 2px solid #c3d1e3;
+  vertical-align: bottom;
+}
+html.ui-modern .table > thead > tr > th > a,
+html.ui-modern .skin-blue .table-responsive th > a,
+html.ui-modern .grid-view table > thead > tr > th > a {
+  color: var(--ui-brand);
+  font-weight: 600;
+}
+html.ui-modern .table > thead > tr > th > a:hover,
+html.ui-modern .skin-blue .table-responsive th > a:hover { color: var(--ui-accent); text-decoration: underline; }
+html.ui-modern .table > thead > tr > th > a.asc:after { content: " \25B2"; font-size: 9px; }
+html.ui-modern .table > thead > tr > th > a.desc:after { content: " \25BC"; font-size: 9px; }
+/* The grid filter row. */
+html.ui-modern .table > thead > tr.filters > td,
+html.ui-modern .table > thead > tr.filters > th,
+html.ui-modern tr.filters > td {
+  background-color: #f6f8fb;
+  border-color: #dfe5ee;
+}
+html.ui-modern .table-bordered,
+html.ui-modern .table-bordered > thead > tr > th,
+html.ui-modern .table-bordered > tbody > tr > th,
+html.ui-modern .table-bordered > tfoot > tr > th,
+html.ui-modern .table-bordered > thead > tr > td,
+html.ui-modern .table-bordered > tbody > tr > td,
+html.ui-modern .table-bordered > tfoot > tr > td {
+  border-color: #dfe5ee;
+}
+/* Zebra and hover go on the row, never the cell, so the status colours that
+   rows carry (.mrsred, .mrsgreen, inline backgrounds, .success cells) win. */
+html.ui-modern .table-striped > tbody > tr:nth-of-type(odd) { background-color: #f8fafc; }
+html.ui-modern .table > tbody > tr:not([class]):hover { background-color: #eaf2fc; }
+html.ui-modern .table > tfoot > tr > td,
+html.ui-modern .table > tfoot > tr > th { background-color: #f6f8fb; font-weight: 600; }
+html.ui-modern .grid-view .summary { color: var(--ui-muted); margin: 4px 0 8px; }
+html.ui-modern .grid-view .empty { color: var(--ui-muted); }
+
+/* A visible scrollbar for the wide grids that scroll sideways. */
+html.ui-modern .table-responsive::-webkit-scrollbar,
+html.ui-modern .grid-view::-webkit-scrollbar { height: 12px; width: 12px; }
+html.ui-modern .table-responsive::-webkit-scrollbar-track,
+html.ui-modern .grid-view::-webkit-scrollbar-track { background: #eef2f7; border-radius: 6px; }
+html.ui-modern .table-responsive::-webkit-scrollbar-thumb,
+html.ui-modern .grid-view::-webkit-scrollbar-thumb { background: #b8c4d4; border-radius: 6px; border: 2px solid #eef2f7; }
+html.ui-modern .table-responsive::-webkit-scrollbar-thumb:hover,
+html.ui-modern .grid-view::-webkit-scrollbar-thumb:hover { background: #8e9db2; }
+
+/* ---------- Forms ----------------------------------------------------- */
+/* Weight only: labels keep inheriting their colour (some sit on coloured
+   panels such as the bill totals). */
+html.ui-modern label,
+html.ui-modern .control-label { font-weight: 600; }
+html.ui-modern .checkbox label,
+html.ui-modern .radio label { font-weight: 500; }
+
+html.ui-modern .form-control {
+  border-color: var(--ui-border-strong);
+  border-radius: var(--ui-radius-sm);
+  color: #1f2937;
+  box-shadow: none;
+}
+html.ui-modern .form-control:hover { border-color: #aebbcc; }
+html.ui-modern .form-control:focus {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-focus);
+  outline: 0;
+}
+html.ui-modern .form-control[disabled],
+html.ui-modern .form-control[readonly],
+html.ui-modern fieldset[disabled] .form-control { background-color: #eef2f6; color: #4b5563; }
+html.ui-modern .form-control::placeholder { color: #8a96a8; }
+html.ui-modern .input-group-addon {
+  border-color: var(--ui-border-strong);
+  background-color: #f3f6fa;
+  color: #475569;
+}
+html.ui-modern .input-group-addon:first-child { border-radius: var(--ui-radius-sm) 0 0 var(--ui-radius-sm); }
+html.ui-modern .input-group-addon:last-child { border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0; }
+
+/* Inputs without .form-control (the inline-edit cells of the GRN/MRS grids
+   and the grid filters): only a clearer border and a focus ring - no
+   padding or size change. */
+html.ui-modern input[type="text"]:not(.form-control),
+html.ui-modern input[type="number"]:not(.form-control),
+html.ui-modern input[type="search"]:not(.form-control),
+html.ui-modern input[type="email"]:not(.form-control),
+html.ui-modern input[type="password"]:not(.form-control),
+html.ui-modern input[type="date"]:not(.form-control),
+html.ui-modern input:not([type]):not(.form-control),
+html.ui-modern select:not(.form-control),
+html.ui-modern textarea:not(.form-control) {
+  border-radius: 4px;
+}
+html.ui-modern input:not(.form-control):focus,
+html.ui-modern select:not(.form-control):focus,
+html.ui-modern textarea:not(.form-control):focus {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 0;
+}
+html.ui-modern input[type="checkbox"],
+html.ui-modern input[type="radio"] { accent-color: var(--ui-accent); }
+html.ui-modern input[type="checkbox"]:focus-visible,
+html.ui-modern input[type="radio"]:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+
+/* Errors must stay loud. */
+html.ui-modern .has-error .form-control,
+html.ui-modern .form-control.error,
+html.ui-modern input.error { border-color: #dc2626; }
+html.ui-modern .has-error .form-control:focus { box-shadow: 0 0 0 3px rgba(220, 38, 38, .22); }
+html.ui-modern .has-error .help-block,
+html.ui-modern .has-error .control-label,
+html.ui-modern .help-inline.error,
+html.ui-modern .errorMessage { color: #b91c1c; }
+html.ui-modern .errorSummary {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+  color: #7f1d1d;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+html.ui-modern .help-block { color: var(--ui-muted); }
+
+/* The GRN / MRS add-item strip: same yellow cue, tidier edges. */
+html.ui-modern .add-item {
+  background-color: #fff8dc;
+  border: 1px solid #f0dea0;
+  border-radius: var(--ui-radius);
+}
+html.ui-modern .item-list-table { background-color: #f3f5f8; border-radius: var(--ui-radius); }
+
+/* ---------- Buttons: same colour families, calmer and AA-legible ------ */
+html.ui-modern .btn {
+  border-radius: var(--ui-radius-sm);
+  font-weight: 500;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+html.ui-modern .btn.btn-flat { border-radius: var(--ui-radius-sm); }
+html.ui-modern .btn:active,
+html.ui-modern .btn.active { box-shadow: inset 0 2px 3px rgba(0, 0, 0, .15); }
+html.ui-modern .btn:focus-visible { box-shadow: 0 0 0 3px var(--ui-focus); }
+html.ui-modern .btn-group > .btn:not(:first-child):not(:last-child):not(.dropdown-toggle) { border-radius: 0; }
+html.ui-modern .btn-group > .btn:first-child:not(:last-child):not(.dropdown-toggle) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+html.ui-modern .btn-group > .btn:last-child:not(:first-child),
+html.ui-modern .btn-group > .dropdown-toggle:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+html.ui-modern .btn-default {
+  background-color: #fff;
+  border-color: var(--ui-border-strong);
+  color: #1f2937;
+}
+html.ui-modern .btn-default:hover,
+html.ui-modern .btn-default:focus,
+html.ui-modern .btn-default:active,
+html.ui-modern .btn-default.hover { background-color: #f1f5f9; border-color: #aebbcc; color: #111827; }
+
+html.ui-modern .btn-primary { background-color: #2a6db5; border-color: #245f9e; color: #fff; }
+html.ui-modern .btn-primary:hover,
+html.ui-modern .btn-primary:focus,
+html.ui-modern .btn-primary:active,
+html.ui-modern .btn-primary.hover,
+html.ui-modern .btn-primary.active { background-color: #235d9c; border-color: #1e4f86; color: #fff; }
+
+html.ui-modern .btn-success { background-color: #15803d; border-color: #126e34; color: #fff; }
+html.ui-modern .btn-success:hover,
+html.ui-modern .btn-success:focus,
+html.ui-modern .btn-success:active,
+html.ui-modern .btn-success.hover,
+html.ui-modern .btn-success.active { background-color: #116b33; border-color: #0e5b2b; color: #fff; }
+
+html.ui-modern .btn-info { background-color: #0879a0; border-color: #066a8c; color: #fff; }
+html.ui-modern .btn-info:hover,
+html.ui-modern .btn-info:focus,
+html.ui-modern .btn-info:active,
+html.ui-modern .btn-info.hover,
+html.ui-modern .btn-info.active { background-color: #066a8c; border-color: #055b78; color: #fff; }
+
+html.ui-modern .btn-warning { background-color: #f59e0b; border-color: #d98a06; color: #1f2937; }
+html.ui-modern .btn-warning:hover,
+html.ui-modern .btn-warning:focus,
+html.ui-modern .btn-warning:active,
+html.ui-modern .btn-warning.hover,
+html.ui-modern .btn-warning.active { background-color: #e08e06; border-color: #c27904; color: #111827; }
+
+html.ui-modern .btn-danger { background-color: #c9372c; border-color: #b12f25; color: #fff; }
+html.ui-modern .btn-danger:hover,
+html.ui-modern .btn-danger:focus,
+html.ui-modern .btn-danger:active,
+html.ui-modern .btn-danger.hover,
+html.ui-modern .btn-danger.active { background-color: #b12f25; border-color: #98281f; color: #fff; }
+
+html.ui-modern .btn-link { color: var(--ui-accent); }
+html.ui-modern .btn[disabled],
+html.ui-modern .btn.disabled { opacity: .55; }
+
+/* ---------- Pagination ----------------------------------------------- */
+html.ui-modern .pagination > li > a,
+html.ui-modern .pagination > li > span {
+  border-radius: var(--ui-radius-sm) !important;
+  margin-left: 4px;
+  border-color: #d6dee9;
+  color: var(--ui-brand);
+  background-color: #fff;
+}
+html.ui-modern .pagination > li:first-child > a,
+html.ui-modern .pagination > li:first-child > span { margin-left: 0; }
+html.ui-modern .pagination > li > a:hover,
+html.ui-modern .pagination > li > span:hover { background-color: var(--ui-accent-soft); border-color: #b9cbe3; }
+html.ui-modern .pagination > .active > a,
+html.ui-modern .pagination > .active > span,
+html.ui-modern .pagination > .active > a:hover,
+html.ui-modern .pagination > .active > a:focus {
+  background-color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #fff;
+}
+html.ui-modern .pagination > .disabled > a,
+html.ui-modern .pagination > .disabled > span { color: #9aa6b8; background-color: #f8fafc; }
+
+/* ---------- Alerts, callouts, labels ---------------------------------- */
+html.ui-modern .alert { border-radius: 8px; border-width: 1px; border-left-width: 4px; }
+html.ui-modern .alert-success { background-color: #ecfdf3 !important; border-color: #bbf7d0; border-left-color: #16a34a; color: #14532d !important; }
+html.ui-modern .alert-info    { background-color: #eff8ff !important; border-color: #bfdbfe; border-left-color: #2a6db5; color: #1e3a5f !important; }
+html.ui-modern .alert-warning { background-color: #fffbeb !important; border-color: #fde68a; border-left-color: #f59e0b; color: #713f12 !important; }
+html.ui-modern .alert-danger,
+html.ui-modern .alert-error   { background-color: #fef2f2 !important; border-color: #fecaca; border-left-color: #dc2626; color: #7f1d1d !important; }
+html.ui-modern .alert a { color: inherit; text-decoration: underline; }
+html.ui-modern .alert .close { color: inherit; opacity: .5; }
+html.ui-modern .callout { border-radius: 8px; }
+html.ui-modern .label { border-radius: 4px; font-weight: 600; }
+html.ui-modern .badge { border-radius: 999px; font-weight: 600; }
+
+/* ---------- Tabs ------------------------------------------------------- */
+html.ui-modern .nav-tabs { border-bottom-color: var(--ui-border); }
+html.ui-modern .nav-tabs > li > a { border-radius: 8px 8px 0 0; color: #475569; }
+html.ui-modern .nav-tabs > li > a:hover { background-color: #eef2f7; border-color: transparent; }
+html.ui-modern .nav-tabs > li.active > a,
+html.ui-modern .nav-tabs > li.active > a:hover,
+html.ui-modern .nav-tabs > li.active > a:focus {
+  color: var(--ui-heading);
+  border-color: var(--ui-border) var(--ui-border) transparent;
+  box-shadow: inset 0 3px 0 var(--ui-accent);
+  font-weight: 600;
+}
+html.ui-modern .nav-tabs-custom {
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+  border: 1px solid var(--ui-border);
+}
+html.ui-modern .nav-tabs-custom > .nav-tabs > li.active { border-top-color: var(--ui-accent); }
+
+/* ---------- Modals, wells, panels ------------------------------------- */
+html.ui-modern .modal-content { border-radius: 12px; border: 0; box-shadow: var(--ui-shadow-lg); }
+html.ui-modern .modal-header { border-bottom-color: var(--ui-border); }
+html.ui-modern .modal-footer { border-top-color: var(--ui-border); }
+html.ui-modern .well { border-radius: var(--ui-radius); border-color: var(--ui-border); background-color: #f7f9fc; box-shadow: none; }
+html.ui-modern .panel { border-radius: var(--ui-radius); border-color: var(--ui-border); box-shadow: var(--ui-shadow); }
+html.ui-modern .panel > .panel-heading { border-radius: var(--ui-radius) var(--ui-radius) 0 0; }
+html.ui-modern .datepicker.dropdown-menu,
+html.ui-modern .daterangepicker { border-radius: 8px; }
+html.ui-modern .chosen-container.chosen-container-multi { border-radius: var(--ui-radius-sm); border-color: var(--ui-border-strong); }
+
+/* ---------- Login page (guest layout) ---------------------------------- */
+html.ui-modern body.login-page { min-height: 100vh; }
+html.ui-modern .login-page .login-logo a { color: #fff; }
+html.ui-modern .login-page .login-box {
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(9, 20, 40, .35), 0 2px 8px rgba(9, 20, 40, .2);
+  padding: 30px 28px 26px;
+  max-width: calc(100% - 32px);
+}
+html.ui-modern .login-page .login-logo {
+  background-color: var(--ui-brand);
+  border-radius: 10px;
+  padding: 10px 0;
+  font-weight: 700;
+  letter-spacing: .5px;
+  margin-bottom: 18px;
+}
+html.ui-modern .login-page .login-box-body { background: transparent; color: var(--ui-muted); padding: 12px 8px 4px; }
+html.ui-modern .login-page .login-box-msg { color: #475569; font-size: 15px; }
+html.ui-modern .login-page .form-control { height: 40px; }
+html.ui-modern .login-page .has-feedback .form-control-feedback { height: 40px; line-height: 40px; color: #8a96a8; }
+html.ui-modern .login-page .btn-primary { padding: 8px 32px; font-size: 15px; font-weight: 600; }
+
+/* ---------- Phones ------------------------------------------------------ */
+@media (max-width: 767px) {
+  /* The title's button group floats right and used to lie on top of the
+     links below it; let it wrap under the title instead. */
+  html.ui-modern .content-header > .bttn-box,
+  html.ui-modern .content-header > .pull-right {
+    position: static;
+    float: none !important;
+    display: block;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+  html.ui-modern .content-header > .btn-group > .btn { margin-bottom: 4px; border-radius: var(--ui-radius-sm); }
+  html.ui-modern .content-header > h1 { font-size: 20px; }
+  html.ui-modern .box-header .box-title { font-size: 16px; }
+}
+
+} /* @media screen */
+
+/* ---------- Helpers created by modern-ui.js ------------------------------
+   None of these elements exist in the server's HTML; they are created at
+   runtime, and only shown in the modern look (the theme toggle excepted,
+   which inherits the navbar's own icon styling in both looks). */
+.ui-palette, .ui-top { display: none; }
+@media screen {
+  html.ui-modern .ui-top {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1030;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--ui-border-strong);
+    background: #fff;
+    color: var(--ui-brand);
+    box-shadow: var(--ui-shadow-lg);
+    font-size: 18px;
+    line-height: 36px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  html.ui-modern .ui-top.ui-show { display: block; }
+  html.ui-modern .ui-top:hover { background: var(--ui-accent-soft); }
+
+  html.ui-modern .ui-palette.ui-open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(15, 23, 42, .45);
+  }
+  html.ui-modern .ui-palette-box {
+    position: absolute;
+    top: 12vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 560px;
+    max-width: calc(100% - 32px);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .35);
+    overflow: hidden;
+  }
+  html.ui-modern .ui-palette-input {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--ui-border);
+    padding: 14px 16px;
+    font-size: 16px;
+    color: #1f2937;
+    outline: 0;
+    background: #fff;
+    border-radius: 0;
+  }
+  html.ui-modern .ui-palette-input:focus { outline: 0; }
+  html.ui-modern .ui-palette-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  html.ui-modern .ui-palette-list li {
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #1f2937;
+    line-height: 1.35;
+  }
+  html.ui-modern .ui-palette-list li .ui-palette-group { color: var(--ui-muted); font-size: 12px; display: block; }
+  html.ui-modern .ui-palette-list li.ui-sel { background: var(--ui-accent-soft); color: var(--ui-brand); }
+  html.ui-modern .ui-palette-empty { padding: 14px 16px; color: var(--ui-muted); }
+  html.ui-modern .ui-palette-hint {
+    padding: 8px 16px;
+    border-top: 1px solid var(--ui-border);
+    color: var(--ui-muted);
+    font-size: 12px;
+    background: #f8fafc;
+  }
+}
+@media print {
+  .ui-palette, .ui-top, .ui-theme-toggle, .ui-goto { display: none !important; }
+}

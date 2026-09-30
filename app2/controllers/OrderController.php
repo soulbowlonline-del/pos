@@ -299,7 +299,8 @@ class OrderController extends Controller
      * outside its hours returns status OK, a "Discount not available" message
      * and no discountList at all. Reproduced: the client reads status.
      *
-     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     * The Yii 1 query names no order, so GxActiveRecord::defaultScope()'s
+     * id DESC applies. Ordered the same here.
      */
     public function actionDiscount()
     {
@@ -313,7 +314,7 @@ class OrderController extends Controller
             ->andWhere(['>=', 'end_date', $today])
             ->andWhere(['discount_type' => Discount::DISCOUNT_ORDER])
             ->andWhere(['status' => Discount::STATUS_ACTIVE])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if (empty($discounts)) {
@@ -377,7 +378,8 @@ class OrderController extends Controller
      *
      * The Yii 1 query concatenated both the status and the caller id - which
      * comes from a request header - straight into the SQL. Both are bound
-     * parameters now, on both stacks. It also had no ORDER BY; ordered by id.
+     * parameters now, on both stacks. It names no ORDER BY, so
+     * GxActiveRecord::defaultScope()'s id DESC applies; ordered the same here.
      */
     public function actionGetAssignList($status = null)
     {
@@ -402,7 +404,7 @@ class OrderController extends Controller
         }
 
         $orders = $query->andWhere('delivery_boy_id = :dbid', [':dbid' => $loginId])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if (empty($orders)) {
@@ -456,7 +458,8 @@ class OrderController extends Controller
             $query->andWhere(['order_status' => OnlineOrder::ORDERSTATUS_PENDING]);
         }
 
-        $orders = $query->orderBy(['id' => SORT_ASC])->all();
+        // id DESC: GxActiveRecord::defaultScope(), as in actionGetAssignList
+        $orders = $query->orderBy(['id' => SORT_DESC])->all();
 
         if (empty($orders)) {
             $out['message'] = 'Online Order not available';
@@ -494,7 +497,8 @@ class OrderController extends Controller
             return $out;
         }
 
-        if ($id === null) {
+        // Yii 1 tests $id != null, which an empty /id/ segment also fails
+        if ($id === null || $id === '') {
             return $out;   // no message key, as in Yii 1
         }
 
@@ -592,7 +596,8 @@ class OrderController extends Controller
     {
         $out = $this->envelope('orderUpdate');
 
-        if ($id === null) {
+        // $id != null in Yii 1, so an empty id is the bare envelope too
+        if ($id === null || $id === '') {
             return $out;
         }
 
@@ -882,7 +887,8 @@ class OrderController extends Controller
         $out = $this->envelope('refund');
 
         $post = Yii::$app->request->post();
-        $loginId = $this->headerUserId();
+        // userlogin only, no login_id fallback, as Yii 1's refund reads it
+        $loginId = Yii::$app->request->getHeaders()->get('userlogin');
 
         if (!isset($post['item_details']) || !isset($post['order_id']) || !isset($post['type_id'])) {
             $out['message'] = 'No data posted';
@@ -900,6 +906,15 @@ class OrderController extends Controller
         $transaction = Yii::$app->db->beginTransaction();
 
         try {
+            // Refunds of one order are taken one at a time, so the check
+            // against what was already refunded (below) cannot pass twice for
+            // two requests arriving together. The order row is locked before
+            // anything else is read, so that a refund of the same order that
+            // got here first has committed before this one looks at what it
+            // refunded. Same lock on the Yii 1 side.
+            Yii::$app->db->createCommand('SELECT id FROM {{%order}} WHERE id = :id FOR UPDATE',
+                [':id' => $post['order_id']])->queryScalar();
+
             foreach ($itemArrays as $itemArray) {
                 $itemDetail = ItemDetail::find()
                     ->where(['bar_code' => $itemArray->bar_code])
@@ -909,6 +924,14 @@ class OrderController extends Controller
                 if (!$itemDetail) {
                     $ok = false;
                     $out['message'] = 'No Item found';
+                    continue;
+                }
+
+                // A refund of nothing, or of a negative quantity, would add stock
+                // the other way round or refund money for nothing returned.
+                if (!is_numeric($itemArray->is_return) || $itemArray->is_return <= 0) {
+                    $ok = false;
+                    $out['message'] = 'Refund quantity must be more than zero';
                     continue;
                 }
 
@@ -923,6 +946,25 @@ class OrderController extends Controller
                     // branch that *found* an order item, not this one.
                     $ok = false;
                     $out['message'] = 'No order found';
+                    continue;
+                }
+
+                // Nothing compared a refund with what had already been
+                // refunded, so the same line could be refunded again and again
+                // - stock back and a credit note every time. Refuse a line
+                // that, with this order's earlier refunds of the item, returns
+                // more than the order sold of it.
+                $soldQty = Yii::$app->db->createCommand(
+                    'SELECT COALESCE(SUM(qty), 0) FROM {{%order_item}} WHERE order_id = :oid AND item_detail_id = :did',
+                    [':oid' => $orderItem->order_id, ':did' => $itemDetail->id])->queryScalar();
+                $refundedQty = Yii::$app->db->createCommand(
+                    'SELECT COALESCE(SUM(ri.qty), 0) FROM {{%order_refund_item}} ri'
+                    . ' INNER JOIN {{%order_refund}} r ON r.id = ri.order_refund_id'
+                    . ' WHERE r.order_id = :oid AND ri.item_detail_id = :did',
+                    [':oid' => $orderItem->order_id, ':did' => $itemDetail->id])->queryScalar();
+                if (($refundedQty + $itemArray->is_return) > $soldQty) {
+                    $ok = false;
+                    $out['message'] = 'Refund quantity is more than the quantity sold';
                     continue;
                 }
 
@@ -951,16 +993,11 @@ class OrderController extends Controller
                     continue;
                 }
 
-                $refundItem = OrderRefundItem::find()
-                    ->where([
-                        'order_refund_id' => $refundModel->id,
-                        'item_detail_id' => $itemDetail->id,
-                        'item_id' => $itemDetail->item_id,
-                    ])
-                    ->one();
-                if ($refundItem === null) {
-                    $refundItem = new OrderRefundItem();
-                }
+                // A new row for every refund. The item's row from an earlier
+                // refund of this order used to be reused and its quantity
+                // overwritten, which lost the record of what had already been
+                // refunded - the figure the check above needs.
+                $refundItem = new OrderRefundItem();
                 $refundItem->order_refund_id = $refundModel->id;
                 $refundItem->item_detail_id = $itemDetail->id;
                 $refundItem->item_id = $itemDetail->item_id;
@@ -989,10 +1026,9 @@ class OrderController extends Controller
                     ->one() : null;
 
                 if ($stock) {
-                    $stock->purchase_qty = $stock->purchase_qty + $itemArray->is_return;
-                    $stock->balance_qty = $stock->balance_qty + $itemArray->is_return;
-
-                    if ($stock->save()) {
+                    // Return the quantity to stock in the database (addToBalance), so a
+                    // concurrent sale or GRN is not overwritten.
+                    if ($stock->saveExceptQty() && $stock->addToBalance($itemArray->is_return, $itemArray->is_return)) {
                         $stockLog = new StockLog();
                         $stockLog->item_detail_id = $stock->item_detail_id;
                         $stockLog->item_id = $stock->item_id;
@@ -1052,7 +1088,9 @@ class OrderController extends Controller
                 $transaction->commit();
 
                 if (isset($post['order_id'])) {
-                    LoyaltyService::processRefundDeductPoints($post['order_id'], $totalAmount);
+                    // Points, not rupees: the refund's total was passed as the points to
+                    // deduct, so a Rs 180 refund took 180 points from a sale that earned 1.
+                    LoyaltyService::processRefundDeductPoints($post['order_id'], LoyaltyService::calculateEarnedPoints($totalAmount));
                 }
                 if ($post['type_id'] == 2) {
                     $creditNote = new CreditNote();

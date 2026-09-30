@@ -33,6 +33,12 @@ class DataColumn extends \yii\grid\DataColumn
      */
     protected function renderFilterCellContent()
     {
+        // A string is markup the view built itself - the date-picker filters
+        // are - and TbDataColumn echoes it as it is. Without this it fell
+        // through to a plain text box and the view's own input was dropped.
+        if (is_string($this->filter)) {
+            return $this->filter;
+        }
         if ($this->filter === false || $this->grid->filterModel === null
                 || $this->attribute === null) {
             return parent::renderFilterCellContent();

@@ -90,6 +90,17 @@ class LoyaltyService
             return false;
         }
 
+        // Order::afterSave() calls this on every save of the order, not only
+        // the first, so each later save (web order/update, any re-save of the
+        // row) credited the customer again. Earn once per order: skip when the
+        // order already has its EARN row. Checked here rather than "only on
+        // insert" so an order that is completed by a later update still earns.
+        if ($order->id && LoyaltyTransaction::find()
+                ->where(['order_id' => $order->id, 'transaction_type' => LoyaltyTransaction::TYPE_EARN])
+                ->exists()) {
+            return false;
+        }
+
         $settings = self::getSettings();
         if (!(isset($settings['is_active']) ? $settings['is_active'] : 1)) {
             return false;
@@ -151,9 +162,19 @@ class LoyaltyService
 
         $transaction = Yii::$app->db->beginTransaction();
         try {
+            // In the database, and only while the balance still covers it.
+            // The check above reads the balance and the old save() wrote back
+            // the value computed from that read, so two redemptions at the
+            // same moment both passed and the same points were spent twice.
+            if (!$loyalty->changePoints(-$pointsToRedeem, 0, $pointsToRedeem, true)) {
+                $transaction->rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'Insufficient points available',
+                ];
+            }
             $loyalty->total_points -= $pointsToRedeem;
             $loyalty->lifetime_redeemed += $pointsToRedeem;
-            $loyalty->save(false);
 
             $trans = new LoyaltyTransaction();
             $trans->customer_id = $customerId;
@@ -196,10 +217,22 @@ class LoyaltyService
                 return false;
             }
 
+            // Claimed only while the row is still a pending redemption.
+            // save() wrote back the whole row as read above, so a rollback
+            // landing in between was undone (type and points restored) after
+            // the points had already been returned.
+            $description = "Redeemed {$trans->points} points for order #{$orderId}";
+            $claimed = LoyaltyTransaction::updateAll(
+                ['order_id' => $orderId, 'description' => $description],
+                ['id' => $trans->id, 'transaction_type' => LoyaltyTransaction::TYPE_REDEEM, 'order_id' => null]
+            );
+            if ($claimed == 0) {
+                return false;
+            }
             $trans->order_id = $orderId;
-            $trans->description = "Redeemed {$trans->points} points for order #{$orderId}";
+            $trans->description = $description;
 
-            return (bool)$trans->save(false);
+            return true;
         } catch (Throwable $e) {
             return false;
         }
@@ -222,15 +255,29 @@ class LoyaltyService
                 return false;
             }
 
-            $loyalty = CustomerLoyalty::getOrCreate($trans->customer_id);
-            $loyalty->total_points += $trans->points;
-            $loyalty->lifetime_redeemed -= $trans->points;
-            $loyalty->save(false);
-
+            // Mark the row rolled back first, and only if it is still a
+            // pending redemption. The checks above read the row, and two
+            // rollbacks at once (or a rollback racing the order claiming it)
+            // both passed them, so the points were returned twice.
+            $points = $trans->points;
+            $description = 'Rollback - ' . $trans->description;
+            $claimed = LoyaltyTransaction::updateAll(
+                ['transaction_type' => LoyaltyTransaction::TYPE_ADJUST, 'points' => -$points, 'description' => $description],
+                ['id' => $trans->id, 'transaction_type' => LoyaltyTransaction::TYPE_REDEEM, 'order_id' => null]
+            );
+            if ($claimed == 0) {
+                $transaction->rollBack();
+                return false;
+            }
             $trans->transaction_type = LoyaltyTransaction::TYPE_ADJUST;
-            $trans->points = -$trans->points;       // negative marks the reversal
-            $trans->description = 'Rollback - ' . $trans->description;
-            $trans->save(false);
+            $trans->points = -$points;              // negative marks the reversal
+            $trans->description = $description;
+
+            // restore the points in the database, not from the balance read here
+            $loyalty = CustomerLoyalty::getOrCreate($trans->customer_id);
+            $loyalty->changePoints($points, 0, -$points);
+            $loyalty->total_points += $points;
+            $loyalty->lifetime_redeemed -= $points;
 
             $transaction->commit();
             return true;
@@ -266,9 +313,15 @@ class LoyaltyService
 
         $transaction = Yii::$app->db->beginTransaction();
         try {
+            // In the database, and only while the balance still covers it:
+            // save() wrote back a balance computed from the read above, so a
+            // redemption at the same moment was erased or the cap was missed.
+            if (!$loyalty->changePoints(-$pointsToDeduct, -$pointsToDeduct, 0, true)) {
+                $transaction->rollBack();
+                return false;
+            }
             $loyalty->total_points -= $pointsToDeduct;
             $loyalty->lifetime_earned -= $pointsToDeduct;
-            $loyalty->save(false);
 
             $trans = new LoyaltyTransaction();
             $trans->customer_id = $order->customer_id;

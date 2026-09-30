@@ -231,8 +231,6 @@ class EmpController extends GxController {
 			if ($role) {
 				$criteria = new CDbCriteria ();
 				$criteria->addNotInCondition ( 'role_id' ,array('1','6'));
-				// Deterministic order; see the note on deliveryboy above.
-				$criteria->order = 'id';
 				$users = User::model ()->findAll($criteria);
 				if ($users) {
 					foreach ( $users as $user ) {
@@ -260,12 +258,9 @@ class EmpController extends GxController {
 					'title' => 'Delivery Boy'
 			) );
 			if ($role) {
-				// No ORDER BY means MySQL may return these rows in any order, so
-				// the same request could list delivery staff differently between
-				// calls. Order explicitly by id.
 				$users = User::model ()->findAllByAttributes ( array (
 						'role_id' => $role->id
-				), array ( 'order' => 'id' ) );
+				) );
 				if ($users) {
 						foreach ( $users as $user ) {
 							$list[] = $user->toArray ();

@@ -54,6 +54,27 @@ class CustomerLoyalty extends ActiveRecord
     }
 
     /**
+     * Moves the balance with one UPDATE in the database. The callers used to
+     * change total_points on the row read at the start of the request and
+     * save() it back, so two requests at the same moment overwrote each other:
+     * points were spent twice, or a credit was lost. With $debit the row only
+     * changes while total_points still covers the amount taken off.
+     * Returns whether the row changed. Same method on the Yii 1 model.
+     */
+    public function changePoints($total, $earned, $redeemed, $debit = false)
+    {
+        $sql = 'UPDATE ' . static::tableName() . ' SET total_points = COALESCE(total_points, 0) + :total,'
+            . ' lifetime_earned = COALESCE(lifetime_earned, 0) + :earned,'
+            . ' lifetime_redeemed = COALESCE(lifetime_redeemed, 0) + :redeemed WHERE id = :id';
+        $params = [':total' => $total, ':earned' => $earned, ':redeemed' => $redeemed, ':id' => $this->id];
+        if ($debit) {
+            $sql .= ' AND COALESCE(total_points, 0) >= :need';
+            $params[':need'] = -$total;
+        }
+        return static::getDb()->createCommand($sql, $params)->execute() > 0;
+    }
+
+    /**
      * Credits points and records an EARN transaction.
      *
      * The Yii 1 original has its beginTransaction/commit/rollback lines
@@ -64,9 +85,10 @@ class CustomerLoyalty extends ActiveRecord
     public function addPoints($points, $orderId = null, $description = 'Points earned')
     {
         try {
+            // in the database, not on the balance read earlier (see changePoints())
+            $this->changePoints($points, $points, 0);
             $this->total_points += $points;
             $this->lifetime_earned += $points;
-            $this->save(false);
 
             $trans = new LoyaltyTransaction();
             $trans->customer_id = $this->customer_id;
@@ -93,9 +115,15 @@ class CustomerLoyalty extends ActiveRecord
 
         $transaction = Yii::$app->db->beginTransaction();
         try {
+            // In the database, and only while the balance still covers it:
+            // the check above is on a balance read earlier, and two
+            // redemptions at once both passed it.
+            if (!$this->changePoints(-$points, 0, $points, true)) {
+                $transaction->rollBack();
+                return false;           // insufficient points
+            }
             $this->total_points -= $points;
             $this->lifetime_redeemed += $points;
-            $this->save(false);
 
             $trans = new LoyaltyTransaction();
             $trans->customer_id = $this->customer_id;
@@ -247,9 +275,20 @@ class CustomerLoyalty extends ActiveRecord
                 get_class($this) . ' does not have relation "' . $relation . '".');
         }
 
-        return new ActiveDataProvider(array_merge(
-            ['query' => $this->$getter(), 'pagination' => ['pageSize' => Ui::PAGE_SIZE]],
-            $config));
+        $query = $this->$getter();
+        $base = ['query' => $query, 'pagination' => ['pageSize' => Ui::PAGE_SIZE]];
+        // Yii 1's CActiveDataProvider ran the related model's defaultScope, so
+        // a relation that names no order lists newest first (id DESC) there.
+        // On the sort rather than the query: a query order would be put ahead
+        // of any column the user sorts by, and id is unique, so it would win.
+        if ($query->orderBy === null && method_exists($query->modelClass, 'defaultOrder')) {
+            $order = call_user_func([$query->modelClass, 'defaultOrder']);
+            if ($order) {
+                $base['sort'] = ['defaultOrder' => $order];
+            }
+        }
+
+        return new ActiveDataProvider(array_merge($base, $config));
     }
 
     public function attributeLabels()
@@ -286,7 +325,7 @@ class CustomerLoyalty extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -358,7 +397,7 @@ class CustomerLoyalty extends ActiveRecord
     {
         $query = Item::find();
 
-        $role = UserRole::findOne(['title' => 'Vendor']);
+        $role = UserRole::find()->where(['title' => 'Vendor'])->orderBy(['id' => SORT_DESC])->one();
         $user = Yii::$app->user->model;
         if ($user && $role && $user->role_id == $role->id) {
             $query->andWhere(['id' => self::vendorItemDetailIds(
@@ -444,7 +483,8 @@ class CustomerLoyalty extends ActiveRecord
     /** The item_detail_ids ItemVendor holds for the matching vendor. */
     private static function vendorItemDetailIds($condition)
     {
-        $vendor = Vendor::findOne($condition);
+        // newest first, as Yii 1's findByAttributes() under GxActiveRecord's id DESC scope
+        $vendor = Vendor::find()->where($condition)->orderBy(['id' => SORT_DESC])->one();
         if ($vendor === null) {
             return [];
         }
@@ -487,28 +527,12 @@ class CustomerLoyalty extends ActiveRecord
         }
     }
 
-    /**
-     * Port of the base model's beforeValidate(): stamps the row with who
-     * created or changed it and when. Yii 1 ran this on every save, so a
-     * row written by the port has to carry the same stamps.
-     */
+    /** Port of the base model's beforeValidate(), which stamps nothing. */
     public function beforeValidate()
     {
-        if (!parent::beforeValidate()) {
-            return false;
-        }
-        if ($this->isNewRecord) {
-            if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
-            }
-            if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
-                $this->create_user_id = Yii::$app->user->id;
-            }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
-        }
-
-        return true;
+        // Nothing is stamped: Yii 1's base beforeValidate() only calls its
+        // parent, so no create_time, create_user_id or updated_by is set here.
+        return parent::beforeValidate();
     }
 
     public function rules()

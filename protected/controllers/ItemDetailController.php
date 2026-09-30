@@ -287,6 +287,7 @@ class ItemDetailController extends GxController {
 		$this->performAjaxValidation ( $model, 'item-detail-form' );
 		
 		if (isset ( $_POST ['ItemDetail'] )) {
+			$oldOpenStock = $model->open_stock_qty;
 			$model->setAttributes ( $_POST ['ItemDetail'] );
 			if(isset($_POST ['ItemDetail']['company_bar_code'])){
 				$model->company_bar_code = $_POST ['ItemDetail']['company_bar_code'];
@@ -304,8 +305,14 @@ class ItemDetailController extends GxController {
 						$itemstock = new ItemStock;
 					}
 				
+					// The opening batch used to be overwritten with open_stock_qty, erasing every sale
+					// already taken from it. An existing batch now moves by the change in the opening
+					// stock only (nothing, when it is saved unchanged); a new one starts from it.
+					$openingDelta = (float) $_POST['ItemDetail']['open_stock_qty'] - (float) $oldOpenStock;
+					if($itemstock->isNewRecord){
 					$itemstock->balance_qty = $_POST['ItemDetail']['open_stock_qty'];
 					$itemstock->purchase_qty = $_POST['ItemDetail']['open_stock_qty'];
+					}
 					$itemstock->outlet_id = $outlet_id;
 					$itemstock->vendor_id = 0;
 					if($_POST ['ItemDetail']['mrp'] != ''){
@@ -318,7 +325,7 @@ class ItemDetailController extends GxController {
 					$itemstock->item_id = $item->id;
 					$itemstock->item_detail_id = $model->id;
 					if($model->status == ItemDetail::STATUS_ACTIVE){
-					if($itemstock->save()){
+					if($itemstock->isNewRecord ? $itemstock->save() : ($itemstock->saveExceptQty() && $itemstock->addToBalance($openingDelta, $openingDelta))){
 							
 					}else{
 						print_r($itemstock->getErrors());exit;

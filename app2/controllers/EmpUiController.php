@@ -109,9 +109,10 @@ class EmpUiController extends BaseUiController {
 								}
 							}
 						}
-						$role = UserRole::findOne( [
+						// findByAttributes() under Yii 1's `id DESC` scope.
+						$role = UserRole::find()->where( [
 								'title' => 'Employee'
-						] );
+						] )->orderBy(UserRole::defaultOrder() ?: [])->one();
 
 						$usermodel->full_name = $_POST ['Emp'] ['name'];
 
@@ -168,7 +169,8 @@ class EmpUiController extends BaseUiController {
 	}
 	public function actionUpdate($id) {
 		$model = $this->loadModel($id);
-		$usermodel = User::findOne(['emp_id'=>$model->id]);
+		// findByAttributes() under Yii 1's `id DESC` scope: the newest login.
+		$usermodel = User::find()->where(['emp_id'=>$model->id])->orderBy(User::defaultOrder() ?: [])->one();
 		if($usermodel){
 			$password = $usermodel->password;
 			$model->username = $usermodel->username;
@@ -294,7 +296,9 @@ class EmpUiController extends BaseUiController {
 
 		if (isset ( $_GET ['Emp'] )) {
 			$model->load($_GET, 'Emp');
-			return $this->renderPartial( '_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial( '_list', [
 					'dataProvider' => $model->search (),
 					'model' => $model
 			] );

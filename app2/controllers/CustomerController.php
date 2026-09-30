@@ -66,15 +66,26 @@ class CustomerController extends Controller
         ];
     }
 
+    /** Yii 1's message for a failed save: each attribute's errors joined by '.', run together. */
+    private static function errorText($model)
+    {
+        $err = '';
+        foreach ($model->getErrors() as $errors) {
+            $err .= implode('.', $errors);
+        }
+        return $err;
+    }
+
     /** POST /v2/api/customer/discounts */
     public function actionDiscounts()
     {
         $out = $this->envelope('discounts');
 
-        // Explicit ordering; the Yii 1 route is ordered the same way.
+        // id DESC: Yii 1's findAllByAttributes() names no order, so
+        // GxActiveRecord::defaultScope() applies.
         $discounts = Discount::find()
             ->where(['status' => Discount::STATUS_ACTIVE])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
         if (empty($discounts)) {
             $out['message'] = 'No data to display';
@@ -215,7 +226,8 @@ class CustomerController extends Controller
     {
         $out = $this->envelope('setting');
 
-        $model = Setting::find()->one();
+        // Setting::model()->find(): the default scope's id DESC, so the newest row
+        $model = Setting::find()->orderBy(['id' => SORT_DESC])->one();
         if (!$model) {
             $out['message'] = 'Setting not found';
             return $out;
@@ -276,8 +288,9 @@ class CustomerController extends Controller
      * orders and neither framework can serve that. See the note in the commit
      * that added holdOrderList.
      *
-     * The Yii 1 version filters with findAllByAttributes() and no ordering, so
-     * the sequence was left to MySQL; ordered by id on both sides.
+     * Orders by id ASC (Order's defaultScope() is empty, so Yii 1 now names
+     * the order itself). Held orders by id DESC: Yii 1 names no order for
+     * them and OrderHold inherits GxActiveRecord::defaultScope().
      */
     public function actionOrderList($id, $status)
     {
@@ -292,7 +305,7 @@ class CustomerController extends Controller
         } elseif ((string)$status === '2') {
             $orders = OrderHold::find()
                 ->where(['outlet_id' => $id])
-                ->orderBy(['id' => SORT_ASC])
+                ->orderBy(['id' => SORT_DESC])
                 ->all();
         }
 
@@ -407,7 +420,7 @@ class CustomerController extends Controller
         }
 
         $model->is_enable_wa = 2;   // verified
-        $model->save(false);
+        $model->save();
 
         // toApiArray1() casts is_enable_wa to a string, because every other
         // caller reads it from the database where Yii 1 yields a string. Here the
@@ -435,13 +448,12 @@ class CustomerController extends Controller
      * contact_no together; anything less is silently ignored, as in Yii 1,
      * which leaves the NOK envelope untouched with no message.
      *
-     * Two behaviours carried over deliberately:
+     * Two fixes, each made in Yii 1 as well:
      *
-     *  - state_id is overwritten with 1 immediately after being read from the
-     *    request ("activates account set 1" in the original). Whatever the
-     *    caller sends for state_id is therefore discarded. It looks like the
-     *    column is being used both as a geographic state and as a status flag,
-     *    but changing it would alter stored data.
+     *  - state_id is kept as posted. Both stacks overwrote it with 1 just
+     *    before saving ("activates account set 1" - a line pasted from the
+     *    user controller, where state_id is the account flag). On
+     *    tbl_customer it is the customer's State, and 1 is Punjab.
      *  - the duplicate-phone check excludes the customer being edited. Without
      *    that, getUserByContactNo() matches the customer against itself and
      *    every update that did not also change the phone number was rejected
@@ -485,10 +497,11 @@ class CustomerController extends Controller
             return $out;
         }
 
-        $model->state_id = 1;   // see the note above
-
-        if (!$model->save(false)) {
-            $out['message'] = '';
+        // save(), not save(false): Yii 1 validates here and answers the
+        // validation errors - a bad or already-taken email, a non-integer id -
+        // rather than writing them.
+        if (!$model->save()) {
+            $out['message'] = self::errorText($model);
             return $out;
         }
 
@@ -521,7 +534,7 @@ class CustomerController extends Controller
 
         if (CustomerOtpVerification::verifyOtp($model->id, $otp)) {
             $model->is_enable_wa = 2;
-            $model->save(false);
+            $model->save();
             $out['status'] = 'OK';
             $out['message'] = 'verified';
         }
@@ -549,7 +562,13 @@ class CustomerController extends Controller
         $out['status'] = 'OK';
         // Rendered before the delete, as in Yii 1.
         $out['order'][] = $order->toApiArray();
-        $order->delete();
+        // Hand the hold only to the caller whose delete removed it. Two tills
+        // resuming the same hold at once both found it above, both were given
+        // it, and the one order was billed twice.
+        if (!$order->delete()) {
+            $out = $this->envelope('getOrderHold');
+            $out['message'] = 'Order not available';
+        }
         return $out;
     }
 
@@ -607,7 +626,7 @@ class CustomerController extends Controller
             OTPService::sendOTPWhatsApp($phoneNumber, $model->name, $otpResult['otp_code']);
 
             $model->is_enable_wa = 1;
-            $model->save(false);
+            $model->save();
 
             $out['status'] = 'OK';
             $out['message'] = 'OTP sent successfully via WhatsApp';
@@ -672,10 +691,10 @@ class CustomerController extends Controller
             return $out;
         }
 
-        $model->state_id = 1;   // "activates account set 1" - see actionUpdate
-
-        if (!$model->save(false)) {
-            $out['message'] = '';
+        // Validated, as in Yii 1 - which is also what runs beforeValidate() and
+        // stamps create_time; save(false) skipped both.
+        if (!$model->save()) {
+            $out['message'] = self::errorText($model);
             return $out;
         }
 

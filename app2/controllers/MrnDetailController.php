@@ -96,7 +96,7 @@ class MrnDetailController extends BaseUiController {
 	
 			$criteria = new CDbCriteria();
 			$criteria->addCondition('status ='.UserRole::STATUS_ACTIVE);
-			$criteria->addCondition('item_id ='.$_POST ['item_id']);
+			$criteria->compare('item_id', \app\components\PostId::get('item_id'));
 				
 			$itemdetails = ItemDetail::model()->findAll($criteria);
 			$option .= '<select class="form-control" id="MrnDetail_item_detaill_id" onChange="checkTaxes()"  name="MrnDetail[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -125,7 +125,7 @@ class MrnDetailController extends BaseUiController {
 				
 			$query = ItemDetail::find();
 			$query->andWhere('status =' . ItemDetail::STATUS_ACTIVE);
-			$query->andWhere('item_id =' . $_POST ['item_id']);
+			$query->andWhere(['item_id' => \app\components\PostId::get('item_id')]);
 			$query->orderBy(['id' => SORT_DESC]);
 			$itemdetail = $query->one();
 			if ($itemdetail) {
@@ -154,7 +154,7 @@ class MrnDetailController extends BaseUiController {
 	
 			$query = Mrn::find();
         $query->orderBy(['id' => SORT_DESC]);
-			$query->andWhere('vendor_id ='.$_POST ['vendor_id']);
+			$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 			$query->andWhere('status !='.Mrs::STATUS_DONE);
 			$mrslist = $query->all();
 				
@@ -304,7 +304,7 @@ class MrnDetailController extends BaseUiController {
 				$query = ItemVendor::find();
 				$query->orderBy(['id' => SORT_DESC]);
 				$query->andWhere('item_detail_id ='.$item->id);
-				$query->andWhere('vendor_id ='.$_POST ['vendor_id']);
+				$query->andWhere(['vendor_id' => \app\components\PostId::get('vendor_id')]);
 				$vendor =  $query->one();
 				if($vendor->vendor_id == $_POST ['vendor_id'] ){
 					$msg = 'success';
@@ -413,7 +413,7 @@ class MrnDetailController extends BaseUiController {
 				if ($model->save()) {
 					
 					if($model->approved_qty != '' && $model->approved_qty != '0'){
-						$pomodel = PurchaseOrder::findOne(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+						$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 						$updated = true;
 						if($pomodel == null){
 							$pomodel = new PurchaseOrder();
@@ -500,7 +500,9 @@ class MrnDetailController extends BaseUiController {
 			$model->bal_qty = ($model->req_qty - $model->approved_qty);
 			if ($model->save()) {
 				if($model->approved_qty != '' && $model->approved_qty != '0'){
-					$pomodel = PurchaseOrder::findOne(['mrn_id'=>$model->id,'vendor_id'=>$model->vendor_id]);
+					// The purchase order belongs to the MRN, not to this detail row: look it up by the MRN's id and
+					// the MRN's vendor, which is what it is saved with below (as actionAjaxupdate does).
+					$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$existmrn->id,'vendor_id'=>$existmrn->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 					$updated = true;
 					if($pomodel == null){
 						$pomodel = new PurchaseOrder();
@@ -508,10 +510,12 @@ class MrnDetailController extends BaseUiController {
 					}
 					$pomodel->start_date = date('Y-m-d');
 					$pomodel->code = "code";
-					$pomodel->outlet_id = $existmrs->outlet_id;
-					$pomodel->vendor_id = $existmrs->vendor_id;
-					$pomodel->mrs_id = $existmrs->id;
-					$pomodel->organization_id = $existmrs->organization_id;
+					// $existmrs was never defined (the MRN loaded above is $existmrn), and purchase orders have
+					// mrn_id, not mrs_id; so approving a quantity here failed. Same fields as actionAjaxCreate.
+					$pomodel->outlet_id = $existmrn->outlet_id;
+					$pomodel->vendor_id = $existmrn->vendor_id;
+					$pomodel->mrn_id = $existmrn->id;
+					$pomodel->organization_id = $existmrn->organization_id;
 					if($pomodel->save()){
 					if($updated){
 						$msg = 'PurchaseOrder is updated';
@@ -527,7 +531,8 @@ class MrnDetailController extends BaseUiController {
 						$type = Notification::TYPE_PO;
 						$model_id = $pomodel->id;
 						Notification::AddNotification($model_id,$msg,$type,$to_id);
-						$podetailmodel = PurchaseOrderDetail::findOne(['purchase_order_id'=>$pomodel->id,'outlet_id'=>$model->outlet_id]);
+						// One order line per item: without the item in the lookup, every new item overwrote the order's first line.
+						$podetailmodel = PurchaseOrderDetail::findOne(['purchase_order_id'=>$pomodel->id,'outlet_id'=>$model->outlet_id,'item_id'=>$model->item_id,'item_detail_id'=>$model->item_detail_id]);
 						if($podetailmodel == null){
 							$podetailmodel = new PurchaseOrderDetail();
 						}
@@ -662,7 +667,9 @@ class MrnDetailController extends BaseUiController {
 		if (isset($_GET['MrnDetail']))
 		{
 			$model->load($_GET, 'MrnDetail');
-			return $this->renderPartial('_list', [
+			// echo, not return: Yii 1 prints the list and then the search form
+			// below it; BaseUiController's buffer puts both in the response.
+			echo $this->renderPartial('_list', [
 					'dataProvider' => $model->search(),
 					'model' => $model,
 			]);
@@ -751,7 +758,8 @@ class MrnDetailController extends BaseUiController {
 			}
 			if (isset ( $_POST ['MrnDetail'] ['mrs_req_date'] ) && ($_POST ['MrnDetail'] ['mrs_req_date'] != '')) {
 				if (isset ( $_POST ['MrnDetail'] ['mrs_id'] ) && ($_POST ['MrnDetail'] ['mrs_id'] != '')) {
-					$mrs = Mrn::findOne($mrsid);
+					// $mrsid was never defined here (copied from mrsDetail/admin): use the id the guard above checks.
+					$mrs = Mrn::findOne($_POST ['MrnDetail'] ['mrs_id']);
 					if($mrs){
 						$start_date = $mrs->mrs_req_date;
 					}
@@ -860,7 +868,7 @@ class MrnDetailController extends BaseUiController {
 			$mrn->tax_amount = $_POST ['tax_amount'];
 		if (isset ( $_POST ['bill_amount'] ))
 			$mrn->bill_amount = $_POST ['bill_amount'];
-		$pomodel = PurchaseOrder::findOne(['mrn_id'=>$id,'vendor_id'=>$mrn->vendor_id]);
+		$pomodel = PurchaseOrder::find()->where(['mrn_id'=>$id,'vendor_id'=>$mrn->vendor_id])->orderBy(['id' => SORT_DESC])->one();
 		$updated = true;
 		if($pomodel == null){
 			$pomodel = new PurchaseOrder();

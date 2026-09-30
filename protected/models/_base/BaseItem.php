@@ -249,9 +249,10 @@ abstract class BaseItem extends GxActiveRecord {
 				'itemVendors' => array (
 						self::HAS_MANY,
 						'ItemVendor',
-						'item_detail_id',
-						// unordered, and the caller reads [0]
-						'order' => 'id ASC'
+						'item_detail_id'
+						// No 'order' here on purpose. ItemVendor's defaultScope() (id DESC)
+						// is merged IN FRONT of a relation's own order, so an 'id ASC'
+						// here was a no-op on Yii 1: [0] is the newest row.
 				),
 				'itemStocks' => array (
 						self::HAS_MANY,

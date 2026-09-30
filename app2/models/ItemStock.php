@@ -27,6 +27,51 @@ class ItemStock extends ActiveRecord
     }
 
     /**
+     * Add $delta (negative to deduct) to balance_qty, and $purchaseDelta to
+     * purchase_qty, in one UPDATE, then reload both.
+     *
+     * GRNs and orders used to read the row, work out the new balance in PHP
+     * and save the whole number back. When a GRN and a sale of the same item
+     * landed together, the later save overwrote the earlier one: the GRN's
+     * quantity vanished from stock (or a sale was never deducted). A single
+     * "balance_qty = balance_qty + delta" statement cannot lose a concurrent
+     * change. Same as the Yii 1 ItemStock::addToBalance().
+     */
+    public function addToBalance($delta, $purchaseDelta = 0)
+    {
+        $db = static::getDb();
+        $db->createCommand('UPDATE ' . static::tableName()
+                . ' SET balance_qty = balance_qty + :delta, purchase_qty = purchase_qty + :pdelta WHERE id = :id',
+                [':delta' => $delta, ':pdelta' => $purchaseDelta, ':id' => $this->id])
+            ->execute();
+        $row = $db->createCommand('SELECT balance_qty, purchase_qty FROM ' . static::tableName() . ' WHERE id = :id',
+                [':id' => $this->id])
+            ->queryOne();
+        if ($row) {
+            foreach (['balance_qty', 'purchase_qty'] as $column) {
+                $this->setAttribute($column, $row[$column]);
+                $this->setOldAttribute($column, $row[$column]);
+            }
+        }
+        return (bool) $row;
+    }
+
+    /**
+     * save() for every column except the two quantities, which only change
+     * through addToBalance(). Validation and the save hooks still run.
+     */
+    public function saveExceptQty()
+    {
+        return $this->saveExcept(['balance_qty', 'purchase_qty']);
+    }
+
+    /** save() for every column except id and $columns. */
+    public function saveExcept(array $columns)
+    {
+        return $this->save(true, array_values(array_diff($this->attributes(), array_merge(['id'], $columns))));
+    }
+
+    /**
      * Yii 1's isnetLessMin(): true when the stock of this item detail at this
      * outlet has fallen to or below the item's minimum.
      *
@@ -58,19 +103,21 @@ class ItemStock extends ActiveRecord
 
     /**
      * Yii 1's createMrs(): raises or tops up a pending requisition for this
-     * item, at the first outlet, with the item's last vendor.
+     * item, at the newest outlet, with the item's last vendor.
      *
-     * Two things worth knowing. It overwrites $this->outlet_id with the first
-     * outlet before doing anything, so the requisition is always raised against
-     * that outlet whatever outlet the stock row belongs to. And the tax lookup
+     * Two things worth knowing. It overwrites $this->outlet_id with the newest
+     * outlet (Yii 1's find() under GxActiveRecord::defaultScope() is id DESC,
+     * as are the organization and pending-MRS lookups) before doing anything,
+     * so the requisition is always raised against that outlet whatever outlet
+     * the stock row belongs to. And the tax lookup
      * reads Item::findOne($this->item_detail_id) - the *Item* table, keyed by
      * an item *detail* id - so it resolves to an unrelated item whenever those
      * ids happen to collide, and to nothing otherwise. Both reproduced.
      */
     public function createMrs()
     {
-        $organization = Organization::find()->orderBy(['id' => SORT_ASC])->one();
-        $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+        $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
+        $outlet = Outlet::find()->orderBy(['id' => SORT_DESC])->one();
         if ($outlet) {
             $this->outlet_id = $outlet->id;
         }
@@ -105,7 +152,7 @@ class ItemStock extends ActiveRecord
 
         $mrs = Mrs::find()
             ->where(['status' => Mrs::STATUS_PENDING, 'vendor_id' => $vendorId, 'outlet_id' => $this->outlet_id])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         $reorderQty = $item->reorder_qty != '' ? $item->reorder_qty : 10;
@@ -419,15 +466,18 @@ class ItemStock extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
     }
@@ -485,8 +535,9 @@ class ItemStock extends ActiveRecord
     }
 
     public function createB2bMrs(){
-            $organization = Organization::find()->orderBy('id ASC')->one();
-            $outlet =  Outlet::find()->orderBy('id ASC')->one();
+            // id DESC: Yii 1's find() under GxActiveRecord::defaultScope()
+            $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
+            $outlet =  Outlet::find()->orderBy(['id' => SORT_DESC])->one();
             if($outlet){
             $this->outlet_id = $outlet->id;
             }
@@ -524,7 +575,7 @@ class ItemStock extends ActiveRecord
         if($vendor_id != null){
             $mrs = Mrs::find()->where(['status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
                     'outlet_id'=>$this->outlet_id
-            ])->orderBy(['id' => SORT_ASC])->one();
+            ])->orderBy(['id' => SORT_DESC])->one();
             Yii::warning( var_export( $mrs , true), '$mrs_id');
             // $criteria = new CDbCriteria();
             // $criteria->addCondition('item_id ='.$this->item_id);

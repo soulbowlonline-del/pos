@@ -23,6 +23,16 @@ class TblItemNewTax extends ActiveRecord
     // Yii 1 hands out column values as strings.
     use LegacyColumnTypes;
 
+    /**
+     * The ordering Yii 1's defaultScope() put on every query for this
+     * model. Null means Yii 1 applied none, and neither should this:
+     * an order Yii 1 never applied is an order the user never saw.
+     */
+    public static function defaultOrder()
+    {
+        return ['id' => SORT_DESC];
+    }
+
     public static function tableName()
     {
         return '{{%item_new_tax}}';

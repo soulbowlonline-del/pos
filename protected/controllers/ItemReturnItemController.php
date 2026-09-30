@@ -163,7 +163,7 @@ public function actionReport($id = null) {
 		if (isset ( $_POST ['grn_no'] )) {
 				
 			$criteria = new CDbCriteria ();
-			$criteria->addCondition ( 'grn_refrence_no =' . $_POST ['grn_no']);
+			$criteria->compare('grn_refrence_no', PostId::get('grn_no'));
 			
 				
 			$bill = PurchaseBill::model ()->find ( $criteria );
@@ -228,7 +228,7 @@ public function actionReport($id = null) {
 				
 			$criteria = new CDbCriteria ();
 			$criteria->addCondition ( 'status =' . ItemDetail::STATUS_ACTIVE );
-			$criteria->addCondition ( 'item_id =' . $_POST ['item_id'] );
+			$criteria->compare('item_id', PostId::get('item_id'));
 				
 			$itemdetails = ItemDetail::model ()->findAll ( $criteria );
 			$option .= '<select class="form-control" onChange="checkTaxes()" id="ItemReturnItem_item_detaill_id" name="ItemReturnItem[item_detail_id]"><option value="" id="ckbCheckAll">-Select-</option>';
@@ -413,9 +413,11 @@ public function actionReport($id = null) {
   		}
 		
   		$model->status = ItemReturn::STATUS_DONE;
+  		// Begin before saving the line: it used to be saved (status done) on its own, so a
+  		// failed stock update was rolled back while the line stayed saved as returned.
+  		$transaction = Yii::app ()->db->beginTransaction ();
   		if ($model->save ()) {
   			$set = true;
-  			$transaction = Yii::app ()->db->beginTransaction ();
   				
   			try {
   				$itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
@@ -426,12 +428,11 @@ public function actionReport($id = null) {
   					$current = $itemStock->balance_qty;
   						
   					if($itemStock != null){
-  						$itemStock->balance_qty = ($itemStock->balance_qty) - ($model->qty);
   				
   							
   							
   				
-  						if($itemStock->save()){
+  						if($itemStock->saveExceptQty() && $itemStock->addToBalance(-($model->qty))){
   							$log = new StockLog();
   				
   							$log->item_detail_id = $itemDetail->id;
@@ -639,6 +640,8 @@ public function actionReport($id = null) {
   				} catch ( Exception $e ) {
   					$transaction->rollback ();
   				}
+  		} else {
+  			$transaction->rollback ();
   		}
   		}
   		}
@@ -968,9 +971,11 @@ public function actionReport($id = null) {
                 }
 
                 $model->status = ItemReturn::STATUS_DONE;
+                // Begin before saving the line: it used to be saved (status done) on its own, so a
+                // failed stock update was rolled back while the line stayed saved as returned.
+                $transaction = Yii::app()->db->beginTransaction();
                 if ($model->save()) {
                     $set = true;
-                    $transaction = Yii::app()->db->beginTransaction();
 
                     try {
                         $itemDetail = ItemDetail::model()->findByPk($model->item_detail_id);
@@ -983,9 +988,8 @@ public function actionReport($id = null) {
                             $current = $itemStock->balance_qty;
 
                             if ($itemStock != null) {
-                                $itemStock->balance_qty = ($itemStock->balance_qty) - ($model->qty);
 
-                                if ($itemStock->save()) {
+                                if ($itemStock->saveExceptQty() && $itemStock->addToBalance(-($model->qty))) {
                                     $log = new StockLog();
 
                                     $log->item_detail_id = $itemDetail->id;
@@ -1206,6 +1210,8 @@ public function actionReport($id = null) {
                     } catch (Exception $e) {
                         $transaction->rollback();
                     }
+                } else {
+                	$transaction->rollback();
                 }
             }
         }

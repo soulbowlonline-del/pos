@@ -29,6 +29,8 @@ use app\models\CreditNote;
 use app\models\OnlineOrder;
 use app\models\Discount;
 use app\components\InteraktApi;
+use PosOutbound;
+use app\components\OrderDedupe;
 use yii\web\Controller;
 use yii\web\Response;
 
@@ -272,19 +274,31 @@ class ItemController extends Controller
     }
 
     /**
+     * 'userlogin' alone. order, ordertest and punchorder in Yii 1 read only
+     * that header, with no login_id fallback, so a request carrying just
+     * login_id is answered NOK there rather than billed.
+     */
+    private function headerUserlogin()
+    {
+        $v = Yii::$app->request->getHeaders()->get('userlogin');
+        return ($v === null || $v === '') ? null : $v;
+    }
+
+    /**
      * POST /v2/api/item/get-grn
      *
      * The unapproved purchase bills for the outlet the caller belongs to, as
      * bare ids. The outlet comes from the caller's employee record; if the user
-     * has no employee row, Yii 1 falls back to whichever outlet the database
-     * returns first, and if there are no outlets at all it goes on to use an
+     * has no employee row, Yii 1 falls back to the newest outlet (the default
+     * scope's id DESC), and if there are no outlets at all it goes on to use an
      * undefined $outlet_id - a 500 on PHP 8. Reproduced, since a deployment
      * with no outlets is not a real state.
      *
      * status stays 'NOK' when the caller is unknown or has no bills, and the
      * 'grns' key is absent - not an empty list.
      *
-     * The Yii 1 query had no ORDER BY. Ordered by id on both sides.
+     * The Yii 1 query names no order, so GxActiveRecord::defaultScope()'s
+     * id DESC applies. Ordered the same here.
      */
     public function actionGetGrn()
     {
@@ -308,7 +322,9 @@ class ItemController extends Controller
         if ($emp) {
             $outletId = $emp->outlet_id;
         } else {
-            $outlet = Outlet::find()->orderBy(['id' => SORT_ASC])->one();
+            // Outlet::model()->find() with no criteria: GxActiveRecord's
+            // defaultScope orders it id DESC, so Yii 1 takes the newest outlet
+            $outlet = Outlet::find()->orderBy(['id' => SORT_DESC])->one();
             if ($outlet) {
                 $outletId = $outlet->id;
             }
@@ -319,7 +335,7 @@ class ItemController extends Controller
                 'outlet_id' => $outletId,
                 'status' => PurchaseBill::STATUS_UNAPPROVED,
             ])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->all();
 
         if ($bills) {
@@ -695,13 +711,14 @@ class ItemController extends Controller
             $billDetail->order = $stock->entry_position;
             $billDetail->save();
 
+            // findByAttributes() with no order in Yii 1: the default scope's id DESC
             $itemStock = ItemStock::find()
                 ->where([
                     'item_detail_id' => $itemDetail->id,
                     'item_id' => $itemDetail->item_id,
                     'batch_number' => $batchNo,
                 ])
-                ->orderBy(['id' => SORT_ASC])
+                ->orderBy(['id' => SORT_DESC])
                 ->one();
 
             if ($itemStock === null) {
@@ -797,15 +814,17 @@ class ItemController extends Controller
             return $out;
         }
 
+        // Newest batch and newest vendor row: Yii 1's findByAttributes() names
+        // no order, so GxActiveRecord::defaultScope()'s id DESC decides.
         $itemStock = ItemStock::find()
             ->where(['item_detail_id' => $itemDetail->id, 'outlet_id' => $outlet])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         // both of these are read without a null check in Yii 1
         $itemVendor = ItemVendor::find()
             ->where(['item_detail_id' => $itemDetail->item_id])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
         $itemStock->vendor_id = $itemVendor->vendor_id;
 
@@ -823,6 +842,7 @@ class ItemController extends Controller
             $type = ItemStock::TYPE_ADDED;
         }
 
+        $existingStock = ($itemStock !== null);
         if ($itemStock === null) {
             $itemStock = new ItemStock();
             if ($type == ItemStock::TYPE_ADDED) {
@@ -841,11 +861,15 @@ class ItemController extends Controller
                 $itemStock->outlet_id = $outlet;
             }
         } else {
+            // Existing batch: the change is applied in the database when the
+            // row is saved below (addToBalance), so a sale or GRN landing at
+            // the same moment is not overwritten.
             if ($type == ItemStock::TYPE_ADDED) {
-                $itemStock->purchase_qty = $itemStock->purchase_qty + $qty;
-                $itemStock->balance_qty = $itemStock->balance_qty + $qty;
+                $stockDelta = $qty;
+                $purchaseDelta = $qty;
             } else {
-                $itemStock->balance_qty = $itemStock->balance_qty - $qty;
+                $stockDelta = -$qty;
+                $purchaseDelta = 0;
             }
         }
 
@@ -874,7 +898,10 @@ class ItemController extends Controller
 
         $adjusted = ($type == ItemStock::TYPE_ADDED) ? $qty : '-' . $qty;
 
-        if (!$itemStock->save()) {
+        $stockSaved = $existingStock
+            ? ($itemStock->saveExceptQty() && $itemStock->addToBalance($stockDelta, $purchaseDelta))
+            : $itemStock->save();
+        if (!$stockSaved) {
             return $out;
         }
 
@@ -1011,7 +1038,8 @@ class ItemController extends Controller
             return;
         }
 
-        $organization = Organization::find()->orderBy(['id' => SORT_ASC])->one();
+        // id DESC here and for the pending MRS below: GxActiveRecord::defaultScope()
+        $organization = Organization::find()->orderBy(['id' => SORT_DESC])->one();
         $detailAgain = ItemDetail::findOne($itemDetail->id);
         $tax = null;
         if ($detailAgain) {
@@ -1024,7 +1052,7 @@ class ItemController extends Controller
 
         $mrs = Mrs::find()
             ->where(['status' => Mrs::STATUS_PENDING, 'vendor_id' => $itemStock->vendor_id, 'outlet_id' => $outlet])
-            ->orderBy(['id' => SORT_ASC])
+            ->orderBy(['id' => SORT_DESC])
             ->one();
 
         $reorderQty = $item->reorder_qty != '' ? $item->reorder_qty : 10;
@@ -1139,7 +1167,7 @@ class ItemController extends Controller
     {
         $out = $this->envelope('order');
 
-        $loginId = $this->headerUserId();
+        $loginId = $this->headerUserlogin();
         if (!$loginId) {
             return $out;
         }
@@ -1161,6 +1189,13 @@ class ItemController extends Controller
             // Yii 1 answers here and then keeps going with no $order at all
             $out['message'] = 'Order status wrong';
             return $out;
+        }
+
+        // An exact repeat of a sale already billed - a client retrying after an
+        // error or a timeout - is answered with that sale's bill instead of being
+        // billed a second time. See OrderDedupe.
+        if (($dupOrder = OrderDedupe::check($loginId, $post)) !== null) {
+            return OrderDedupe::envelope($out, $dupOrder, 'order');
         }
 
         $ok = true;
@@ -1210,15 +1245,27 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        // marked used before the lines are known to save
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // marked used before the lines are known to save.
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                            $out['message'] = 'Credit note amount is less than total amount';
+                        }
                     } else {
                         // the message set here is overwritten by 'Try again'
                         // when the rollback below runs, as in Yii 1
@@ -1299,21 +1346,38 @@ class ItemController extends Controller
                 return $out;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
-            // the bill number, read and assigned after the commit
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            // updateAttributes(), not save(): this stands in for Yii 1's
-            // saveAttributes(), which writes through updateByPk and raises no
-            // events. save() runs updateInternal(), which fires afterSave() a
-            // second time - and Order::afterSave() credits loyalty points, so
-            // the bill number write earned the customer a second time. See the
-            // note on actionPunchorder below.
-            $order->updateAttributes(['bill_no']);
+            // the bill number, read and assigned after the commit.
+            // Serialise it: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
+                // updateAttributes(), not save(): this stands in for Yii 1's
+                // saveAttributes(), which writes through updateByPk and raises no
+                // events. save() runs updateInternal(), which fires afterSave() a
+                // second time - and Order::afterSave() credits loyalty points, so
+                // the bill number write earned the customer a second time. See the
+                // note on actionPunchorder below.
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -1365,16 +1429,19 @@ class ItemController extends Controller
             // Exception, not Throwable, as in Yii 1: on PHP 8 an Error is not
             // an Exception, so it escapes this catch on both stacks.
             //
-            // Yii 1 swallows this silently and answers NOK with no message,
-            // which is reproduced - but it is logged here, because a checkout
-            // that fails without saying why is not something to leave
-            // undiagnosable. The log is not part of the response.
-            Yii::error('item/order rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
+            // Rolling back unconditionally was the bug: once the sale had committed
+            // - and the bill number, callback, SMS and tax summary all run after the
+            // commit - a failure there answered NOK for a sale that was in the books,
+            // and the cashier billed it again (Yii 1 threw a 500 out of this catch).
+            // recover() rolls back and logs an open transaction, as before, and
+            // otherwise logs the failure and hands back the saved order to answer with.
+            if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/order')) !== null) {
+                $out = OrderDedupe::envelope($out, $savedOrder, 'order');
+            }
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
 
     /**
@@ -1469,7 +1536,7 @@ class ItemController extends Controller
     {
         $out = $this->envelope('ordertest');
 
-        $loginId = $this->headerUserId();
+        $loginId = $this->headerUserlogin();
         if (!$loginId) {
             return $out;
         }
@@ -1489,6 +1556,13 @@ class ItemController extends Controller
         } else {
             $out['message'] = 'Order status wrong';
             return $out;
+        }
+
+        // An exact repeat of a sale already billed - a client retrying after an
+        // error or a timeout - is answered with that sale's bill instead of being
+        // billed a second time. See OrderDedupe.
+        if (($dupOrder = OrderDedupe::check($loginId, $post)) !== null) {
+            return OrderDedupe::envelope($out, $dupOrder, 'ordertest');
         }
 
         $ok = true;
@@ -1536,14 +1610,26 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                            $out['message'] = 'Credit note amount is less than total amount';
+                        }
                     } else {
                         $ok = false;
                         $out['message'] = 'Credit note amount is less than total amount';
@@ -1620,15 +1706,32 @@ class ItemController extends Controller
                 return $out;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
-            // Yii 1's saveAttributes() - no events. See actionPunchorder.
-            $order->updateAttributes(['bill_no']);
+            // Serialise the bill number: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $order->bill_no = $latest ? $latest->bill_no + 1 : 1;
+                // Yii 1's saveAttributes() - no events. See actionPunchorder.
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post, 'http://soulbowl.in/rest/api');
@@ -1664,12 +1767,14 @@ class ItemController extends Controller
             $transaction->rollBack();
             throw $e;
         } catch (\Exception $e) {
-            Yii::error('item/ordertest rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
+            // Only an open transaction is rolled back - see actionOrder.
+            if (($savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/ordertest')) !== null) {
+                $out = OrderDedupe::envelope($out, $savedOrder, 'ordertest');
+            }
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
     /**
      * POST /v2/api/item/punchorder
@@ -1692,7 +1797,7 @@ class ItemController extends Controller
         $out = $this->envelope('punchorder');
 
         try {
-            $loginId = $this->headerUserId();
+            $loginId = $this->headerUserlogin();
             if (!$loginId) {
                 return $out;
             }
@@ -1783,6 +1888,12 @@ class ItemController extends Controller
             $out['netAmount'] = round($netAmount);
             $out['saving'] = round($totalSaleValue - $netAmount);
 
+            // An exact repeat of a sale already billed is answered with that bill - and
+            // no second WhatsApp - instead of being billed again. See OrderDedupe.
+            if (($dupOrder = OrderDedupe::check($loginId, $post, $basket, $out['netAmount'])) !== null) {
+                return OrderDedupe::envelope($out, $dupOrder, 'punchorder');
+            }
+
             // processOrder builds its own response array and sends it through
             // sendJSONResponse(), which calls Yii::app()->end() - so a bad
             // status_id answers with just {"message":"Order status wrong"} and
@@ -1794,7 +1905,17 @@ class ItemController extends Controller
             }
 
             if ($billNo) {
-                $this->punchGenerateBillAndSend($out, $billNo, $loginId);
+                // The sale is committed and numbered by now. A failed PDF or WhatsApp
+                // used to fall to the catch below and answer NOK, so the cashier billed
+                // it again; it is logged instead and the sale answered as saved. A PHP
+                // warning still goes through as a 500, as it does in Yii 1.
+                try {
+                    $this->punchGenerateBillAndSend($out, $billNo, $loginId);
+                } catch (\yii\base\ErrorException $e) {
+                    throw $e;
+                } catch (\Exception $e) {
+                    Yii::error('item/punchorder: bill ' . $billNo . ' saved, sending it failed: ' . $e->getMessage(), __METHOD__);
+                }
                 $out['status'] = 'OK';
                 $out['bill_no'] = $billNo;
             }
@@ -1805,7 +1926,8 @@ class ItemController extends Controller
             $out['error_details'] = $e->getTraceAsString();
         }
 
-        return $out;
+        // noted, so that the end of the request can tell whether a sale's answer was OK
+        return OrderDedupe::answering($out);
     }
 
     /** Yii 1's getBasePrice(): the sale rate less the tax it already includes. */
@@ -1908,14 +2030,25 @@ class ItemController extends Controller
             }
 
             if ($status == '1' && isset($post['credit_note_id'])) {
+                // newest first if a number repeats: Yii 1's findByAttributes()
+                // under GxActiveRecord::defaultScope()
                 $creditNote = CreditNote::find()
                     ->where(['credit_number' => $post['credit_note_id']])
-                    ->orderBy(['id' => SORT_ASC])
+                    ->orderBy(['id' => SORT_DESC])
                     ->one();
                 if ($creditNote) {
                     if (($creditNote->amt - $creditNote->amt_used) >= $order->total_amt) {
-                        $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
-                        $creditNote->save();
+                        // Debit the note in the database, and only while it still covers
+                        // the bill: the check above is on a read, and two bills paying with
+                        // the same note at once both passed it and both were marked used.
+                        $debited = Yii::$app->db->createCommand('UPDATE ' . CreditNote::tableName()
+                            . ' SET amt_used = COALESCE(amt_used, 0) + :amt WHERE id = :id AND COALESCE(amt, 0) - COALESCE(amt_used, 0) >= :need',
+                            [':amt' => $order->total_amt, ':need' => $order->total_amt, ':id' => $creditNote->id])->execute();
+                        if ($debited > 0 || $order->total_amt == 0) {
+                            $creditNote->amt_used = $creditNote->amt_used + $order->total_amt;
+                        } else {
+                            $ok = false;
+                        }
                     } else {
                         $ok = false;
                     }
@@ -1986,23 +2119,41 @@ class ItemController extends Controller
                 return null;
             }
 
+            OrderDedupe::remember($order->id);
             $transaction->commit();
+            // the sale is in the books; its answer is still to come - see OrderDedupe::finish()
+            OrderDedupe::committed($order->id);
 
-            $latest = Order::find()
-                ->where(['between', 'date(create_time)', $startDate, $endDate])
-                ->orderBy(['bill_no' => SORT_DESC])
-                ->one();
-            $billNo = $latest ? $latest->bill_no + 1 : 1;
-            $order->bill_no = $billNo;
-            // Yii 1 writes the bill number with saveAttributes(), which goes
-            // through updateByPk() and raises no events. Yii 2's
-            // save(false, ['bill_no']) is not the same call: it runs
-            // updateInternal(), which fires afterSave() - and Order::afterSave()
-            // calls processLoyaltyEarning(). processOrderEarn() has no
-            // idempotency guard, so the second afterSave credited the customer
-            // a second time and every order earned twice its points. The Yii 2
-            // equivalent of saveAttributes() is updateAttributes().
-            $order->updateAttributes(['bill_no']);
+            // Serialise the bill number: two bills finishing at the same moment
+            // both read the same highest bill_no and were given the same number.
+            // A named MySQL lock - the same name as Yii 1's, so the two stacks
+            // wait for each other - is held from the read to the write and
+            // released in the finally below whatever happens in between.
+            $billNoLock = Yii::$app->db->createCommand("SELECT GET_LOCK('pos_bill_no', 10)")->queryScalar();
+            try {
+                $latest = Order::find()
+                    ->where(['between', 'date(create_time)', $startDate, $endDate])
+                    ->orderBy(['bill_no' => SORT_DESC])
+                    ->one();
+                $billNo = $latest ? $latest->bill_no + 1 : 1;
+                $order->bill_no = $billNo;
+                // Yii 1 writes the bill number with saveAttributes(), which goes
+                // through updateByPk() and raises no events. Yii 2's
+                // save(false, ['bill_no']) is not the same call: it runs
+                // updateInternal(), which fires afterSave() - and Order::afterSave()
+                // calls processLoyaltyEarning(). processOrderEarn() had no
+                // idempotency guard then (it skips an order already earned on
+                // now), so the second afterSave credited the customer
+                // a second time and every order earned twice its points. The Yii 2
+                // equivalent of saveAttributes() is updateAttributes().
+                $order->updateAttributes(['bill_no']);
+            } finally {
+                if ($billNoLock) {
+                    Yii::$app->db->createCommand("SELECT RELEASE_LOCK('pos_bill_no')")->queryScalar();
+                }
+            }
+            // numbered: an identical request waiting on this one can now see the bill
+            OrderDedupe::release();
 
             if ($status == '1') {
                 $this->notifyOnlineOrderPacked($order, $post);
@@ -2012,10 +2163,13 @@ class ItemController extends Controller
             $transaction->rollBack();
             throw $e;
         } catch (\Exception $e) {
-            Yii::error('item/punchorder rolled back: ' . $e->getMessage()
-                . ' at ' . $e->getFile() . ':' . $e->getLine(), __METHOD__);
-            $transaction->rollBack();
-            return null;
+            // Only an open transaction is rolled back - see actionOrder. A sale that
+            // committed answers with its bill number instead of NOK.
+            $savedOrder = OrderDedupe::recover($transaction, $e, $order, 'item/punchorder');
+            if ($savedOrder === null) {
+                return null;
+            }
+            $billNo = $savedOrder->bill_no ? (int)$savedOrder->bill_no : null;
         }
 
         return $billNo;

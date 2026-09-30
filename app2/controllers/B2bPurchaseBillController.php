@@ -83,7 +83,7 @@ exit;
 			$query = PurchaseBill::find();
         $query->orderBy(['id' => SORT_DESC]);
 			//$criteria->addInCondition('id', $_POST['idList']);
-			$query->andWhere('id ='.$_POST['idList']['0']);
+			$query->andWhere(['id' => \app\components\PostId::get('idList', '0')]);
 			$bill = $query->one();
 			
 			if($bill){
@@ -249,6 +249,9 @@ exit;
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 	} 
 	public function actionPrint(){
@@ -495,7 +498,11 @@ exit;
         $newyear = $billyear + 1;
         $outlet = Outlet::findOne($bill->outlet_id);
         if ($outlet) {
-            if ($outlet->bill_prefix == '') {
+            // Was == '': an outlet's own bill_prefix was used only when it was empty,
+            // so a configured prefix was always replaced by 'B' and an empty one gave
+            // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+            // order API already do.
+            if ($outlet->bill_prefix != '') {
                 $bill_prefix = $outlet->bill_prefix;
             } else {
                 $bill_prefix = 'B';
@@ -541,6 +548,9 @@ exit;
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+		// RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+		// the HTML format BaseUiController sets would replace it with text/html.
+		Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
 		$mPDF1->Output();
 		
 	
@@ -648,6 +658,9 @@ exit;
 
         // Renders image
         // $mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
+        // RAW, so mPDF's own Content-Type: application/pdf is what goes out;
+        // the HTML format BaseUiController sets would replace it with text/html.
+        Yii::$app->response->format = \yii\web\Response::FORMAT_RAW;
         $mPDF1->Output();
 
         /*

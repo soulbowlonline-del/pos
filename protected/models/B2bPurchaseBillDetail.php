@@ -1136,7 +1136,11 @@ public function getTotalNetAmt()
                 $amount = $amount + $detail->discount_amt;
             }
         }
-        return '0';
+        // The sum above is this bill's discount_amt across the lines sharing this
+        // tax rate - what the Discount column of the B2B purchase-bill report
+        // shows. It was computed and then discarded for a literal '0';
+        // returned now. Basic Value is already net of it.
+        return $amount;
     }
 
     public function getSchemeDiscount()

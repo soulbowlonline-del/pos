@@ -23,7 +23,48 @@ class ItemStock extends BaseItemStock
 	public static function model($className=__CLASS__) {
 		return parent::model($className);
 	}
-	
+
+	/**
+	 * Add $delta (negative to deduct) to balance_qty, and $purchaseDelta to
+	 * purchase_qty, in one UPDATE, then reload both.
+	 *
+	 * GRNs and orders used to read the row, work out the new balance in PHP
+	 * and save the whole number back. When a GRN and a sale of the same item
+	 * landed together, the later save overwrote the earlier one: the GRN's
+	 * quantity vanished from stock (or a sale was never deducted). A single
+	 * "balance_qty = balance_qty + delta" statement cannot lose a concurrent
+	 * change.
+	 */
+	public function addToBalance($delta, $purchaseDelta = 0)
+	{
+		$db = Yii::app()->db;
+		$db->createCommand('UPDATE ' . $this->tableName() .
+				' SET balance_qty = balance_qty + :delta, purchase_qty = purchase_qty + :pdelta WHERE id = :id')
+			->execute(array(':delta' => $delta, ':pdelta' => $purchaseDelta, ':id' => $this->id));
+		$row = $db->createCommand('SELECT balance_qty, purchase_qty FROM ' . $this->tableName() . ' WHERE id = :id')
+			->queryRow(true, array(':id' => $this->id));
+		if ($row) {
+			$this->balance_qty = $row['balance_qty'];
+			$this->purchase_qty = $row['purchase_qty'];
+		}
+		return (bool) $row;
+	}
+
+	/**
+	 * save() for every column except the two quantities, which only change
+	 * through addToBalance(). Validation and the save hooks still run.
+	 */
+	public function saveExceptQty()
+	{
+		return $this->saveExcept(array('balance_qty', 'purchase_qty'));
+	}
+
+	/** save() for every column except id and $columns. */
+	public function saveExcept($columns)
+	{
+		return $this->save(true, array_values(array_diff($this->attributeNames(), array_merge(array('id'), $columns))));
+	}
+
 	public function isnetLessMin()
 	{
 		
@@ -68,8 +109,8 @@ class ItemStock extends BaseItemStock
 		} */
 	}
 	public function createB2bMrs(){
-		$organization = Organization::model()->find(array('order'=>'id asc'));
-		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
+		$organization = Organization::model()->find();
+		$outlet =  Outlet::model()->find();
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -107,7 +148,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		), array('order'=>'id asc'));
+		));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);
@@ -233,8 +274,8 @@ class ItemStock extends BaseItemStock
 	
 	
 	public function createMrs(){
-		$organization = Organization::model()->find(array('order'=>'id asc'));
-		$outlet =  Outlet::model()->find(array('order'=>'id asc'));
+		$organization = Organization::model()->find();
+		$outlet =  Outlet::model()->find();
 		if($outlet){
 		$this->outlet_id = $outlet->id;
 		}
@@ -272,7 +313,7 @@ class ItemStock extends BaseItemStock
 	if($vendor_id != null){
 		$mrs = Mrs::model()->findByAttributes(array('status'=>Mrs::STATUS_PENDING,'vendor_id'=>$vendor_id,
 				'outlet_id'=>$this->outlet_id
-		), array('order'=>'id asc'));
+		));
 		Yii::log ( CVarDumper::dumpAsString ( $mrs ), CLogger::LEVEL_WARNING, '$mrs_id' );
 		// $criteria = new CDbCriteria();
 		// $criteria->addCondition('item_id ='.$this->item_id);

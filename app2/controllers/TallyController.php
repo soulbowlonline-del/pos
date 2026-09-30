@@ -268,9 +268,8 @@ class TallyController extends Controller
      * refunds is commented out. The query is kept so the behaviour is identical
      * if it is ever reinstated, but it does not affect the output today.
      *
-     * The bill-number prefix logic is inverted here exactly as in
-     * Order::getOrderBillNo(): an outlet with a prefix has it discarded in
-     * favour of 'B'. Reproduced; see the note on that method.
+     * The bill-number prefix is the outlet's bill_prefix, or 'B' when empty -
+     * the inversion it shared with Order::getOrderBillNo() is fixed in both.
      */
     public function actionB2btaxwise($date = null)
     {
@@ -348,7 +347,11 @@ class TallyController extends Controller
                 $billPrefix = 'B';
                 $outlet = Outlet::findOne($item['outlet_id']);
                 if ($outlet) {
-                    $billPrefix = ($outlet->bill_prefix == '') ? $outlet->bill_prefix : 'B';
+                    // Was == '': an outlet's own bill_prefix was used only when it was empty,
+                    // so a configured prefix was always replaced by 'B' and an empty one gave
+                    // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+                    // order API already do.
+                    $billPrefix = ($outlet->bill_prefix != '') ? $outlet->bill_prefix : 'B';
                 }
 
                 $billNo = 'B2B ' . $year . '-' . $yearLast . '/' . $billPrefix . '-' . $bill->id;
@@ -393,10 +396,8 @@ class TallyController extends Controller
      * took tally/cashsale down). Bound as a parameter on both stacks now, and
      * a missing date is answered before the query rather than by the database.
      *
-     * Nothing else is corrected. In particular getOrderBillNo() uses the
-     * outlet's prefix only when that prefix is *empty*, so every bill reads
-     * B2B.../B-... whatever the outlet is called - the same inversion already
-     * recorded against Order::getOrderBillNo().
+     * Nothing else is corrected. (getOrderBillNo()'s inverted outlet prefix,
+     * recorded against Order::getOrderBillNo(), has since been fixed in both.)
      */
     public function actionB2bsales($date = null)
     {

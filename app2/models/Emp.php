@@ -400,15 +400,17 @@ class Emp extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // No updated_by on an update: BaseEmp::beforeValidate() has an empty else.
 
         return true;
     }
@@ -417,7 +419,9 @@ class Emp extends ActiveRecord
     {
         return [
             [['code', 'name', 'email', 'username', 'contact_no', 'role_id', 'country_id', 'city_id', 'state_id', 'gender_id', 'shift_id', 'date_of_birth', 'date_of_joining', 'permanent_address', 'create_time', 'designation_id', 'create_user_id'], 'required'],
-            [['password'], 'required'],
+            // create only, as in Yii 1: the update form leaves it blank to keep
+            // the current password, and an unconditional rule refused every such save
+            [['password'], 'required', 'on' => 'create'],
             [['code', 'contact_no', 'gender_id', 'status', 'type_id', 'designation_id', 'create_user_id', 'updated_by'], 'integer'],
             [['name', 'email'], 'string', 'max' => 255],
             [['email'], 'email'],
@@ -548,7 +552,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['State'])) {
-                            $query = City::find();
+                            $query = State::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['State']]);
                             $state = $query->one();
@@ -558,7 +562,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['Country'])) {
-                            $query = City::find();
+                            $query = Country::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Country']]);
                             $country = $query->one();
@@ -578,7 +582,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['Temp State'])) {
-                            $query = City::find();
+                            $query = State::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Temp State']]);
                             $state = $query->one();
@@ -588,7 +592,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['Temp Country'])) {
-                            $query = City::find();
+                            $query = Country::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Temp Country']]);
                             $country = $query->one();
@@ -598,7 +602,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['Designation'])) {
-                            $query = City::find();
+                            $query = Designation::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Designation']]);
                             $designation = $query->one();
@@ -608,7 +612,7 @@ class Emp extends ActiveRecord
 
                         }
                         if (isset($arrays['Shift'])) {
-                            $query = City::find();
+                            $query = Shift::find();
             $query->orderBy(['id' => SORT_DESC]);
                             Criteria::compare($query, 'title', $itemcat_values[$arrays['Shift']]);
                             $shift = $query->one();
@@ -620,7 +624,7 @@ class Emp extends ActiveRecord
                         if ($emp->save()) {
                             $empshift = new EmpShift();
                             if (isset($arrays['Shift'])) {
-                                $query = City::find();
+                                $query = Shift::find();
             $query->orderBy(['id' => SORT_DESC]);
                                 Criteria::compare($query, 'title', $itemcat_values[$arrays['Shift']]);
                                 $shift = $query->one();

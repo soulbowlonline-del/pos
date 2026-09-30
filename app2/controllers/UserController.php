@@ -85,10 +85,11 @@ class UserController extends BaseUiController {
 					}
 					foreach ( $result as $res => $val ) {
 						if ($set == true) {
-							$model = UserQuestion::findOne( [
+							// findByAttributes() under Yii 1's `id DESC` scope.
+							$model = UserQuestion::find()->where( [
 									'question_id' => $res,
 									'create_user_id' => Yii::$app->user->id 
-							] );
+							] )->orderBy(UserQuestion::defaultOrder() ?: [])->one();
 							if ($model == null)
 								$model = new UserQuestion ();
 							$model->question_id = $res;
@@ -117,7 +118,7 @@ class UserController extends BaseUiController {
 		if (isset ( $_POST ['selected'] )) {
 			
 			$query = Question::find();
-			$query->andWhere('id !=' . $_POST ['selected']);
+			$query->andWhere(['!=', 'id', \app\components\PostId::get('selected')]);
 			$query->orderBy(['title' => SORT_ASC]);
 			$questions = $query->all();
 			// $option .= '<option value="" id="ckbCheckAll">-Select-</option>';
@@ -142,7 +143,7 @@ class UserController extends BaseUiController {
 		if (isset ( $_POST ['selected'] )) {
 				
 			$query = Question::find();
-			$query->andWhere('id !=' . $_POST ['selected']);
+			$query->andWhere(['!=', 'id', \app\components\PostId::get('selected')]);
 			if($id != null){
 				$userques = UserQuestion::findAll(['create_user_id'=>$id]);
 				if($userques){
@@ -228,7 +229,8 @@ class UserController extends BaseUiController {
 		$user = Yii::$app->user->model;
 		$query = Item::find();
 		$itemvendor_ids = [];
-		$vendor = Vendor::findOne(['create_user_id'=>$user->id]);
+		// findByAttributes() under Yii 1's `id DESC` scope: the newest vendor.
+		$vendor = Vendor::find()->where(['create_user_id'=>$user->id])->orderBy(Vendor::defaultOrder() ?: [])->one();
 		if($vendor){
 			$itemvendors = ItemVendor::findAll(['vendor_id'=>$vendor->id]);
 			if($itemvendors){
@@ -242,7 +244,7 @@ class UserController extends BaseUiController {
 	
 		$items = $query->count();
 	
-		$vendor = Vendor::findOne(['create_user_id'=>$user->id]);
+		$vendor = Vendor::find()->where(['create_user_id'=>$user->id])->orderBy(Vendor::defaultOrder() ?: [])->one();
 		$mrss =  Mrs::find()->where([
 				'vendor_id' => $vendor->id
 		])->count();
@@ -370,7 +372,10 @@ class UserController extends BaseUiController {
 						$model->state_id = 1; // activates account set 1
 						if ($role_id != null)
 							$model->role_id = $role_id;
-						if ($model->validate ( true )) {
+						// Yii 1's validate(true) validates every attribute - its
+						// validators read a non-array as "all". Yii 2 reads true as
+						// an attribute list naming nothing, and passed everything.
+						if ($model->validate ()) {
 							if ($model->setPassword ( $model->password, $model->password ) && $model->save ()) {
 								if (isset ( $_POST ['User'] ['store_id'] )) {
 									$store_ids = $_POST ['User'] ['store_id'];
@@ -695,8 +700,11 @@ class UserController extends BaseUiController {
 						}
 					}
 					if(!empty($umodel)){
-					$this->actionChangePass ( $id, $expired = true );
-					exit;
+					// Yii 1's actionChangePass() echoed the form and exit ended
+					// the request. Here it returns the page, which exit threw
+					// away: a blank screen after a correct answer.
+					Yii::$app->session['passwordexpired_verified'] = (string) $id;
+					return $this->actionChangePass ( $id, $expired = true );
 					}else {
 				Yii::$app->user->setFlash ( 'error', 'Please add answer to all questions' );
 				
@@ -708,7 +716,20 @@ class UserController extends BaseUiController {
 			}
 		
 		} else if (isset ( $_POST ['User'] )){
-			$this->actionChangePass ( $id, $expired = true );
+			// Deliberately not Yii 1: there, anyone may post User[password]
+			// here and set the password of the id in the URL, signed in or
+			// not, answers or no answers. Accepted only once this session has
+			// answered the questions for that id, as the form above requires.
+			// Reported for the Yii 1 side; see the audit notes.
+			if (Yii::$app->session['passwordexpired_verified'] === (string) $id) {
+				$result = $this->actionChangePass ( $id, $expired = true );
+				if ($result instanceof \yii\web\Response) {
+					Yii::$app->session->remove('passwordexpired_verified');
+					return $result;
+				}
+				// Yii 1 echoed the form and fell through to the answer page.
+				echo $result;
+			}
 		}
 		
 		return $this->render( 'answer', [
@@ -717,13 +738,14 @@ class UserController extends BaseUiController {
 		
 	}
 	public function loginByEmail() {
-		$user = User::findOne( [
+		// findByAttributes() under Yii 1's `id DESC` scope, as UserIdentity.
+		$user = User::find()->where( [
 				'email' => $this->loginForm->username 
-		] );
+		] )->orderBy(User::defaultOrder() ?: [])->one();
 		if($user == null){
-		$user = User::findOne( [
+		$user = User::find()->where( [
 				'username' => $this->loginForm->username
-		] );
+		] )->orderBy(User::defaultOrder() ?: [])->one();
 		}
 		
 		
@@ -863,9 +885,14 @@ class UserController extends BaseUiController {
 				}
 				// cookie with login type for later flow control in app
 				if ($login_type) {
-					$cookie = new CHttpCookie ( 'login_type', serialize ( $login_type ) );
-					$cookie->expire = time () + (3600 * 24 * 1);
-					Yii::$app->request->cookies ['login_type'] = $cookie;
+					// CHttpCookie added to Yii 1's request collection, which
+					// sends it. Yii 2's request cookies are read-only; the
+					// response carries new ones.
+					Yii::$app->response->cookies->add ( new \yii\web\Cookie ( [
+							'name' => 'login_type',
+							'value' => serialize ( $login_type ),
+							'expire' => time () + (3600 * 24 * 1)
+					] ) );
 				}
 				if ($success->checkPermission ( 'user/dashboard' )) {
 					return $this->redirect( [
@@ -933,10 +960,10 @@ class UserController extends BaseUiController {
 			return $this->redirect( Yii::$app->homeUrl );
 			
 			// let's delete the login_type cookie
-		$cookie = Yii::$app->request->cookies ['login_type'];
-		if ($cookie) {
-			$cookie->expire = time () - (3600 * 72);
-			Yii::$app->request->cookies ['login_type'] = $cookie;
+		// Yii 1 re-adds it with an expiry in the past, which deletes it.
+		// Writing to Yii 2's read-only request collection throws instead.
+		if (Yii::$app->request->cookies->has ( 'login_type' )) {
+			Yii::$app->response->cookies->remove ( 'login_type' );
 		}
 		
 		if ($user = User::findOne( Yii::$app->user->id )) {
@@ -1004,9 +1031,11 @@ class UserController extends BaseUiController {
 		
 		if (isset ( $_POST ['User'] )) {
 			$email = $_POST ['User'] ['email'];
-			$user = User::findOne( [
+			// findByAttributes() under Yii 1's `id DESC` scope: of two
+			// accounts on one email, the newer one is reset and mailed.
+			$user = User::find()->where( [
 					'email' => $email 
-			] );
+			] )->orderBy(User::defaultOrder() ?: [])->one();
 		
 			if ($user) {
 				$from = (Yii::$app->params['mail_email'] ?? null) ;

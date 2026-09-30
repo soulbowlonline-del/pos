@@ -468,7 +468,8 @@ class Vendor extends BaseVendor {
 						$criteria3->addBetweenCondition('date(create_time)',Yii::app()->session['vendor_start_date'], Yii::app()->session['vendor_end_date']);
 					}
 					$criteria3->addCondition('item_id ='.$orderitem->item_id);
-					$criteria3->select = 'sum(total_amt) as total_amt';
+					// Selected only total_amt but reads tax_amt, so the refunded tax was always 0.
+					$criteria3->select = 'sum(tax_amt) as tax_amt';
 					$orderRefundItem = OrderRefundItem::model()->find($criteria3);
 					if($orderRefundItem){
 						$refund = $refund + ($orderRefundItem->tax_amt);

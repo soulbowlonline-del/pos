@@ -12,6 +12,7 @@ services:
   php:
     build: ./docker/php83
     container_name: pos-php-83
+    restart: unless-stopped
     ports:
       - "8084:80"
     volumes:
@@ -35,11 +36,19 @@ services:
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Kolkata
     # sql_mode="" for now: matches 5.6-era permissive behaviour so we change ONE
     # variable at a time (PHP version). Strict mode is tightened in a later step,
     # after the regression checklist is green.
+    # India time, the same zone PHP runs in (php.ini date.timezone). Without it
+    # MySQL runs on UTC, so a row stamped with NOW() - most create_time columns,
+    # as Yii 1 stamps them - is 5h30m behind one stamped by PHP, and a bill
+    # made after midnight IST lands on the previous day in the date-wise
+    # reports. A numeric offset, because the image has no zone tables loaded;
+    # TZ (with the other environment values above) sets the container clock.
     command: >-
       --sql-mode=""
+      --default-time-zone=+05:30
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --skip-name-resolve

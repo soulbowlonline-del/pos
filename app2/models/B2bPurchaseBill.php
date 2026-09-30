@@ -95,11 +95,16 @@ class B2bPurchaseBill extends ActiveRecord
     {
         parent::init();
 
-        // Not in the search scenario. Yii 1 loaded the defaults and then
+        // Not in a search scenario. Yii 1 loaded the defaults and then
         // the admin action called unsetAttributes() to clear them; a
         // search model that keeps them filters the grid by every column
         // that has a default, which showed 4 rows where Yii 1 shows 11.
-        if ($this->isNewRecord && $this->scenario !== 'search') {
+        // 'userwisesearch' too: B2bPurchaseBillController's userwise and
+        // userwiseExport actions unsetAttributes() straight after new.
+        // (userwisePdf does not, but its _pdf view never reads the model.)
+        // The scenario is already set here: BaseObject applies the
+        // ['scenario' => ...] config before it calls init().
+        if ($this->isNewRecord && !in_array($this->scenario, ['search', 'userwisesearch'], true)) {
             $this->loadDefaultValues();
         }
     }
@@ -232,17 +237,34 @@ class B2bPurchaseBill extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
         }
+        // Nothing on an update: Yii 1's base beforeValidate() has an empty
+        // else, so updated_by is left as the caller set it.
 
         return true;
+    }
+
+    /**
+     * Report scenarios the controllers set and no rule names. Yii 1 gives such a
+     * scenario every rule without an 'on', so its filters load; Yii 2 treats an
+     * undeclared scenario as having no safe attributes, and the report's date
+     * and status filters were silently dropped.
+     */
+    public function scenarios()
+    {
+        $scenarios = parent::scenarios();
+        $scenarios['userwisesearch'] = $scenarios[self::SCENARIO_DEFAULT];
+
+        return $scenarios;
     }
 
     public function rules()
@@ -311,6 +333,14 @@ class B2bPurchaseBill extends ActiveRecord
      */
     public function search($params = [], $val = false)
     {
+        // Yii 1's signature is search($val = false), and the views still call
+        // search($val = true) - the GRN Details list does, to include the cash
+        // vendors' GRNs. Here that true arrived as $params and $val stayed
+        // false, so every cash vendor's GRN was missing from the list.
+        if (is_bool($params)) {
+            $val = $params;
+            $params = [];
+        }
         $this->load($params, $this->formName());
 
 	
@@ -1076,7 +1106,7 @@ class B2bPurchaseBill extends ActiveRecord
                 if ($vendor->is_advance_payment == Vendor::ADVANCE_PAYMENT) {
                     $advancePayment = AdvancePayment::find()->where([
                             'vendor_id' => $vendor_id
-                    ])->one();
+                    ])->orderBy(['id' => SORT_DESC])->one();
 
                     if ($advancePayment) {
                         if (($advancePayment->balance_amt >= $amount)) {
@@ -1613,7 +1643,11 @@ class B2bPurchaseBill extends ActiveRecord
             $newyear = $billyear + 1;
             $outlet = Outlet::findOne($this->outlet_id);
             if ($outlet) {
-                if ($outlet->bill_prefix == '') {
+                // Was == '': an outlet's own bill_prefix was used only when it was empty,
+                // so a configured prefix was always replaced by 'B' and an empty one gave
+                // '/-<no>'. Now the prefix when set, 'B' otherwise - as toArray1() and the
+                // order API already do.
+                if ($outlet->bill_prefix != '') {
                     $bill_prefix = $outlet->bill_prefix;
                 } else {
                     $bill_prefix = 'B';

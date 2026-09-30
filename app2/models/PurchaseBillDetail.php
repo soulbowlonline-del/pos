@@ -164,16 +164,20 @@ class PurchaseBillDetail extends ActiveRecord
     }
 
     /**
-     * Always '0'.
+     * This bill's discount_amt summed across the lines sharing this tax rate -
+     * the Discount column of the purchase report and tally/paymentreport.
+     * Already netted out of Basic Value (amount - tax).
      *
-     * The Yii 1 version sums discount_amt across the tax group and then returns
-     * the literal string '0', discarding it. The loop has no other effect, so
-     * only the return value is reproduced - but the behaviour is the constant,
-     * not the sum, and anything relying on this column is reading a zero.
+     * Both stacks computed this sum and then returned a literal '0'; fixed in
+     * Yii 1 at the same time.
      */
     public function getMainDiscount()
     {
-        return '0';
+        $amount = 0;
+        foreach ($this->siblings() as $detail) {
+            $amount = $amount + $detail->discount_amt;
+        }
+        return $amount;
     }
 
     public function getCgstAmount()
@@ -1299,14 +1303,41 @@ class PurchaseBillDetail extends ActiveRecord
             return false;
         }
         if ($this->isNewRecord) {
+            // NOW(), as Yii 1's CDbExpression: the database clock, which is
+            // not PHP's (UTC against Asia/Kolkata here), so date() would stamp
+            // rows written through the port 5h30m apart from Yii 1's.
             if ($this->hasAttribute('create_time') && !isset($this->create_time)) {
-                $this->create_time = date('Y-m-d H:i:s');
+                $this->create_time = new \yii\db\Expression('NOW()');
             }
             if ($this->hasAttribute('create_user_id') && !isset($this->create_user_id)) {
                 $this->create_user_id = Yii::$app->user->id;
             }
-        } elseif ($this->hasAttribute('updated_by') && !isset($this->updated_by)) {
-            $this->updated_by = Yii::$app->user->id;
+        } else {
+            // Unconditional, as Yii 1's base: every update restamps update_time
+            // from the database clock. No updated_by: Yii 1 never set it here.
+            $this->update_time = new \yii\db\Expression('NOW()');
+        }
+
+        // BasePurchaseBillDetail::beforeValidate() also recomputes the GST
+        // split from the line's tax_id on every save, overwriting whatever
+        // per/amt values the caller posted. The port had dropped this.
+        if ($this->tax_id && $this->is_free == 0) {
+            $tax = Tax::findOne($this->tax_id);
+            if ($tax) {
+                // (float): a blank approved_qty or discount is '' on a GRN line
+                // that is not yet approved, which PHP 5.6 read as 0 and PHP 8
+                // rejects with a TypeError. The casts give 5.6's figures.
+                $taxable_amount = ((float)$this->approved_qty * (float)$this->price)
+                    - ((float)$this->discount_amt + (float)$this->discount_amt1);
+                $this->cgst_per = $tax->tax_val1;
+                $this->sgst_per = $tax->tax_val2;
+                $this->cess_per = $tax->tax_val3;
+                $this->igst_per = $tax->tax_val4;
+                $this->cgst_amt = $tax->tax_val1 > 0 ? $taxable_amount * ($tax->tax_val1 / 100) : 0.00;
+                $this->sgst_amt = $tax->tax_val2 > 0 ? $taxable_amount * ($tax->tax_val2 / 100) : 0.00;
+                $this->cess_amt = $tax->tax_val3 > 0 ? $taxable_amount * ($tax->tax_val3 / 100) : 0.00;
+                $this->igst_amt = $tax->tax_val4 > 0 ? $taxable_amount * ($tax->tax_val4 / 100) : 0.00;
+            }
         }
 
         return true;
