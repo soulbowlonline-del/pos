@@ -484,7 +484,24 @@ class Insights
     public static function stockByOutlet(array $detailIds)
     {
         $out = [];
-        foreach (array_chunk(array_values(array_unique($detailIds)), 500) as $chunk) {
+        $detailIds = array_values(array_unique(array_map('intval', $detailIds)));
+        if (count($detailIds) > 500) {
+            // Many items (the reorder check asks about everything sold in 28
+            // days): one grouped pass over the stock table - the same shape as
+            // the dead-stock check, which takes under a second on the store's
+            // data - instead of a pass per 500 items.
+            $want = array_flip($detailIds);
+            foreach (AiData::rows(
+                'SELECT COALESCE(NULLIF(s.outlet_id, 0), d.outlet_id, 0) outlet_id, s.item_detail_id, SUM(s.balance_qty) qty'
+                . ' FROM tbl_item_stock s JOIN tbl_item_detail d ON d.id = s.item_detail_id'
+                . ' GROUP BY COALESCE(NULLIF(s.outlet_id, 0), d.outlet_id, 0), s.item_detail_id') as $r) {
+                if (isset($want[(int) $r['item_detail_id']])) {
+                    $out[$r['outlet_id'] . ':' . $r['item_detail_id']] = (float) $r['qty'];
+                }
+            }
+            return $out;
+        }
+        foreach (array_chunk($detailIds, 500) as $chunk) {
             $params = [];
             foreach (AiData::rows(
                 'SELECT COALESCE(NULLIF(s.outlet_id, 0), d.outlet_id, 0) outlet_id, s.item_detail_id, SUM(s.balance_qty) qty'
@@ -521,14 +538,23 @@ class Insights
             return [];
         }
         try {
+            // Two steps rather than `id IN (SELECT MAX(id) ... GROUP BY)`: MySQL
+            // runs that form by scanning every GRN line ever entered and
+            // probing the subquery's result for each. Here the newest line
+            // per item is found first, then those lines are read by id.
             $params = [];
-            $in = AiData::inList($detailIds, 'd', $params);
+            $last = AiData::rows(
+                'SELECT MAX(id) id FROM tbl_purchase_bill_detail WHERE item_detail_id IN '
+                . AiData::inList($detailIds, 'd', $params) . ' GROUP BY item_detail_id', $params);
+            if (!$last) {
+                return [];
+            }
+            $params = [];
             $out = [];
             foreach (AiData::rows(
                 'SELECT pbd.item_detail_id, v.name FROM tbl_purchase_bill_detail pbd'
                 . ' JOIN tbl_purchase_bill pb ON pb.id = pbd.purchase_bill_id LEFT JOIN tbl_vendor v ON v.id = pb.vendor_id'
-                . ' WHERE pbd.id IN (SELECT MAX(x.id) FROM tbl_purchase_bill_detail x WHERE x.item_detail_id IN ' . $in
-                . ' GROUP BY x.item_detail_id)', $params) as $r) {
+                . ' WHERE pbd.id IN ' . AiData::inList(array_column($last, 'id'), 'l', $params), $params) as $r) {
                 $out[(int) $r['item_detail_id']] = (string) $r['name'];
             }
             return $out;

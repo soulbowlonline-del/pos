@@ -14,6 +14,8 @@
  * A check slower than about 20 s is stopped by MySQL (MAX_EXECUTION_TIME) and
  * shows as FAILED here; the page shows it as "could not be worked out".
  * It leaves nothing in the cache, and it calls no AI.
+ *
+ * With -v, each check is followed by its queries that took more than 0.3 s.
  */
 $root = dirname(__DIR__, 2);
 // The same .env reading as v2/index.php: quotes around a value are removed.
@@ -40,9 +42,11 @@ $_SERVER += ['SCRIPT_FILENAME' => "$root/v2/index.php", 'SCRIPT_NAME' => '/v2/in
 $config = require "$root/app2/config/web.php";
 new yii\web\Application($config);
 
+$verbose = in_array('-v', $argv, true);
 $total = microtime(true);
 foreach (app\components\ai\Insights::checks() as $key => list($group, $title)) {
     app\components\ai\Insights::forget($key);
+    app\components\ai\AiData::$trace = [];
     $t = microtime(true);
     try {
         $r = app\components\ai\Insights::run($key);
@@ -52,5 +56,10 @@ foreach (app\components\ai\Insights::checks() as $key => list($group, $title)) {
     }
     app\components\ai\Insights::forget($key);
     printf("%-22s %6.2fs  %s\n", $key, microtime(true) - $t, $out);
+    foreach ($verbose ? app\components\ai\AiData::$trace : [] as list($secs, $rows, $sql)) {
+        if ($secs > 0.3) {
+            printf("    %6.2fs %7d rows  %s\n", $secs, $rows, substr(preg_replace('/\s+/', ' ', $sql), 0, 150));
+        }
+    }
 }
 printf("%-22s %6.2fs\n", 'all', microtime(true) - $total);

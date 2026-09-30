@@ -20,6 +20,14 @@ class AiData
     /** @var FileCache|null */
     private static $cache = null;
 
+    /**
+     * Set to [] to record each query's time and row count (the timing script
+     * does); null, the default, records nothing.
+     *
+     * @var array|null
+     */
+    public static $trace = null;
+
     public static function cache()
     {
         if (self::$cache === null) {
@@ -43,7 +51,11 @@ class AiData
                 return $hit;
             }
         }
+        $t = microtime(true);
         $rows = Yii::$app->db->createCommand($sql, $params)->queryAll();
+        if (self::$trace !== null) {
+            self::$trace[] = [microtime(true) - $t, count($rows), $sql];
+        }
         if ($ttl > 0) {
             self::cache()->set($key, $rows, $ttl);
         }
