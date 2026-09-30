@@ -626,6 +626,19 @@ the only record of a decision. Condensed, in sequence:
   more of these; each is an entry in that file, a test in the style of the
   AMARJIT SINGH one, and a deploy.
 
+- *"Pressed update ... it has not come in GRN details"* (30 Sep) - the GRN
+  (9990022, AMARJIT SINGH) had saved and approved correctly: 8,022.00, stock
+  +168 / +72 / +24. It was missing from `/v2/purchaseBillDetail/list` because
+  of a port bug as old as the port: Yii 1's `PurchaseBill::search($val = false)`
+  is called by the view as `search($val = true)` to include the cash vendors;
+  the port's `search($params = [], $val = false)` took that `true` as
+  `$params`, so every cash vendor's GRN (8 vendors, 559 GRNs this financial
+  year) was left out. `PurchaseBill::search()` and `B2bPurchaseBill::search()`
+  now accept the Yii 1 call. The page sweeps did not see it: they compare a
+  list's first rows on fixture data, where no vendor is a cash vendor. Worth
+  a sweep of its own: every ported method whose Yii 1 signature had a
+  positional flag where the port's now has `$params`.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored

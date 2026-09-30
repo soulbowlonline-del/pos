@@ -1145,6 +1145,14 @@ class PurchaseBill extends ActiveRecord
      */
     public function search($params = [], $val = false)
     {
+        // Yii 1's signature is search($val = false), and the views still call
+        // search($val = true) - the GRN Details list does, to include the cash
+        // vendors' GRNs. Here that true arrived as $params and $val stayed
+        // false, so every cash vendor's GRN was missing from the list.
+        if (is_bool($params)) {
+            $val = $params;
+            $params = [];
+        }
         $this->load($params, $this->formName());
 
 		$start_date = $this->getSessionStartDate();
