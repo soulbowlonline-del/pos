@@ -109,7 +109,8 @@ $this->beginPage();
         <ul class="nav navbar-nav">
           <!-- Messages: style can be found in dropdown.less-->
           <?php
-          // The AI screens (/v2/ai), for the roles in POS_AI_ROLES. An icon
+          // The AI screens (/v2/ai), for the roles in POS_AI_ROLES and the
+          // people in POS_AI_USERS. An icon
           // with a title and no text: the page suites compare the text a
           // reader sees against Yii 1, which has no such link.
           if (\app\components\ai\AiConfig::userAllowed()) { ?>

@@ -541,7 +541,7 @@ the only record of a decision. Condensed, in sequence:
   the existing formula, calculations"*; .NET and Android later):
   - **AI screens at `/v2/ai`**, port only, admins only: Insights (twelve
     rule-based daily checks, no AI cost), Ask DASPOS (questions answered
-    through ten read-only lookups), Read a vendor bill (photo/PDF → matched and
+    through ten read-only lookups, twelve since the profit ones below), Read a vendor bill (photo/PDF → matched and
     checked lines; nothing saved), a written summary of the checks, and a
     usage/spend page. Official Anthropic PHP SDK (`composer install` adds 11
     packages), `db_changes/2026-09-30-ai-log.sql`, `ANTHROPIC_API_KEY` in
@@ -578,6 +578,33 @@ the only record of a decision. Condensed, in sequence:
   `views/ai/_grn_bill.php`; see `docs/ai-features.md`, which also says what
   was and was not tested. Yii 1's screen is unchanged, and the port's page
   markup is too (the button is drawn by javascript).
+
+- *"It should match line wise as the android app is used to receive items and
+  they are reordered line wise in the Goods Received Note ... the field names
+  dont always match exactly"* (30 Sep) - the bill's lines are now aligned, in
+  order, with the GRN lines the Android app numbered on receiving
+  (`tbl_purchase_bill_detail.order`, from `entry_position`); name, MRP and
+  rate only decide where the two lists fall out of step. A pair resting on
+  its place alone is filled and flagged.
+- *"Its not being able to answer questions on my profitability and how to
+  optimise inventory"* / *"the cost is the purchase price, you also have the
+  GST so please calculate the margins and profit"* (30 Sep) - the calls had
+  all succeeded; there was no lookup that knew a cost. `AiProfit`:
+  `profit_summary` and `item_profit` for Ask DASPOS. Gross profit = sales
+  excluding GST less refunds, minus units sold x the purchase cost from the
+  item's GRNs (the month's and the six before). A new figure: DASPOS has no
+  profit report of its own.
+- *"Also add these AI native features for Sagar Giri, Anil Giri and Kajal Bist
+  users"* (30 Sep) - `POS_AI_USERS=sagargiri,kajalbist,anilgiri` in `.env`
+  lets named usernames in whatever their role (two are Managers, a role the
+  stock-adjustment logins share; one is Online Order Manager). Sagar Giri's
+  second login, `sagargirigrn` (Employee, last used 2019), is not included.
+
+- *"Claude cannot process the request to upload the PDF, error 400"* (30 Sep)
+  - the owner's first three bills. The API refuses a structured-output schema
+  with more than 16 nullable fields; the bill schema had 20, and had never met
+  the real API. Fixed in `BillReader::schema()`. A stand-in API does not check
+  this: anything that changes a schema or a tool list needs one real call.
 
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see

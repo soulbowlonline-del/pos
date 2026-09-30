@@ -6,10 +6,11 @@ namespace app\components\ai;
  * the GRN screen (purchaseBillDetail/index).
  *
  * The grid already holds the lines of the GRN that is open, usually from its
- * purchase order. This class decides which bill line belongs to which grid
- * line and what a storekeeper would type there: received qty, rate, MRP and
- * discount %. Bill lines with no grid line, and grid lines the bill does not
- * mention, are listed and left alone.
+ * purchase order and put in the bill's order when the goods were received on
+ * the Android app. This class pairs the bill's lines with the grid's, line by
+ * line in that order (see assign()), and says what a storekeeper would type
+ * there: received qty, rate, MRP and discount %. Bill lines with no grid
+ * line, and grid lines the bill does not mention, are listed and left alone.
  *
  * It saves nothing and works nothing out. v2/js/grn-bill.js types the values
  * into the grid's own inputs and fires their change events, so every amount,
@@ -38,11 +39,16 @@ class GrnBillFill
         return $rows[0];
     }
 
-    /** The grid's lines, in the grid's order. */
+    /**
+     * The grid's lines, in the grid's order. entry_position is the place the
+     * Android app gave a line when it was received (api item/updateStock writes
+     * its entry_position to `order`): 1, 2, 3... in the order the goods were
+     * scanned against the bill, and 0 for a line not received that way.
+     */
     public static function rows($poid)
     {
         return AiData::rows(
-            'SELECT d.id, d.item_detail_id, d.item_id, d.is_free, d.req_qty, d.approved_qty, d.price, d.mrp, d.discount,'
+            'SELECT d.id, d.item_detail_id, d.item_id, d.is_free, d.req_qty, d.approved_qty, d.price, d.mrp, d.discount, d.`order` entry_position,'
             . ' i.title, idt.bar_code, COALESCE(NULLIF(t.tax_val1 + t.tax_val2, 0), t.tax_val4, 0) gst'
             . ' FROM tbl_purchase_bill_detail d LEFT JOIN tbl_item i ON i.id = d.item_id'
             . ' LEFT JOIN tbl_item_detail idt ON idt.id = d.item_detail_id LEFT JOIN tbl_tax t ON t.id = d.tax_id'
@@ -93,15 +99,26 @@ class GrnBillFill
      * Pairs bill lines with grid lines. No database, so it can be tested on
      * its own.
      *
-     * In three passes, surest first, so a loose match never takes a grid line
-     * that a later bill line matches exactly: the barcode printed on the bill
-     * or the item BillReader found in the item master; then the same item
-     * under another of its barcodes; then the name, among the grid lines still
-     * free. A grid line is used once: a second bill line for the same item (a
-     * second batch) is listed as not on the GRN.
+     * Line by line, in order (owner, 30 Sep 2026): the goods are received on
+     * the Android app against the bill, which numbers the GRN's lines in the
+     * bill's order, while the names on a vendor's bill often differ from the
+     * item master's. So the bill and the received lines are aligned as
+     * sequences - a bill line pairs with the grid line at the same place in
+     * the order of receiving - and what each pair has in
+     * common (barcode, the item BillReader found, name, MRP, rate) decides
+     * where the two lists fall out of step: a bill line the GRN does not
+     * have, or a GRN line the bill does not have, is stepped over instead of
+     * shifting every line after it. A pair that rests on its place alone is
+     * filled and flagged for checking.
+     *
+     * Bill lines left over are then looked for out of order, surest first:
+     * the barcode or the item-master match, the same item under another
+     * barcode, the name among the grid lines still free. A grid line is used
+     * once: a second bill line for the same item (a second batch) is listed
+     * as not on the GRN.
      *
      * @param array $lines BillReader::review()'s lines
-     * @param array $rows  self::rows()
+     * @param array $rows  self::rows(), in the grid's order
      * @return array fills, missing, unmatched, untouched
      */
     public static function assign(array $lines, array $rows)
@@ -127,7 +144,43 @@ class GrnBillFill
             return null;
         };
 
+        // The lines received on the app, in the order they were received.
+        // Lines with no place (not received, or added on the web) are not in
+        // the bill's order and are only looked for by what they are, below.
+        $sequence = array_values(array_filter($paid, function ($r) { return (int) ($r['entry_position'] ?? 0) > 0; }));
+        usort($sequence, function ($a, $b) {
+            return [(int) $a['entry_position'], (int) $a['id']] <=> [(int) $b['entry_position'], (int) $b['id']];
+        });
+        $pairFlag = [];
+        foreach (self::align(array_values($lines), $sequence) as $i => $pair) {
+            list($row, $how, $flag) = $pair;
+            $index = array_keys($lines)[$i];
+            $taken[$index] = [$row, $how];
+            $used[(int) $row['id']] = true;
+            if ($flag !== null) {
+                $pairFlag[$index] = $flag;
+            }
+        }
+
+        // A pair resting on its place alone gives way to a line of the GRN,
+        // still free, that carries the bill line's name: two lines received
+        // in the other order, or a line the app never numbered.
+        foreach ($pairFlag as $i => $flag) {
+            if ($flag[0] !== 'warning') {
+                continue;
+            }
+            list($row, $pct) = self::byName($lines[$i], $paid, $used);
+            if ($row !== null) {
+                unset($used[(int) $taken[$i][0]['id']], $pairFlag[$i]);
+                $used[(int) $row['id']] = true;
+                $taken[$i] = [$row, 'name ' . (int) round($pct) . '%, among this GRN\'s lines'];
+            }
+        }
+
         foreach ($lines as $i => $l) {
+            if (isset($taken[$i])) {
+                continue;
+            }
             $barcode = preg_replace('/\s+/', '', (string) ($l['line']['barcode'] ?? ''));
             if ($barcode !== '' && ($r = $first($paid, function ($r) use ($barcode) { return (string) $r['bar_code'] === $barcode; }))) {
                 $taken[$i] = [$r, 'barcode'];
@@ -150,25 +203,10 @@ class GrnBillFill
             if (isset($taken[$i]) || ($l['match'] && strpos((string) $l['how'], 'name') !== 0)) {
                 continue;
             }
-            $name = BillReader::normalise((string) ($l['line']['description'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-            $best = null;
-            $bestPct = 0.0;
-            foreach ($paid as $id => $r) {
-                if (isset($used[$id])) {
-                    continue;
-                }
-                similar_text($name, BillReader::normalise((string) $r['title']), $pct);
-                if ($pct > $bestPct) {
-                    $bestPct = $pct;
-                    $best = $r;
-                }
-            }
-            if ($best !== null && $bestPct >= self::NAME_MATCH) {
-                $used[(int) $best['id']] = true;
-                $taken[$i] = [$best, 'name ' . (int) round($bestPct) . '%, among this GRN\'s lines'];
+            list($row, $pct) = self::byName($l, $paid, $used);
+            if ($row !== null) {
+                $used[(int) $row['id']] = true;
+                $taken[$i] = [$row, 'name ' . (int) round($pct) . '%, among this GRN\'s lines'];
             }
         }
 
@@ -192,6 +230,9 @@ class GrnBillFill
                 list($row, $how) = $taken[$i];
                 $sameItem = $m && (int) $m['item_id'] === (int) $row['item_id'];
                 $flags = self::rowFlags($entry, $row);
+                if (isset($pairFlag[$i])) {
+                    array_unshift($flags, $pairFlag[$i]);
+                }
                 foreach ($l['flags'] as $f) {
                     // The MRP and GST checks are made against the grid line
                     // above; the rest of BillReader's compare with the item
@@ -231,6 +272,121 @@ class GrnBillFill
             }
         }
         return $out;
+    }
+
+    /** The free grid line whose name is most like the bill line's, if alike enough: [row, %] or [null, 0]. */
+    private static function byName(array $l, array $paid, array $used)
+    {
+        $name = BillReader::normalise((string) ($l['line']['description'] ?? ''));
+        $best = null;
+        $bestPct = 0.0;
+        if ($name !== '') {
+            foreach ($paid as $id => $r) {
+                if (isset($used[$id])) {
+                    continue;
+                }
+                similar_text($name, BillReader::normalise((string) $r['title']), $pct);
+                if ($pct > $bestPct) {
+                    $bestPct = $pct;
+                    $best = $r;
+                }
+            }
+        }
+        return $bestPct >= self::NAME_MATCH ? [$best, $bestPct] : [null, 0.0];
+    }
+
+    /**
+     * The two lists aligned in order: the set of pairs, none crossing
+     * another, with the most in common in total.
+     *
+     * @param array $lines bill lines, in the bill's order, keyed 0..n-1
+     * @param array $rows  the grid's paid lines, in the grid's order, keyed 0..m-1
+     * @return array line index => [row, how it was paired, flag or null]
+     */
+    private static function align(array $lines, array $rows)
+    {
+        $n = count($lines);
+        $m = count($rows);
+        if ($n === 0 || $m === 0) {
+            return [];
+        }
+        $pair = [];
+        for ($i = 0; $i < $n; $i++) {
+            for ($j = 0; $j < $m; $j++) {
+                $pair[$i][$j] = self::pair($lines[$i], $rows[$j]);
+            }
+        }
+        // best[i][j]: the most that lines i.. and rows j.. can have in common.
+        // Worked from the end so that, read from the start, ties pair the
+        // first lines with the first rows and leave the unpaired at the end.
+        $best = array_fill(0, $n + 1, array_fill(0, $m + 1, 0.0));
+        for ($i = $n - 1; $i >= 0; $i--) {
+            for ($j = $m - 1; $j >= 0; $j--) {
+                $v = max($best[$i + 1][$j], $best[$i][$j + 1]);
+                if ($pair[$i][$j][0] > 0) {
+                    $v = max($v, $best[$i + 1][$j + 1] + $pair[$i][$j][0]);
+                }
+                $best[$i][$j] = $v;
+            }
+        }
+        $out = [];
+        $i = 0;
+        $j = 0;
+        while ($i < $n && $j < $m) {
+            if ($pair[$i][$j][0] > 0 && abs($best[$i][$j] - ($best[$i + 1][$j + 1] + $pair[$i][$j][0])) < 1e-9) {
+                $out[$i] = [$rows[$j], $pair[$i][$j][1], $pair[$i][$j][2]];
+                $i++;
+                $j++;
+            } elseif (abs($best[$i][$j] - $best[$i + 1][$j]) < 1e-9) {
+                $i++;
+            } else {
+                $j++;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * What a bill line and a grid line have in common: [score, how, flag].
+     * A score of zero or less means they are not to be paired.
+     *
+     * The barcode, or the item BillReader found by barcode or vendor code,
+     * settles it either way. Otherwise every pair starts with a little for
+     * standing at the same place, and earns more for a like name, the same
+     * MRP and a rate close to the GRN line's.
+     */
+    private static function pair(array $l, array $row)
+    {
+        $x = $l['line'];
+        $m = $l['match'];
+        $barcode = preg_replace('/\s+/', '', (string) ($x['barcode'] ?? ''));
+        if ($barcode !== '' && (string) $row['bar_code'] === $barcode) {
+            return [4.0, 'barcode', null];
+        }
+        $certain = $m && strpos((string) $l['how'], 'name') !== 0;
+        if ($m && (int) $m['id'] === (int) $row['item_detail_id']) {
+            return [$certain ? 4.0 : 3.0, (string) $l['how'], null];
+        }
+        if ($m && (int) $m['item_id'] === (int) $row['item_id']) {
+            return [$certain ? 3.5 : 2.5, $l['how'] . ', another barcode of the item', null];
+        }
+        if ($certain) {
+            return [-1.0, null, null];
+        }
+        similar_text(BillReader::normalise((string) ($x['description'] ?? '')), BillReader::normalise((string) $row['title']), $alike);
+        $mrp = isset($x['mrp']) && (float) $x['mrp'] > 0 && (float) $row['mrp'] > 0 && abs((float) $x['mrp'] - (float) $row['mrp']) <= 0.5;
+        $rate = isset($x['rate']) && (float) $x['rate'] > 0 && (float) $row['price'] > 0
+            && abs((float) $x['rate'] - (float) $row['price']) <= 0.1 * (float) $row['price'];
+        $score = 0.3 + 1.5 * max(0.0, ($alike - 40) / 60) + ($mrp ? 0.8 : 0.0) + ($rate ? 0.6 : 0.0);
+        $how = 'line order' . ($alike >= self::NAME_MATCH ? ', name ' . (int) round($alike) . '%' : '')
+            . ($mrp ? ', same MRP' : '') . ($rate ? ', rate close' : '');
+        $flag = null;
+        if ($alike < self::NAME_MATCH) {
+            $flag = ($mrp || $rate)
+                ? ['info', 'The name on the bill differs from this item\'s; paired by its place on the bill' . ($mrp ? ', its MRP' : '') . ($rate ? ', its rate' : '')]
+                : ['warning', 'Paired only by its place on the bill - check it is this item'];
+        }
+        return [$score, $how, $flag];
     }
 
     /** What the bill says that the grid line does not. */

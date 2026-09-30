@@ -34,24 +34,35 @@ This is a purchase bill (tax invoice) from a supplier to a retail and grocery st
 - amount: the line amount as printed (the taxable value or the line total, whichever the bill shows per line).
 - bill_no: the invoice number as printed. bill_date: the invoice date, written as YYYY-MM-DD (Indian bills print the day first: 05/09/2026 is 2026-09-05).
 - bill_total: the final amount payable. tax_total: total GST on the bill.
-- Use null for anything not printed or not readable. Do not calculate values that are not on the bill, except adding CGST and SGST as above.
-- notes: one short sentence on anything that made the bill hard to read (cut off, blurred, handwritten), or null.
+- For anything not printed or not readable, use null for a number and an empty string for text. Do not calculate values that are not on the bill, except adding CGST and SGST as above.
+- notes: one short sentence on anything that made the bill hard to read (cut off, blurred, handwritten), or an empty string.
 TXT;
 
+    /**
+     * The shape the reading comes back in.
+     *
+     * The API compiles this schema and refuses one with more than 16
+     * "either this or null" fields (a 400: "too many parameters with union
+     * types") - which the first version, with all twenty optional fields
+     * nullable, was, so no bill could be read at all. Text that is not
+     * printed is now an empty string and only the eight numbers that can
+     * really be absent may be null.
+     */
     private static function schema()
     {
-        $n = function ($t) { return ['anyOf' => [['type' => $t], ['type' => 'null']]]; };
+        $text = ['type' => 'string'];
+        $number = ['anyOf' => [['type' => 'number'], ['type' => 'null']]];
         $lineProps = [
-            'description' => ['type' => 'string'], 'barcode' => $n('string'), 'item_code' => $n('string'), 'hsn' => $n('string'),
-            'qty' => $n('number'), 'free_qty' => $n('number'), 'unit' => $n('string'), 'rate' => $n('number'), 'mrp' => $n('number'),
-            'discount_percent' => $n('number'), 'gst_percent' => $n('number'), 'batch' => $n('string'), 'expiry' => $n('string'),
-            'amount' => $n('number'),
+            'description' => $text, 'barcode' => $text, 'item_code' => $text, 'hsn' => $text,
+            'qty' => $number, 'free_qty' => ['type' => 'number'], 'unit' => $text, 'rate' => $number, 'mrp' => $number,
+            'discount_percent' => $number, 'gst_percent' => $number, 'batch' => $text, 'expiry' => $text,
+            'amount' => $number,
         ];
         $props = [
-            'vendor_name' => $n('string'), 'vendor_gstin' => $n('string'), 'bill_no' => $n('string'), 'bill_date' => $n('string'),
+            'vendor_name' => $text, 'vendor_gstin' => $text, 'bill_no' => $text, 'bill_date' => $text,
             'lines' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => $lineProps,
                 'required' => array_keys($lineProps), 'additionalProperties' => false]],
-            'bill_total' => $n('number'), 'tax_total' => $n('number'), 'notes' => $n('string'),
+            'bill_total' => $number, 'tax_total' => $number, 'notes' => $text,
         ];
         return ['type' => 'object', 'properties' => $props, 'required' => array_keys($props), 'additionalProperties' => false];
     }

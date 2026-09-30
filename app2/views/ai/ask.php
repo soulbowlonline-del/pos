@@ -15,6 +15,9 @@ $examples = [
 	'Milk sales this week vs last week',
 	'Current stock of Verka paneer',
 	'Which vendors did we buy the most from last month?',
+	'Gross profit and margin by month since April',
+	'Which items earned the most and the least profit last month?',
+	'Which items should I stock more of, and which less?',
 	'पिछले 7 दिनों की बिक्री दिन के हिसाब से',
 ];
 ?>
@@ -22,7 +25,7 @@ $examples = [
 	<div class="ai-head">
 		<div>
 			<h1><i class="fa fa-comments-o"></i> Ask DASPOS</h1>
-			<p class="ai-sub">Ask about sales, items, stock, purchases and refunds in English, Hindi or Punjabi. Answers come from the live data; the figures used are listed under each answer.</p>
+			<p class="ai-sub">Ask about sales, profit and margins, items, stock, purchases and refunds in English, Hindi or Punjabi. Answers come from the live data; the figures used are listed under each answer.</p>
 		</div>
 		<div><a class="btn btn-default btn-sm" href="<?php echo Url::to(['/ai/index']); ?>">AI Assistant</a></div>
 	</div>

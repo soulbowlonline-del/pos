@@ -86,6 +86,24 @@ class AskTools
                 . 'pending_grn, above_mrp, duplicate_bills, bill_no_repeats, high_discount, credit_note_overuse, missing_hsn, duplicate_names, duplicate_barcodes. '
                 . 'Returns the count and the first 25 rows.',
                 ['check' => ['type' => 'string', 'enum' => array_keys(Insights::checks())]]),
+            // Added after the ones above, which keeps their place in the prompt cache.
+            self::tool('profit_summary',
+                'Gross profit for a period: sales excluding GST (refunds taken off), the purchase cost of the units sold, gross profit and margin % '
+                . '(profit as a share of sales excluding GST), in total and grouped by month or item category. Cost is the purchase price excluding GST, '
+                . 'from the item\'s GRNs; the result\'s "basis" says exactly how. sales_without_a_cost is sales of items with no purchase cost on record, '
+                . 'left out of profit and margin. This is gross profit, before rent, salaries and other expenses, which DASPOS does not hold.',
+                ['from_date' => $from, 'to_date' => $to, 'outlet_id' => $outlet,
+                 'group_by' => ['type' => 'string', 'enum' => ['none', 'month', 'category']]]),
+            self::tool('item_profit',
+                'Items ranked by what they earn or by how their stock compares with their sales in a period. Each row: quantity sold, sales excluding GST, '
+                . 'purchase cost per unit, gross profit, margin %, stock on hand now, its value at cost and days_of_stock (stock divided by the period\'s daily sales). '
+                . 'rank_by: profit_high (most profit), profit_low (least profit - losses first), margin_high, margin_low, '
+                . 'stock_more (profitable items with under 14 days of stock: candidates to stock more of), '
+                . 'stock_less (items with over 90 days of stock, largest excess value first: candidates to buy less of). '
+                . 'item_query narrows to items whose name contains every word, or a barcode; null for all items.',
+                ['from_date' => $from, 'to_date' => $to, 'outlet_id' => $outlet, 'item_query' => self::nullable('string'),
+                 'rank_by' => ['type' => 'string', 'enum' => ['profit_high', 'profit_low', 'margin_high', 'margin_low', 'stock_more', 'stock_less']],
+                 'limit' => ['type' => 'integer', 'description' => '1 to 50.']]),
         ];
     }
 
@@ -115,6 +133,14 @@ class AskTools
                 return self::refundsSummary($input);
             case 'customer_counts':
                 return self::customerCounts($input);
+            case 'profit_summary':
+                list($f, $t) = self::range($input);
+                return self::round(AiProfit::summary($f, $t, isset($input['outlet_id']) ? (int) $input['outlet_id'] : null,
+                    (string) ($input['group_by'] ?? 'none')));
+            case 'item_profit':
+                list($f, $t) = self::range($input);
+                return AiProfit::items($f, $t, isset($input['outlet_id']) ? (int) $input['outlet_id'] : null,
+                    $input['item_query'] ?? null, (string) ($input['rank_by'] ?? 'profit_high'), (int) ($input['limit'] ?? 10));
             case 'run_check':
                 $key = (string) ($input['check'] ?? '');
                 if (!isset(Insights::checks()[$key])) {

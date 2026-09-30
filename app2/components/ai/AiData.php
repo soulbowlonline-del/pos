@@ -75,6 +75,11 @@ class AiData
         if (!preg_match('/^SELECT\s/i', $sql) || preg_match('/;\s*\S/', $sql)) {
             throw new \LogicException('AiData runs single SELECT statements only.');
         }
+        // MySQL reads one hint comment per SELECT, so a query that brings its
+        // own (an index hint) has the time limit added inside it.
+        if (preg_match('/^SELECT\s+\/\*\+(.*?)\*\/\s/is', $sql, $m)) {
+            return 'SELECT /*+ MAX_EXECUTION_TIME(' . self::MAX_MS . ') ' . trim($m[1]) . ' */ ' . substr($sql, strlen($m[0]));
+        }
         return preg_replace('/^SELECT\s/i', 'SELECT /*+ MAX_EXECUTION_TIME(' . self::MAX_MS . ') */ ', $sql, 1);
     }
 

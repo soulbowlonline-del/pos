@@ -23,7 +23,8 @@ use yii\web\Response;
  * Everything here reads. Nothing changes stock, prices, bills or the item
  * master; where a finding needs action, it links to the existing screen.
  *
- * Only the roles in POS_AI_ROLES (default: admin) get in. Unlike the rest of
+ * Only the roles in POS_AI_ROLES (default: admin) and the people named in
+ * POS_AI_USERS get in. Unlike the rest of
  * the port, POSTs here are CSRF-checked: they spend money on the Anthropic
  * account, so a page elsewhere must not be able to trigger them.
  */

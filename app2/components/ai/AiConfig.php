@@ -16,6 +16,9 @@ use Yii;
  *                              empty or "none" turns the second reading off
  *   POS_AI_ROLES               role ids allowed in, comma separated, default 1
  *                              (admin). Store staff see nothing new.
+ *   POS_AI_USERS               usernames allowed in whatever their role, comma
+ *                              separated, default none: named people, without
+ *                              opening a whole role
  *
  * Nothing here changes a formula, a stock figure or a bill: every AI screen
  * reads. A vendor's bill becomes a checklist, or - read on the GRN screen -
@@ -115,11 +118,22 @@ class AiConfig
         return array_values(array_filter(array_map('intval', explode(',', $r))));
     }
 
-    /** May the signed-in user open the AI screens? */
+    /** Usernames let in by name (POS_AI_USERS), lower case. */
+    public static function allowedUsers()
+    {
+        $u = getenv('POS_AI_USERS');
+        return $u === false ? [] : array_values(array_filter(array_map('trim', explode(',', strtolower($u))), 'strlen'));
+    }
+
+    /** May the signed-in user open the AI screens? By role, or by name. */
     public static function userAllowed()
     {
         $user = Yii::$app->user->getIdentity();
-        return $user !== null && in_array((int) $user->role_id, self::allowedRoles(), true);
+        if ($user === null) {
+            return false;
+        }
+        return in_array((int) $user->role_id, self::allowedRoles(), true)
+            || in_array(strtolower(trim((string) $user->username)), self::allowedUsers(), true);
     }
 
     /** Why Claude cannot be called right now, or null if it can. */
