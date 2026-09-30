@@ -659,8 +659,12 @@ the only record of a decision. Condensed, in sequence:
 
 - *"Yes map Dua Enterprises curd to Verka Dahi"* (30 Sep) - vendor 226 in
   `ai-bill-names.php`: "Curd 170gm" / "Curd350gm" are Verka Dahi 170GM /
-  350GM, and the paneer and kheer names from the same bill. Its names for
-  the two lassis it supplies are not known yet.
+  350GM, and the paneer and kheer names from the same bill. Then: *"yes map
+  the lassi names for Dua Enterprises map sweet and spiced lassi to verka
+  lassi"* - "Lassi Plain 900ml" is Verka Lassi 900ML, and "Sweet Lassi 350ml"
+  and "Spiced Lassi 350ml" are both Verka Lassi 350ML. Two bill lines that
+  are surely one item are now added together on its GRN line (bill 1093:
+  30 + 30 = 60 at 8.89; the grid comes to the bill's 7,597).
 
 - *"The serial number of the items was not in order of the bill"* → *"the
   reorder happens after receiving the items in that order on the android

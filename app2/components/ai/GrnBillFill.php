@@ -327,6 +327,38 @@ class GrnBillFill
             }
         }
 
+        // Two lines of the bill that are surely one item - the vendor's two
+        // names for it (DUA ENTERPRISES' sweet and spiced lassi are both
+        // VERKA LASSI 350ML), or a second batch with its barcode - share that
+        // item's grid line: their quantities are added. Only for lines found
+        // by barcode, vendor code or the vendor's name, never by likeness.
+        $holder = [];
+        foreach ($taken as $j => $t) {
+            $holder[(int) $t[0]['id']] = $j;
+        }
+        $joins = [];
+        foreach ($lines as $i => $l) {
+            if (isset($taken[$i]) || !self::certain($l)) {
+                continue;
+            }
+            foreach ($paid as $id => $r) {
+                $j = $holder[$id] ?? null;
+                if ($j !== null && (int) $r['item_id'] === (int) $l['match']['item_id'] && self::certain($lines[$j])
+                    && (int) $lines[$j]['match']['item_id'] === (int) $l['match']['item_id']) {
+                    $joins[$j][] = $i;
+                    $taken[$i] = [$r, 'joined'];
+                    break;
+                }
+            }
+        }
+        $joined = [];
+        foreach ($joins as $j => $others) {
+            foreach ($others as $i) {
+                $joined[$i] = $j;
+                unset($taken[$i]);
+            }
+        }
+
         // Every bill line still unpaired against every grid line still free;
         // the pairs with the most in common choose first.
         $candidates = [];
@@ -380,12 +412,37 @@ class GrnBillFill
                 'gst' => self::num($x['gst_percent'] ?? null),
                 'amount' => self::num($x['amount'] ?? null),
             ];
+            if (isset($joined[$i])) {
+                continue;   // shown with the line it joins
+            }
             if (isset($taken[$i])) {
                 list($row, $how) = $taken[$i];
                 $sameItem = $m && (int) $m['item_id'] === (int) $row['item_id'];
                 $rd = self::reading($x, $row, $inclusive);
+                if (!empty($joins[$i])) {
+                    $parts = [$rd];
+                    $numbers = [(int) $l['n']];
+                    foreach ($joins[$i] as $k) {
+                        $y = $lines[$k]['line'];
+                        $parts[] = self::reading($y, $row, $inclusive);
+                        $numbers[] = (int) $lines[$k]['n'];
+                        $entry['description'] .= ' + ' . (string) ($y['description'] ?? '');
+                        foreach (['qty' => 'qty', 'free_qty' => 'free_qty', 'amount' => 'amount'] as $key => $from) {
+                            $entry[$key] = ($entry[$key] === null || self::num($y[$from] ?? null) === null) ? null : $entry[$key] + (float) $y[$from];
+                        }
+                        if (self::num($y['rate'] ?? null) !== $entry['rate']) {
+                            $entry['rate'] = null;
+                        }
+                    }
+                    $rd = self::together($parts, $row, $numbers);
+                    $entry['also'] = array_slice($numbers, 1);
+                }
+                $entry['covers'] = 1 + count($joins[$i] ?? []);
                 $entry += self::fillValues($rd);
                 $flags = self::rowFlags($entry, $rd, $row);
+                if (!empty($joins[$i])) {
+                    array_unshift($flags, ['info', 'Lines ' . implode(' and ', $numbers) . ' of the bill are this one item: their quantities are added']);
+                }
                 if (isset($pairFlag[$i])) {
                     array_unshift($flags, $pairFlag[$i]);
                 }
@@ -557,6 +614,49 @@ class GrnBillFill
     private static function printedPack($description)
     {
         return preg_match('/(\d{1,3})\s*(?:[*×]|[xX]\s*\d)/u', $description, $m) && (int) $m[1] > 1 ? (float) $m[1] : null;
+    }
+
+    /**
+     * Several bill lines read as one line of the grid: the pieces added, the
+     * rate their value divided by their pieces.
+     *
+     * @param array $parts   self::reading() of each of the bill lines, against the same grid line
+     * @param array $numbers the bill lines' serial numbers
+     */
+    private static function together(array $parts, array $row, array $numbers)
+    {
+        $pieces = 0.0;
+        $value = 0.0;
+        $free = 0.0;
+        foreach ($parts as $p) {
+            if ($p['pieces'] === null || $p['unit'] === null) {
+                return $parts[0];   // one of them cannot be read in pieces: no sum to make
+            }
+            $pieces += $p['pieces'];
+            $value += $p['pieces'] * $p['unit'];
+            $free += (float) $p['free'];
+        }
+        $all = function ($key) use ($parts) {
+            $values = array_unique(array_map(function ($p) use ($key) { return var_export($p[$key], true); }, $parts));
+            return count($values) === 1 ? $parts[0][$key] : null;
+        };
+        $out = $parts[0];
+        $out['pieces'] = $pieces;
+        $out['unit'] = $pieces > 0 ? $value / $pieces : null;
+        $out['free'] = $free;
+        $out['discount'] = $all('discount');
+        $out['mrp'] = $all('mrp');
+        $out['mrp_skipped'] = (bool) array_filter(array_column($parts, 'mrp_skipped'));
+        $out['above_mrp'] = (bool) array_filter(array_column($parts, 'above_mrp'));
+        $rowPrice = (float) ($row['price'] ?? 0);
+        $received = (float) ($row['approved_qty'] ?? 0);
+        $out['off'] = ($out['unit'] !== null && $rowPrice > 0) ? abs($out['unit'] - $rowPrice) / $rowPrice : null;
+        $out['same_qty'] = $received > 0 && abs($pieces - $received) < 0.0005;
+        $out['qty_agrees'] = $out['same_qty'];
+        $out['basis'] = 'Lines ' . implode(' and ', $numbers) . ' of the bill: '
+            . implode(' + ', array_map(function ($p) { return self::trim($p['pieces']); }, $parts)) . ' = ' . self::trim($pieces) . ' pieces'
+            . ($out['unit'] !== null ? ' at ' . Insights::money($out['unit']) . ' a piece before GST' : '');
+        return $out;
     }
 
     /** What grn-bill.js types in. */

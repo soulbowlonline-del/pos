@@ -284,7 +284,7 @@
 		}).join(' ');
 	}
 	function billCells(l) {
-		return '<td>' + l.n + '</td><td>' + esc(l.description) + '</td>'
+		return '<td>' + l.n + (l.also && l.also.length ? ', ' + l.also.join(', ') : '') + '</td><td>' + esc(l.description) + '</td>'
 			+ '<td class="ai-nowrap">' + qty(l.qty) + ' ' + esc(l.unit) + (l.free_qty ? ' + ' + qty(l.free_qty) + ' free' : '') + '</td>'
 			+ '<td>' + money(positive(l.rate)) + '</td><td>' + money(positive(l.mrp)) + '</td><td>' + qty(l.discount) + '</td><td>' + money(l.amount) + '</td>';
 	}
@@ -312,7 +312,11 @@
 			+ '<div><span>Read by</span>' + esc(plan.model) + '</div>'
 			+ '</div>';
 
-		var filled = plan.fills.length - stats.absent.length;
+		// A grid line can hold two bill lines (one item under two of the vendor's names).
+		var filled = 0;
+		$.each(plan.fills, function (_, f) {
+			filled += $.inArray(f, stats.absent) === -1 ? (f.covers || 1) : 0;
+		});
 		html += '<div class="ai-note"><i class="fa fa-magic"></i> <b>' + filled + ' of ' + plan.line_count + ' bill lines</b> are in the grid'
 			+ (stats.cells ? ' - ' + stats.cells + ' value' + (stats.cells === 1 ? '' : 's') + ' changed, shown in blue (a changed MRP in yellow).'
 				: ' - the grid already held the bill\'s values, nothing was changed.')

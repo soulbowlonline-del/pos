@@ -57,8 +57,11 @@ return [
     // piece. Owner, 30 Sep 2026: "map Dua Enterprises curd to Verka Dahi".
     // The names are as its bill GST/26-27/1098 prints them, with and without
     // the space its printing leaves out; paneer and kheer are on that bill
-    // too and were paired rightly without this. Its names for the lassis are
-    // not known yet.
+    // too and were paired rightly without this. The lassis, from its bill
+    // GST/26-27/1093: "yes map the lassi names for Dua Enterprises map sweet
+    // and spiced lassi to verka lassi" - the store keeps one VERKA LASSI
+    // 350ML for both, so the two bill lines are added together on its GRN
+    // line.
     226 => [
         'items' => [
             'Curd 170gm' => '8901826550934',    // VERKA DAHI 170GM ("Curd 170gm TM")
@@ -69,6 +72,13 @@ return [
             'Paneer200gm' => '8901826334053',
             'Kheer 200gm' => '8901826302076',   // VERKA KHEER 200GM
             'Kheer200gm' => '8901826302076',
+            'Lassi Plain 900ml' => '8901826803306',   // VERKA LASSI 900ML
+            'Lassi Plain900ml' => '8901826803306',
+            'Plain Lassi 900ml' => '8901826803306',
+            'Sweet Lassi 350ml' => '14377',           // VERKA LASSI 350ML (its barcode in DASPOS is 14377)
+            'Sweet Lassi350ml' => '14377',
+            'Spiced Lassi 350ml' => '14377',          // VERKA LASSI 350ML as well
+            'Spiced Lassi350ml' => '14377',
         ],
     ],
 ];
