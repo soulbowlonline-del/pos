@@ -421,8 +421,10 @@ class Insights
     private static function checkCreditNoteOveruse()
     {
         $rows = AiData::rows(
+            // amt_used > 0: a note entered with a negative value and never used
+            // is not over-used (the one row this found on real data was that).
             'SELECT id, credit_number, amt, amt_used, create_time FROM tbl_credit_note'
-            . ' WHERE amt_used > amt + 0.01 ORDER BY id DESC LIMIT 200');
+            . ' WHERE amt_used > 0 AND amt_used > amt + 0.01 ORDER BY id DESC LIMIT 200');
         $out = [];
         foreach ($rows as $r) {
             $out[] = [
