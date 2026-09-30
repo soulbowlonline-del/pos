@@ -657,6 +657,11 @@ the only record of a decision. Condensed, in sequence:
   lines read do not add up to the bill's total. Checked in a browser on that
   GRN and reading: the grid's Bill Amount 4,715 -> 3,669, the bill's total.
 
+- *"Yes map Dua Enterprises curd to Verka Dahi"* (30 Sep) - vendor 226 in
+  `ai-bill-names.php`: "Curd 170gm" / "Curd350gm" are Verka Dahi 170GM /
+  350GM, and the paneer and kheer names from the same bill. Its names for
+  the two lassis it supplies are not known yet.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored

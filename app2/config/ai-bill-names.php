@@ -52,4 +52,23 @@ return [
             . 'Ignore the numbers and ticks written by hand in blue at the left edge of the lines: they are not part of the bill.',
         'pack_size_is_certain' => true,
     ],
+
+    // DUA ENTERPRISES - Verka dahi, paneer, kheer and lassi, billed by the
+    // piece. Owner, 30 Sep 2026: "map Dua Enterprises curd to Verka Dahi".
+    // The names are as its bill GST/26-27/1098 prints them, with and without
+    // the space its printing leaves out; paneer and kheer are on that bill
+    // too and were paired rightly without this. Its names for the lassis are
+    // not known yet.
+    226 => [
+        'items' => [
+            'Curd 170gm' => '8901826550934',    // VERKA DAHI 170GM ("Curd 170gm TM")
+            'Curd170gm' => '8901826550934',
+            'Curd 350gm' => '8901826803702',    // VERKA DAHI 350GM ("Curd350gm")
+            'Curd350gm' => '8901826803702',
+            'Paneer 200gm' => '8901826334053',  // VERKA PANEER 200GM ("Paneer200gm")
+            'Paneer200gm' => '8901826334053',
+            'Kheer 200gm' => '8901826302076',   // VERKA KHEER 200GM
+            'Kheer200gm' => '8901826302076',
+        ],
+    ],
 ];
