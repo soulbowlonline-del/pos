@@ -70,3 +70,20 @@ a.ai-card:hover, a.ai-card:focus { text-decoration: none; border-color: #3c8dbc;
   .ai-ask-box, .ai-examples, .ai-head .btn { display: none; }
 }
 .ai-nowrap { white-space: nowrap; }
+
+/* "Read a vendor bill" on the GRN screen (v2/js/grn-bill.js) */
+.ai-grn-bill { margin-top: 8px; }
+.ai-grn-bill .ai-grn-hint { color: #6b7280; margin-left: 8px; }
+.ai-grn-result .ai-grn-box { margin-bottom: 15px; }
+.ai-grn-result .ai-sub { color: #6b7280; margin: 4px 0 8px; }
+.ai-grn-result .ai-note.ai-ok { background: #e7f6ec; border-color: #b7e0c4; }
+.ai-grn-section { margin: 10px 0; }
+.ai-grn-section > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.ai-grn-section .ai-count { display: inline-block; min-width: 24px; text-align: center; border-radius: 12px; padding: 0 7px; background: #eef2f7; color: #475467; font-weight: 600; font-size: 12px; }
+.ai-grn-section .ai-scroll { max-height: 320px; }
+.ai-grn-section tr.ai-grn-goto { cursor: pointer; }
+.ai-grn-actions { margin: 10px 0 0; }
+input.ai-filled { background: #e8f4ff !important; box-shadow: inset 0 0 0 1px #7db7f0; }
+input.ai-filled.ai-filled-mrp { background: #fff3cd !important; box-shadow: inset 0 0 0 1px #e0b84a; }
+input.ai-mismatch { background: #fdecec !important; box-shadow: inset 0 0 0 1px #e08a8a; }
+tr.ai-grn-flash > td { background: #fff8d6 !important; transition: background 0.3s; }

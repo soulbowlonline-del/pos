@@ -2897,3 +2897,10 @@ $('#grn-qty').change(function() {
 	  $('#grid_changed').val('1');
 	});
 </script>
+<?php
+// "Read a vendor bill", under the Merge button, for the AI roles: the bill is
+// read by Claude and typed into the grid above. See views/ai/_grn_bill.php.
+if (\app\components\ai\AiConfig::userAllowed()) {
+	echo $this->render('//ai/_grn_bill', ['poid' => $poid]);
+}
+?>

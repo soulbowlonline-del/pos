@@ -38,7 +38,7 @@ $this->registerCssFile('/v2/css/ai.css?v=20260930');
 		<a class="ai-card" href="<?php echo Url::to(['/ai/bill']); ?>">
 			<div class="ai-card-icon"><i class="fa fa-file-text-o"></i></div>
 			<h3>Read a vendor bill</h3>
-			<p>Upload a photo or PDF of a supplier's bill. Each line is matched to the item master and checked for MRP, GST, rate and expiry before the GRN is entered.</p>
+			<p>Upload a photo or PDF of a supplier's bill. Each line is matched to the item master and checked for MRP, GST, rate and expiry before the GRN is entered. On the Goods Received Note screen, the button under Merge reads the bill straight into the grid.</p>
 			<span class="ai-tag">Uses Claude - about ₹3-8 a bill</span>
 		</a>
 		<a class="ai-card" href="<?php echo Url::to(['/ai/usage']); ?>">

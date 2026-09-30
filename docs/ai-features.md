@@ -12,13 +12,28 @@ They live only in the port (`app2/`), under `/v2/ai`, and only admins (role 1) s
 | **Summarise for me** (on Insights) | Claude reads the check results and writes a short briefing in English, Hindi or Punjabi. | ~₹0.5-1.5 |
 | **Ask DASPOS** `/v2/ai/ask` | Questions in plain words ("milk sales this week vs last week", "top 10 items this month", "stock of Verka paneer"), answered from the live data through ten read-only lookups. The lookups used are listed under each answer. | ~₹1-3 a question |
 | **Read a vendor bill** `/v2/ai/bill` | Upload a photo or PDF of a supplier's bill. Claude reads the lines; each is matched to the item master (barcode, then the vendor's item code, then the name) and checked: MRP vs master, GST vs the item's slab, HSN, rate vs the last purchase, expiry, and whether the lines add up to the bill total. The result is a checklist and a CSV. **Nothing is saved** - the GRN is entered on the usual screen. | ~₹3-8 a bill; ~₹10-20 when Opus has to read it again |
+| **Read a vendor bill, on the GRN screen** (Goods Received Note, under the Merge button) | The same reading, for the GRN that is open: the bill's received qty, MRP, rate and discount % are typed into the grid's own cells, the bill no. and date into theirs, and the screen's own formulas work out every amount. Changed cells are shown in blue (a changed MRP in yellow). Bill lines with no line on the GRN, lines not found in the item master, and GRN lines the bill does not mention are listed. **Nothing is saved until Update is pressed.** | the same; filling again after a reload is free |
 | **Usage** `/v2/ai/usage` | Spend this month against the limit, by feature, by day, and the last 30 calls. | - |
 
 The entry point is the magic-wand icon in the top bar (admins only), or `/v2/ai`.
 
+## Reading a bill on the GRN screen
+
+Added 30 Sep 2026, on the owner's instruction: *"the read a vendor bill should be in the goods receipt note menu below the merge button, once a bill is uploaded there in PDF it should autofill the grid with the values from the bill"*.
+
+On `purchaseBillDetail/index`, with a vendor and a purchase bill number chosen, **Read a vendor bill** under Merge takes a PDF or a photo. `/v2/ai/bill-grn` reads it with `BillReader` (same models, same fallback, same log and budget) and `GrnBillFill` pairs each bill line with a line of the grid: by the barcode printed on the bill or the item found in the item master, then the same item under another barcode, then the name among the GRN's remaining lines (70% alike, as `BillReader`). A grid line is used once.
+
+`v2/js/grn-bill.js` then does what a storekeeper does with the paper bill: it puts App Qty, Mrp, Price and Dis% into the grid's inputs and fires their `change` events, so the sale rate follows the MRP, the discount amount, GST, line amount, totals and tax table all come from the screen's own `gridcalculation()`. No amount is calculated by the new code, and no new code writes to the database: the values are saved by the existing Update button, the GRN is approved by the existing Save. A qty, MRP or rate the bill does not print is left as it was; the tax of a line is never changed (a different GST % on the bill is flagged).
+
+After filling, the panel shows: whether the grid's Bill Amount agrees with the bill total; lines whose amount does not come to what the bill prints (taxable or with tax, within ₹1 or 1%), with the Amt cell in red; bill lines whose item is not on the GRN, each with **Put in Add Item** (it puts the barcode into the screen's Add Item form, which checks the item and the vendor as it does for a scan, then types the bill's qty, MRP, rate and discount over the defaults - the storekeeper presses Add Item); bill lines not found in the item master; and GRN lines not on the bill, which are left alone. Free quantities go to the item's free line if the GRN has one, else they are flagged.
+
+The reading is kept in the session (`ai_bill_grn`), so after Update or Add Item reloads the page, **Fill again** applies it to the grid as it now is without a second Claude call.
+
+The button and the panel are drawn by the script; the view only prints settings and a script tag, and only for the AI roles, so the page's text and element ids - what the page sweeps compare with Yii 1 - are unchanged. Yii 1's GRN screen is untouched. Storekeepers see the button only if their role is in `POS_AI_ROLES`.
+
 ## What it will not do
 
-- **Change anything.** Every query is a `SELECT` written in `app2/components/ai/` with bound parameters, capped at 20 s on MySQL 8 (`MAX_EXECUTION_TIME`). The model picks a lookup and fills in dates or an item name; it never writes SQL. No stock, price, bill, GRN, MRS or item is created or edited by any AI screen. The MRS "AI qty" column and its formula are untouched.
+- **Change anything by itself.** On the GRN screen a read bill is typed into the grid for a person to check and save with Update; nothing else is ever filled in. Every query is a `SELECT` written in `app2/components/ai/` with bound parameters, capped at 20 s on MySQL 8 (`MAX_EXECUTION_TIME`). The model picks a lookup and fills in dates or an item name; it never writes SQL. No stock, price, bill, GRN, MRS or item is created or edited by any AI screen. The MRS "AI qty" column and its formula are untouched.
 - **Send customer data.** No lookup returns a customer's name or number; customer questions are answered in counts. Anything that looks like a phone number or an e-mail is masked before it is sent or logged (`AiPrivacy`). Staff names (cashiers) and vendor names are sent where a question needs them.
 - **Spend without limit.** Every call is logged in `tbl_ai_log` with its cost. Before each call the month's total is compared with `POS_AI_MONTHLY_BUDGET_USD` (default $50); at the limit the AI features pause until the 1st and the rest of the ERP carries on. The code refuses to call Claude at all while `tbl_ai_log` is missing. A hard limit can also be set in the Anthropic console.
 - **Work for everyone.** Only roles in `POS_AI_ROLES` (default `1`, admin) get in; others get a 403. POSTs are CSRF-checked (unlike the rest of the port), because they spend money.
@@ -56,6 +71,7 @@ Without step 4, Insights works (it needs no key) and the Claude screens explain 
 
 - `app2/components/ai/` - `AiConfig` (settings), `AiClient` (the one place Claude is called; budget, logging, errors), `AiLog`, `AiData` (read-only query helper), `AiPrivacy`, `Insights` (the twelve checks), `AskTools` + `AskDaspos`, `BillReader`, `InsightSummary`, `AiMarkdown` (answers to escaped HTML).
 - `app2/controllers/AiController.php`, `app2/views/ai/`, `v2/css/ai.css`.
+- The GRN screen: `app2/components/ai/GrnBillFill.php`, `AiController::actionBillGrn()` / `actionBillGrnLast()`, `app2/views/ai/_grn_bill.php` (rendered at the end of `views/purchaseBillDetail/index.php`), `v2/js/grn-bill.js`.
 - Not in `Ui::PORTED` on purpose: the parity sweeps read that list and would look for an `ai` controller on Yii 1. Yii 2's default route parsing serves `/v2/ai/<action>`.
 
 ## How it was tested (30 Sep 2026, locally)
@@ -72,10 +88,16 @@ No real API key was available, so Claude was replaced by a stand-in server that 
 - In a browser (Chromium): the four screens and the flows above with no script errors, in both the modern and the classic look.
 - An independent review of this code found, among smaller things, that a GET could start a paid summary and that fallback attempts were under-priced; both are fixed and covered above. 56 scripted checks pass.
 
+Reading a bill on the GRN screen (30 Sep 2026, from a Mac with no PHP, so in two halves; **not yet run inside the application**):
+
+- `GrnBillFill::assign()`, `billDate()` and `plan()` in the test server's PHP 8.3 (piped in, nothing written, no database): 32 checks - a barcode on the bill beats an earlier line's name match, the item-master match, another barcode of the same item, a name match among the GRN's lines, a second batch of a line already used, free quantities with and without a free line, which of `BillReader`'s flags survive, an empty grid, day-first dates, the GSTIN check. Its two `SELECT`s were run as written against a pending GRN on `pos_live`.
+- `grn-bill.js` in a browser against the GRN view's own javascript, lifted from `views/purchaseBillDetail/index.php` with its PHP resolved (admin, intra-state), over a six-line grid (one of them a free line) and a stand-in for the endpoints: each filled line came to the figure worked by hand (16 x 320.43 at 5% = 5,383.22; 6 x 470 less 2% at 5% = 2,901.78, sale rate following the new MRP; 4 x 38.09 at 18% = 179.78), the screen's Bill Amount to 9,155; a rate equal to the grid's and an MRP of 0 were left alone; the free quantity went to the free line; the tax table was redrawn once, not once per cell; a line not coming to the bill's amount was marked; text from the bill containing a script tag was shown as text; Put in Add Item refused while the grid had unsaved values, then filled the form to 241.04 through the form's own handlers, and did not type into a later scan; a refused call, a signed-out answer and a 404 each showed a sentence and left the grid alone.
+- Not covered: the two controller actions and the view partial running in Yii, the upload itself, the datepicker, an inter-state (IGST) GRN, and a real bill. The first real bill on the GRN screen is the test.
+
 **Not tested: a real call to Claude.** The first real question, bill and summary after the key is added are the real test - check `/v2/ai/usage` after them.
 
 ## Not done (next steps, each needs the owner's go-ahead)
 
-- Filling the GRN screen from a read bill (it touches the GRN screen, which Yii 1 shares; today the checklist is read alongside it).
+- Adding the bill's missing lines to the GRN in one go, and creating items that are not in the item master (today each is added through Add Item, one at a time).
 - The evening WhatsApp digest of Insights (outbound messages are stubbed on the test server, and the database has real customer numbers).
 - Reorder drafts written into MRS/PO, the item-master clean-up with suggested HSN/GST, and the .NET/Android features.

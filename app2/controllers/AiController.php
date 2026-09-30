@@ -7,6 +7,7 @@ use app\components\ai\AiLog;
 use app\components\ai\AiMarkdown;
 use app\components\ai\AskDaspos;
 use app\components\ai\BillReader;
+use app\components\ai\GrnBillFill;
 use app\components\ai\Insights;
 use app\components\ai\InsightSummary;
 use Yii;
@@ -40,7 +41,8 @@ class AiController extends BaseUiController
         return [
             'verbs' => [
                 'class' => \yii\filters\VerbFilter::class,
-                'actions' => ['summary' => ['POST'], 'bill-csv' => ['GET'], 'check' => ['GET']],
+                'actions' => ['summary' => ['POST'], 'bill-csv' => ['GET'], 'check' => ['GET'],
+                              'bill-grn' => ['POST'], 'bill-grn-last' => ['GET']],
             ],
         ];
     }
@@ -155,6 +157,49 @@ class AiController extends BaseUiController
         }
         return $this->render('bill', ['vendors' => $vendors, 'vendorId' => $vendorId, 'result' => $result,
             'error' => $error, 'reason' => AiConfig::unavailableReason()]);
+    }
+
+    /**
+     * Reads a vendor's bill for the GRN that is open on the GRN screen and
+     * answers with what to fill into its grid (GrnBillFill). Called by
+     * v2/js/grn-bill.js from under the Merge button. Saves nothing: the
+     * javascript types the values into the grid and the storekeeper presses
+     * Update, as always. The reading is kept in the session so the grid can
+     * be filled again after a reload without a second, paid, reading.
+     */
+    public function actionBillGrn()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $poid = (int) Yii::$app->request->post('poid', 0);
+        try {
+            $grn = GrnBillFill::grn($poid);
+            list($mime, $bytes) = BillReader::validateUpload($_FILES['bill'] ?? []);
+            $name = basename((string) ($_FILES['bill']['name'] ?? 'bill'));
+            $this->releaseSession();
+            $result = BillReader::read($mime, $bytes, $name, (int) $grn['vendor_id']);
+            $result['file'] = $name;
+            Yii::$app->session->open();
+            Yii::$app->session['ai_bill_last'] = $result;
+            Yii::$app->session['ai_bill_grn'] = ['poid' => $poid, 'time' => time(), 'result' => $result];
+            return ['ok' => true] + GrnBillFill::plan($result, $grn, GrnBillFill::rows($poid));
+        } catch (AiException $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /** The same answer from the bill last read for this GRN in this session; no Claude call. */
+    public function actionBillGrnLast($poid)
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $last = Yii::$app->session['ai_bill_grn'];
+        if (!$last || (int) $last['poid'] !== (int) $poid) {
+            return ['ok' => false, 'error' => 'No bill has been read for this GRN since you signed in. Read the bill again.'];
+        }
+        try {
+            return ['ok' => true] + GrnBillFill::plan($last['result'], GrnBillFill::grn((int) $poid), GrnBillFill::rows((int) $poid));
+        } catch (AiException $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /** The last bill read in this session, as CSV. */

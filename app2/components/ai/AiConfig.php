@@ -18,8 +18,9 @@ use Yii;
  *                              (admin). Store staff see nothing new.
  *
  * Nothing here changes a formula, a stock figure or a bill: every AI screen
- * reads, and the one that reads a vendor's bill produces a checklist for a
- * person to enter through the existing GRN screen.
+ * reads. A vendor's bill becomes a checklist, or - read on the GRN screen -
+ * values typed into that screen's grid for a person to check and save with
+ * its own Update button (GrnBillFill).
  */
 class AiConfig
 {

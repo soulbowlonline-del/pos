@@ -567,6 +567,18 @@ the only record of a decision. Condensed, in sequence:
     error pages that print each copy's own path). Anything new in the shared
     layout is an icon with a title, or created by javascript, for that reason.
 
+- *"The read a vendor bill should be in the goods receipt note menu below the
+  merge button, once a bill is uploaded there in PDF it should autofill the
+  grid with the values from the bill"* (30 Sep) - **Read a vendor bill** on
+  `/v2/purchaseBillDetail/index`, under Merge, for the AI roles. The reading
+  is typed into the grid's own cells and their `change` events fired, so the
+  screen's own `gridcalculation()` works out every amount; nothing is saved
+  until Update. Lines of the bill with no line on the GRN go through the
+  screen's Add Item form. `GrnBillFill`, `v2/js/grn-bill.js`,
+  `views/ai/_grn_bill.php`; see `docs/ai-features.md`, which also says what
+  was and was not tested. Yii 1's screen is unchanged, and the port's page
+  markup is too (the button is drawn by javascript).
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored
@@ -651,6 +663,29 @@ under *What the owner asked for* above; this is the state and the loose ends.
    brute force; the new-customer loyalty race; occasional deadlocks on
    parallel sales of the same item; the server asks for a reboot (at a quiet
    time).
+
+**Second session, 30 Sep 2026, on the owner's Mac.** It reaches the test
+server itself (`ssh -i ~/.ssh/daspos_key root@31.97.186.151`), so the
+deploy-only key (item 3) is needed only for cloud sessions. The Mac has no
+GitHub login, no PHP and no Docker: commits are sent to the server as a git
+bundle, fast-forwarded there and pushed with the server's GitHub key (the
+owner's choice), and PHP is linted and unit-tested by piping it into
+`docker exec -i pos-php-83 php`, which writes nothing.
+- The server was on `35acbec` (so `0d3e819` and `35acbec` were deployed), then
+  `2df5796`. No Claude call has run since `0d3e819`: `tbl_ai_log` holds the 10
+  Opus calls of the morning and nothing else - item 1's real question, summary
+  and bill are still to do.
+- Item 1, checked in SQL instead: the lookup's approved net equals the vendor
+  report's for Aug and Sep 2026 (₹38,40,158 and ₹18,57,656; the old field is
+  0). The report also counts the net of GRNs not yet approved; the lookup
+  values those from their lines, so Sep differs by the 9 pending GRNs that
+  have no net amount yet.
+- Item 4: all 41 repeated bill numbers are from before 17 Sep (copied from
+  production: two different bills seconds apart, outlet 5); none since the
+  27 Sep lock, which only 5 orders have exercised here. The "credit note
+  over-used" was note 14630, value -89,931 and nothing used; `2df5796` makes
+  the check ask for `amt_used > 0`.
+- The host was rebooted on 29 Sep 15:58 IST; every container came back.
 
 **How this session tested, since none of it is in the repository.** A local
 MariaDB built from the models' own schema knowledge (no production data), two

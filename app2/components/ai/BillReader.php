@@ -13,6 +13,8 @@ use app\components\Ui;
  * slab, a rate above the last purchase, a short expiry, lines that do not add
  * up to the bill total). Nothing is saved: no GRN, no stock, no price. The
  * uploaded file is read from PHP's temporary upload and not kept.
+ *
+ * On the GRN screen the same reading is typed into the grid: GrnBillFill.
  */
 class BillReader
 {
@@ -30,6 +32,7 @@ This is a purchase bill (tax invoice) from a supplier to a retail and grocery st
 - gst_percent: the total GST rate of the line. If the bill shows CGST and SGST separately, add them (2.5 + 2.5 = 5). If IGST, use it.
 - batch and expiry as printed; write expiry as YYYY-MM-DD, using the last day of the month when only month and year are printed.
 - amount: the line amount as printed (the taxable value or the line total, whichever the bill shows per line).
+- bill_no: the invoice number as printed. bill_date: the invoice date, written as YYYY-MM-DD (Indian bills print the day first: 05/09/2026 is 2026-09-05).
 - bill_total: the final amount payable. tax_total: total GST on the bill.
 - Use null for anything not printed or not readable. Do not calculate values that are not on the bill, except adding CGST and SGST as above.
 - notes: one short sentence on anything that made the bill hard to read (cut off, blurred, handwritten), or null.
@@ -363,7 +366,8 @@ TXT;
         return $flags;
     }
 
-    private static function normalise($s)
+    /** Lower case, letters and digits only; what names are compared by. GrnBillFill compares with it too. */
+    public static function normalise($s)
     {
         $s = mb_strtolower($s);
         $s = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $s);
