@@ -572,6 +572,98 @@ Two standing instructions from the owner: pushes go to
 *Conventions*); and no real secret is ever committed — `.env` is gitignored
 and the code reads `getenv()`.
 
+## Siddhant session, 26–30 Sep 2026 — where things stand
+
+The long Claude Code session with the owner (Siddhant) that produced the work
+from `2c89118` to `35acbec`. Written at the owner's request so the next
+session can carry on from here. The requests and what each produced are
+under *What the owner asked for* above; this is the state and the loose ends.
+
+**How the owner works, and what a session can reach.**
+- The owner works from a Mac terminal and deploys by pasting command blocks
+  into an SSH session: `ssh -i ~/.ssh/daspos_key root@31.97.186.151` first,
+  then the commands **on the server**. The prompt tells them apart
+  (`siddhant@…` is the Mac, `root@srv901415` the server). Several times the
+  command ran on the Mac, or the expected output was typed as a command, or
+  "deployed" arrived without the output: ask for the pasted output, never
+  assume it.
+- The cloud environment **cannot reach 31.97.186.151** (network policy) and
+  holds no SSH key, so every deploy and every check on real data goes through
+  the owner. **Proposed, awaiting the owner's go-ahead:** a deploy-only SSH key
+  whose `authorized_keys` entry forces a gate script allowing only
+  `deploy` (ff-only pull of `phase2`, `php -l`, `composer install` when the
+  lock changed), `status`, `ai-log` and `timing`; the owner would allow
+  `31.97.186.151` under the environment's Network access and store the private
+  key as the environment variable `DASPOS_DEPLOY_KEY` (in the environment
+  settings, never in chat). SQL files would still need the owner. Not written
+  yet. The alternative offered, a cron pull on the server, was not preferred.
+- Pushes go to `phase2/php83-yii1132` and to the session branch
+  `claude/trusting-thompson-0ca6h2` (identical). GitHub offers "Compare & pull
+  request" for the session branch; the owner was told not to create it (it
+  would target `main`). `main` untouched.
+- Pasting into hidden input (`read -s`) did not work from the owner's Mac;
+  visible `read -rp` or `nano` did.
+
+**On the test server (last confirmed).**
+- `e709259` deployed 30 Sep: the modern look, `/v2/ai`, `composer install`
+  (11 packages: `anthropic-ai/sdk`, Guzzle and their dependencies, nothing else
+  changed), `db_changes/2026-09-30-ai-log.sql`. `/.env` 403, both logins 200.
+- `82700ea` deployed: the reorder check went from 10.92 s to 0.22 s on the
+  store's data (all twelve checks 13.09 s → 0.78 s), same 845 rows.
+- `ANTHROPIC_API_KEY` is in the server's `.env`. First real calls, 30 Sep, on
+  Opus 5.5: 5 questions, 10 calls, all `ok`, $0.206, prompt cache working
+  (3,241 cached tokens per call).
+- **Not confirmed on the server:** `0d3e819` (GRN totals from
+  `net_bill_amount`; Sonnet 5.5 default) and `35acbec` (bills read by Sonnet,
+  then by Opus on failure). The owner's last paste showed the prompt in
+  `/root/pos/pos83` but not `git log`; check with `git log --oneline -1`
+  before anything else.
+
+**Open items, in the owner's order of interest.**
+1. Check `0d3e819` answers: ask Ask DASPOS for a GRN total and compare with
+   the vendor purchase report for the same dates (the owner's report of "0"
+   was the `total_amount` bug). Then try **Summarise for me** and **Read a
+   vendor bill** with a real bill — neither has had a real Claude call yet.
+2. **"All vendor product" tick box** on `purchaseBillDetail/index`: exists
+   only in the live store server's code (61.2.241.71), in no tree and no
+   branch here. The owner was asked to upload the live
+   `protected/views/purchaseBillDetail/index.php`,
+   `protected/controllers/ItemController.php` and
+   `protected/controllers/PurchaseBillDetailController.php` (ideally all of
+   `protected/`) to a new branch under `live-copy/` — read-only for the live
+   server, never `main`. With the whole folder, diff it against `protected/`
+   here for every other live-only change. The one-shot reminder routine for
+   this has fired.
+3. The deploy-only key above.
+4. What Insights found on real data, 30 Sep, for the owner to act on: 2,037
+   batches below zero (open decision 8), 41 bill numbers used twice in 90
+   days (check whether any are after the 27 Sep bill-number lock), 22 lines
+   sold above MRP, 1 possible duplicate bill, 1 credit note over-used, 16 GRNs
+   waiting over 5 days, 845 items running low, 1,897 not selling for 60 days.
+5. The .NET till repository `soulbowlonline-del/pos_dotnet`: branch
+   `claude/point-tills-to-v2` makes `/v2/api` the only `apiurl`. Reported, not
+   changed: a new `Idempotency-Key` per click (the server ignores it on
+   purpose), a MySQL password in `App_Code/commonclass.cs` (~line 1358, host
+   10.1.1.125), committed `.pfx`, `bin/`, `obj/`. The owner cannot build
+   Windows apps; .NET and Android AI features are "for later".
+6. Reported earlier, not fixed: the API answers without authentication; Yii 1
+   anonymous password reset (`user/passwordExpired`) on production; OTP
+   brute force; the new-customer loyalty race; occasional deadlocks on
+   parallel sales of the same item; the server asks for a reboot (at a quiet
+   time).
+
+**How this session tested, since none of it is in the repository.** A local
+MariaDB built from the models' own schema knowledge (no production data), two
+`php -S` servers (working tree and HEAD) and a stand-in Anthropic API that
+records every request and answers from scripts (tool calls, a bill, 500, 429,
+refusal, fallback). On top: 56 scripted AI checks, 10 bill-fallback
+scenarios, and a comparison of all 790 read-only port pages between HEAD and
+the working tree for visible text and element ids (the pages suites' own
+rule; four known differences, `printPdf` error pages printing each copy's
+path). They lived in the session's scratchpad and are gone with its
+container; rebuild them before trusting a change to shared layout or to
+`/v2/ai`.
+
 ## Conventions
 
 - Branch `phase2/php83-yii1132`. `main` is the PHP 5.6 baseline
