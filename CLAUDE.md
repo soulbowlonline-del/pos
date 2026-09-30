@@ -662,6 +662,16 @@ the only record of a decision. Condensed, in sequence:
   350GM, and the paneer and kheer names from the same bill. Its names for
   the two lassis it supplies are not known yet.
 
+- *"The serial number of the items was not in order of the bill"* → *"the
+  reorder happens after receiving the items in that order on the android
+  app"* (30 Sep) - **decided: the GRN keeps the Android app's order.** A
+  version that put the grid in the bill's order and saved it to
+  `tbl_purchase_bill_detail.order` on Update was built and not wanted; asked
+  to choose, the owner chose "keep the app's order". It was never deployed
+  (local branch `kept/bill-order-not-wanted` on the owner's Mac only). The
+  bill reader still writes nothing. Lines not on the bill still go to the top
+  in red with 0 quantity, on the page only - that was asked for and stays.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored
