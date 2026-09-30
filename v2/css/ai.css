@@ -88,3 +88,5 @@ input.ai-filled.ai-filled-mrp { background: #fff3cd !important; box-shadow: inse
 input.ai-mismatch { background: #fdecec !important; box-shadow: inset 0 0 0 1px #e08a8a; }
 tr.ai-grn-flash > td { background: #fff8d6 !important; transition: background 0.3s; }
 .ai-grn-section .ai-grn-basis { white-space: normal; max-width: 260px; }
+tr.ai-grn-absent > td { background: #fdecec !important; }
+tr.ai-grn-absent > td:first-child { box-shadow: inset 4px 0 0 #d9534f; }

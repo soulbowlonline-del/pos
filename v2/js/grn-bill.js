@@ -134,7 +134,7 @@
 	 * Puts v into the input unless it already holds that number. True when
 	 * the input changed; the old value stays in its title.
 	 */
-	function put($el, v, decimals, cls) {
+	function put($el, v, decimals, cls, why) {
 		if (v === null || v === undefined || !$el.length) {
 			return false;
 		}
@@ -143,13 +143,13 @@
 		if (now !== '' && !isNaN(parseFloat(now)) && parseFloat(now).toFixed(decimals) === next) {
 			return false;
 		}
-		$el.val(next).addClass(cls || 'ai-filled').attr('title', 'Filled from the bill; it was ' + (now === '' ? 'empty' : now));
+		$el.val(next).addClass(cls || 'ai-filled').attr('title', (why || 'Filled from the bill') + '; it was ' + (now === '' ? 'empty' : now));
 		return true;
 	}
 
 	/** Types the bill into the grid, as a storekeeper would, and lets the screen calculate. */
 	function apply(plan) {
-		var stats = {rows: 0, cells: 0, amountGaps: [], absent: []};
+		var stats = {rows: 0, cells: 0, amountGaps: [], absent: [], notOnBill: 0, zeroed: 0};
 
 		// gridcalculation() ends by asking the server to redraw the tax table,
 		// once per change. Filling fifty lines would ask two hundred times,
@@ -201,6 +201,35 @@
 					lastId = id;
 				}
 			});
+
+			// The GRN's lines that the bill does not have (owner, 30 Sep
+			// 2026: "keep the items not in the bill on the top row and
+			// highlight the same and make them 0qty"). Marked and moved to
+			// the top of the grid; their App Qty set to 0 through its own
+			// change event - unless the lines read do not add up to the
+			// bill's total, when a line of the bill may have been missed and
+			// a received item would be zeroed for it.
+			var $absent = $();
+			$.each(plan.untouched, function (_, r) {
+				var $qty = $('#approve_input_qty' + r.detail_id);
+				if (!$qty.length) {
+					return;
+				}
+				$absent = $absent.add($qty.closest('tr').addClass('ai-grn-absent').attr('title', 'Not on the bill'));
+				stats.notOnBill++;
+				if (plan.bill.reading_adds_up && put($qty, 0, 3, 'ai-filled', 'Not on the bill: set to 0')) {
+					$qty.trigger('change');
+					stats.cells++;
+					stats.zeroed++;
+					lastId = r.detail_id;
+				}
+			});
+			if ($absent.length) {
+				var $first = $('.approve_input_qty').closest('tr').not($absent).first();
+				if ($first.length) {
+					$first.before($absent);
+				}
+			}
 		} finally {
 			if (typeof taxTable === 'function') {
 				window.checkTaxTable = taxTable;
@@ -287,6 +316,8 @@
 		html += '<div class="ai-note"><i class="fa fa-magic"></i> <b>' + filled + ' of ' + plan.line_count + ' bill lines</b> are in the grid'
 			+ (stats.cells ? ' - ' + stats.cells + ' value' + (stats.cells === 1 ? '' : 's') + ' changed, shown in blue (a changed MRP in yellow).'
 				: ' - the grid already held the bill\'s values, nothing was changed.')
+			+ (stats.notOnBill ? ' <b>' + stats.notOnBill + ' line' + (stats.notOnBill === 1 ? '' : 's') + ' of this GRN ' + (stats.notOnBill === 1 ? 'is' : 'are')
+				+ ' not on the bill</b>: at the top, in red' + (stats.zeroed ? ', set to 0.' : '.') : '')
 			+ ' <b>Nothing is saved yet.</b> Check the grid against the bill, then press Update.</div>';
 
 		if (plan.retry) {
@@ -348,8 +379,11 @@
 				}).join('') + '</td></tr>';
 			}), true);
 
-		html += section('On this GRN, not on the bill', 'Left as they were. If they did not arrive, set their App Qty yourself.',
-			'<th>Item</th><th>Bar Code</th><th>Ordered</th><th>App Qty</th>',
+		html += section('On this GRN, not on the bill',
+			plan.bill.reading_adds_up
+				? 'Moved to the top of the grid and marked in red, with their App Qty set to 0. If one of them did arrive, type its quantity back in.'
+				: 'Moved to the top of the grid and marked in red. <b>Their App Qty was not set to 0</b>, because the lines read from the bill do not add up to its total, so a line may have been missed. Set it yourself for those that did not arrive.',
+			'<th>Item</th><th>Bar Code</th><th>Ordered</th><th>App Qty was</th>',
 			$.map(plan.untouched, function (r) {
 				return '<tr class="ai-grn-goto" data-id="' + r.detail_id + '"><td>' + esc(r.item) + '</td><td>' + esc(r.barcode) + '</td><td>'
 					+ qty(r.req_qty) + '</td><td>' + qty(r.approved_qty) + '</td></tr>';

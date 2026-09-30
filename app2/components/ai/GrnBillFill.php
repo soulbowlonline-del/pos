@@ -93,6 +93,7 @@ class GrnBillFill
                 'bill_total' => self::num($bill['bill_total'] ?? null),
                 'tax_total' => self::num($bill['tax_total'] ?? null),
                 'amounts_include_gst' => $inclusive,
+                'reading_adds_up' => self::readingAddsUp($bill),
             ],
             'flags' => $flags,
             'line_count' => count($result['lines']),
@@ -187,6 +188,23 @@ class GrnBillFill
         }
         unset($l);
         return $lines;
+    }
+
+    /**
+     * Do the lines read add up to the bill's total, with or without its tax,
+     * within a rupee or 1%? Then no line of the bill was missed, and a GRN
+     * line the bill does not have can be taken as not delivered.
+     */
+    public static function readingAddsUp(array $bill)
+    {
+        $sum = 0.0;
+        foreach ($bill['lines'] ?? [] as $line) {
+            $sum += (float) ($line['amount'] ?? 0);
+        }
+        $total = (float) ($bill['bill_total'] ?? 0);
+        $tax = (float) ($bill['tax_total'] ?? 0);
+        $slack = max(1.0, 0.01 * $total);
+        return $total > 0 && $sum > 0 && (abs($sum - $total) <= $slack || abs($sum + $tax - $total) <= $slack);
     }
 
     /**

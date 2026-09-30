@@ -27,7 +27,7 @@ $settings = [
 	'last' => ($last && (int) $poid > 0 && (int) $last['poid'] === (int) $poid)
 		? ['file' => (string) ($last['result']['file'] ?? ''), 'time' => date('H:i', (int) $last['time'])] : null,
 ];
-$this->registerCssFile('/v2/css/ai.css?v=20260930d');
+$this->registerCssFile('/v2/css/ai.css?v=20260930e');
 ?>
 <script>window.DASPOS_GRN_BILL = <?php echo Json::htmlEncode($settings); ?>;</script>
-<script src="/v2/js/grn-bill.js?v=20260930d"></script>
+<script src="/v2/js/grn-bill.js?v=20260930e"></script>

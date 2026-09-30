@@ -649,6 +649,14 @@ the only record of a decision. Condensed, in sequence:
   ENTERPRISESGHJGH", is a stray duplicate with the same GSTIN and has no
   entry.)
 
+- *"It picked up everything correctly except that it picked up amul ice cream
+  which was added by mistake ... it should keep the items not in the bill on
+  the top row and highlight the same and make them 0qty"* (30 Sep, the DUA
+  ENTERPRISES bill) - GRN lines the bill does not have are moved to the top
+  of the grid, marked red and set to 0 by `grn-bill.js`; not zeroed when the
+  lines read do not add up to the bill's total. Checked in a browser on that
+  GRN and reading: the grid's Bill Amount 4,715 -> 3,669, the bill's total.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored
