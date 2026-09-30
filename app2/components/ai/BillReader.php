@@ -109,13 +109,15 @@ TXT;
             ? ['type' => 'document', 'source' => $source]
             : ['type' => 'image', 'source' => $source];
 
+        // What is particular about this vendor's bills, if the owner has said (config/ai-bill-names.php).
+        $about = $vendorId ? trim((string) GrnBillFill::vendorNames($vendorId)['reading']) : '';
         $primary = AiConfig::model();
         $fallback = AiConfig::billFallbackModel();
         $bill = null;
         $problem = null;
         try {
             // With a second model standing by, it is the retry; no transport retry first.
-            $bill = self::extract($block, $fileName, $primary, $fallback ? 0 : 1, 'bill');
+            $bill = self::extract($block, $fileName, $primary, $fallback ? 0 : 1, 'bill', $about);
             $problem = self::readingProblem($bill);
         } catch (AiException $e) {
             if ($e->isBlocked() || !$fallback) {
@@ -129,7 +131,7 @@ TXT;
         if ($problem !== null && $fallback) {
             $retry = ['first' => $primary, 'why' => $problem, 'second' => $fallback, 'failed' => null];
             try {
-                $second = self::extract($block, $fileName, $fallback, 1, 'bill-retry');
+                $second = self::extract($block, $fileName, $fallback, 1, 'bill-retry', $about);
                 // The second reading is shown unless it came back no better
                 // than a first reading that at least has lines.
                 if ($bill === null || self::readingProblem($second) === null || count($second['lines']) >= count($bill['lines'])) {
@@ -154,13 +156,14 @@ TXT;
     }
 
     /** One reading of the bill by one model, parsed; AiException if it cannot be used at all. */
-    private static function extract(array $block, $fileName, $model, $retries, $feature)
+    private static function extract(array $block, $fileName, $model, $retries, $feature, $about = '')
     {
+        $prompt = self::PROMPT . ($about !== '' ? "\nAbout this vendor's bills: " . $about . "\n" : '');
         $message = AiClient::create([
             'model' => $model,
             'maxTokens' => 16000,
             'outputConfig' => ['effort' => 'medium', 'format' => ['type' => 'json_schema', 'schema' => self::schema()]],
-            'messages' => [['role' => 'user', 'content' => [$block, ['type' => 'text', 'text' => self::PROMPT]]]],
+            'messages' => [['role' => 'user', 'content' => [$block, ['type' => 'text', 'text' => $prompt]]]],
         ], $feature, 'bill: ' . $fileName, 110, $retries);
 
         if ($message->stopReason === 'refusal') {

@@ -107,7 +107,7 @@ class GrnBillFill
             $file = dirname(__DIR__, 2) . '/config/ai-bill-names.php';
             $all = is_file($file) ? (array) require $file : [];
         }
-        return ($all[(int) $vendorId] ?? []) + ['units' => [], 'items' => []];
+        return ($all[(int) $vendorId] ?? []) + ['units' => [], 'items' => [], 'reading' => '', 'pack_size_is_certain' => false];
     }
 
     /** barcode => the item as BillReader describes one. */
@@ -161,6 +161,18 @@ class GrnBillFill
             if ($unit !== '' && isset($units[$unit]) && $units[$unit] > 1) {
                 $l['line']['pack_size'] = $units[$unit];
                 $l['line']['pack_fixed'] = true;
+            } elseif (!empty($names['pack_size_is_certain']) && (float) ($l['line']['pack_size'] ?? 0) > 1) {
+                // Stated on the line, as the owner says this vendor's bills
+                // do - unless the item's own name prints another size, which
+                // is as likely a misread figure as a different box: then it
+                // is weighed like any other and the line says so.
+                $printed = self::printedPack((string) ($l['line']['description'] ?? ''));
+                if ($printed === null || abs($printed - (float) $l['line']['pack_size']) < 0.0005) {
+                    $l['line']['pack_fixed'] = true;
+                } else {
+                    $l['flags'][] = ['warning', 'The box size written on the bill was read as ' . self::trim($l['line']['pack_size'])
+                        . ' and the item\'s name prints ' . self::trim($printed) . ' - check the quantity'];
+                }
             }
             $said = ' ' . BillReader::normalise((string) ($l['line']['description'] ?? '')) . ' ';
             foreach ($called as $name => $item) {
@@ -364,7 +376,7 @@ class GrnBillFill
                     // above, in the GRN's units. The HSN check compares with
                     // the item master and holds only if this is that item.
                     // Expiry is the bill's own.
-                    if (strpos($f[1], 'Expire') === 0 || ($sameItem && strpos($f[1], 'HSN ') === 0)) {
+                    if (strpos($f[1], 'Expire') === 0 || strpos($f[1], 'The box size written') === 0 || ($sameItem && strpos($f[1], 'HSN ') === 0)) {
                         $flags[] = $f;
                     }
                 }
@@ -445,9 +457,8 @@ class GrnBillFill
         if ((float) ($x['pack_size'] ?? 0) > 1) {
             $packs[(string) (float) $x['pack_size']] = false;
         }
-        // "(24*500ML)", "24 X 500ML", and "(18*" where the print ran out of room
-        if (preg_match('/(\d{1,3})\s*(?:[*×]|[xX]\s*\d)/u', (string) ($x['description'] ?? ''), $m) && (int) $m[1] > 1) {
-            $packs[(string) (float) $m[1]] = false;
+        if (($printed = self::printedPack((string) ($x['description'] ?? ''))) !== null) {
+            $packs[(string) $printed] = false;
         }
         // A price that is a whole number of times the grid line's is a case
         // of that many: 762.00 a crate against 31.75 a piece is 24.
@@ -524,6 +535,12 @@ class GrnBillFill
         return $best;
     }
 
+    /** The pack size printed in an item's name: "(24*500ML)", "24 X 500ML", and "(18*" where the print ran out of room. */
+    private static function printedPack($description)
+    {
+        return preg_match('/(\d{1,3})\s*(?:[*×]|[xX]\s*\d)/u', $description, $m) && (int) $m[1] > 1 ? (float) $m[1] : null;
+    }
+
     /** What grn-bill.js types in. */
     private static function fillValues(array $rd)
     {
@@ -555,6 +572,10 @@ class GrnBillFill
         }
         if ($rd['above_mrp']) {
             return $flags;
+        }
+        if ($rd['unit'] !== null && (float) $row['price'] > 0 && $rd['unit'] < 0.9 * (float) $row['price']) {
+            $flags[] = ['warning', sprintf('Rate %s is %.1f%% below this line\'s rate (%s) - check the quantity unit', Insights::money($rd['unit']),
+                100 * (1 - $rd['unit'] / (float) $row['price']), Insights::money($row['price']))];
         }
         if ($rd['pieces'] !== null && (float) $row['approved_qty'] > 0 && !$rd['same_qty']) {
             $flags[] = ['warning', 'The bill has ' . self::trim($rd['pieces']) . '; ' . self::trim($row['approved_qty']) . ' was received on this line'];

@@ -639,6 +639,16 @@ the only record of a decision. Condensed, in sequence:
   a sweep of its own: every ported method whose Yii 1 signature had a
   positional flag where the port's now has `$params`.
 
+- *"This is the Rana enterprises bill today. In each box the qty is written
+  in black next to the boxes. This is true for every bill of this vendor.
+  Ignore the blue handwritten number on the left"* (30 Sep) - vendor 617 in
+  `ai-bill-names.php`: a `reading` sentence that goes to Claude with this
+  vendor's bills, and `pack_size_is_certain`. Checked with one real reading
+  of the owner's photo: box sizes 24, 18, 18, 18, 18, 24, 12, the blue marks
+  ignored, the grid coming to the bill's 8,790. (Vendor 600, "RANA
+  ENTERPRISESGHJGH", is a stray duplicate with the same GSTIN and has no
+  entry.)
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored

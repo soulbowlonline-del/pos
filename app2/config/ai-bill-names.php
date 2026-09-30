@@ -17,6 +17,14 @@
  *          more (a note written beside it). A line matched here is that item,
  *          as surely as if its barcode were printed.
  *
+ *   reading  a sentence added to what Claude is told when it reads this
+ *          vendor's bills: what is particular about how they look.
+ *   pack_size_is_certain  true when the pieces in a case are stated on each
+ *          line of this vendor's bills (see reading), so that the figure read
+ *          is used as it is rather than weighed against the GRN's rate. A
+ *          figure that contradicts a pack size printed in the item's name is
+ *          still weighed, and flagged.
+ *
  * Nothing here is a secret. To add a vendor: its id, then the names exactly
  * as its bills print them and the barcodes from the item master.
  */
@@ -32,5 +40,16 @@ return [
             'DTM Milk 500ml' => '8901826601506',         // VERKA MILK YELLOW 500ML
             'Full Cream Milk 500ml' => '8901826601100',  // VERKA MILK GOLD 500ML
         ],
+    ],
+
+    // RANA ENTERPRISES - Catch water and soda, billed by the BOX. Owner,
+    // 30 Sep 2026: "in each box the qty is written in black next to the
+    // boxes. This is true for every bill of this vendor. Ignore the Blue
+    // handwritten number on the left."
+    617 => [
+        'reading' => 'On this vendor\'s bills the number of pieces in one box is written by hand, in black ink, right beside the unit '
+            . '(for example "BOX 24"). Give that handwritten number as the line\'s pack_size. '
+            . 'Ignore the numbers and ticks written by hand in blue at the left edge of the lines: they are not part of the bill.',
+        'pack_size_is_certain' => true,
     ],
 ];
