@@ -70,7 +70,9 @@ class AskTools
                 'Current stock of the items matching item_query, batch by batch (batch number, outlet, balance, MRP, cost), with totals.',
                 ['item_query' => ['type' => 'string'], 'outlet_id' => $outlet]),
             self::tool('vendor_purchases',
-                'Goods received from vendors in a period (GRNs by the date they were entered): number of GRNs, approved and pending, and amount, per vendor. '
+                'Goods received from vendors in a period (GRNs by the date they were entered), per vendor and in total: number of GRNs, approved and pending, '
+                . 'net_amount_approved (the net bill amount of approved GRNs - after discounts, tax included - the figure the DASPOS vendor reports use), '
+                . 'tax_amount_approved, and pending_lines_amount (pending GRNs have no net amount until approved, so their line amounts are added up instead). '
                 . 'vendor_query narrows to vendors whose name contains it; null for all.',
                 ['vendor_query' => self::nullable('string'), 'from_date' => $from, 'to_date' => $to]),
             self::tool('refunds_summary', 'Refunds in a period: count and amount, grouped by nothing, day or outlet.',
@@ -344,13 +346,26 @@ class AskTools
             $params[':v'] = '%' . self::likeEscape(trim($in['vendor_query'])) . '%';
             $where = ' AND v.name LIKE :v';
         }
-        $rows = AiData::rows(
-            'SELECT v.name vendor, COUNT(*) grns, SUM(CASE WHEN pb.status = 1 THEN 1 ELSE 0 END) approved,'
-            . ' SUM(CASE WHEN pb.status <> 1 THEN 1 ELSE 0 END) pending, SUM(COALESCE(pb.total_amount, 0)) amount'
-            . ' FROM tbl_purchase_bill pb LEFT JOIN tbl_vendor v ON v.id = pb.vendor_id'
-            . ' WHERE pb.create_time >= :f AND pb.create_time < :t' . $where
-            . ' GROUP BY v.name ORDER BY amount DESC LIMIT 50', $params, 120);
-        return ['period' => [$from, $to], 'rows' => self::round($rows)];
+        // The GRN approval screen writes bill_amount, tax_amount and
+        // net_bill_amount; total_amount is an older field it never fills, so
+        // summing it gave 0. Vendor::getVendorPurchaseTotalAmount() sums
+        // net_bill_amount, and so does this.
+        $cols = 'COUNT(*) grns, SUM(CASE WHEN pb.status = 1 THEN 1 ELSE 0 END) approved,'
+            . ' SUM(CASE WHEN pb.status <> 1 THEN 1 ELSE 0 END) pending,'
+            . ' SUM(CASE WHEN pb.status = 1 THEN COALESCE(pb.net_bill_amount, 0) ELSE 0 END) net_amount_approved,'
+            . ' SUM(CASE WHEN pb.status = 1 THEN COALESCE(pb.tax_amount, 0) ELSE 0 END) tax_amount_approved,'
+            . ' SUM(CASE WHEN pb.status <> 1 THEN (SELECT COALESCE(SUM(d.amount), 0) FROM tbl_purchase_bill_detail d'
+            . ' WHERE d.purchase_bill_id = pb.id) ELSE 0 END) pending_lines_amount';
+        $from_ = ' FROM tbl_purchase_bill pb LEFT JOIN tbl_vendor v ON v.id = pb.vendor_id'
+            . ' WHERE pb.create_time >= :f AND pb.create_time < :t' . $where;
+        $rows = AiData::rows('SELECT v.name vendor, ' . $cols . $from_
+            . ' GROUP BY v.name ORDER BY net_amount_approved DESC LIMIT 50', $params, 120);
+        $total = AiData::rows('SELECT COUNT(DISTINCT pb.vendor_id) vendors, ' . $cols . $from_, $params, 120);
+        $out = ['period' => [$from, $to], 'total' => self::round($total[0] ?? []), 'rows' => self::round($rows)];
+        if ((int) ($total[0]['vendors'] ?? 0) > 50) {
+            $out['note'] = 'rows lists the 50 largest vendors; total covers all ' . (int) $total[0]['vendors'] . '.';
+        }
+        return $out;
     }
 
     private static function refundsSummary(array $in)

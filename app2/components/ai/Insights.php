@@ -243,7 +243,11 @@ class Insights
     private static function checkPendingGrn()
     {
         $rows = AiData::rows(
-            'SELECT pb.id, pb.bill_no, pb.create_time, pb.total_amount, pb.outlet_id, v.name vendor'
+            // Not yet approved, so usually no net_bill_amount: the GRN's own
+            // lines give its value. (total_amount is never filled by the GRN screens.)
+            'SELECT pb.id, pb.bill_no, pb.create_time, pb.outlet_id, v.name vendor,'
+            . ' COALESCE(NULLIF(pb.net_bill_amount, 0), (SELECT SUM(d.amount) FROM tbl_purchase_bill_detail d'
+            . ' WHERE d.purchase_bill_id = pb.id), 0) amount'
             . ' FROM tbl_purchase_bill pb LEFT JOIN tbl_vendor v ON v.id = pb.vendor_id'
             . ' WHERE pb.status <> 1 AND pb.create_time < :cut AND pb.create_time >= :from'
             . ' ORDER BY pb.create_time ASC LIMIT 200',
@@ -258,7 +262,7 @@ class Insights
                 'outlet' => $outlets[(int) $r['outlet_id']] ?? '',
                 'entered' => substr((string) $r['create_time'], 0, 10),
                 'days' => (int) floor((time() - strtotime($r['create_time'])) / 86400),
-                'amount' => self::money($r['total_amount']),
+                'amount' => self::money($r['amount']),
                 '_link' => Ui::to('purchaseBill/view', ['id' => $r['id']]),
             ];
         }

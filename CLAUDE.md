@@ -546,8 +546,13 @@ the only record of a decision. Condensed, in sequence:
     usage/spend page. Official Anthropic PHP SDK (`composer install` adds 11
     packages), `db_changes/2026-09-30-ai-log.sql`, `ANTHROPIC_API_KEY` in
     `.env`, a monthly budget. Nothing in them writes to the database except
-    their own log. See `docs/ai-features.md`. **Tested against a stand-in API
-    only**; no real Claude call has been made.
+    their own log. See `docs/ai-features.md`. Deployed 30 Sep; the first real
+    questions ran on Opus 5.5 at about ₹3.5 each, then the owner asked for
+    Sonnet 5.5 (half the price per token), now the default.
+  - *"It gave 0 as the total GRN amount"* - the vendor-purchases lookup summed
+    `tbl_purchase_bill.total_amount`, which the GRN screens never fill. It now
+    sums `net_bill_amount` of approved GRNs, as `Vendor::getVendorPurchaseTotalAmount()`
+    does, with pending GRNs valued from their lines; the pending-GRN check too.
   - **A modern look for `/v2`**: `v2/css/modern.css` and `v2/js/modern-ui.js`,
     scoped under `html.ui-modern`, three lines in each layout. Same menu, same
     words, same ids; a half-circle icon in the top bar switches back to the old

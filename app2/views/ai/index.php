@@ -33,13 +33,13 @@ $this->registerCssFile('/v2/css/ai.css?v=20260930');
 			<div class="ai-card-icon"><i class="fa fa-comments-o"></i></div>
 			<h3>Ask DASPOS</h3>
 			<p>Ask in English, Hindi or Punjabi: "Milk sales this week vs last week", "Top 10 items this month", "Stock of Verka paneer".</p>
-			<span class="ai-tag">Uses Claude - about ₹2-5 a question</span>
+			<span class="ai-tag">Uses Claude - about ₹1-3 a question</span>
 		</a>
 		<a class="ai-card" href="<?php echo Url::to(['/ai/bill']); ?>">
 			<div class="ai-card-icon"><i class="fa fa-file-text-o"></i></div>
 			<h3>Read a vendor bill</h3>
 			<p>Upload a photo or PDF of a supplier's bill. Each line is matched to the item master and checked for MRP, GST, rate and expiry before the GRN is entered.</p>
-			<span class="ai-tag">Uses Claude - about ₹5-15 a bill</span>
+			<span class="ai-tag">Uses Claude - about ₹3-8 a bill</span>
 		</a>
 		<a class="ai-card" href="<?php echo Url::to(['/ai/usage']); ?>">
 			<div class="ai-card-icon"><i class="fa fa-pie-chart"></i></div>

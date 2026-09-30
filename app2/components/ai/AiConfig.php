@@ -9,7 +9,7 @@ use Yii;
  *   ANTHROPIC_API_KEY          the key. Without it the Claude features say so
  *                              and do nothing; the rule-based insights still
  *                              work, because they need no key and cost nothing.
- *   POS_AI_MODEL               default claude-opus-5-5
+ *   POS_AI_MODEL               default claude-sonnet-5-5 (claude-opus-5-5 costs twice as much)
  *   POS_AI_MONTHLY_BUDGET_USD  hard stop for the calendar month, default 50
  *   POS_AI_ROLES               role ids allowed in, comma separated, default 1
  *                              (admin). Store staff see nothing new.
@@ -20,7 +20,13 @@ use Yii;
  */
 class AiConfig
 {
-    public const DEFAULT_MODEL = 'claude-opus-5-5';
+    /**
+     * Sonnet 5.5, on the owner's instruction of 30 Sep 2026: half Opus 5.5's
+     * price per token ($2/$10 per million against $4/$20) and ample for
+     * lookups, summaries and reading bills. POS_AI_MODEL=claude-opus-5-5 in
+     * .env switches back without a code change.
+     */
+    public const DEFAULT_MODEL = 'claude-sonnet-5-5';
 
     /**
      * USD per million tokens: input, output, cache read, cache write (5 min).
