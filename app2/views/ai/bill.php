@@ -9,6 +9,7 @@
  * @var string|null $error
  * @var string|null $reason
  */
+use app\components\ai\AiConfig;
 use yii\helpers\Html;
 use yii\helpers\Url;
 
@@ -68,7 +69,15 @@ $qty = function ($v) { return $v === null || $v === '' ? '' : rtrim(rtrim(number
 				<div><span>Bill no. / date</span><?php echo Html::encode(trim($bill['bill_no'] . ' / ' . $bill['bill_date'], ' /')); ?></div>
 				<div><span>Bill total / GST</span>&#8377;<?php echo $money($bill['bill_total']); ?> / &#8377;<?php echo $money($bill['tax_total']); ?></div>
 				<div><span>Lines matched</span><?php echo (int) $result['matched']; ?> of <?php echo count($result['lines']); ?></div>
+				<div><span>Read by</span><?php echo Html::encode(AiConfig::label($result['model'] ?? '')); ?></div>
 			</div>
+			<?php if (!empty($result['retry'])) { $r = $result['retry']; ?>
+			<div class="ai-note"><i class="fa fa-refresh"></i>
+				<?php echo Html::encode(AiConfig::label($r['first'])); ?> could not read this bill cleanly (<?php echo Html::encode(rtrim($r['why'], '.')); ?>),
+				so it was read again by <?php echo Html::encode(AiConfig::label($r['second'])); ?>.
+				<?php if ($r['failed']) { ?>That second reading failed too (<?php echo Html::encode(rtrim($r['failed'], '.')); ?>); the first reading is shown.<?php } ?>
+			</div>
+			<?php } ?>
 			<?php foreach ($result['flags'] as $f) { ?><div class="ai-warn"><?php echo Html::encode($f); ?></div><?php } ?>
 			<p>
 				<a class="btn btn-default btn-sm" href="<?php echo Url::to(['/ai/bill-csv']); ?>"><i class="fa fa-download"></i> Download as CSV</a>

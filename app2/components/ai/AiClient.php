@@ -34,7 +34,7 @@ class AiClient
      * billed) the work although no answer arrived; the tokens are unknown, so
      * a typical call's cost is counted against the budget rather than none.
      */
-    private const TIMEOUT_ESTIMATE_USD = ['ask' => 0.05, 'bill' => 0.15, 'summary' => 0.03];
+    private const TIMEOUT_ESTIMATE_USD = ['ask' => 0.05, 'bill' => 0.15, 'bill-retry' => 0.25, 'summary' => 0.03];
 
     /**
      * @param array $params named arguments for beta->messages->create():
@@ -48,19 +48,20 @@ class AiClient
     {
         $reason = AiConfig::unavailableReason();
         if ($reason !== null) {
-            throw new AiException($reason);
+            throw new AiException($reason, AiException::BLOCKED);
         }
         $budget = AiConfig::monthlyBudget();
         $spent = AiLog::spentThisMonth();
         if ($spent >= $budget) {
-            AiLog::write($feature, AiConfig::model(), self::noUsage(), 'budget', AiPrivacy::mask($summary), 0.0);
+            AiLog::write($feature, $params['model'] ?? AiConfig::model(), self::noUsage(), 'budget', AiPrivacy::mask($summary), 0.0);
             throw new AiException(sprintf(
                 'This month\'s AI budget of $%.2f has been used ($%.2f spent). The AI features pause until next month or until POS_AI_MONTHLY_BUDGET_USD is raised; everything else keeps working.',
-                $budget, $spent));
+                $budget, $spent), AiException::BLOCKED);
         }
 
-        $model = AiConfig::model();
-        $params += ['model' => $model];
+        // A caller may name the model (the bill reader's retry does); else the configured one.
+        $model = $params['model'] ?? AiConfig::model();
+        $params['model'] = $model;
         if (AiConfig::supportsFallback($model)) {
             // Server-side refusal fallback: if the model declines on policy
             // grounds, the API retries on its default fallback model.
@@ -89,25 +90,25 @@ class AiClient
             /** @var BetaMessage $message */
             $message = $client->beta->messages->create(...$params);
         } catch (AuthenticationException | PermissionDeniedException $e) {
-            self::fail($feature, $summary, $e);
-            throw new AiException('The Anthropic API key was refused. Check ANTHROPIC_API_KEY in .env.');
+            self::fail($feature, $summary, $e, 'error', 0.0, $model);
+            throw new AiException('The Anthropic API key was refused. Check ANTHROPIC_API_KEY in .env.', AiException::BLOCKED);
         } catch (RateLimitException $e) {
-            self::fail($feature, $summary, $e);
+            self::fail($feature, $summary, $e, 'error', 0.0, $model);
             throw new AiException('Claude is receiving too many requests right now. Try again in a minute.');
         } catch (APIStatusException $e) {
-            self::fail($feature, $summary, $e);
+            self::fail($feature, $summary, $e, 'error', 0.0, $model);
             if ((int) $e->status >= 500) {
                 throw new AiException('Claude is busy or unavailable right now (' . (int) $e->status . '). Try again in a minute.');
             }
             throw new AiException('Claude could not process this request (' . (int) $e->status . '). It has been logged.');
         } catch (APITimeoutException $e) {
-            self::fail($feature, $summary, $e, 'timeout', self::TIMEOUT_ESTIMATE_USD[$feature] ?? 0.05);
+            self::fail($feature, $summary, $e, 'timeout', self::TIMEOUT_ESTIMATE_USD[$feature] ?? 0.05, $model);
             throw new AiException('Claude took too long to answer. Try again, or ask a narrower question.');
         } catch (APIConnectionException $e) {
-            self::fail($feature, $summary, $e);
+            self::fail($feature, $summary, $e, 'error', 0.0, $model);
             throw new AiException('Could not reach Claude from the server. Check the server\'s internet connection.');
         } catch (AnthropicException $e) {
-            self::fail($feature, $summary, $e);
+            self::fail($feature, $summary, $e, 'error', 0.0, $model);
             throw new AiException('The answer from Claude could not be read. It has been logged; try again in a minute.');
         }
 
@@ -177,9 +178,9 @@ class AiClient
         return ['input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0];
     }
 
-    private static function fail($feature, $summary, \Throwable $e, $status = 'error', $cost = 0.0)
+    private static function fail($feature, $summary, \Throwable $e, $status = 'error', $cost = 0.0, $model = null)
     {
         Yii::warning('Claude call failed (' . $feature . '): ' . get_class($e) . ' ' . $e->getMessage(), __METHOD__);
-        AiLog::write($feature, AiConfig::model(), self::noUsage(), $status, AiPrivacy::mask($summary), $cost);
+        AiLog::write($feature, $model ?: AiConfig::model(), self::noUsage(), $status, AiPrivacy::mask($summary), $cost);
     }
 }

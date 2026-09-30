@@ -548,7 +548,10 @@ the only record of a decision. Condensed, in sequence:
     `.env`, a monthly budget. Nothing in them writes to the database except
     their own log. See `docs/ai-features.md`. Deployed 30 Sep; the first real
     questions ran on Opus 5.5 at about ₹3.5 each, then the owner asked for
-    Sonnet 5.5 (half the price per token), now the default.
+    Sonnet 5.5 (half the price per token), now the default. *"For reading the
+    GRN bill if Sonnet 5.5 fails then fall back to Opus 5.5"* - a bill whose
+    Sonnet reading errors, has no lines or does not add up to its total is
+    read once more by Opus 5.5 (`POS_AI_BILL_FALLBACK_MODEL`).
   - *"It gave 0 as the total GRN amount"* - the vendor-purchases lookup summed
     `tbl_purchase_bill.total_amount`, which the GRN screens never fill. It now
     sums `net_bill_amount` of approved GRNs, as `Vendor::getVendorPurchaseTotalAmount()`

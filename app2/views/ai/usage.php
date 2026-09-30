@@ -14,7 +14,7 @@ use yii\helpers\Url;
 
 $this->registerCssFile('/v2/css/ai.css?v=20260930');
 $usd = function ($v) { return '$' . number_format((float) $v, 4); };
-$names = ['ask' => 'Ask DASPOS', 'bill' => 'Vendor bills', 'summary' => 'Insights summary'];
+$names = ['ask' => 'Ask DASPOS', 'bill' => 'Vendor bills', 'bill-retry' => 'Vendor bills, read again', 'summary' => 'Insights summary'];
 ?>
 <div class="ai-page">
 	<div class="ai-head">
@@ -22,7 +22,7 @@ $names = ['ask' => 'Ask DASPOS', 'bill' => 'Vendor bills', 'summary' => 'Insight
 			<h1><i class="fa fa-pie-chart"></i> AI usage and spend</h1>
 			<p class="ai-sub">
 				This month: <strong>$<?php echo number_format($spent, 2); ?></strong> of the $<?php echo number_format($budget, 2); ?> limit
-				(set by POS_AI_MONTHLY_BUDGET_USD). Model: <?php echo Html::encode($model); ?>. At the limit the AI features pause until the 1st; the rest of DASPOS is unaffected.
+				(set by POS_AI_MONTHLY_BUDGET_USD). Model: <?php echo Html::encode($model); ?><?php if (\app\components\ai\AiConfig::billFallbackModel()) { ?>; a bill it cannot read cleanly is read again by <?php echo Html::encode(\app\components\ai\AiConfig::billFallbackModel()); ?><?php } ?>. At the limit the AI features pause until the 1st; the rest of DASPOS is unaffected.
 			</p>
 		</div>
 		<div><a class="btn btn-default btn-sm" href="<?php echo Url::to(['/ai/index']); ?>">AI Assistant</a></div>

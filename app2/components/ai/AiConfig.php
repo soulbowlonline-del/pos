@@ -11,6 +11,9 @@ use Yii;
  *                              work, because they need no key and cost nothing.
  *   POS_AI_MODEL               default claude-sonnet-5-5 (claude-opus-5-5 costs twice as much)
  *   POS_AI_MONTHLY_BUDGET_USD  hard stop for the calendar month, default 50
+ *   POS_AI_BILL_FALLBACK_MODEL the model a vendor bill is read again with when
+ *                              the first reading fails, default claude-opus-5-5;
+ *                              empty or "none" turns the second reading off
  *   POS_AI_ROLES               role ids allowed in, comma separated, default 1
  *                              (admin). Store staff see nothing new.
  *
@@ -71,6 +74,31 @@ class AiConfig
     {
         $m = getenv('POS_AI_MODEL');
         return ($m === false || trim($m) === '') ? self::DEFAULT_MODEL : trim($m);
+    }
+
+    /**
+     * The model a vendor bill is read again with when the first model's
+     * reading fails, or null for no second reading. Opus 5.5 by default, on
+     * the owner's instruction of 30 Sep 2026: Sonnet 5.5 reads first, at half
+     * the price, and Opus only when Sonnet could not manage.
+     */
+    public static function billFallbackModel()
+    {
+        $m = getenv('POS_AI_BILL_FALLBACK_MODEL');
+        $m = $m === false ? 'claude-opus-5-5' : trim($m);
+        if ($m === '' || strtolower($m) === 'none' || $m === self::model()) {
+            return null;
+        }
+        return $m;
+    }
+
+    /** A model id as people know it: claude-sonnet-5-5 -> Claude Sonnet 5.5. */
+    public static function label($model)
+    {
+        if (preg_match('/^claude-([a-z]+)-(\d+)(?:-(\d))?(?:-\d{8})?$/', (string) $model, $m)) {
+            return 'Claude ' . ucfirst($m[1]) . ' ' . $m[2] . (isset($m[3]) ? '.' . $m[3] : '');
+        }
+        return (string) $model;
     }
 
     public static function monthlyBudget()

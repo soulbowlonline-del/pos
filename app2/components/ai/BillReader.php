@@ -76,7 +76,16 @@ TXT;
     }
 
     /**
-     * @return array ['bill' => extracted header, 'lines' => [...], 'flags' => [...], 'vendor' => matched vendor or null]
+     * Reads the bill with the configured model (Sonnet 5.5 by default). If
+     * that call fails, or its reading is unusable - no lines, or lines that do
+     * not add up to the bill total - the bill is read once more with
+     * AiConfig::billFallbackModel() (Opus 5.5 by default), on the owner's
+     * instruction of 30 Sep 2026. A call that could not be made at all (no
+     * key, budget reached, key refused) is not retried: another model would
+     * meet the same wall.
+     *
+     * @return array review() plus 'model' (which one's reading is shown) and
+     *               'retry' (null, or why the second model was asked)
      */
     public static function read($mime, $bytes, $fileName, $vendorId = null)
     {
@@ -85,11 +94,59 @@ TXT;
             ? ['type' => 'document', 'source' => $source]
             : ['type' => 'image', 'source' => $source];
 
+        $primary = AiConfig::model();
+        $fallback = AiConfig::billFallbackModel();
+        $bill = null;
+        $problem = null;
+        try {
+            // With a second model standing by, it is the retry; no transport retry first.
+            $bill = self::extract($block, $fileName, $primary, $fallback ? 0 : 1, 'bill');
+            $problem = self::readingProblem($bill);
+        } catch (AiException $e) {
+            if ($e->isBlocked() || !$fallback) {
+                throw $e;
+            }
+            $problem = $e->getMessage();
+        }
+
+        $model = $primary;
+        $retry = null;
+        if ($problem !== null && $fallback) {
+            $retry = ['first' => $primary, 'why' => $problem, 'second' => $fallback, 'failed' => null];
+            try {
+                $second = self::extract($block, $fileName, $fallback, 1, 'bill-retry');
+                // The second reading is shown unless it came back no better
+                // than a first reading that at least has lines.
+                if ($bill === null || self::readingProblem($second) === null || count($second['lines']) >= count($bill['lines'])) {
+                    $bill = $second;
+                    $model = $fallback;
+                }
+            } catch (AiException $e) {
+                if ($bill === null) {
+                    throw $e;
+                }
+                $retry['failed'] = $e->getMessage();
+            }
+        }
+        if ($problem !== null && $bill !== null && !$bill['lines']) {
+            throw new AiException('No lines could be read from this bill. Try a sharper photo, taken straight on and in good light.');
+        }
+
+        $result = self::review($bill, $vendorId);
+        $result['model'] = $model;
+        $result['retry'] = $retry;
+        return $result;
+    }
+
+    /** One reading of the bill by one model, parsed; AiException if it cannot be used at all. */
+    private static function extract(array $block, $fileName, $model, $retries, $feature)
+    {
         $message = AiClient::create([
+            'model' => $model,
             'maxTokens' => 16000,
             'outputConfig' => ['effort' => 'medium', 'format' => ['type' => 'json_schema', 'schema' => self::schema()]],
             'messages' => [['role' => 'user', 'content' => [$block, ['type' => 'text', 'text' => self::PROMPT]]]],
-        ], 'bill', 'bill: ' . $fileName);
+        ], $feature, 'bill: ' . $fileName, 110, $retries);
 
         if ($message->stopReason === 'refusal') {
             throw new AiException('Claude declined to read this file.');
@@ -101,7 +158,41 @@ TXT;
         if (!is_array($bill) || !isset($bill['lines']) || !is_array($bill['lines'])) {
             throw new AiException('The bill could not be read. Try a sharper photo, taken straight on and in good light.');
         }
-        return self::review($bill, $vendorId);
+        return $bill;
+    }
+
+    /** Why a reading cannot be trusted as it stands, or null. */
+    private static function readingProblem(array $bill)
+    {
+        if (!$bill['lines']) {
+            return 'no item lines were read';
+        }
+        if (self::totalsGap($bill) !== null) {
+            return 'the lines read do not add up to the bill total';
+        }
+        return null;
+    }
+
+    /**
+     * [sum of line amounts, tax, bill total] when they disagree by more than
+     * ₹1 or 1%, else null. Line amounts are taxable values on some bills and
+     * tax-inclusive totals on others; either is accepted.
+     */
+    private static function totalsGap(array $bill)
+    {
+        $sum = 0.0;
+        foreach ($bill['lines'] as $line) {
+            $sum += (float) ($line['amount'] ?? 0);
+        }
+        $total = (float) ($bill['bill_total'] ?? 0);
+        $tax = (float) ($bill['tax_total'] ?? 0);
+        if ($total > 0 && $sum > 0) {
+            $gap = min(abs($sum - $total), abs($sum + $tax - $total));
+            if ($gap > max(1.0, 0.01 * $total)) {
+                return [$sum, $tax, $total];
+            }
+        }
+        return null;
     }
 
     /** Matching and checks. Public so it can be tested without an API call. */
@@ -114,7 +205,6 @@ TXT;
             $vendor = null;
         }
         $lines = [];
-        $sum = 0.0;
         foreach ($bill['lines'] as $i => $line) {
             // The reading is already paid for: a lookup that fails for one
             // line must not throw the whole bill away.
@@ -128,18 +218,12 @@ TXT;
             }
             $lines[] = ['n' => $i + 1, 'line' => $line, 'match' => $match['item'], 'how' => $match['how'],
                         'alternatives' => $match['alternatives'], 'flags' => $flags];
-            $sum += (float) ($line['amount'] ?? 0);
         }
         $flags = [];
-        $total = (float) ($bill['bill_total'] ?? 0);
-        $tax = (float) ($bill['tax_total'] ?? 0);
-        if ($total > 0 && $sum > 0) {
-            // Line amounts are either taxable values or tax-inclusive totals; accept either.
-            $gap = min(abs($sum - $total), abs($sum + $tax - $total));
-            if ($gap > max(1.0, 0.01 * $total)) {
-                $flags[] = sprintf('The lines add up to %s (%s with tax) but the bill total is %s. A line may have been missed or misread - check against the paper bill.',
-                    Insights::money($sum), Insights::money($sum + $tax), Insights::money($total));
-            }
+        if (($gap = self::totalsGap($bill)) !== null) {
+            list($sum, $tax, $total) = $gap;
+            $flags[] = sprintf('The lines add up to %s (%s with tax) but the bill total is %s. A line may have been missed or misread - check against the paper bill.',
+                Insights::money($sum), Insights::money($sum + $tax), Insights::money($total));
         }
         if (!$vendor) {
             $flags[] = 'The vendor on the bill was not found in DASPOS' . (!empty($bill['vendor_gstin']) ? ' by GSTIN ' . $bill['vendor_gstin'] : '') . '.';
