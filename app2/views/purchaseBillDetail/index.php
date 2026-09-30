@@ -161,6 +161,10 @@ if ($user->role_id != 6) {
 									<label class="control-label col-md-3" for="">Purchase Bill No</label>
 									<div id="po_detail_data" class="col-md-9"></div>
 								</div>
+								<div class="form-group">
+									<label class="control-label col-md-3" for="">All Vendor Product</label>
+									<div id="po_detail_data_check" class="col-md-9"><input type="checkbox"  id="all_vendor" name="all_vendor_data" value="1" onclick="myUpdateFunc()" <?php echo ($all_vendor_data)? "checked": ""; ?> ></div>
+								</div>
 							</div>
 
 

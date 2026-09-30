@@ -1015,6 +1015,16 @@ class PurchaseBillDetailController extends BaseUiController {
 		if($vid == null){
 			$vid = $vendor_id;
 		}
+
+		$all_vendor_data = false;
+
+		if (isset ( $_POST ['all_vendor_data'] ) && $_POST ['all_vendor_data'] == 1 ){
+			$all_vendor_data = true;
+		}
+
+		if (isset ( $_GET ['all_vendor_data'] ) && $_GET ['all_vendor_data'] == 1 ){
+			$all_vendor_data = true;
+		}
 		
 		return $this->render( 'index', [
 				'model' => $model,
@@ -1022,7 +1032,8 @@ class PurchaseBillDetailController extends BaseUiController {
 				'poid' => $poid,
 				'outlet_id' => $outlet_id,
 				'vendor_id' => $vendor_id,'vid'=>$vid,
-				'start_date' => $start_date 
+				'start_date' => $start_date,
+				'all_vendor_data'=>$all_vendor_data
 		] );
 	}
 	public function actionAdmin($id = null, $poid = null) {
