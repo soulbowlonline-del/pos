@@ -617,6 +617,15 @@ the only record of a decision. Condensed, in sequence:
   that fills are not a GRN that is right - test with a real bill against a
   real GRN.
 
+- *"This is the bill for Amarjit Singh, please note that crat means crate and
+  one crate has 24pcs ... SM Milk 500 ML means Verka Milk Green, DTM Milk
+  500ML means Verka Milk Yellow and Full Cream Milk 500ML means Verka Milk
+  Gold. Please map this as this is true everytime the bill comes"* (30 Sep)
+  - `app2/config/ai-bill-names.php`, keyed by vendor id (310): the vendor's
+  unit and the vendor's names with the items' barcodes. The owner will give
+  more of these; each is an entry in that file, a test in the style of the
+  AMARJIT SINGH one, and a deploy.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored

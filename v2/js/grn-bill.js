@@ -321,7 +321,7 @@
 			billHead + '<th>Typed into the grid</th><th>Line of this GRN</th><th>Checks</th>',
 			$.map(plan.fills, function (f) {
 				return '<tr class="ai-grn-goto" data-id="' + f.detail_id + '">' + billCells(f)
-					+ '<td class="ai-nowrap">' + qty(f.fill_qty) + ' at ' + money(f.fill_rate)
+					+ '<td class="ai-nowrap">' + (f.fill_qty === null && f.fill_rate === null ? '<em>not filled in</em>' : qty(f.fill_qty) + ' at ' + money(f.fill_rate))
 					+ (f.basis ? '<div class="ai-alt ai-grn-basis">' + esc(f.basis) + '</div>' : '') + '</td>'
 					+ '<td>' + esc(f.item) + '<div class="ai-alt">' + esc(f.barcode) + ' &middot; by ' + esc(f.how) + '</div></td>'
 					+ '<td>' + ($.inArray(f, stats.absent) === -1 ? '' : '<span class="ai-flag danger">This line is not in the grid any more - reload the page and fill again</span> ')

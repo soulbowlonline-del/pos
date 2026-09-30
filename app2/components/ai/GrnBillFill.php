@@ -78,6 +78,8 @@ class GrnBillFill
                 . AiConfig::label($r['second']) . '.' . ($r['failed'] ? ' That second reading failed too; the first reading is used.' : '');
         }
         $inclusive = self::amountsIncludeTax($bill);
+        $names = self::vendorNames($grn['vendor_id'] ?? 0);
+        $lines = self::withVendorNames($result['lines'], $names, self::itemsByBarcode(array_values($names['items'])));
         return [
             'file' => (string) ($result['file'] ?? ''),
             'model' => AiConfig::label($result['model'] ?? ''),
@@ -94,7 +96,85 @@ class GrnBillFill
             ],
             'flags' => $flags,
             'line_count' => count($result['lines']),
-        ] + self::assign($result['lines'], $rows, $inclusive);
+        ] + self::assign($lines, $rows, $inclusive);
+    }
+
+    /** What this vendor calls things: app2/config/ai-bill-names.php. */
+    public static function vendorNames($vendorId)
+    {
+        static $all = null;
+        if ($all === null) {
+            $file = dirname(__DIR__, 2) . '/config/ai-bill-names.php';
+            $all = is_file($file) ? (array) require $file : [];
+        }
+        return ($all[(int) $vendorId] ?? []) + ['units' => [], 'items' => []];
+    }
+
+    /** barcode => the item as BillReader describes one. */
+    public static function itemsByBarcode(array $barcodes)
+    {
+        $out = [];
+        $barcodes = array_values(array_unique(array_map('strval', $barcodes)));
+        if (!$barcodes) {
+            return $out;
+        }
+        $params = [];
+        foreach ($barcodes as $k => $b) {
+            $params[':b' . $k] = $b;
+        }
+        foreach (AiData::rows(
+            'SELECT d.id, d.bar_code, d.item_id, COALESCE(NULLIF(d.mrp, 0), i.mrp) mrp, i.hsn_code, i.title, i.purchase_price, i.purchase_price last_price,'
+            . ' COALESCE(NULLIF(t.tax_val1 + t.tax_val2, 0), t.tax_val4, 0) gst'
+            . ' FROM tbl_item_detail d JOIN tbl_item i ON i.id = d.item_id LEFT JOIN tbl_tax t ON t.id = d.tax_id'
+            . ' WHERE d.bar_code IN (' . implode(',', array_keys($params)) . ') ORDER BY d.status DESC, d.id', $params) as $r) {
+            $out[(string) $r['bar_code']] = $r;   // an active row, the newest, is the one kept
+        }
+        return $out;
+    }
+
+    /**
+     * The bill's lines with the vendor's own words put into DASPOS's: a unit
+     * the vendor counts in becomes the line's pack size, and the vendor's
+     * name for an item becomes that item, found as surely as by a barcode.
+     * No database, so it can be tested on its own.
+     *
+     * @param array $lines BillReader::review()'s lines
+     * @param array $names self::vendorNames()
+     * @param array $items self::itemsByBarcode() of the names' barcodes
+     */
+    public static function withVendorNames(array $lines, array $names, array $items)
+    {
+        $units = [];
+        foreach ($names['units'] as $unit => $pieces) {
+            $units[preg_replace('/[^a-z]/', '', strtolower($unit))] = (float) $pieces;
+        }
+        $called = [];
+        foreach ($names['items'] as $name => $barcode) {
+            if (isset($items[(string) $barcode])) {
+                $called[BillReader::normalise($name)] = $items[(string) $barcode];
+            }
+        }
+        // The longest name first: "Full Cream Milk 500ml" before a plain "Milk 500ml".
+        uksort($called, function ($a, $b) { return strlen($b) <=> strlen($a); });
+        foreach ($lines as &$l) {
+            $unit = preg_replace('/[^a-z]/', '', strtolower((string) ($l['line']['unit'] ?? '')));
+            if ($unit !== '' && isset($units[$unit]) && $units[$unit] > 1) {
+                $l['line']['pack_size'] = $units[$unit];
+                $l['line']['pack_fixed'] = true;
+            }
+            $said = ' ' . BillReader::normalise((string) ($l['line']['description'] ?? '')) . ' ';
+            foreach ($called as $name => $item) {
+                if ($name !== '' && strpos($said, ' ' . $name . ' ') !== false) {
+                    $l['match'] = $item;
+                    $l['how'] = "this vendor's name for it";
+                    $l['alternatives'] = [];
+                    $l['flags'] = array_values(array_filter($l['flags'], function ($f) { return strpos($f[1], 'Expire') === 0; }));
+                    break;
+                }
+            }
+        }
+        unset($l);
+        return $lines;
     }
 
     /**
@@ -334,8 +414,9 @@ class GrnBillFill
      * rates and amounts with the GST in them. Typed in as printed, 4 at 370
      * would replace 96 at 14.68 (the first real bill, 30 Sep 2026). So the
      * line is read each way it could be meant - per piece or per case of the
-     * pack size the bill gives (or that the quantity received on the app
-     * implies), with or without GST when the bill's totals do not settle it -
+     * pack size the bill gives (or that the quantity received on the app, or
+     * a price a whole number of times the grid's, implies), with or without
+     * GST when the bill's totals do not settle it -
      * and the reading kept is the one whose piece rate is nearest the grid
      * line's, among those that do not put the cost above the MRP. The rate
      * comes from the line's amount, which carries any scheme or discount in
@@ -358,19 +439,39 @@ class GrnBillFill
         $rowMrp = (float) ($row['mrp'] ?? 0);
         $received = (float) ($row['approved_qty'] ?? 0);
 
-        $packs = [1.0];
+        // The pack sizes the line could be counted in: pieces => whether the
+        // only reason to think so is the quantity received on the app.
+        $packs = ['1' => false];
         if ((float) ($x['pack_size'] ?? 0) > 1) {
-            $packs[] = (float) $x['pack_size'];
+            $packs[(string) (float) $x['pack_size']] = false;
         }
         // "(24*500ML)", "24 X 500ML", and "(18*" where the print ran out of room
         if (preg_match('/(\d{1,3})\s*(?:[*×]|[xX]\s*\d)/u', (string) ($x['description'] ?? ''), $m) && (int) $m[1] > 1) {
-            $packs[] = (float) $m[1];
+            $packs[(string) (float) $m[1]] = false;
+        }
+        // A price that is a whole number of times the grid line's is a case
+        // of that many: 762.00 a crate against 31.75 a piece is 24.
+        $each = ($amount !== null && $qty > 0) ? $amount / $qty : $rate;
+        if ($each !== null && $rowPrice > 0) {
+            foreach ([$each, $each / (1 + $gst / 100)] as $price) {
+                $times = $price / $rowPrice;
+                // Whole to within what rounding both prices to the paisa can
+                // do, and no more: any large enough number is near a whole one.
+                if ($times >= 1.5 && abs($times - round($times)) <= 0.005 + (0.01 + 0.001 * $times) / $rowPrice) {
+                    $packs[(string) (float) round($times)] = false;
+                }
+            }
         }
         if ($qty > 0 && $received > 0 && $received / $qty >= 2 && abs($received / $qty - round($received / $qty)) < 1e-6) {
-            $packs[] = round($received / $qty);
+            $packs += [(string) (float) round($received / $qty) => true];
+        }
+        if (!empty($x['pack_fixed'])) {
+            // The vendor's own unit, as the owner gave it: not up for choosing.
+            $packs = [(string) (float) $x['pack_size'] => false];
         }
         $best = null;
-        foreach (array_unique($packs) as $pack) {
+        foreach ($packs as $pack => $fromReceived) {
+            $pack = (float) $pack;
             foreach ($inclusive === null ? [false, true] : [(bool) $inclusive] as $withTax) {
                 $pieces = $qty === null ? null : $qty * $pack;
                 $unit = null;
@@ -383,6 +484,12 @@ class GrnBillFill
                     $unit = ($withTax ? $rate / (1 + $gst / 100) : $rate) / $pack;
                 }
                 $off = ($unit !== null && $rowPrice > 0) ? abs($unit - $rowPrice) / $rowPrice : null;
+                if ($fromReceived && ($off === null || $off > 0.10)) {
+                    // Dividing what was received by what was billed always
+                    // gives some number; it is a pack size only if the rate
+                    // then agrees.
+                    continue;
+                }
                 $aboveMrp = $unit !== null && $rowMrp > 0 && $unit * (1 + $gst / 100) > 1.1 * $rowMrp;
                 $sameQty = $pieces !== null && $received > 0 && abs($pieces - $received) < 0.0005;
                 // Least is best: not above the MRP; nearest the grid's rate;
@@ -390,7 +497,7 @@ class GrnBillFill
                 $rank = ($aboveMrp ? 10 : 0) + ($off === null ? 1.0 : min($off, 1.0)) - ($sameQty ? 0.05 : 0) + ($pack > 1 ? 0.002 : 0) + ($withTax ? 0.001 : 0);
                 if ($best === null || $rank < $best['rank']) {
                     $best = ['rank' => $rank, 'pack' => $pack, 'with_tax' => $withTax, 'pieces' => $pieces, 'unit' => $unit, 'off' => $off,
-                             'above_mrp' => $aboveMrp, 'same_qty' => $sameQty];
+                             'above_mrp' => $aboveMrp, 'same_qty' => $sameQty, 'qty_agrees' => $sameQty && !$fromReceived];
                 }
             }
         }
@@ -420,6 +527,11 @@ class GrnBillFill
     /** What grn-bill.js types in. */
     private static function fillValues(array $rd)
     {
+        if ($rd['above_mrp']) {
+            // A cost above the MRP means the line's unit was not understood
+            // (a case taken for a piece). Nothing of it is typed in.
+            return ['fill_qty' => null, 'fill_rate' => null, 'fill_mrp' => null, 'fill_discount' => null, 'fill_free_qty' => null, 'basis' => ''];
+        }
         return [
             'fill_qty' => $rd['pieces'] === null ? null : round($rd['pieces'], 3),
             'fill_rate' => $rd['unit'] === null ? null : round($rd['unit'], 2),
@@ -435,11 +547,14 @@ class GrnBillFill
     {
         $flags = [];
         if ($rd['above_mrp']) {
-            $flags[] = ['danger', 'Works out to ' . Insights::money($rd['unit'] * (1 + $rd['gst'] / 100)) . ' a piece with GST, above the MRP of '
-                . Insights::money($row['mrp']) . ' - check whether the bill counts cases or pieces'];
+            $flags[] = ['danger', 'Not filled in: as printed it is ' . Insights::money($rd['unit'] * (1 + $rd['gst'] / 100)) . ' a piece with GST, above the MRP of '
+                . Insights::money($row['mrp']) . '. The bill probably counts cases; enter this line by hand'];
         } elseif ($rd['unit'] !== null && (float) $row['price'] > 0 && $rd['unit'] > 1.02 * (float) $row['price']) {
             $flags[] = ['warning', sprintf('Rate %s is %.1f%% above this line\'s rate (%s)', Insights::money($rd['unit']),
                 100 * ($rd['unit'] / (float) $row['price'] - 1), Insights::money($row['price']))];
+        }
+        if ($rd['above_mrp']) {
+            return $flags;
         }
         if ($rd['pieces'] !== null && (float) $row['approved_qty'] > 0 && !$rd['same_qty']) {
             $flags[] = ['warning', 'The bill has ' . self::trim($rd['pieces']) . '; ' . self::trim($row['approved_qty']) . ' was received on this line'];
@@ -489,7 +604,7 @@ class GrnBillFill
                 $litres = in_array($m[2], ['l', 'lt', 'ltr', 'litre'], true);
                 $kilos = in_array($m[2], ['kg', 'kgs'], true);
                 $out[($litres || $kilos ? $n * 1000 : $n) . ($litres || in_array($m[2], ['ml', 'm'], true) ? 'ml' : 'g')] = true;
-            } elseif (mb_strlen($w) >= 3 && !ctype_digit($w) && !in_array($w, ['pcs', 'pkt', 'nos', 'mrp', 'the', 'and'], true)) {
+            } elseif (mb_strlen($w) >= 2 && !ctype_digit($w) && !in_array($w, ['pcs', 'pkt', 'nos', 'mrp', 'the', 'and', 'pc', 'rs', 'no', 'of', 'ml', 'gm', 'kg', 'lt'], true)) {
                 $out[$w] = false;
             }
         }
@@ -598,7 +713,7 @@ class GrnBillFill
         $rd = self::reading($x, $row, $ctx['inclusive']);
         $sameRate = $rd['off'] !== null && $rd['off'] <= 0.02 && !$rd['above_mrp'];
         $nearRate = !$sameRate && $rd['off'] !== null && $rd['off'] <= 0.10 && !$rd['above_mrp'];
-        $sameQty = $rd['same_qty'];
+        $sameQty = $rd['qty_agrees'];   // not when the pack size was itself worked out from that quantity
         $mrp = isset($x['mrp']) && (float) $x['mrp'] > 0 && (float) $row['mrp'] > 0 && abs((float) $x['mrp'] - (float) $row['mrp']) <= 0.5;
         $parts = [];
         if ($alike >= 50) {
@@ -622,7 +737,9 @@ class GrnBillFill
             'score' => 1.5 * max(0.0, ($alike - 40) / 60) + ($mrp ? 0.8 : 0.0) + ($sameRate ? 1.0 : ($nearRate ? 0.5 : 0.0)) + ($sameQty ? 0.5 : 0.0),
             'how' => implode(', ', $parts),
             'flag' => $flag,
-            'enough' => $alike >= self::NAME_MATCH || ($alike >= 50 && $numbers) || ($sameRate && $sameQty),
+            // Numbers alone are not enough out of order: among twenty free
+            // lines some rate or quantity will agree by chance.
+            'enough' => $alike >= self::NAME_MATCH || ($alike >= 50 && $numbers),
             'evidence' => $alike >= self::NAME_MATCH || $numbers,
         ];
     }
