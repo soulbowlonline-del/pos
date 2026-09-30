@@ -5,8 +5,10 @@
  * /v2/ai/bill-grn, which reads it with Claude and answers with which bill
  * line belongs to which line of the grid (GrnBillFill.php). This script then
  * does what a storekeeper does with the paper bill: it types the received
- * qty, MRP, rate and discount % into the grid's own inputs and fires their
- * change events. Every amount, tax and total is worked out by the screen's
+ * qty, MRP, rate and discount % - in the GRN's units, pieces at a rate before
+ * GST, which GrnBillFill works out when the bill counts cases or prints its
+ * prices with the tax in - into the grid's own inputs and fires their change
+ * events. Every amount, tax and total is worked out by the screen's
  * own gridcalculation(); nothing is calculated here and nothing is saved -
  * the storekeeper checks the grid and presses Update, as always.
  *
@@ -169,25 +171,27 @@
 				// Each change event runs the screen's own handler: the MRP's
 				// sets the sale rate, the price's rounds to paise, the
 				// discount's works the discount amount out of the %, and every
-				// one recalculates the line. A qty, MRP or rate of zero is a
-				// value the bill did not print, not one to type in.
-				if (put($qty, positive(f.qty), 3)) {
+				// one recalculates the line. The values are the bill's in the
+				// GRN's units - pieces, and a piece's rate before GST - as
+				// GrnBillFill worked them out (fill_*); a qty, MRP or rate of
+				// zero is a value the bill did not print, not one to type in.
+				if (put($qty, positive(f.fill_qty), 3)) {
 					$qty.trigger('change');
 					touched++;
 				}
-				if (put($('#mrp_input' + id), positive(f.mrp), 2, 'ai-filled ai-filled-mrp')) {
+				if (put($('#mrp_input' + id), positive(f.fill_mrp), 2, 'ai-filled ai-filled-mrp')) {
 					$('#mrp_input' + id).trigger('change');
 					touched++;
 				}
-				if (put($('#price_input' + id), positive(f.rate), 2)) {
+				if (put($('#price_input' + id), positive(f.fill_rate), 2)) {
 					$('#price_input' + id).trigger('change');
 					touched++;
 				}
-				if (put($('#discount_input' + id), f.discount, 2)) {
+				if (put($('#discount_input' + id), f.fill_discount, 2)) {
 					$('#discount_input' + id).trigger('change');
 					touched++;
 				}
-				if (f.free_detail_id && put($('#approve_input_qty' + f.free_detail_id), positive(f.free_qty), 3)) {
+				if (f.free_detail_id && put($('#approve_input_qty' + f.free_detail_id), positive(f.fill_free_qty), 3)) {
 					$('#approve_input_qty' + f.free_detail_id).trigger('change');
 					touched++;
 				}
@@ -314,9 +318,11 @@
 		}
 
 		html += section('Filled into the grid', 'Click a line to go to it in the grid.',
-			billHead + '<th>Line of this GRN</th><th>Checks</th>',
+			billHead + '<th>Typed into the grid</th><th>Line of this GRN</th><th>Checks</th>',
 			$.map(plan.fills, function (f) {
 				return '<tr class="ai-grn-goto" data-id="' + f.detail_id + '">' + billCells(f)
+					+ '<td class="ai-nowrap">' + qty(f.fill_qty) + ' at ' + money(f.fill_rate)
+					+ (f.basis ? '<div class="ai-alt ai-grn-basis">' + esc(f.basis) + '</div>' : '') + '</td>'
 					+ '<td>' + esc(f.item) + '<div class="ai-alt">' + esc(f.barcode) + ' &middot; by ' + esc(f.how) + '</div></td>'
 					+ '<td>' + ($.inArray(f, stats.absent) === -1 ? '' : '<span class="ai-flag danger">This line is not in the grid any more - reload the page and fill again</span> ')
 					+ flags(f.flags) + '</td></tr>';
@@ -411,8 +417,8 @@
 			if (!data || data.msg !== 'success') {
 				return; // the screen has said why, and reloads
 			}
-			var fields = [['#PurchaseBillDetail_approved_qty', positive(l.qty), 3], ['#PurchaseBillDetail_mrp', positive(l.mrp), 2],
-				['#PurchaseBillDetail_price', positive(l.rate), 2], ['#PurchaseBillDetail_discount', l.discount, 2]];
+			var fields = [['#PurchaseBillDetail_approved_qty', positive(l.fill_qty), 3], ['#PurchaseBillDetail_mrp', positive(l.fill_mrp), 2],
+				['#PurchaseBillDetail_price', positive(l.fill_rate), 2], ['#PurchaseBillDetail_discount', l.fill_discount, 2]];
 			$.each(fields, function (_, x) {
 				if (x[1] !== null) {
 					$(x[0]).val(Number(x[1]).toFixed(x[2])).addClass('ai-filled').trigger('change');

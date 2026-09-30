@@ -77,6 +77,7 @@ class GrnBillFill
             $retry = AiConfig::label($r['first']) . ' could not read this bill cleanly (' . rtrim($r['why'], '.') . '), so it was read again by '
                 . AiConfig::label($r['second']) . '.' . ($r['failed'] ? ' That second reading failed too; the first reading is used.' : '');
         }
+        $inclusive = self::amountsIncludeTax($bill);
         return [
             'file' => (string) ($result['file'] ?? ''),
             'model' => AiConfig::label($result['model'] ?? ''),
@@ -89,39 +90,65 @@ class GrnBillFill
                 'bill_date_printed' => (string) ($bill['bill_date'] ?? ''),
                 'bill_total' => self::num($bill['bill_total'] ?? null),
                 'tax_total' => self::num($bill['tax_total'] ?? null),
+                'amounts_include_gst' => $inclusive,
             ],
             'flags' => $flags,
             'line_count' => count($result['lines']),
-        ] + self::assign($result['lines'], $rows);
+        ] + self::assign($result['lines'], $rows, $inclusive);
     }
 
     /**
-     * Pairs bill lines with grid lines. No database, so it can be tested on
-     * its own.
+     * Do the bill's line amounts include GST? True when they add up to the
+     * bill total, false when they add up to it only with the tax added, null
+     * when the bill does not say (no tax, no total, or neither adds up).
+     */
+    public static function amountsIncludeTax(array $bill)
+    {
+        $sum = 0.0;
+        foreach ($bill['lines'] ?? [] as $line) {
+            $sum += (float) ($line['amount'] ?? 0);
+        }
+        $total = (float) ($bill['bill_total'] ?? 0);
+        $tax = (float) ($bill['tax_total'] ?? 0);
+        $slack = max(1.0, 0.01 * $total);
+        if ($total <= 0 || $sum <= 0 || $tax <= $slack) {
+            return null;
+        }
+        if (abs($sum - $total) <= $slack) {
+            return true;
+        }
+        return abs($sum + $tax - $total) <= $slack ? false : null;
+    }
+
+    /**
+     * Pairs bill lines with grid lines and works out what each says in the
+     * GRN's units. No database, so it can be tested on its own.
      *
      * Line by line, in order (owner, 30 Sep 2026): the goods are received on
      * the Android app against the bill, which numbers the GRN's lines in the
      * bill's order, while the names on a vendor's bill often differ from the
-     * item master's. So the bill and the received lines are aligned as
-     * sequences - a bill line pairs with the grid line at the same place in
-     * the order of receiving - and what each pair has in
-     * common (barcode, the item BillReader found, name, MRP, rate) decides
-     * where the two lists fall out of step: a bill line the GRN does not
-     * have, or a GRN line the bill does not have, is stepped over instead of
-     * shifting every line after it. A pair that rests on its place alone is
-     * filled and flagged for checking.
+     * item master's. So the bill and the numbered lines are aligned as
+     * sequences - a bill line pairs with the grid line at the same place -
+     * and what each pair has in common (see common()) decides where the two
+     * lists fall out of step: a bill line the GRN does not have, or a GRN
+     * line the bill does not have, is stepped over instead of shifting every
+     * line after it.
      *
-     * Bill lines left over are then looked for out of order, surest first:
-     * the barcode or the item-master match, the same item under another
-     * barcode, the name among the grid lines still free. A grid line is used
-     * once: a second bill line for the same item (a second batch) is listed
-     * as not on the GRN.
+     * The rest are paired by what they are, out of order: the barcode or the
+     * item BillReader found, the same item under another barcode, then every
+     * remaining bill line against every free grid line, the pairs with the
+     * most in common first. That is all there is for lines the app did not
+     * number and for a GRN not received on the app. A bill line with only
+     * its place to go by keeps that place, flagged for checking, if nothing
+     * better claims it. A grid line is used once: a second bill line for the
+     * same item (a second batch) is listed as not on the GRN.
      *
-     * @param array $lines BillReader::review()'s lines
-     * @param array $rows  self::rows(), in the grid's order
+     * @param array     $lines     BillReader::review()'s lines
+     * @param array     $rows      self::rows(), in the grid's order
+     * @param bool|null $inclusive self::amountsIncludeTax()
      * @return array fills, missing, unmatched, untouched
      */
-    public static function assign(array $lines, array $rows)
+    public static function assign(array $lines, array $rows, $inclusive = null)
     {
         $paid = [];
         $free = [];
@@ -132,6 +159,7 @@ class GrnBillFill
                 $paid[(int) $r['id']] = $r;
             }
         }
+        $ctx = self::context($paid, $inclusive);
         $used = [];
         $taken = [];
         $first = function (array $pool, callable $test) use (&$used) {
@@ -152,28 +180,19 @@ class GrnBillFill
             return [(int) $a['entry_position'], (int) $a['id']] <=> [(int) $b['entry_position'], (int) $b['id']];
         });
         $pairFlag = [];
-        foreach (self::align(array_values($lines), $sequence) as $i => $pair) {
-            list($row, $how, $flag) = $pair;
-            $index = array_keys($lines)[$i];
-            $taken[$index] = [$row, $how];
-            $used[(int) $row['id']] = true;
-            if ($flag !== null) {
-                $pairFlag[$index] = $flag;
-            }
-        }
-
-        // A pair resting on its place alone gives way to a line of the GRN,
-        // still free, that carries the bill line's name: two lines received
-        // in the other order, or a line the app never numbered.
-        foreach ($pairFlag as $i => $flag) {
-            if ($flag[0] !== 'warning') {
+        $byPlace = [];
+        $keys = array_keys($lines);
+        foreach (self::align(array_values($lines), $sequence, $ctx) as $i => $c) {
+            if ($c['weak']) {
+                // Only its place to go by: held back until the lines that
+                // have something in common with a grid line have chosen.
+                $byPlace[$keys[$i]] = $c;
                 continue;
             }
-            list($row, $pct) = self::byName($lines[$i], $paid, $used);
-            if ($row !== null) {
-                unset($used[(int) $taken[$i][0]['id']], $pairFlag[$i]);
-                $used[(int) $row['id']] = true;
-                $taken[$i] = [$row, 'name ' . (int) round($pct) . '%, among this GRN\'s lines'];
+            $taken[$keys[$i]] = [$c['row'], $c['how']];
+            $used[(int) $c['row']['id']] = true;
+            if ($c['flag'] !== null) {
+                $pairFlag[$keys[$i]] = $c['flag'];
             }
         }
 
@@ -187,26 +206,51 @@ class GrnBillFill
                 continue;
             }
             $m = $l['match'];
-            if ($m && ($r = $first($paid, function ($r) use ($m) { return (int) $r['item_detail_id'] === (int) $m['id']; }))) {
+            if (self::certain($l) && ($r = $first($paid, function ($r) use ($m) { return (int) $r['item_detail_id'] === (int) $m['id']; }))) {
                 $taken[$i] = [$r, (string) $l['how']];
             }
         }
         foreach ($lines as $i => $l) {
             $m = $l['match'];
-            if (!isset($taken[$i]) && $m && ($r = $first($paid, function ($r) use ($m) { return (int) $r['item_id'] === (int) $m['item_id']; }))) {
+            if (!isset($taken[$i]) && self::certain($l) && ($r = $first($paid, function ($r) use ($m) { return (int) $r['item_id'] === (int) $m['item_id']; }))) {
                 $taken[$i] = [$r, $l['how'] . ', another barcode of the item'];
             }
         }
+
+        // Every bill line still unpaired against every grid line still free;
+        // the pairs with the most in common choose first.
+        $candidates = [];
         foreach ($lines as $i => $l) {
             // An item found by its barcode or the vendor's code is that item;
             // if the grid does not have it, it is not on this GRN.
-            if (isset($taken[$i]) || ($l['match'] && strpos((string) $l['how'], 'name') !== 0)) {
+            if (isset($taken[$i]) || self::certain($l)) {
                 continue;
             }
-            list($row, $pct) = self::byName($l, $paid, $used);
-            if ($row !== null) {
-                $used[(int) $row['id']] = true;
-                $taken[$i] = [$row, 'name ' . (int) round($pct) . '%, among this GRN\'s lines'];
+            foreach ($paid as $id => $r) {
+                if (!isset($used[$id])) {
+                    $c = self::common($l, $r, $ctx);
+                    if ($c['enough']) {
+                        $candidates[] = [$c['score'], $i, $id, $c];
+                    }
+                }
+            }
+        }
+        usort($candidates, function ($a, $b) { return $b[0] <=> $a[0] ?: $a[1] <=> $b[1]; });
+        foreach ($candidates as list(, $i, $id, $c)) {
+            if (!isset($taken[$i]) && !isset($used[$id])) {
+                $taken[$i] = [$paid[$id], $c['how']];
+                $used[$id] = true;
+                if ($c['flag'] !== null) {
+                    $pairFlag[$i] = $c['flag'];
+                }
+            }
+        }
+        foreach ($byPlace as $i => $c) {
+            $id = (int) $c['row']['id'];
+            if (!isset($taken[$i]) && !isset($used[$id])) {
+                $taken[$i] = [$c['row'], $c['how']];
+                $used[$id] = true;
+                $pairFlag[$i] = $c['flag'];
             }
         }
 
@@ -229,33 +273,38 @@ class GrnBillFill
             if (isset($taken[$i])) {
                 list($row, $how) = $taken[$i];
                 $sameItem = $m && (int) $m['item_id'] === (int) $row['item_id'];
-                $flags = self::rowFlags($entry, $row);
+                $rd = self::reading($x, $row, $inclusive);
+                $entry += self::fillValues($rd);
+                $flags = self::rowFlags($entry, $rd, $row);
                 if (isset($pairFlag[$i])) {
                     array_unshift($flags, $pairFlag[$i]);
                 }
                 foreach ($l['flags'] as $f) {
-                    // The MRP and GST checks are made against the grid line
-                    // above; the rest of BillReader's compare with the item
-                    // master and hold only if this is that item. Expiry is
-                    // the bill's own.
-                    if (strpos($f[1], 'Expire') === 0 || ($sameItem && strpos($f[1], 'MRP ') !== 0 && strpos($f[1], 'GST ') !== 0)) {
+                    // MRP, GST and rate are checked against the grid line
+                    // above, in the GRN's units. The HSN check compares with
+                    // the item master and holds only if this is that item.
+                    // Expiry is the bill's own.
+                    if (strpos($f[1], 'Expire') === 0 || ($sameItem && strpos($f[1], 'HSN ') === 0)) {
                         $flags[] = $f;
                     }
                 }
                 $entry += ['detail_id' => (int) $row['id'], 'item' => (string) $row['title'], 'barcode' => (string) $row['bar_code'],
                            'how' => $how, 'free_detail_id' => null];
-                if ((float) $entry['free_qty'] > 0) {
+                if ((float) $entry['fill_free_qty'] > 0) {
                     $freeRow = $first($free, function ($r) use ($row) { return (int) $r['item_detail_id'] === (int) $row['item_detail_id']; })
                         ?: $first($free, function ($r) use ($row) { return (int) $r['item_id'] === (int) $row['item_id']; });
                     if ($freeRow) {
                         $entry['free_detail_id'] = (int) $freeRow['id'];
                     } else {
-                        $flags[] = ['warning', self::trim($entry['free_qty']) . ' free on the bill: add a line for it with Is free = Yes'];
+                        $flags[] = ['warning', self::trim($entry['fill_free_qty']) . ' free on the bill: add a line for it with Is free = Yes'];
                     }
                 }
                 $entry['flags'] = $flags;
                 $out['fills'][] = $entry;
             } elseif ($m) {
+                // For the Add Item form: the item master stands in for the grid line.
+                $rd = self::reading($x, ['price' => $m['last_price'] ?? 0, 'mrp' => $m['mrp'] ?? 0, 'gst' => $m['gst'] ?? 0, 'approved_qty' => 0], $inclusive);
+                $entry += self::fillValues($rd);
                 $entry += ['item' => (string) $m['title'], 'barcode' => (string) $m['bar_code'], 'how' => (string) $l['how'], 'flags' => $l['flags']];
                 $out['missing'][] = $entry;
             } else {
@@ -274,36 +323,321 @@ class GrnBillFill
         return $out;
     }
 
-    /** The free grid line whose name is most like the bill line's, if alike enough: [row, %] or [null, 0]. */
-    private static function byName(array $l, array $paid, array $used)
+    // ------------------------------------------------ what a line says, in the GRN's units
+
+    /**
+     * A bill line in the GRN's units: pieces, and the rate of one piece
+     * before GST.
+     *
+     * The grid counts pieces at a rate before tax. A vendor's bill often
+     * counts cases ("CLUB SODA (24*500ML)  4  370.00") and often prints its
+     * rates and amounts with the GST in them. Typed in as printed, 4 at 370
+     * would replace 96 at 14.68 (the first real bill, 30 Sep 2026). So the
+     * line is read each way it could be meant - per piece or per case of the
+     * pack size the bill gives (or that the quantity received on the app
+     * implies), with or without GST when the bill's totals do not settle it -
+     * and the reading kept is the one whose piece rate is nearest the grid
+     * line's, among those that do not put the cost above the MRP. The rate
+     * comes from the line's amount, which carries any scheme or discount in
+     * rupees; a discount % the bill prints is taken back out of it, because
+     * the screen takes it off again.
+     *
+     * @param array     $x         the bill line, as read
+     * @param array     $row       the grid line (price, mrp, gst, approved_qty)
+     * @param bool|null $inclusive self::amountsIncludeTax()
+     */
+    public static function reading(array $x, array $row, $inclusive)
     {
-        $name = BillReader::normalise((string) ($l['line']['description'] ?? ''));
+        $qty = self::num($x['qty'] ?? null);
+        $rate = self::num($x['rate'] ?? null);
+        $amount = self::num($x['amount'] ?? null);
+        $disc = (float) ($x['discount_percent'] ?? 0);
+        $gst = self::num($x['gst_percent'] ?? null);
+        $gst = $gst === null ? (float) ($row['gst'] ?? 0) : $gst;
+        $rowPrice = (float) ($row['price'] ?? 0);
+        $rowMrp = (float) ($row['mrp'] ?? 0);
+        $received = (float) ($row['approved_qty'] ?? 0);
+
+        $packs = [1.0];
+        if ((float) ($x['pack_size'] ?? 0) > 1) {
+            $packs[] = (float) $x['pack_size'];
+        }
+        // "(24*500ML)", "24 X 500ML", and "(18*" where the print ran out of room
+        if (preg_match('/(\d{1,3})\s*(?:[*×]|[xX]\s*\d)/u', (string) ($x['description'] ?? ''), $m) && (int) $m[1] > 1) {
+            $packs[] = (float) $m[1];
+        }
+        if ($qty > 0 && $received > 0 && $received / $qty >= 2 && abs($received / $qty - round($received / $qty)) < 1e-6) {
+            $packs[] = round($received / $qty);
+        }
         $best = null;
-        $bestPct = 0.0;
-        if ($name !== '') {
-            foreach ($paid as $id => $r) {
-                if (isset($used[$id])) {
-                    continue;
+        foreach (array_unique($packs) as $pack) {
+            foreach ($inclusive === null ? [false, true] : [(bool) $inclusive] as $withTax) {
+                $pieces = $qty === null ? null : $qty * $pack;
+                $unit = null;
+                if ($amount !== null && $pieces > 0) {
+                    $unit = ($withTax ? $amount / (1 + $gst / 100) : $amount) / $pieces;
+                    if ($disc > 0 && $disc < 100) {
+                        $unit /= 1 - $disc / 100;
+                    }
+                } elseif ($rate !== null) {
+                    $unit = ($withTax ? $rate / (1 + $gst / 100) : $rate) / $pack;
                 }
-                similar_text($name, BillReader::normalise((string) $r['title']), $pct);
-                if ($pct > $bestPct) {
-                    $bestPct = $pct;
-                    $best = $r;
+                $off = ($unit !== null && $rowPrice > 0) ? abs($unit - $rowPrice) / $rowPrice : null;
+                $aboveMrp = $unit !== null && $rowMrp > 0 && $unit * (1 + $gst / 100) > 1.1 * $rowMrp;
+                $sameQty = $pieces !== null && $received > 0 && abs($pieces - $received) < 0.0005;
+                // Least is best: not above the MRP; nearest the grid's rate;
+                // the quantity received; and, all else equal, as printed.
+                $rank = ($aboveMrp ? 10 : 0) + ($off === null ? 1.0 : min($off, 1.0)) - ($sameQty ? 0.05 : 0) + ($pack > 1 ? 0.002 : 0) + ($withTax ? 0.001 : 0);
+                if ($best === null || $rank < $best['rank']) {
+                    $best = ['rank' => $rank, 'pack' => $pack, 'with_tax' => $withTax, 'pieces' => $pieces, 'unit' => $unit, 'off' => $off,
+                             'above_mrp' => $aboveMrp, 'same_qty' => $sameQty];
                 }
             }
         }
-        return $bestPct >= self::NAME_MATCH ? [$best, $bestPct] : [null, 0.0];
+        $best['gst'] = $gst;
+        $best['discount'] = self::num($x['discount_percent'] ?? null);
+        $best['free'] = self::num($x['free_qty'] ?? null) === null ? null : (float) $x['free_qty'] * $best['pack'];
+        $mrp = self::num($x['mrp'] ?? null);
+        // An MRP below the cost with tax, or several times the grid's, is a
+        // case price or a misreading; not one to type in.
+        $best['mrp'] = ($mrp > 0 && ($best['unit'] === null || $mrp >= 0.95 * $best['unit'] * (1 + $gst / 100)) && ($rowMrp <= 0 || $mrp <= 3 * $rowMrp)) ? $mrp : null;
+        $best['mrp_skipped'] = $mrp > 0 && $best['mrp'] === null;
+
+        $basis = [];
+        if ($best['pack'] > 1 && $qty !== null) {
+            $basis[] = self::trim($qty) . ' x ' . self::trim($best['pack']) . ' = ' . self::trim($best['pieces']) . ' pieces';
+        }
+        if ($best['unit'] !== null && ($best['pack'] > 1 || $best['with_tax'] || ($rate !== null && abs($best['unit'] - $rate) > 0.005))) {
+            $basis[] = ($amount !== null && $best['pieces'] > 0 ? Insights::money($amount) : Insights::money($rate) . ' a pack')
+                . ($best['with_tax'] ? ' with ' . self::trim($gst) . '% GST in it' : '')
+                . ($disc > 0 && $disc < 100 && $amount !== null ? ', after ' . self::trim($disc) . '% discount' : '')
+                . ' = ' . Insights::money($best['unit']) . ' a piece before GST' . ($disc > 0 && $disc < 100 && $amount !== null ? ' and discount' : '');
+        }
+        $best['basis'] = implode('; ', $basis);
+        return $best;
+    }
+
+    /** What grn-bill.js types in. */
+    private static function fillValues(array $rd)
+    {
+        return [
+            'fill_qty' => $rd['pieces'] === null ? null : round($rd['pieces'], 3),
+            'fill_rate' => $rd['unit'] === null ? null : round($rd['unit'], 2),
+            'fill_mrp' => $rd['mrp'],
+            'fill_discount' => $rd['discount'],
+            'fill_free_qty' => $rd['free'] === null ? null : round($rd['free'], 3),
+            'basis' => $rd['basis'],
+        ];
+    }
+
+    /** What the bill says that the grid line does not. */
+    private static function rowFlags(array $entry, array $rd, array $row)
+    {
+        $flags = [];
+        if ($rd['above_mrp']) {
+            $flags[] = ['danger', 'Works out to ' . Insights::money($rd['unit'] * (1 + $rd['gst'] / 100)) . ' a piece with GST, above the MRP of '
+                . Insights::money($row['mrp']) . ' - check whether the bill counts cases or pieces'];
+        } elseif ($rd['unit'] !== null && (float) $row['price'] > 0 && $rd['unit'] > 1.02 * (float) $row['price']) {
+            $flags[] = ['warning', sprintf('Rate %s is %.1f%% above this line\'s rate (%s)', Insights::money($rd['unit']),
+                100 * ($rd['unit'] / (float) $row['price'] - 1), Insights::money($row['price']))];
+        }
+        if ($rd['pieces'] !== null && (float) $row['approved_qty'] > 0 && !$rd['same_qty']) {
+            $flags[] = ['warning', 'The bill has ' . self::trim($rd['pieces']) . '; ' . self::trim($row['approved_qty']) . ' was received on this line'];
+        }
+        if ($rd['pieces'] !== null && (float) $row['req_qty'] > 0 && $rd['pieces'] > (float) $row['req_qty'] + 0.0005) {
+            $flags[] = ['info', 'Bill has ' . self::trim($rd['pieces']) . ', ordered ' . self::trim($row['req_qty'])];
+        }
+        if ($rd['mrp'] !== null && (float) $row['mrp'] > 0 && abs($rd['mrp'] - (float) $row['mrp']) > 0.5) {
+            $flags[] = ['warning', 'MRP changes from ' . Insights::money($row['mrp']) . ' to ' . Insights::money($rd['mrp']) . ' - the sale rate follows the MRP'];
+        }
+        if ($rd['mrp_skipped']) {
+            $flags[] = ['info', 'The MRP on the bill (' . Insights::money($entry['mrp']) . ') does not fit a piece of this item and was not filled in'];
+        }
+        if ($entry['gst'] !== null && abs($entry['gst'] - (float) $row['gst']) > 0.01) {
+            $flags[] = ['warning', 'GST ' . self::trim($entry['gst']) . '% on bill, ' . self::trim($row['gst']) . '% on this line - the tax is left as it is'];
+        }
+        return $flags;
+    }
+
+    // ---------------------------------------------------- what a pair has in common
+
+    /** What is needed to compare names: each grid line's words, and how many lines carry each word. */
+    private static function context(array $paid, $inclusive)
+    {
+        $words = [];
+        $lines = [];
+        foreach ($paid as $id => $r) {
+            $words[$id] = self::words((string) $r['title']);
+            foreach (array_keys($words[$id]) as $w) {
+                $lines[$w] = ($lines[$w] ?? 0) + 1;
+            }
+        }
+        return ['words' => $words, 'lines' => $lines, 'count' => max(1, count($paid)), 'inclusive' => $inclusive];
     }
 
     /**
-     * The two lists aligned in order: the set of pairs, none crossing
-     * another, with the most in common in total.
+     * The words of a name that tell items apart: word => true for a size
+     * ("500ml"), false otherwise. Sizes are put in one unit (1LTR, 1000ML
+     * and 1L are the same word); bare numbers and filler are dropped.
+     */
+    private static function words($name)
+    {
+        $out = [];
+        foreach (explode(' ', BillReader::normalise($name)) as $w) {
+            if (preg_match('/^(\d+)(ml|m|l|lt|ltr|litre|g|gm|gms|gram|grams|kg|kgs)$/', $w, $m)) {
+                $n = (int) $m[1];
+                $litres = in_array($m[2], ['l', 'lt', 'ltr', 'litre'], true);
+                $kilos = in_array($m[2], ['kg', 'kgs'], true);
+                $out[($litres || $kilos ? $n * 1000 : $n) . ($litres || in_array($m[2], ['ml', 'm'], true) ? 'ml' : 'g')] = true;
+            } elseif (mb_strlen($w) >= 3 && !ctype_digit($w) && !in_array($w, ['pcs', 'pkt', 'nos', 'mrp', 'the', 'and'], true)) {
+                $out[$w] = false;
+            }
+        }
+        return $out;
+    }
+
+    /** The same word, allowing for a printing or spelling slip: CRENBERRY / CRANBERRY, FLAVOUR / FLAVOURED. */
+    private static function sameWord($a, $b)
+    {
+        if ($a === $b) {
+            return true;
+        }
+        $short = min(strlen($a), strlen($b));
+        // One the start of the other, and most of it: FLAVOUR / FLAVOURED, not WATER / WATERMELON.
+        if ($short >= 4 && $short >= 0.7 * max(strlen($a), strlen($b)) && (strpos($a, $b) === 0 || strpos($b, $a) === 0)) {
+            return true;
+        }
+        return $short >= 5 && levenshtein($a, $b) <= ($short >= 8 ? 2 : 1);
+    }
+
+    /**
+     * How alike a bill's name for an item and a grid line's are, 0 to 100.
+     *
+     * Two measures, the higher counts. Letter by letter (similar_text), which
+     * is what BillReader uses. And word by word, in any order, where a word
+     * that few lines of this GRN carry counts for more than one they all
+     * carry: on a GRN of CATCH FLAVOURED WATER in four flavours, the flavour
+     * is what tells the lines apart, and letter by letter "CATCH LEMON
+     * FLAVOURED WATER(18*60)" is as close to PEACH as to LEMON LIME.
+     */
+    private static function alike($billName, array $row, array $ctx)
+    {
+        similar_text(BillReader::normalise($billName), BillReader::normalise((string) $row['title']), $letters);
+        $bill = self::words($billName);
+        $grid = $ctx['words'][(int) $row['id']] ?? self::words((string) $row['title']);
+        if (!$bill || !$grid) {
+            return $letters;
+        }
+        $weight = function ($word, $isSize) use ($ctx) {
+            $carried = 0;
+            foreach ($ctx['lines'] as $w => $n) {
+                if ($isSize ? $w === $word : self::sameWord($w, $word)) {
+                    $carried = max($carried, $n);
+                }
+            }
+            return log(1 + $ctx['count'] / max(1, $carried)) * ($isSize ? 0.5 : 1.0);
+        };
+        $found = function (array $from, array $in) use ($weight) {
+            $all = 0.0;
+            $hit = 0.0;
+            foreach ($from as $word => $isSize) {
+                $w = $weight($word, $isSize);
+                $all += $w;
+                foreach ($in as $other => $otherIsSize) {
+                    if ($isSize === $otherIsSize && ($isSize ? $word === $other : self::sameWord($word, $other))) {
+                        $hit += $w;
+                        break;
+                    }
+                }
+            }
+            return $all > 0 ? $hit / $all : 0.0;
+        };
+        return max($letters, 100 * (0.7 * $found($bill, $grid) + 0.3 * $found($grid, $bill)));
+    }
+
+    /** Did BillReader find the line's item by its barcode or the vendor's code, rather than by name? */
+    private static function certain(array $l)
+    {
+        return $l['match'] && strpos((string) $l['how'], 'name') !== 0;
+    }
+
+    /**
+     * What a bill line and a grid line have in common.
+     *
+     * The barcode, or the item BillReader found by barcode or vendor code,
+     * settles it either way. Otherwise: a like name, the same MRP, the same
+     * rate once the line is read in the GRN's units, and the quantity the
+     * app received.
+     *
+     * @return array score (zero or less: never pair), how, flag,
+     *               enough (to pair them out of order), certain
+     */
+    private static function common(array $l, array $row, array $ctx)
+    {
+        $x = $l['line'];
+        $m = $l['match'];
+        $hit = function ($score, $how) { return ['score' => $score, 'how' => $how, 'flag' => null, 'enough' => true, 'evidence' => true, 'settled' => true]; };
+        $barcode = preg_replace('/\s+/', '', (string) ($x['barcode'] ?? ''));
+        if ($barcode !== '' && (string) $row['bar_code'] === $barcode) {
+            return $hit(6.0, 'barcode');
+        }
+        // Only a barcode or vendor-code match in the item master says which
+        // item it is. A name match there is a guess among every item the
+        // store has (the first real bill's LEMON was matched to PEACH, 73%);
+        // the name is compared with this GRN's own lines below instead.
+        if (self::certain($l)) {
+            if ((int) $m['id'] === (int) $row['item_detail_id']) {
+                return $hit(6.0, (string) $l['how']);
+            }
+            if ((int) $m['item_id'] === (int) $row['item_id']) {
+                return $hit(5.0, $l['how'] . ', another barcode of the item');
+            }
+            return ['score' => -1.0, 'how' => null, 'flag' => null, 'enough' => false, 'evidence' => false];
+        }
+        $alike = self::alike((string) ($x['description'] ?? ''), $row, $ctx);
+        $rd = self::reading($x, $row, $ctx['inclusive']);
+        $sameRate = $rd['off'] !== null && $rd['off'] <= 0.02 && !$rd['above_mrp'];
+        $nearRate = !$sameRate && $rd['off'] !== null && $rd['off'] <= 0.10 && !$rd['above_mrp'];
+        $sameQty = $rd['same_qty'];
+        $mrp = isset($x['mrp']) && (float) $x['mrp'] > 0 && (float) $row['mrp'] > 0 && abs((float) $x['mrp'] - (float) $row['mrp']) <= 0.5;
+        $parts = [];
+        if ($alike >= 50) {
+            $parts[] = 'name ' . (int) round($alike) . '%';
+        }
+        if ($mrp) {
+            $parts[] = 'same MRP';
+        }
+        if ($sameRate || $nearRate) {
+            $parts[] = $sameRate ? 'same rate' : 'rate close';
+        }
+        if ($sameQty) {
+            $parts[] = 'the quantity received';
+        }
+        $numbers = $mrp || $sameRate || $nearRate || $sameQty;
+        $flag = null;
+        if ($alike < self::NAME_MATCH && $numbers) {
+            $flag = ['info', 'The name on the bill differs from this item\'s; paired by ' . implode(', ', array_filter($parts, function ($p) { return strpos($p, 'name') !== 0; }))];
+        }
+        return [
+            'score' => 1.5 * max(0.0, ($alike - 40) / 60) + ($mrp ? 0.8 : 0.0) + ($sameRate ? 1.0 : ($nearRate ? 0.5 : 0.0)) + ($sameQty ? 0.5 : 0.0),
+            'how' => implode(', ', $parts),
+            'flag' => $flag,
+            'enough' => $alike >= self::NAME_MATCH || ($alike >= 50 && $numbers) || ($sameRate && $sameQty),
+            'evidence' => $alike >= self::NAME_MATCH || $numbers,
+        ];
+    }
+
+    /**
+     * The bill's lines and the numbered grid lines aligned in order: the set
+     * of pairs, none crossing another, with the most in common in total.
+     * Standing at the same place counts for a little, so lines with nothing
+     * else in common still pair in order.
      *
      * @param array $lines bill lines, in the bill's order, keyed 0..n-1
-     * @param array $rows  the grid's paid lines, in the grid's order, keyed 0..m-1
-     * @return array line index => [row, how it was paired, flag or null]
+     * @param array $rows  the numbered grid lines, in the order of receiving, keyed 0..m-1
+     * @return array line index => [row, how, flag, weak: only its place to go by]
      */
-    private static function align(array $lines, array $rows)
+    private static function align(array $lines, array $rows, array $ctx)
     {
         $n = count($lines);
         $m = count($rows);
@@ -313,7 +647,8 @@ class GrnBillFill
         $pair = [];
         for ($i = 0; $i < $n; $i++) {
             for ($j = 0; $j < $m; $j++) {
-                $pair[$i][$j] = self::pair($lines[$i], $rows[$j]);
+                $c = self::common($lines[$i], $rows[$j], $ctx);
+                $pair[$i][$j] = $c + ['total' => $c['score'] < 0 ? -1.0 : $c['score'] + 0.3];
             }
         }
         // best[i][j]: the most that lines i.. and rows j.. can have in common.
@@ -323,8 +658,8 @@ class GrnBillFill
         for ($i = $n - 1; $i >= 0; $i--) {
             for ($j = $m - 1; $j >= 0; $j--) {
                 $v = max($best[$i + 1][$j], $best[$i][$j + 1]);
-                if ($pair[$i][$j][0] > 0) {
-                    $v = max($v, $best[$i + 1][$j + 1] + $pair[$i][$j][0]);
+                if ($pair[$i][$j]['total'] > 0) {
+                    $v = max($v, $best[$i + 1][$j + 1] + $pair[$i][$j]['total']);
                 }
                 $best[$i][$j] = $v;
             }
@@ -333,8 +668,12 @@ class GrnBillFill
         $i = 0;
         $j = 0;
         while ($i < $n && $j < $m) {
-            if ($pair[$i][$j][0] > 0 && abs($best[$i][$j] - ($best[$i + 1][$j + 1] + $pair[$i][$j][0])) < 1e-9) {
-                $out[$i] = [$rows[$j], $pair[$i][$j][1], $pair[$i][$j][2]];
+            $c = $pair[$i][$j];
+            if ($c['total'] > 0 && abs($best[$i][$j] - ($best[$i + 1][$j + 1] + $c['total'])) < 1e-9) {
+                $weak = !$c['evidence'];
+                $out[$i] = ['row' => $rows[$j], 'weak' => $weak,
+                    'how' => !empty($c['settled']) ? $c['how'] : 'line order' . ($c['how'] !== '' && $c['how'] !== null ? ', ' . $c['how'] : ''),
+                    'flag' => $weak ? ['warning', 'Paired only by its place on the bill - check it is this item'] : $c['flag']];
                 $i++;
                 $j++;
             } elseif (abs($best[$i][$j] - $best[$i + 1][$j]) < 1e-9) {
@@ -344,65 +683,6 @@ class GrnBillFill
             }
         }
         return $out;
-    }
-
-    /**
-     * What a bill line and a grid line have in common: [score, how, flag].
-     * A score of zero or less means they are not to be paired.
-     *
-     * The barcode, or the item BillReader found by barcode or vendor code,
-     * settles it either way. Otherwise every pair starts with a little for
-     * standing at the same place, and earns more for a like name, the same
-     * MRP and a rate close to the GRN line's.
-     */
-    private static function pair(array $l, array $row)
-    {
-        $x = $l['line'];
-        $m = $l['match'];
-        $barcode = preg_replace('/\s+/', '', (string) ($x['barcode'] ?? ''));
-        if ($barcode !== '' && (string) $row['bar_code'] === $barcode) {
-            return [4.0, 'barcode', null];
-        }
-        $certain = $m && strpos((string) $l['how'], 'name') !== 0;
-        if ($m && (int) $m['id'] === (int) $row['item_detail_id']) {
-            return [$certain ? 4.0 : 3.0, (string) $l['how'], null];
-        }
-        if ($m && (int) $m['item_id'] === (int) $row['item_id']) {
-            return [$certain ? 3.5 : 2.5, $l['how'] . ', another barcode of the item', null];
-        }
-        if ($certain) {
-            return [-1.0, null, null];
-        }
-        similar_text(BillReader::normalise((string) ($x['description'] ?? '')), BillReader::normalise((string) $row['title']), $alike);
-        $mrp = isset($x['mrp']) && (float) $x['mrp'] > 0 && (float) $row['mrp'] > 0 && abs((float) $x['mrp'] - (float) $row['mrp']) <= 0.5;
-        $rate = isset($x['rate']) && (float) $x['rate'] > 0 && (float) $row['price'] > 0
-            && abs((float) $x['rate'] - (float) $row['price']) <= 0.1 * (float) $row['price'];
-        $score = 0.3 + 1.5 * max(0.0, ($alike - 40) / 60) + ($mrp ? 0.8 : 0.0) + ($rate ? 0.6 : 0.0);
-        $how = 'line order' . ($alike >= self::NAME_MATCH ? ', name ' . (int) round($alike) . '%' : '')
-            . ($mrp ? ', same MRP' : '') . ($rate ? ', rate close' : '');
-        $flag = null;
-        if ($alike < self::NAME_MATCH) {
-            $flag = ($mrp || $rate)
-                ? ['info', 'The name on the bill differs from this item\'s; paired by its place on the bill' . ($mrp ? ', its MRP' : '') . ($rate ? ', its rate' : '')]
-                : ['warning', 'Paired only by its place on the bill - check it is this item'];
-        }
-        return [$score, $how, $flag];
-    }
-
-    /** What the bill says that the grid line does not. */
-    private static function rowFlags(array $entry, array $row)
-    {
-        $flags = [];
-        if ($entry['qty'] !== null && (float) $row['req_qty'] > 0 && $entry['qty'] > (float) $row['req_qty'] + 0.0005) {
-            $flags[] = ['info', 'Bill has ' . self::trim($entry['qty']) . ', ordered ' . self::trim($row['req_qty'])];
-        }
-        if ($entry['mrp'] !== null && (float) $row['mrp'] > 0 && abs($entry['mrp'] - (float) $row['mrp']) > 0.5) {
-            $flags[] = ['warning', 'MRP changes from ' . Insights::money($row['mrp']) . ' to ' . Insights::money($entry['mrp']) . ' - the sale rate follows the MRP'];
-        }
-        if ($entry['gst'] !== null && abs($entry['gst'] - (float) $row['gst']) > 0.01) {
-            $flags[] = ['warning', 'GST ' . self::trim($entry['gst']) . '% on bill, ' . self::trim($row['gst']) . '% on this line - the tax is left as it is'];
-        }
-        return $flags;
     }
 
     /**

@@ -606,6 +606,17 @@ the only record of a decision. Condensed, in sequence:
   the real API. Fixed in `BillReader::schema()`. A stand-in API does not check
   this: anything that changes a schema or a tool list needs one real call.
 
+- *"This was the bill which was uploaded, it is not matching with the GRN"*
+  (30 Sep) - the reading was right in every figure; the use of it was not.
+  The bill counts boxes at prices with GST in, the grid counts pieces at a
+  rate before GST, and two flavours had been swapped by a name match in the
+  item master. `GrnBillFill::reading()` now converts (pack size, GST), and
+  names are compared word by word with the GRN's own lines. Verified by
+  replaying that reading against its GRN: the grid comes to the bill's
+  8,790. Lesson, the same as lesson 4: a reading that is right and a page
+  that fills are not a GRN that is right - test with a real bill against a
+  real GRN.
+
 Two standing instructions from the owner: pushes go to
 `phase2/php83-yii1132`, and `main` only when the owner says so (see
 *Conventions*); and no real secret is ever committed — `.env` is gitignored

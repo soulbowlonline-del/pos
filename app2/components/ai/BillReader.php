@@ -28,6 +28,7 @@ This is a purchase bill (tax invoice) from a supplier to a retail and grocery st
 - One entry in "lines" per item line on the bill, in the order printed. Include every item line, across all pages; skip subtotal, tax-summary and scheme-summary rows.
 - description: the item name exactly as printed. barcode: the EAN/UPC code if printed on the line. item_code: the supplier's own item code if printed. hsn: the HSN/SAC code.
 - qty: billed quantity. free_qty: free or scheme quantity if shown separately, else 0. unit: as printed (PCS, KG, BOX...).
+- Write qty, rate and amount exactly as printed, even when the bill counts cases, boxes or packs: do not convert them to pieces. pack_size: the number of pieces in one case/box/pack when the line is billed that way - from a pack or case column, or from the description, e.g. "(24*500ML)" or "24X500ML" is 24 - else null.
 - rate: the unit rate as printed (usually before tax). mrp: the MRP per unit if printed. discount_percent: the line discount % if printed.
 - gst_percent: the total GST rate of the line. If the bill shows CGST and SGST separately, add them (2.5 + 2.5 = 5). If IGST, use it.
 - batch and expiry as printed; write expiry as YYYY-MM-DD, using the last day of the month when only month and year are printed.
@@ -45,7 +46,7 @@ TXT;
      * "either this or null" fields (a 400: "too many parameters with union
      * types") - which the first version, with all twenty optional fields
      * nullable, was, so no bill could be read at all. Text that is not
-     * printed is now an empty string and only the eight numbers that can
+     * printed is now an empty string and only the nine numbers that can
      * really be absent may be null.
      */
     private static function schema()
@@ -54,7 +55,7 @@ TXT;
         $number = ['anyOf' => [['type' => 'number'], ['type' => 'null']]];
         $lineProps = [
             'description' => $text, 'barcode' => $text, 'item_code' => $text, 'hsn' => $text,
-            'qty' => $number, 'free_qty' => ['type' => 'number'], 'unit' => $text, 'rate' => $number, 'mrp' => $number,
+            'qty' => $number, 'free_qty' => ['type' => 'number'], 'unit' => $text, 'pack_size' => $number, 'rate' => $number, 'mrp' => $number,
             'discount_percent' => $number, 'gst_percent' => $number, 'batch' => $text, 'expiry' => $text,
             'amount' => $number,
         ];
