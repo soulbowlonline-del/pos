@@ -195,8 +195,36 @@ class ActiveForm extends \yii\widgets\ActiveForm
     public function checkBoxListRow($model, $attribute, $data, $htmlOptions = [])
     {
         $htmlOptions = $this->scalarSelection($model, $attribute, $htmlOptions);
+        $htmlOptions = self::legacyListItems($model, $attribute, $htmlOptions,
+                                             'checkbox');
 
         return (string) $this->field($model, $attribute)->checkboxList($data, $htmlOptions);
+    }
+
+    /**
+     * Each option as TbActiveForm drew it: in a <label class="checkbox"> (or
+     * "radio") of its own, one to a line, the input carrying CHtml's
+     * Model_attribute_<n> id. Yii 2's default runs the options together on
+     * one line with no ids - the role and shift lists of emp/create, the
+     * user lists of paymentReport and orderRefundItem.
+     */
+    private static function legacyListItems($model, $attribute, $htmlOptions, $kind)
+    {
+        if (isset($htmlOptions['item'])) {
+            return $htmlOptions;
+        }
+        $base = $htmlOptions['id'] ?? Html::getInputId($model, $attribute);
+        $htmlOptions['item'] = function ($index, $label, $name, $checked, $value)
+                use ($base, $kind) {
+            $input = $kind === 'radio'
+                ? Html::radio($name, $checked, ['value' => $value, 'id' => $base . '_' . $index])
+                : Html::checkbox($name, $checked, ['value' => $value, 'id' => $base . '_' . $index]);
+
+            return Html::tag('label', $input . ' ' . Html::encode($label),
+                             ['class' => $kind]);
+        };
+
+        return $htmlOptions;
     }
 
     /**
@@ -252,6 +280,8 @@ class ActiveForm extends \yii\widgets\ActiveForm
     public function radioButtonListRow($model, $attribute, $data, $htmlOptions = [])
     {
         $htmlOptions = $this->scalarSelection($model, $attribute, $htmlOptions);
+        $htmlOptions = self::legacyListItems($model, $attribute, $htmlOptions,
+                                             'radio');
 
         return (string) $this->field($model, $attribute)->radioList($data, $htmlOptions);
     }
@@ -347,13 +377,16 @@ class ActiveForm extends \yii\widgets\ActiveForm
         ArrayHelper::remove($htmlOptions, 'prepend');
         ArrayHelper::remove($htmlOptions, 'append');
 
-        $htmlOptions['class'] = trim('form-control timepicker '
+        // No form-control, as datepickerRow: TbTimePicker's input has no
+        // class. With it the shift and discount times filled the page.
+        $htmlOptions['class'] = trim('timepicker '
             . ArrayHelper::getValue($htmlOptions, 'class', ''));
 
-        $field = (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        $field = $this->field($model, $attribute);
         if ($hint !== null && $hint !== '') {
-            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+            $field->hint($hint, ['tag' => 'p', 'class' => 'help-block']);
         }
+        $field = (string) $field->textInput($htmlOptions);
 
         $id = $htmlOptions['id'] ?? \yii\helpers\Html::getInputId($model, $attribute);
         $view = $this->getView();
