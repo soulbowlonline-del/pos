@@ -378,11 +378,24 @@ $form = ActiveForm::begin([
 											<div id="bill_no"><input class="form-control" name="bill_no" id="ItemReturnbill_no" type="text" required="required"></div>
                  <span class="help-inline error" id="ItemReturnbill_noem_" style="display: none"></span>                 
                 </div>
-				<div class="col-md-2col-xs-12 padding2px">
+				<div class="col-md-2 col-xs-12 padding2px">
 				<?php echo $form->datepickerRow($model, 'credit_note_date',
 					['hint'=>'Click inside! to select a date.',
 					'prepend'=>'<i class="icon-calendar"></i>'])
 ; ?></div>
+				<script>
+				// Today's date until one is picked: the owner's request, 5 Oct 2026.
+				// Set in the browser, so it is the till's own date, in the
+				// yyyy-mm-dd the picker uses.
+				jQuery(function ($) {
+					var $d = $('#ItemReturnItem_credit_note_date');
+					if ($d.length && !$d.val()) {
+						var t = new Date();
+						$d.val(t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2)
+							+ '-' + ('0' + t.getDate()).slice(-2));
+					}
+				});
+				</script>
 				</div>
 <div class="table-responsive customsmallgridwidth">
 				  <div class="">

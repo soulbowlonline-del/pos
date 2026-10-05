@@ -356,6 +356,19 @@ $form = $this->beginWidget ( 'bootstrap.widgets.TbActiveForm', array (
 					array('hint'=>'Click inside! to select a date.',
 					'prepend'=>'<i class="icon-calendar"></i>'))
 ; ?></div>
+				<script>
+				// Today's date until one is picked: the owner's request, 5 Oct 2026.
+				// Set in the browser, so it is the till's own date, in the
+				// yyyy-mm-dd the picker uses.
+				jQuery(function ($) {
+					var $d = $('#ItemReturnItem_credit_note_date');
+					if ($d.length && !$d.val()) {
+						var t = new Date();
+						$d.val(t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2)
+							+ '-' + ('0' + t.getDate()).slice(-2));
+					}
+				});
+				</script>
 				</div>
 <div class="table-responsive customsmallgridwidth">
 				  <div class="">
