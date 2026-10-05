@@ -86,7 +86,39 @@ class ActiveForm extends \yii\widgets\ActiveForm
         } elseif ($this->type === 'inline') {
             $this->options = ArrayHelper::merge(['class' => 'form-inline'], $this->options);
         }
+        $this->fieldConfig = ArrayHelper::merge($this->legacyFieldConfig(),
+                                                $this->fieldConfig);
         parent::init();
+    }
+
+    /**
+     * The row TbInputHorizontal / TbInputVertical drew, for every *Row().
+     *
+     * Two differences from Yii 2's field put whole screens out of line:
+     *
+     *   - Yii 2 gives every input class="form-control", width 100%. TbInput
+     *     adds no class; an input is full width only where the view asks for
+     *     form-control itself. Elsewhere the port's selects and date boxes
+     *     filled the page - the Vendor and Outlet pickers above the Stock
+     *     Expire and Item Return forms.
+     *   - In a horizontal form TbInputHorizontal puts the label in col-md-3
+     *     and the input, its error and its hint in col-md-9. Yii 2's default
+     *     template has neither, so the label sat on a line of its own above
+     *     the input instead of beside it: the search panels of mrsDetail,
+     *     mrnDetail and the rest.
+     *
+     * Found by measuring every menu page and create form on both stacks at the
+     * same width; see docs/web-ui-port.md.
+     */
+    private function legacyFieldConfig()
+    {
+        $config = ['inputOptions' => []];
+        if ($this->type === 'horizontal') {
+            $config['labelOptions'] = ['class' => 'control-label col-md-3'];
+            $config['template'] = "{label}\n<div class=\"col-md-9\">{input}\n{hint}\n{error}</div>";
+        }
+
+        return $config;
     }
 
     // ---------------------------------------------------------------- rows
@@ -265,13 +297,21 @@ class ActiveForm extends \yii\widgets\ActiveForm
         ArrayHelper::remove($htmlOptions, 'prepend');
         ArrayHelper::remove($htmlOptions, 'append');
 
-        $htmlOptions['class'] = trim('form-control datepicker '
+        // No form-control: TbDatePicker's input has no class, so it keeps its
+        // natural width. With form-control it filled its container, and in a
+        // container that is not a column - itemReturnItem/admin's credit note
+        // date - that was a full-width box on a row of its own.
+        $htmlOptions['class'] = trim('datepicker '
             . ArrayHelper::getValue($htmlOptions, 'class', ''));
 
-        $field = (string) $this->field($model, $attribute)->textInput($htmlOptions);
+        $field = $this->field($model, $attribute);
         if ($hint !== null && $hint !== '') {
-            $field .= \yii\helpers\Html::tag('span', $hint, ['class' => 'help-block']);
+            // Inside the row, as TbInput's <p class="help-block">: in a
+            // horizontal form that puts it under the input in col-md-9
+            // rather than under the label.
+            $field->hint($hint, ['tag' => 'p', 'class' => 'help-block']);
         }
+        $field = (string) $field->textInput($htmlOptions);
 
         $view = $this->getView();
         $view->registerCssFile('/v2/css/bootstrap-datepicker.css');
@@ -446,9 +486,16 @@ class ActiveForm extends \yii\widgets\ActiveForm
         return Html::activeTextarea($model, $attribute, $htmlOptions);
     }
 
+    /**
+     * `empty` is translated here too, not only in dropDownListRow. Without it
+     * item/expireStock's Item list had no "Select Item": the first item came
+     * pre-selected, choosing it fired no change, so no barcode list or rates
+     * were loaded and "add Item" posted a line with nothing to save.
+     */
     public function dropDownList($model, $attribute, $data, $htmlOptions = [])
     {
-        return Html::activeDropDownList($model, $attribute, $data, $htmlOptions);
+        return Html::activeDropDownList($model, $attribute, $data,
+                                        self::promptFromEmpty($htmlOptions));
     }
 
     public function checkBox($model, $attribute, $htmlOptions = [])
