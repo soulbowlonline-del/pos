@@ -40,6 +40,18 @@ return [
         '@bower' => dirname(dirname(__DIR__)) . '/vendor/bower-asset',
         '@npm' => dirname(dirname(__DIR__)) . '/vendor/npm-asset',
     ],
+    'container' => [
+        'definitions' => [
+            // Yii 1's CStringValidator refuses only an array and checks the
+            // length of anything else. Yii 2's refuses every non-string, so a
+            // varchar money column given a computed number - itemExpireItem/
+            // create sets total_amt to qty * sale_rate - failed "must be a
+            // string" and save() returned false with nothing on the page:
+            // "add Item" on item/expireStock reloaded and added nothing.
+            // Non-strict accepts any scalar, as Yii 1 did; arrays still fail.
+            \yii\validators\StringValidator::class => ['strict' => false],
+        ],
+    ],
     'components' => [
         // Yii 1 registers this in config/main.php; ItemUi, PurchaseOrderDetail
         // and Vendor call Yii::$app->interaktApi, which without it was an
