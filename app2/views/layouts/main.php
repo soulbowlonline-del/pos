@@ -1149,6 +1149,7 @@ $('a[title]').on('mouseenter', function () {
 <!-- jQuery 2.2.3 -->
 
 <?php $this->endBody(); ?>
+<script src="/v2/js/legacy-grid.js?v=20261005"></script>
 <script src="/v2/js/modern-ui.js?v=20260930"></script>
 </body>
 </html>
