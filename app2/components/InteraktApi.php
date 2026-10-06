@@ -41,15 +41,49 @@ class InteraktApi
             );
         }
 
-        // Not stubbed: this path is intentionally not implemented on the Yii 2
-        // side yet. Yii 1 still serves every route that sends for real, so
-        // reaching here means a route moved across before its transport did.
-        // The live transport is ready as a separate change for cutover, when
-        // the owner decides the port may message real customers.
-        throw new \RuntimeException(
-            'InteraktApi: live outbound is not implemented in the Yii 2 port; '
-            . 'set POS_STUB_OUTBOUND=1 or use the Yii 1 route.'
-        );
+        // Live: the same request Yii 1 makes, and the same failures - a curl
+        // error or an HTTP status of 400 and up is an exception, the body of a
+        // success is decoded.
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Basic ' . $this->apiKey,
+            'Content-Type: application/json',
+        ]);
+
+        switch (strtoupper($method)) {
+            case 'GET':
+                break;
+            case 'POST':
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                break;
+            case 'PUT':
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                break;
+            case 'DELETE':
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+                break;
+            default:
+                throw new \RuntimeException('Invalid HTTP method: ' . $method);
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new \RuntimeException('Curl error: ' . $error);
+        }
+
+        curl_close($ch);
+
+        if ($httpCode >= 400) {
+            throw new \RuntimeException('Error while calling API: ' . $response);
+        }
+        return json_decode($response, true);
     }
 
     /** Sends a template and records the attempt, as the Yii 1 version does. */
@@ -129,11 +163,19 @@ class InteraktApi
             );
         }
 
-        // Not stubbed: held back with sendRequest()'s live path, see there.
-        throw new \RuntimeException(
-            'InteraktApi: live outbound is not implemented in the Yii 2 port; '
-            . 'set POS_STUB_OUTBOUND=1 or use the Yii 1 route.'
-        );
+        // Live, as Yii 1: the local file is put under its own name. $tofile and
+        // $uploadFileName are computed there and never used, so not here.
+        $ftpServer = '143.110.254.206';
+        $ftpConn = ftp_connect($ftpServer);
+        if (!$ftpConn) {
+            die('Could not connect to ' . $ftpServer);   // as in Yii 1
+        }
+        ftp_login($ftpConn, 'soulbowlftp', getenv('POS_FTP_PASSWORD') !== false ? getenv('POS_FTP_PASSWORD') : '');
+        ftp_pasv($ftpConn, true);
+        if (ftp_put($ftpConn, $fileName, $fileName, FTP_BINARY)) {
+            return true;
+        }
+        return false;
     }
 
     /**

@@ -55,8 +55,8 @@ return [
     'components' => [
         // Yii 1 registers this in config/main.php; ItemUi, PurchaseOrderDetail
         // and Vendor call Yii::$app->interaktApi, which without it was an
-        // "Unknown component" 500. Sends go through the outbound stub; with the
-        // stub off, InteraktApi still refuses live sends until cutover.
+        // "Unknown component" 500. With POS_STUB_OUTBOUND=1 sends go through
+        // the outbound stub; without it they are sent, as Yii 1 sends them.
         'interaktApi' => [
             'class' => \app\components\InteraktApi::class,
             'apiKey' => getenv('POS_INTERAKT_API_KEY') !== false ? getenv('POS_INTERAKT_API_KEY') : '',
