@@ -780,7 +780,7 @@ class CustomerController extends Controller
             'purchase_order',
             $whatsappNo,
             [$model->name],
-            ['http://61.2.241.71/pos/whatapporder/payBillTest.pdf'],
+            [(getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . 'payBillTest.pdf'],
             'order.pdf'
         );
 
@@ -861,7 +861,7 @@ class CustomerController extends Controller
             $template = 'refund_order';
         }
 
-        $urlPdf = 'http://61.2.241.71/pos/whatapporder/' . $fileNms;
+        $urlPdf = (getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . $fileNms;
 
         $pdfName = str_replace('.pdf', '', $fileNms);
         $pdfName = str_replace(['_Reprint', '_Refund', '-Reprint', '-Refund'], '', $pdfName);
@@ -888,7 +888,7 @@ class CustomerController extends Controller
      */
     protected function uploadFileToServer($filePath)
     {
-        $uploadUrl = 'http://61.2.241.71/pos/uploadProductOrder.php';
+        $uploadUrl = (getenv('POS_UPLOAD_URL') ?: 'http://61.2.241.71/pos/uploadProductOrder.php');
 
         if (!file_exists($filePath)) {
             return 'Error: File not found.';

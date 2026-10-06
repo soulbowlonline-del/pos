@@ -204,7 +204,7 @@ class InteraktApi extends CApplicationComponent
 		
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://sect4.soulbowl.in/pos/uploadProductOrder.php';
-		$upload_url = 'http://61.2.241.71/pos/uploadProductOrder.php';
+		$upload_url = (getenv('POS_UPLOAD_URL') ?: 'http://61.2.241.71/pos/uploadProductOrder.php');
 		if (!file_exists($file_path)) {
 			return 'Error: File not found.';
 		}
@@ -224,7 +224,7 @@ class InteraktApi extends CApplicationComponent
 		//$upload_url = 'https://your-server-b.com/upload.php';
 	
 		// Token for authentication (replace with a secure token)
-		$api_token = '5716ec355ed78420c74c6fc1596a9f39565493df9bfc37e2575f60f16a965f25';
+		$api_token = getenv('POS_UPLOAD_TOKEN') ?: '5716ec355ed78420c74c6fc1596a9f39565493df9bfc37e2575f60f16a965f25';
 	
 		 // Get file name
 		 $file_name = basename($file_path);

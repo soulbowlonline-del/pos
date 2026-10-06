@@ -2238,7 +2238,7 @@ class ItemController extends Controller
             $template,
             $whatsappNo,
             [$customer->name, $pdfName],
-            ['http://61.2.241.71/pos/whatapporder/' . $fileName],
+            [(getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . $fileName],
             $fileName,
             [
                 'user_id' => isset($post['user_id']) ? $post['user_id'] : null,

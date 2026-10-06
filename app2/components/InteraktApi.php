@@ -186,7 +186,7 @@ class InteraktApi
      */
     public function uploadFileToServer($filePath)
     {
-        $uploadUrl = 'http://61.2.241.71/pos/uploadProductOrder.php';
+        $uploadUrl = (getenv('POS_UPLOAD_URL') ?: 'http://61.2.241.71/pos/uploadProductOrder.php');
 
         if (!file_exists($filePath)) {
             return 'Error: File not found.';

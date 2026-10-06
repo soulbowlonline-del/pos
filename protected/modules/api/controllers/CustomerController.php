@@ -825,7 +825,7 @@ class CustomerController extends GxController {
 
 			$template = 'purchase_order';
 			$urlPdf =  "https://sect4.soulbowl.in/pos/product_order/order_first.pdf";
-			$arr ['message'] = Yii::app()->interaktApi->sendApprovalOrderMessageNew($template,$whatsapp_no ,[$model->name], ["http://61.2.241.71/pos/whatapporder/payBillTest.pdf"], 'order.pdf');
+			$arr ['message'] = Yii::app()->interaktApi->sendApprovalOrderMessageNew($template,$whatsapp_no ,[$model->name], [(getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . 'payBillTest.pdf'], 'order.pdf');
 
 			// $whatsapp_no = preg_replace("/[^0-9]/", "", $model->contact_no);
 
@@ -860,7 +860,7 @@ class CustomerController extends GxController {
 		
 		// URL of Server B (where you want to upload the file)
 		//$upload_url = 'https://sect4.soulbowl.in/pos/uploadProductOrder.php';
-		$upload_url = 'http://61.2.241.71/pos/uploadProductOrder.php';
+		$upload_url = (getenv('POS_UPLOAD_URL') ?: 'http://61.2.241.71/pos/uploadProductOrder.php');
 
 		if (!file_exists($file_path)) {
 			return 'Error: File not found.';
@@ -880,7 +880,7 @@ class CustomerController extends GxController {
 		//$upload_url = 'https://your-server-b.com/upload.php';
 	
 		// Token for authentication (replace with a secure token)
-		$api_token = '5716ec355ed78420c74c6fc1596a9f39565493df9bfc37e2575f60f16a965f25';
+		$api_token = getenv('POS_UPLOAD_TOKEN') ?: '5716ec355ed78420c74c6fc1596a9f39565493df9bfc37e2575f60f16a965f25';
 	
 		 // Get file name
 		 $file_name = basename($file_path);
@@ -1001,7 +1001,7 @@ class CustomerController extends GxController {
 				} else if (strpos(strtolower($fileNms), 'refund') !== false) {
 					$template = 'refund_order';
 				}
-				$urlPdf =  'http://61.2.241.71/pos/whatapporder/' . $_FILES['file']['name'] ;
+				$urlPdf =  (getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . $_FILES['file']['name'] ;
 				//echo $urlPdf ;
 				
 				//echo $fileNms;

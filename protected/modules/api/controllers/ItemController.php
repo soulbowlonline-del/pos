@@ -2161,7 +2161,7 @@ class ItemController extends GxController {
 			} else if (strpos(strtolower($fileNms), 'refund') !== false) {
 				$template = 'refund_order';
 			}
-			$urlPdf =  'http://61.2.241.71/pos/whatapporder/' . $fileNms;
+			$urlPdf =  (getenv('POS_BILL_PDF_URL') ?: 'http://61.2.241.71/pos/whatapporder/') . $fileNms;
 			//echo $urlPdf ;
 			
 			//echo $fileNms;

@@ -41,6 +41,7 @@ wdir/uploads/pdf/*
 !wdir/uploads/pdf/.gitkeep
 uploadbills/*
 !uploadbills/.gitkeep
+whatapporder/*
 
 # ── Database dumps (but KEEP db_changes/ migration scripts) ──
 *.sql
@@ -74,4 +75,5 @@ v2/assets/
 __pycache__/
 # The upload directories' no-execute rules are part of the source.
 !uploadbills/.htaccess
+!whatapporder/.htaccess
 !wdir/uploads/.htaccess

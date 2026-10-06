@@ -1,0 +1,17 @@
+# Uploaded files are data. Never run them: a bill image named x.php would
+# otherwise execute as PHP. Images and PDFs are still served as before.
+<FilesMatch "\.(php[0-9]?|phtml|phar|pht|shtml|cgi|pl|py)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI
+# Belt and braces where PHP runs as an Apache module. Guarded, because a bare
+# php_flag is a 500 for the whole directory on a server without mod_php.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php5.c>
+    php_flag engine off
+</IfModule>
