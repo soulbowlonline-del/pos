@@ -133,6 +133,16 @@ class Ui
         // Yii 1 way untouched: toYii1Id() is idempotent on camelCase.
         $parts = explode('/', ltrim($route, '/'));
         $parts = array_map([self::class, 'toYii1Id'], $parts);
+
+        // A bare action id - Gx::url(['viewTransactions', 'id' => 5]) - is
+        // relative to the current controller, as CController::createUrl()
+        // read it. Taken as a controller name it went to /viewTransactions
+        // at the site root, a 404, from every grid button and back link
+        // written that way.
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/', $route)
+                && Yii::$app->controller !== null) {
+            array_unshift($parts, self::toYii1Id(Yii::$app->controller->id));
+        }
         $route = implode('/', $parts);
 
         $controller = strtok($route, '/');
