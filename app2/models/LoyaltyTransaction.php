@@ -53,13 +53,15 @@ class LoyaltyTransaction extends ActiveRecord
     }
 
     /**
-     * Lifetime EARN points for a customer. Reproduces the Yii 1 helpers, which
-     * SUM(points) and coalesce a null (no rows) to 0.
+     * Lifetime earned points for a customer: EARN plus ADJUST. ADJUST rows are
+     * stored signed (a refund clawback is negative), so summing them deducts
+     * them from the earnings. Reproduces the Yii 1 helper, which SUM(points)
+     * and coalesces a null (no rows) to 0.
      */
     public static function getLoyaltyLifetimeEarnedPoints($customerId)
     {
         $total = static::find()
-            ->where(['customer_id' => $customerId, 'transaction_type' => self::TYPE_EARN])
+            ->where(['customer_id' => $customerId, 'transaction_type' => [self::TYPE_EARN, self::TYPE_ADJUST]])
             ->sum('points');
         return $total ? $total : 0;
     }

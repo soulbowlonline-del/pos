@@ -17,7 +17,7 @@ class LoyaltyTransaction extends BaseLoyaltyTransaction
 
     public static function getLoyaltyLifetimeEarnedPoints($customerId) {
         $totalEarned = self::model()->findBySql(
-            "SELECT SUM(points) as total FROM {{loyalty_transactions}} WHERE customer_id = :customerId AND transaction_type IN ('EARN')",
+            "SELECT SUM(points) as total FROM {{loyalty_transactions}} WHERE customer_id = :customerId AND transaction_type IN ('EARN', 'ADJUST')",
             [':customerId' => $customerId]
         );
         return $totalEarned->total ? $totalEarned->total : 0;
