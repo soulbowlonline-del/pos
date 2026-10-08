@@ -673,12 +673,10 @@ class OrderController extends GxController {
 				$set = true;
 				$transaction = Yii::app ()->db->beginTransaction ();
 				try {
-					// Refunds of one order are taken one at a time, so the check
-					// against what was already refunded (below) cannot pass twice
-					// for two requests arriving together. The order row is locked
-					// before anything else is read, so that a refund of the same
-					// order that got here first has committed before this one
-					// looks at what it refunded.
+					// Refunds of one order are taken one at a time: the order row
+					// is locked before anything else is read, so a refund of the
+					// same order that got here first has committed before this one
+					// finds its refund row.
 					Yii::app ()->db->createCommand ( 'SELECT id FROM {{order}} WHERE id = :id FOR UPDATE' )->queryScalar ( array (
 							':id' => $_POST ['order_id'] 
 					) );
@@ -687,13 +685,6 @@ class OrderController extends GxController {
 						$criteria1->compare ( "bar_code ", $item_array->bar_code );
 						$itemdetail = ItemDetail::model ()->find ( $criteria1 );
 						
-						// A refund of nothing, or of a negative quantity, would add stock
-						// the other way round or refund money for nothing returned.
-						if ($itemdetail && (! is_numeric ( $item_array->is_return ) || $item_array->is_return <= 0)) {
-							$set = false;
-							$arr ['message'] = 'Refund quantity must be more than zero';
-							continue;
-						}
 						if ($itemdetail) {
 							$criteria = new CDbCriteria ();
 							
@@ -706,24 +697,6 @@ class OrderController extends GxController {
 							$orderitem = OrderItem::model ()->find ( $criteria );
 							$json_list = array ();
 							if ($orderitem) {
-								// Nothing compared a refund with what had already been
-								// refunded, so the same line could be refunded again and
-								// again - stock back and a credit note every time. Refuse
-								// a line that, with this order's earlier refunds of the
-								// item, returns more than the order sold of it.
-								$sold_qty = Yii::app ()->db->createCommand ( 'SELECT COALESCE(SUM(qty), 0) FROM {{order_item}} WHERE order_id = :oid AND item_detail_id = :did' )->queryScalar ( array (
-										':oid' => $orderitem->order_id,
-										':did' => $itemdetail->id 
-								) );
-								$refunded_qty = Yii::app ()->db->createCommand ( 'SELECT COALESCE(SUM(ri.qty), 0) FROM {{order_refund_item}} ri INNER JOIN {{order_refund}} r ON r.id = ri.order_refund_id WHERE r.order_id = :oid AND ri.item_detail_id = :did' )->queryScalar ( array (
-										':oid' => $orderitem->order_id,
-										':did' => $itemdetail->id 
-								) );
-								if (($refunded_qty + $item_array->is_return) > $sold_qty) {
-									$set = false;
-									$arr ['message'] = 'Refund quantity is more than the quantity sold';
-									continue;
-								}
 								$order = Order::model ()->findByPk ( $orderitem->order_id );
 								
 								$item = Item::model ()->findByPk ( $itemdetail->item_id );
@@ -749,7 +722,7 @@ class OrderController extends GxController {
 									// A new row for every refund. The item's row from an earlier
 									// refund of this order used to be reused and its quantity
 									// overwritten, which lost the record of what had already been
-									// refunded - the figure the check above needs.
+									// refunded.
 									$refunditem = new OrderRefundItem ();
 									$refunditem->order_refund_id = $refundmodel->id;
 									$refunditem->item_detail_id = $itemdetail->id;

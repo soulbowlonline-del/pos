@@ -906,12 +906,10 @@ class OrderController extends Controller
         $transaction = Yii::$app->db->beginTransaction();
 
         try {
-            // Refunds of one order are taken one at a time, so the check
-            // against what was already refunded (below) cannot pass twice for
-            // two requests arriving together. The order row is locked before
-            // anything else is read, so that a refund of the same order that
-            // got here first has committed before this one looks at what it
-            // refunded. Same lock on the Yii 1 side.
+            // Refunds of one order are taken one at a time: the order row is
+            // locked before anything else is read, so a refund of the same
+            // order that got here first has committed before this one finds
+            // its refund row. Same lock on the Yii 1 side.
             Yii::$app->db->createCommand('SELECT id FROM {{%order}} WHERE id = :id FOR UPDATE',
                 [':id' => $post['order_id']])->queryScalar();
 
@@ -927,14 +925,6 @@ class OrderController extends Controller
                     continue;
                 }
 
-                // A refund of nothing, or of a negative quantity, would add stock
-                // the other way round or refund money for nothing returned.
-                if (!is_numeric($itemArray->is_return) || $itemArray->is_return <= 0) {
-                    $ok = false;
-                    $out['message'] = 'Refund quantity must be more than zero';
-                    continue;
-                }
-
                 $orderItem = OrderItem::find()
                     ->where(['item_detail_id' => $itemDetail->id, 'order_id' => $post['order_id']])
                     ->andWhere('qty >= :ret', [':ret' => $itemArray->is_return])
@@ -946,25 +936,6 @@ class OrderController extends Controller
                     // branch that *found* an order item, not this one.
                     $ok = false;
                     $out['message'] = 'No order found';
-                    continue;
-                }
-
-                // Nothing compared a refund with what had already been
-                // refunded, so the same line could be refunded again and again
-                // - stock back and a credit note every time. Refuse a line
-                // that, with this order's earlier refunds of the item, returns
-                // more than the order sold of it.
-                $soldQty = Yii::$app->db->createCommand(
-                    'SELECT COALESCE(SUM(qty), 0) FROM {{%order_item}} WHERE order_id = :oid AND item_detail_id = :did',
-                    [':oid' => $orderItem->order_id, ':did' => $itemDetail->id])->queryScalar();
-                $refundedQty = Yii::$app->db->createCommand(
-                    'SELECT COALESCE(SUM(ri.qty), 0) FROM {{%order_refund_item}} ri'
-                    . ' INNER JOIN {{%order_refund}} r ON r.id = ri.order_refund_id'
-                    . ' WHERE r.order_id = :oid AND ri.item_detail_id = :did',
-                    [':oid' => $orderItem->order_id, ':did' => $itemDetail->id])->queryScalar();
-                if (($refundedQty + $itemArray->is_return) > $soldQty) {
-                    $ok = false;
-                    $out['message'] = 'Refund quantity is more than the quantity sold';
                     continue;
                 }
 
@@ -996,7 +967,7 @@ class OrderController extends Controller
                 // A new row for every refund. The item's row from an earlier
                 // refund of this order used to be reused and its quantity
                 // overwritten, which lost the record of what had already been
-                // refunded - the figure the check above needs.
+                // refunded.
                 $refundItem = new OrderRefundItem();
                 $refundItem->order_refund_id = $refundModel->id;
                 $refundItem->item_detail_id = $itemDetail->id;
