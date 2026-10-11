@@ -1883,8 +1883,35 @@ class ItemDetail extends ActiveRecord
             ]);
         }
 
+    /**
+     * Yii 1's Barcode widget (protected/extensions/Yii-Barcode-Generator):
+     * the jQuery barcode plugin in the head, and one call per label at the end
+     * of the page drawing the bars into the label's div, with the widget's
+     * default settings. This was copied as the Yii 1 widget() call, which Yii 2
+     * does not have, so item/printBarcode answered 500.
+     */
     public static function getBarcode($optionsArray) {
-            Yii::$app->getController ()->widget ( 'application.extensions.Yii-Barcode-Generator.Barcode', $optionsArray );
+            $view = Yii::$app->getView();
+            $view->registerJsFile('/v2/js/jquery-barcode.min.js', [
+                    'depends' => \yii\web\JqueryAsset::class,
+                    'position' => \yii\web\View::POS_HEAD,
+            ]);
+            $settings = [
+                    'output' => 'css',
+                    'bgColor' => '#FFFFFF',
+                    'color' => '#000000',
+                    'barWidth' => 1,
+                    'barHeight' => 28,
+                    'moduleSize' => 5,
+                    'addQuietZone' => 0,
+                    'posX' => 10,
+                    'posY' => 20,
+            ];
+            $view->registerJs(sprintf('$(%s).html("").show().barcode(%s, %s, %s);',
+                    \yii\helpers\Json::encode('#' . $optionsArray['elementId']),
+                    \yii\helpers\Json::encode((string) $optionsArray['value']),
+                    \yii\helpers\Json::encode($optionsArray['type']),
+                    \yii\helpers\Json::encode($settings)), \yii\web\View::POS_END);
         }
 
     /**
