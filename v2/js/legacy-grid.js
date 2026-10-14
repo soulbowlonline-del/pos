@@ -39,6 +39,9 @@
                 var $fresh = $('<div>').append($.parseHTML(html)).find('#' + id);
                 if ($fresh.length) {
                     $grid.replaceWith($fresh);
+                    // Yii 1's grid fires this after an update; the editable
+                    // columns (app\widgets\EditableColumn) re-apply on it.
+                    $fresh.trigger('ajaxUpdate.yiiGridView');
                 }
             }
         }, options || {}));
