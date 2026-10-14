@@ -1495,8 +1495,8 @@ class Order extends ActiveRecord
             $discountorder = $query3->one();
 
 
-         // $total = $total - $discountorder->discount_amt;
-         $total = $total;
+         $total = $total - $discountorder->discount_amt;
+        //  $total = $total;
 
             //Yii::warning( var_export($orderitems, true), '$orderitems');
             /* if($orderitems){
