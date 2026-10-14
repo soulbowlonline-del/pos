@@ -1878,9 +1878,15 @@ class ItemDetail extends ActiveRecord
                     'value' => $value,
                     'type' => $type
             ] );
-            return \yii\helpers\Html::tag('div', '', [
+            // Yii 1's CHtml::tag('div', $options) with no content is
+            // `<div id="..." />`, which a browser reads as an opening <div>.
+            // The print views close it with the extra </div> after each label;
+            // a complete <div></div> here let that </div> close the
+            // #bar_code_print box instead, so every label after the first fell
+            // outside it - unstyled, and left out by the Print button.
+            return '<div' . \yii\helpers\Html::renderTagAttributes([
                     'id' => $elementId
-            ]);
+            ]) . ' />';
         }
 
     /**
