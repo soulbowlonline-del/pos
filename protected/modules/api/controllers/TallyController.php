@@ -55,6 +55,14 @@ class TallyController extends GxController {
 		
 		// for($i = 1; $i <= $total_days; $i++){
 			// $date = "'".$year.'-'.$current_month.'-'.$i."'";
+		// No date: MySQL 8 rejects a DATE compared with '' (error 1525), so this
+		// answered 500 where the PHP 5.6 baseline and /v2 answer "data not
+		// available". An empty date can match nothing; say so, as b2bsales does.
+		if ($date === null || $date === '') {
+			$arr['message'] = 'data not available';
+			$this->sendJSONResponse($arr);
+			return;
+		}
 		$query16 = "SELECT * FROM `tbl_order_item` WHERE `create_date` = '".$date."' group by `tax_id` order by `tax_id` ";
 		$items = Yii::app()->db->createCommand($query16)->queryAll();
 		
@@ -184,6 +192,14 @@ if($row13){
 	//	if($skey == 'b3V0bGluZUAxMjM='){
 		
 		
+		// No date: MySQL 8 rejects a DATE compared with '' (error 1525), so this
+		// answered 500 where the PHP 5.6 baseline and /v2 answer "data not
+		// available". An empty date can match nothing; say so, as b2bsales does.
+		if ($date === null || $date === '') {
+			$arr['message'] = 'data not available';
+			$this->sendJSONResponse($arr);
+			return;
+		}
 		$json_list = [];
 		$criteria = new CDbCriteria;
 		//$criteria->alias = 'tr';
@@ -254,6 +270,14 @@ if($row13){
 		
 		$criteria1 = new CDbCriteria;
 		
+		// No date: MySQL 8 rejects a DATE compared with '' (error 1525), so this
+		// answered 500 where the PHP 5.6 baseline and /v2 answer "data not
+		// available". An empty date can match nothing; say so, as b2bsales does.
+		if ($date === null || $date === '') {
+			$arr['message'] = 'data not available';
+			$this->sendJSONResponse($arr);
+			return;
+		}
 		$criteria1->addCondition('start_date = "'.$date.'"');
 		
 		$criteria1->addCondition('status ='.PurchaseBill::STATUS_APPROVED);
@@ -331,6 +355,14 @@ if($row13){
         // for ($i = 1; $i <= $total_days; $i ++) {
             // $date = "'" . $year . '-' . $current_month . '-' . $i . "'";
 			   
+				// No date: MySQL 8 rejects a DATE compared with '' (error 1525), so this
+				// answered 500 where the PHP 5.6 baseline and /v2 answer "data not
+				// available". An empty date can match nothing; say so, as b2bsales does.
+				if ($date === null || $date === '') {
+					$arr['message'] = 'data not available';
+					$this->sendJSONResponse($arr);
+					return;
+				}
 				$criteria = new CDbCriteria ();
 			
 				$criteria->addCondition('date(create_time) = "'.$date.'"');

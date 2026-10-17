@@ -3,6 +3,10 @@
 RewriteEngine on
 RewriteBase /v2
 
+# The standalone Excel reports in the web root are not Yii pages, so the
+# port has none of its own; /v2/<name>.php serves the same script as /.
+RewriteRule ^(gstreport|gstreport1|b2bgstreport)\.php$ /$1.php [L]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . index.php
