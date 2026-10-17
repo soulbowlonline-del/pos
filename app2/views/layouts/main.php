@@ -953,6 +953,11 @@ $this->beginPage();
               </a>
             </li>
             <li>
+              <a href="<?php echo Ui::to('loyaltyAdmin/transactions'); ?>">
+                <i class="fa fa-dot-circle-o"></i> <span>Transactions</span>
+              </a>
+            </li>
+            <li>
               <a href="<?php echo Ui::to('loyaltyAdmin/reports'); ?>">
                 <i class="fa fa-dot-circle-o"></i> <span>Reports</span>
               </a>

@@ -54,6 +54,80 @@ class LoyaltyAdminController extends BaseUiController
         ]);
     }
     
+    public function actionTransactions() {
+        $validTypes = [
+            LoyaltyTransaction::TYPE_EARN,
+            LoyaltyTransaction::TYPE_REDEEM,
+            LoyaltyTransaction::TYPE_BONUS,
+            LoyaltyTransaction::TYPE_EXPIRE,
+            LoyaltyTransaction::TYPE_ADJUST,
+        ];
+
+        // Type filter — REDEEM by default, 'ALL' shows every type
+        $type = isset($_GET['type']) ? strtoupper(trim($_GET['type'])) : LoyaltyTransaction::TYPE_REDEEM;
+        if ($type !== 'ALL' && !in_array($type, $validTypes)) {
+            $type = LoyaltyTransaction::TYPE_REDEEM;
+        }
+
+        // Date range filter (optional, Y-m-d from the date inputs)
+        $fromDate = isset($_GET['from_date']) ? trim($_GET['from_date']) : '';
+        $toDate   = isset($_GET['to_date'])   ? trim($_GET['to_date'])   : '';
+        $datePattern = '/^\d{4}-\d{2}-\d{2}$/';
+        if ($fromDate !== '' && !preg_match($datePattern, $fromDate)) $fromDate = '';
+        if ($toDate !== ''   && !preg_match($datePattern, $toDate))   $toDate   = '';
+
+        // Same conditions for the grid and the summary, as Yii 1 reuses
+        // $criteria->condition for both.
+        $conditions = [];
+        $params = [];
+        if ($type !== 'ALL') {
+            $conditions[] = 't.transaction_type = :type';
+            $params[':type'] = $type;
+        }
+        if ($fromDate !== '') {
+            $conditions[] = 't.created_at >= :from_date';
+            $params[':from_date'] = $fromDate . ' 00:00:00';
+        }
+        if ($toDate !== '') {
+            $conditions[] = 't.created_at <= :to_date';
+            $params[':to_date'] = $toDate . ' 23:59:59';
+        }
+
+        $query = LoyaltyTransaction::find()->alias('t');
+        $query->with = ['customer', 'order'];
+        $query->orderBy(['t.created_at' => SORT_DESC]);
+        foreach ($conditions as $condition) {
+            $query->andWhere($condition);
+        }
+        $query->addParams($params);
+
+        // Summary for the filtered set
+        // Each aggregate as an Expression: a select string is split on commas,
+        // which breaks inside COALESCE(..., 0).
+        $summaryQuery = (new \yii\db\Query())
+            ->select([
+                'cnt'              => new \yii\db\Expression('COUNT(*)'),
+                'total_points'     => new \yii\db\Expression('COALESCE(SUM(points), 0)'),
+                'total_abs_points' => new \yii\db\Expression('COALESCE(SUM(ABS(points)), 0)'),
+            ])
+            ->from('tbl_loyalty_transactions t');
+        foreach ($conditions as $condition) {
+            $summaryQuery->andWhere($condition);
+        }
+        $summaryQuery->addParams($params);
+        $summaryRow = $summaryQuery->one();
+
+        $dataProvider = new ActiveDataProvider(['query' => $query, 'pagination' => ['pageSize' => 20], 'sort' => false]);
+
+        return $this->render('transactions', [
+            'dataProvider' => $dataProvider,
+            'type'         => $type,
+            'fromDate'     => $fromDate,
+            'toDate'       => $toDate,
+            'summary'      => $summaryRow,
+        ]);
+    }
+
     public function actionViewTransactions($id) {
         $id = intval($id);
         $loyalty = CustomerLoyalty::find()->with(['customer'])->where(['customer_id' => $id])->one();

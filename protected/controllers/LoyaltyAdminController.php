@@ -37,6 +37,72 @@ class LoyaltyAdminController extends GxController
         ));
     }
     
+    public function actionTransactions() {
+        $validTypes = array(
+            LoyaltyTransaction::TYPE_EARN,
+            LoyaltyTransaction::TYPE_REDEEM,
+            LoyaltyTransaction::TYPE_BONUS,
+            LoyaltyTransaction::TYPE_EXPIRE,
+            LoyaltyTransaction::TYPE_ADJUST,
+        );
+
+        // Type filter — REDEEM by default, 'ALL' shows every type
+        $type = isset($_GET['type']) ? strtoupper(trim($_GET['type'])) : LoyaltyTransaction::TYPE_REDEEM;
+        if ($type !== 'ALL' && !in_array($type, $validTypes)) {
+            $type = LoyaltyTransaction::TYPE_REDEEM;
+        }
+
+        // Date range filter (optional, Y-m-d from the date inputs)
+        $fromDate = isset($_GET['from_date']) ? trim($_GET['from_date']) : '';
+        $toDate   = isset($_GET['to_date'])   ? trim($_GET['to_date'])   : '';
+        $datePattern = '/^\d{4}-\d{2}-\d{2}$/';
+        if ($fromDate !== '' && !preg_match($datePattern, $fromDate)) $fromDate = '';
+        if ($toDate !== ''   && !preg_match($datePattern, $toDate))   $toDate   = '';
+
+        $criteria = new CDbCriteria();
+        $criteria->with = array(
+            'customer' => array('together' => false),
+            'order'    => array('together' => false),
+        );
+        $criteria->order = 't.created_at DESC';
+
+        if ($type !== 'ALL') {
+            $criteria->addCondition('t.transaction_type = :type');
+            $criteria->params[':type'] = $type;
+        }
+        if ($fromDate !== '') {
+            $criteria->addCondition('t.created_at >= :from_date');
+            $criteria->params[':from_date'] = $fromDate . ' 00:00:00';
+        }
+        if ($toDate !== '') {
+            $criteria->addCondition('t.created_at <= :to_date');
+            $criteria->params[':to_date'] = $toDate . ' 23:59:59';
+        }
+
+        // Summary for the filtered set
+        $summaryCommand = Yii::app()->db->createCommand()
+            ->select('COUNT(*) AS cnt, COALESCE(SUM(points), 0) AS total_points, COALESCE(SUM(ABS(points)), 0) AS total_abs_points')
+            ->from('tbl_loyalty_transactions t');
+        if ($criteria->condition !== '') {
+            $summaryCommand->where($criteria->condition, $criteria->params);
+        }
+        $summaryRow = $summaryCommand->queryRow();
+
+        $dataProvider = new CActiveDataProvider('LoyaltyTransaction', array(
+            'criteria'   => $criteria,
+            'pagination' => array('pageSize' => 20),
+            'sort'       => false,
+        ));
+
+        $this->render('transactions', array(
+            'dataProvider' => $dataProvider,
+            'type'         => $type,
+            'fromDate'     => $fromDate,
+            'toDate'       => $toDate,
+            'summary'      => $summaryRow,
+        ));
+    }
+
     public function actionViewTransactions($id) {
         $id = intval($id);
         $loyalty = CustomerLoyalty::model()
