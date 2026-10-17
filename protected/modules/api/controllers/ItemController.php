@@ -125,7 +125,16 @@ class ItemController extends GxController {
 	 									$order->mode_of_payment = $_POST ['mode_of_payment'];
 	 									$order->mode_of_delivery = $_POST ['mode_of_delivery'];
 	 									$order->total_amt = $_POST ['total_amt'];
-	 									$order->discount_amt = $_POST ['discount_amt'];
+	 									// Derive the total discount from gross vs net so it includes the
+	 									// percentage discount the client bakes into the item rates; the posted
+	 									// discount_amt only carries redeemed loyalty points. Fall back to the
+	 									// posted value for older clients that don't send gross_total_amt.
+	 									$grossTotalAmt = isset($_POST ['gross_total_amt']) ? floatval($_POST ['gross_total_amt']) : 0;
+	 									if ($grossTotalAmt > 0) {
+	 										$order->discount_amt = max(0, round($grossTotalAmt - floatval($_POST ['total_amt']), 2));
+	 									} else {
+	 										$order->discount_amt = $_POST ['discount_amt'];
+	 									}
 	 									$order->outlet_id = $_POST ['outlet_id'];
 	 									if(isset($_POST ['customer_id'])){
 	 										$order->city_id = $customer->city_id;
@@ -1107,7 +1116,16 @@ class ItemController extends GxController {
 	 									$order->mode_of_payment = $_POST ['mode_of_payment'];
 	 									$order->mode_of_delivery = $_POST ['mode_of_delivery'];
 	 									$order->total_amt = $_POST ['total_amt'];
-	 									$order->discount_amt = $_POST ['discount_amt'];
+	 									// Derive the total discount from gross vs net so it includes the
+	 									// percentage discount the client bakes into the item rates; the posted
+	 									// discount_amt only carries redeemed loyalty points. Fall back to the
+	 									// posted value for older clients that don't send gross_total_amt.
+	 									$grossTotalAmt = isset($_POST ['gross_total_amt']) ? floatval($_POST ['gross_total_amt']) : 0;
+	 									if ($grossTotalAmt > 0) {
+	 										$order->discount_amt = max(0, round($grossTotalAmt - floatval($_POST ['total_amt']), 2));
+	 									} else {
+	 										$order->discount_amt = $_POST ['discount_amt'];
+	 									}
 	 									$order->outlet_id = $_POST ['outlet_id'];
 	 									if(isset($_POST ['customer_id'])){
 	 										$order->city_id = $customer->city_id;
