@@ -418,6 +418,15 @@ None of this is in git. Backups are in `/root/pos/dumps/`.
   9994426 (bill 96794). New rows keep landing in the fixture range until open
   decision 6 is settled.
 - **Added on 27 Sep by the deploy:** table `tbl_order_request` (empty).
+- **19 Oct 2026, bill 96874 (order 9994506):** the till had recorded the GST
+  of 7 lines at 90% (`tax_amount`, `cgst_amt`, `sgst_amt`; 18.07 short; the
+  3380 paid was right). Set to price x qty x rate by
+  `db_changes/2026-10-19-bill-96874-tax.sql`; the 7 rows as they were are in
+  `/root/pos/dumps/bill-96874-items-before-tax-fix.sql` (REPLACE, restores
+  them). The cause is in the .NET till and is not fixed: lines on bills with
+  its 5%/10% bill discount (`tbl_discount` 10, 11) sometimes get 90% or 95%
+  of their tax - a few dozen lines a month in the local copy, May-Oct 2026.
+  This bill was the only one from 17 to 19 Oct.
 
 ## What the owner asked for, and what each request produced
 
@@ -864,6 +873,9 @@ These were exposed during the work and **have not been rotated**:
   credentials and `POS_V2_COOKIE_KEY`. `/.env` and `/.git` were downloadable
   over HTTP until 27 Sep 2026 ~10:51 IST. The container log (from 17 Sep)
   shows no outside request for either; earlier access cannot be ruled out.
+- the MySQL root password of `pos-mysql-8` on the test server, typed into a
+  command in place of `"$MYSQL_ROOT_PASSWORD"` and pasted into a Claude
+  session on 19 Oct 2026 (so also in that shell's history)
 
 Rotating them is outstanding and is the owner's to do. Passwords in
 `tbl_user` are unsalted MD5; changing that is a separate piece of work,
