@@ -82,7 +82,7 @@ class PurchaseOrderDetailController extends BaseUiController {
 		], true );
 		
 		Yii::$app->interaktApi->sendApprovalOrderMessage($vendor->contact_no , $id,'http://61.2.241.71/pos/amritdb/ws.pdf');
-		$to = 'sharma.rajan3097@gmail.com';
+		// $to = 'sharma.rajan3097@gmail.com';
 		$purchaseorder->mailsend ( $to, $from, $subject, $view );
 		}
 		}
