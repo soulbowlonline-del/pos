@@ -60,7 +60,9 @@ class MrnDetailController extends BaseUiController {
         ], true));
 
       
-        $mPDF1->Output('wdir/uploads/pdf/filename.pdf', 'F');
+        // @legacyroot, not the working directory (/v2) - see config/web.php.
+        // mailsend() attaches the file from there.
+        $mPDF1->Output(Yii::getAlias('@legacyroot') . '/wdir/uploads/pdf/filename.pdf', 'F');
 
         $vendor = Vendor::findOne($mrn->vendor_id);
         if ($vendor) {

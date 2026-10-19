@@ -58,8 +58,10 @@ class PurchaseOrderDetailController extends BaseUiController {
 		
 		# Renders image
 		//$mPDF1->WriteHTML(CHtml::image(Yii::getPathOfAlias('webroot.css') . '/bg.gif' ));
-		$mPDF1->Output('wdir/uploads/pdf/filename.pdf','F');
-		$mPDF1->Output("whatsapp/$id.pdf",'F');
+		// @legacyroot, not the working directory - Yii 1 runs from the web
+		// root, the port from /v2. See the alias note in config/web.php.
+		$mPDF1->Output(Yii::getAlias('@legacyroot') . '/wdir/uploads/pdf/filename.pdf','F');
+		$mPDF1->Output(Yii::getAlias('@legacyroot') . "/whatsapp/$id.pdf",'F');
 		
 		 $vendor = Vendor::findOne($purchaseorder->vendor_id);
 		if($vendor){
@@ -100,8 +102,10 @@ class PurchaseOrderDetailController extends BaseUiController {
 		$mPDF1->WriteHTML($this->renderPartial('/purchaseOrder/_pdf',['po'=>$purchaseorder,'poid'=>$id], true));
 
 		$fileName = "whatsapp/$id.pdf";
-		
-		$mPDF1->Output($fileName,'F');
+
+		// @legacyroot, as in actionSendEmail; $fileName stays relative because
+		// it is also the FTP name and the end of the public URL.
+		$mPDF1->Output(Yii::getAlias('@legacyroot') . '/' . $fileName,'F');
 		
 		$vendor = Vendor::findOne($purchaseorder->vendor_id);
 		if($vendor && $vendor->whatsapp_no != '') {

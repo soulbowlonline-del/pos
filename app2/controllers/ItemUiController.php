@@ -3070,9 +3070,11 @@ curl_close($ch);
 					$random = rand(1000, 9999); // Generate a random number for unique file name
 					$fileName = "whatsapp/$random.pdf";
 					
-					$mPDF->Output($fileName,'F');
+					// Written and linked under the web root, as Yii 1 does, not
+					// under /v2 - see the alias note in config/web.php.
+					$mPDF->Output(Yii::getAlias('@legacyroot') . '/' . $fileName,'F');
 
-					$baseUrl = Yii::$app->request->hostinfo . Yii::$app->baseUrl.'/';
+					$baseUrl = Yii::$app->request->hostinfo . '/';
 					
 						$phoneNumbers = [
 							'9814740064',

@@ -172,7 +172,9 @@ class InteraktApi
         }
         ftp_login($ftpConn, 'soulbowlftp', getenv('POS_FTP_PASSWORD') !== false ? getenv('POS_FTP_PASSWORD') : '');
         ftp_pasv($ftpConn, true);
-        if (ftp_put($ftpConn, $fileName, $fileName, FTP_BINARY)) {
+        // The remote name is $fileName as given; the local file is read from
+        // @legacyroot, where Yii 1's working directory put it.
+        if (ftp_put($ftpConn, $fileName, \Yii::getAlias('@legacyroot') . '/' . $fileName, FTP_BINARY)) {
             return true;
         }
         return false;
