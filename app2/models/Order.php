@@ -1463,10 +1463,10 @@ class Order extends ActiveRecord
             if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
                 $query1->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
             }
-            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount');
+            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount,sum(discount_amt) as discount_amt');
             $query1->andWhere('create_user_id ='.$this->create_user_id);
             $orderitem = $query1->one();
-            $order_amt = $orderitem->price + $orderitem->tax_amount;
+            $order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt;
 
             $query2 = OrderRefundItem::find();
             if((Yii::$app->session['item_id'] != '')){
