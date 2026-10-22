@@ -1498,8 +1498,8 @@ class Order extends ActiveRecord
          // Not subtracted, as in Yii 1: a bill's discount, loyalty points
          // included, is already in its lines' price and tax - the lines add
          // up to the amount paid - so taking it off again counts it twice.
-         // $total = $total - $discountorder->discount_amt;
-         $total = $total;
+         $total = $total - $discountorder->discount_amt;
+        //  $total = $total;
 
             //Yii::warning( var_export($orderitems, true), '$orderitems');
             /* if($orderitems){
