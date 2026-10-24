@@ -891,7 +891,11 @@ class Order extends BaseOrder
 		
 	
 		$orderitem = OrderItem::model()->find($criteria1);
-		$order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt ;
+		// and the loyalty points redeemed: they come off the lines' rates as
+		// a percentage discount does, but no line's discount_amt records
+		// them, only the order's. Without them Gross less Discount fell
+		// short of Net by the points.
+		$order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt + $this->getUserRedeemedPointsAmount();
 		
 		return round($order_amt);
 		
@@ -1023,6 +1027,32 @@ class Order extends BaseOrder
 	    return round($total);
 	}
 	
+	/**
+	 * Rupees of loyalty points redeemed on this user's bills in the report's
+	 * dates - the same bills getUserTotalDiscountAmountData() reads. A
+	 * bill-level figure, so none when the report is narrowed to an item.
+	 */
+	public function getUserRedeemedPointsAmount(){
+	    if((Yii::app()->session['item_id'] != '')){
+	        return 0;
+	    }
+	    $sql = 'SELECT COALESCE(SUM(lt.points), 0) FROM {{loyalty_transactions}} lt'
+	         . ' INNER JOIN {{order}} o ON o.id = lt.order_id'
+	         . ' WHERE lt.transaction_type = :type AND o.create_user_id = :user';
+	    $params = array(':type' => LoyaltyTransaction::TYPE_REDEEM, ':user' => $this->create_user_id);
+	    if((Yii::app()->session['start_date'] != '') && (Yii::app()->session['end_date'] != '')){
+	        $sql .= ' AND date(o.create_time) BETWEEN :start AND :end';
+	        $params[':start'] = Yii::app()->session['start_date'];
+	        $params[':end'] = Yii::app()->session['end_date'];
+	    }
+	    $points = Yii::app()->db->createCommand($sql)->queryScalar($params);
+
+	    $settings = LoyaltyService::getSettings();
+	    $pointValue = floatval(isset($settings['point_value']) ? $settings['point_value'] : 1);
+
+	    return $points * $pointValue;
+	}
+
 	
 	
 	public function getTotalGrossAmount(){

@@ -1130,7 +1130,11 @@ class Order extends ActiveRecord
 
 
             $orderitem = $query->one();
-            $order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt ;
+            // and the loyalty points redeemed: they come off the lines' rates as
+            // a percentage discount does, but no line's discount_amt records
+            // them, only the order's. Without them Gross less Discount fell
+            // short of Net by the points.
+            $order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt + $this->getUserRedeemedPointsAmount();
 
             return round($order_amt);
 
@@ -1174,6 +1178,32 @@ class Order extends ActiveRecord
             $total =  $discountorder->discount_amt;
 
             return round($total);
+        }
+
+    /**
+     * Rupees of loyalty points redeemed on this user's bills in the report's
+     * dates - the same bills getUserTotalDiscountAmountData() reads. A
+     * bill-level figure, so none when the report is narrowed to an item.
+     */
+    public function getUserRedeemedPointsAmount(){
+            if((Yii::$app->session['item_id'] != '')){
+                return 0;
+            }
+            $sql = 'SELECT COALESCE(SUM(lt.points), 0) FROM {{%loyalty_transactions}} lt'
+                 . ' INNER JOIN {{%order}} o ON o.id = lt.order_id'
+                 . ' WHERE lt.transaction_type = :type AND o.create_user_id = :user';
+            $params = [':type' => LoyaltyTransaction::TYPE_REDEEM, ':user' => $this->create_user_id];
+            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
+                $sql .= ' AND date(o.create_time) BETWEEN :start AND :end';
+                $params[':start'] = Yii::$app->session['start_date'];
+                $params[':end'] = Yii::$app->session['end_date'];
+            }
+            $points = Yii::$app->db->createCommand($sql, $params)->queryScalar();
+
+            $settings = LoyaltyService::getSettings();
+            $pointValue = floatval(isset($settings['point_value']) ? $settings['point_value'] : 1);
+
+            return $points * $pointValue;
         }
 
     /**
@@ -1463,10 +1493,10 @@ class Order extends ActiveRecord
             if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
                 $query1->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
             }
-            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount,sum(discount_amt) as discount_amt');
+            $query1->select('sum(price*qty) as price,sum(tax_amount) as tax_amount');
             $query1->andWhere('create_user_id ='.$this->create_user_id);
             $orderitem = $query1->one();
-            $order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt;
+            $order_amt = $orderitem->price + $orderitem->tax_amount;
 
             $query2 = OrderRefundItem::find();
             if((Yii::$app->session['item_id'] != '')){
@@ -1484,22 +1514,15 @@ class Order extends ActiveRecord
             Yii::warning( var_export($this->create_user_id, true), '$$this->create_user_id');
             Yii::warning( var_export($order_refund_amt, true), '$$order_refund_amt');
 
-
-            $query3 = Order::find();
-
-            if((Yii::$app->session['start_date'] != '') && (Yii::$app->session['end_date'] != '')){
-                $query3->andWhere(['between', 'date(create_time)', Yii::$app->session['start_date'], Yii::$app->session['end_date']]);
-            }
-            $query3->select('sum(discount_amt) as discount_amt');
-            $query3->andWhere('create_user_id ='.$this->create_user_id);
-            $discountorder = $query3->one();
-
-
-         // Not subtracted, as in Yii 1: a bill's discount, loyalty points
-         // included, is already in its lines' price and tax - the lines add
-         // up to the amount paid - so taking it off again counts it twice.
-         $total = $total - $discountorder->discount_amt;
-        //  $total = $total;
+         // What was charged less refunds, as in Yii 1, and the same figure as
+         // order/groupTax's Amount. The lines are already net of every
+         // discount, the loyalty points included - they add up to the amount
+         // paid - so tbl_order.discount_amt is not taken off them: that took
+         // the points off twice (23 Oct 2026: Net 5506, groupTax 5566, a
+         // 60-point redemption). Gross now carries the points, so Gross less
+         // Refund less Discount still comes to this, to within the bills'
+         // round-off, for bills since 17 Oct 2026; before 52d0fd4 an order's
+         // discount_amt held only the points.
 
             //Yii::warning( var_export($orderitems, true), '$orderitems');
             /* if($orderitems){
