@@ -879,6 +879,17 @@ class Order extends BaseOrder
 	
 		public function getTotalGrossAmountData(){
 	 	$total = 0;
+		// The bills' Total Sale Value: what each charged plus its saving,
+		// loyalty points included, as printed on it. From the bills and
+		// not their lines: a bill's total is rounded to the rupee and its
+		// discount_amt is worked out from that total, so the lines drift
+		// from both by a few rupees a day and Gross less Refund less
+		// Discount missed Net by that much (25 Oct 2026: by 6 and by 2).
+		// A bill cannot be split by item, so an item filter reads lines.
+		if((Yii::app()->session['item_id'] == '')){
+			$bills = $this->getUserBillSums();
+			return round($bills->total_amt + $bills->discount_amt);
+		}
 		$criteria1 = new CDbCriteria();
 		if((Yii::app()->session['item_id'] != '')){
 			$criteria1->addInCondition('item_id', Yii::app()->session['item_id']);
@@ -891,11 +902,7 @@ class Order extends BaseOrder
 		
 	
 		$orderitem = OrderItem::model()->find($criteria1);
-		// and the loyalty points redeemed: they come off the lines' rates as
-		// a percentage discount does, but no line's discount_amt records
-		// them, only the order's. Without them Gross less Discount fell
-		// short of Net by the points.
-		$order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt + $this->getUserRedeemedPointsAmount();
+		$order_amt = $orderitem->price + $orderitem->tax_amount + $orderitem->discount_amt ;
 		
 		return round($order_amt);
 		
@@ -905,17 +912,26 @@ class Order extends BaseOrder
 	
 	public function getTotalNetAmountData(){
 	 	$total = 0;
-		$criteria1 = new CDbCriteria();
 		if((Yii::app()->session['item_id'] != '')){
+			$criteria1 = new CDbCriteria();
 			$criteria1->addInCondition('item_id', Yii::app()->session['item_id']);
+			if((Yii::app()->session['start_date'] != '') && (Yii::app()->session['end_date'] != '')){
+				$criteria1->addBetweenCondition('date(create_time)',Yii::app()->session['start_date'], Yii::app()->session['end_date']);
+			}
+			$criteria1->select = 'sum(price*qty) as price,sum(tax_amount) as tax_amount';
+			$criteria1->addCondition('create_user_id ='.$this->create_user_id);
+			$orderitem = OrderItem::model()->find($criteria1);
+			$order_amt = $orderitem->price + $orderitem->tax_amount;
+		}else{
+			// The bills' NET Amount, as printed on them and paid - see
+			// getTotalGrossAmountData(). Their discount, loyalty points
+			// included, is already out of it, so Discount is not taken
+			// off again: that took the points off twice (23 Oct 2026: Net
+			// 5506, groupTax 5566, a 60-point redemption). Gross less
+			// Refund less Discount is this exactly; order/groupTax, which
+			// adds up lines, differs from it by the bills' round-off.
+			$order_amt = $this->getUserBillSums()->total_amt;
 		}
-		if((Yii::app()->session['start_date'] != '') && (Yii::app()->session['end_date'] != '')){
-			$criteria1->addBetweenCondition('date(create_time)',Yii::app()->session['start_date'], Yii::app()->session['end_date']);
-		}
-		$criteria1->select = 'sum(price*qty) as price,sum(tax_amount) as tax_amount';
-		$criteria1->addCondition('create_user_id ='.$this->create_user_id);
-		$orderitem = OrderItem::model()->find($criteria1);
-		$order_amt = $orderitem->price + $orderitem->tax_amount;
 		
 		$criteria2 = new CDbCriteria();
 		if((Yii::app()->session['item_id'] != '')){
@@ -1028,29 +1044,18 @@ class Order extends BaseOrder
 	}
 	
 	/**
-	 * Rupees of loyalty points redeemed on this user's bills in the report's
-	 * dates - the same bills getUserTotalDiscountAmountData() reads. A
-	 * bill-level figure, so none when the report is narrowed to an item.
+	 * This user's bills in the report's dates, summed as
+	 * getUserTotalDiscountAmountData() reads them: total_amt, each bill's
+	 * NET Amount, and discount_amt, its saving, loyalty points included.
 	 */
-	public function getUserRedeemedPointsAmount(){
-	    if((Yii::app()->session['item_id'] != '')){
-	        return 0;
-	    }
-	    $sql = 'SELECT COALESCE(SUM(lt.points), 0) FROM {{loyalty_transactions}} lt'
-	         . ' INNER JOIN {{order}} o ON o.id = lt.order_id'
-	         . ' WHERE lt.transaction_type = :type AND o.create_user_id = :user';
-	    $params = array(':type' => LoyaltyTransaction::TYPE_REDEEM, ':user' => $this->create_user_id);
+	public function getUserBillSums(){
+	    $criteria1 = new CDbCriteria();
 	    if((Yii::app()->session['start_date'] != '') && (Yii::app()->session['end_date'] != '')){
-	        $sql .= ' AND date(o.create_time) BETWEEN :start AND :end';
-	        $params[':start'] = Yii::app()->session['start_date'];
-	        $params[':end'] = Yii::app()->session['end_date'];
+	        $criteria1->addBetweenCondition('date(create_time)',Yii::app()->session['start_date'], Yii::app()->session['end_date']);
 	    }
-	    $points = Yii::app()->db->createCommand($sql)->queryScalar($params);
-
-	    $settings = LoyaltyService::getSettings();
-	    $pointValue = floatval(isset($settings['point_value']) ? $settings['point_value'] : 1);
-
-	    return $points * $pointValue;
+	    $criteria1->select = 'sum(total_amt) as total_amt,sum(discount_amt) as discount_amt';
+	    $criteria1->addCondition('create_user_id ='.$this->create_user_id);
+	    return Order::model()->find($criteria1);
 	}
 
 	
